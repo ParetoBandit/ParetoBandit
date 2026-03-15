@@ -8,7 +8,7 @@ and~\ref{sec:budget_drift}) compare three routing strategies of
 increasing sophistication: Fixed Policy, Naive Bandit, and
 BanditGPT.
 Here we report the full $\gamma$ sensitivity analysis that informed
-the choice of $\gamma{=}0.997$ and justify removing the
+the choice of $\gamma{=}0.995$ and justify removing the
 intermediate ablation conditions from the main figures.
 
 \paragraph{Reward shift (Experiment~02 scenario).}
@@ -29,8 +29,8 @@ Rasa (no priors, $\alpha{=}0.01$).}
     \textbf{P1} & \textbf{P2} & \textbf{Total} & $\boldsymbol{\sigma}$ \\
 \midrule
 Warmup + $\gamma{=}0.99$   & 0.990 & 75.2 & 74.8 & 150.0 &  4.4 \\
-Warmup + $\gamma{=}0.995$  & 0.995 & 72.3 & 63.2 & 135.5 &  6.3 \\
-\textbf{Warmup + $\gamma{=}0.997$}  & \textbf{0.997} & \textbf{71.2} & \textbf{54.3} & \textbf{125.5} &  \textbf{7.6} \\
+\textbf{Warmup + $\gamma{=}0.995$}  & \textbf{0.995} & \textbf{72.3} & \textbf{63.2} & \textbf{135.5} &  \textbf{6.3} \\
+Warmup + $\gamma{=}0.997$  & 0.997 & 71.2 & 54.3 & 125.5 &  7.6 \\
 Warmup + $\gamma{=}0.999$  & 0.999 & 70.0 & 58.7 & 128.8 & 10.5 \\
 Warmup + $\gamma{=}0.9995$ & 0.9995& 69.4 & 73.3 & 142.7 &  7.6 \\
 Warmup + $\gamma{=}1.0$    & 1.000 & 69.1 & 103.0& 172.1 & 17.2 \\
@@ -47,12 +47,16 @@ TR + $\gamma{=}1.0$        & 1.000 &100.6 & 43.9 & 144.5 & 31.2 \\
 
 \noindent
 The warmup-prior conditions form a U-shaped regret curve with
-a minimum at $\gamma{=}0.997$ (total regret $125.5$).
+a minimum in the $\gamma{=}0.995$--$0.997$ range.
+While $\gamma{=}0.997$ achieves the lowest total regret in this
+single-scenario ablation ($125.5$), the multi-objective
+$\epsilon$-constraint method (Section~\ref{sec:hparam_sweep})
+selects $\gamma{=}0.995$ (total $135.5$) because it jointly
+optimises across all arm-pair swaps and budget targets.
 Aggressive forgetting ($\gamma{=}0.99$) erases too much learned
 evidence, inflating Phase~1 regret ($75.2$ vs.\ $69.1$).
 No forgetting ($\gamma{=}1.0$) retains stale Phase~1 evidence,
-inflating Phase~2 regret ($103.0$ vs.\ $54.3$).
-The jointly-tuned $\gamma{=}0.997$ minimizes the sum.
+inflating Phase~2 regret ($103.0$ vs.\ $63.2$).
 
 The Tabula Rasa conditions (no priors) achieve lower Phase~2
 regret because they carry no stale prior information, but their
@@ -70,11 +74,12 @@ The three main-text conditions map to rows in this table:
   \item \textbf{Naive Bandit ($\gamma{=}1.0$)} $=$ Warmup +
     $\gamma{=}1.0$ row ($172.1$ in this table; $190.6$ in the
     main text with 40~seeds).
-  \item \textbf{BanditGPT ($\gamma{=}0.997$)} $=$ Warmup +
-    $\gamma{=}0.997$ row ($125.5$ here; $120.0$ with 40~seeds).
+  \item \textbf{BanditGPT ($\gamma{=}0.995$)} $=$ Warmup +
+    $\gamma{=}0.995$ row ($135.5$ here; $121.0$ with 40~seeds).
 \end{itemize}
 
 \noindent
-The full sensitivity analysis confirms that $\gamma{=}0.997$ is
-optimal and that the 3-baseline comparison in the main text
-captures the essential performance ordering.
+The full sensitivity analysis confirms that the
+$\gamma{=}0.995$--$0.997$ range is optimal and that the
+3-baseline comparison in the main text captures the essential
+performance ordering.

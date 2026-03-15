@@ -45,7 +45,7 @@ levels of routing sophistication:
      (γ=1.0), and a matched static cost penalty.  The obvious first
      attempt at online routing — adapts, but Phase 1 inertia dilutes
      Phase 2 signal, and has no principled budget mechanism.
-  3. **BanditGPT** — Warmup priors + geometric forgetting (γ=0.997) +
+  3. **BanditGPT** — Warmup priors + geometric forgetting (γ=0.995) +
      primal-dual BudgetPacer.  The full system.
 
 Plus one unconstrained baseline (cp=0, no pacer) for quality ceiling.

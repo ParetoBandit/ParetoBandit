@@ -1,7 +1,0 @@
-\section{Extended Hyperparameter Robustness (synthetic; condensed)}
-\label{appendix:hyperparameter_sensitivity}
-
-This appendix summarizes a synthetic sensitivity analysis for the effective prior sample size \(\neff\) used in semantic bootstrapping. \textbf{Important caveat:} these results are from a controlled simulation with a simulated new-model event; in our real multi-model leave-one-out ablation (Section~\ref{sec:transfer_null}), one-shot per-model semantic transfer provides no statistically significant advantage beyond the continuous family sharing of Hybrid LinUCB ($p{>}0.5$, $d{<}0.05$).
-
-\paragraph{Takeaway.} In the synthetic setup, any non-zero \(\neff\) avoids the immediate post-release dip relative to cold start; performance is largely insensitive across \(\neff \in \{1,2,5,10,20\}\). Plots and raw synthetic outputs are included in the repository artifacts (e.g., \path{paper/figures/figure9_sensitivity_zoomed.png}).
-

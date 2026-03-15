@@ -88,7 +88,7 @@ The router learns online on the validation split
 test split ($n{=}1{,}824$) across 20~seeds.
 Warmup priors are trained on a disjoint training split
 ($n_{\text{eff}}{=}10$, $\alpha{=}0.1$, disjoint LinUCB,
-$\gamma{=}0.997$; selected via joint epsilon-constraint tuning,
+$\gamma{=}0.995$; selected via joint epsilon-constraint tuning,
 Section~\ref{sec:hparam_sweep}).
 We use continuous composite rewards (a weighted average of three
 sub-scores across the judge panel) rather than binary pass/fail
@@ -117,13 +117,13 @@ Both methods trace a quality--cost Pareto curve on the test set.
 At the budget-constrained end (cost $< \$0.001$/req), the pacer
 achieves higher reward at lower cost:
 at the tightest pacer target (\$0.00008/req), the pacer
-reaches mean reward $0.811 \pm 0.0005$, while the nearest static
-point ($\lambda_s{=}1.0$ at \$0.00029/req---$3.6\times$ higher
-spend) achieves only $0.802 \pm 0.0003$: a $+0.9$\,pp quality
-advantage at less than a third of the cost.
+reaches mean reward $0.813 \pm 0.0005$, while the nearest static
+point ($\lambda_s{=}1.0$ at \$0.00038/req---$4.6\times$ higher
+spend) achieves only $0.804 \pm 0.0003$: a $+0.9$\,pp quality
+advantage at less than a quarter of the cost.
 At moderate budgets (\$0.0007/req), the pacer achieves
-$0.880 \pm 0.0014$ reward vs.\ the nearest static point
-($\lambda_s{=}0.5$: $0.861 \pm 0.0008$ at \$0.0014).
+$0.883 \pm 0.0015$ reward vs.\ the nearest static point
+($\lambda_s{=}0.5$: $0.846 \pm 0.0012$ at \$0.0011).
 The pacer dominates primarily because its adaptive $\lambda_t$
 creates an implicit \emph{spend-when-valuable, save-when-cheap} policy:
 when easy prompts allow cheap routing, $\lambda_t$ decreases,
@@ -134,19 +134,19 @@ this temporal budget allocation.
 
 At the unconstrained end (cost $> \$0.005$), the static baseline
 matches the pacer:
-$\lambda_s{=}0$ achieves the quality ceiling ($0.923$) because it
+$\lambda_s{=}0$ achieves the quality ceiling ($0.922$) because it
 imposes zero cost constraint.
-The pacer at its loosest target ($B{=}\$0.015$) reaches $0.923$
-at \$0.0082---the dual variable correctly decays to zero and the
+The pacer at its loosest target ($B{=}\$0.015$) reaches $0.922$
+at \$0.0094---the dual variable correctly decays to zero and the
 pacer gracefully becomes a no-op.
 
 \paragraph{Budget compliance (Table~\ref{tab:budget_compliance}).}
 The pacer's primary claim is that it \emph{hits the target}.
-For the six tightest targets, budget utilisation ranges from
-$0.98\times$ to $1.07\times$---effectively perfect compliance.
+For the five tightest targets, budget utilisation ranges from
+$0.97\times$ to $1.02\times$---effectively perfect compliance.
 The loosest target ($B{=}\$0.015$) shows
-under-utilisation ($0.54\times$) because the
-unconstrained router's natural spend (\$0.0082/req) is already below
+under-utilisation ($0.63\times$) because the
+unconstrained router's natural spend (\$0.0097/req) is already below
 this target; the dual variable correctly decays to
 $\lambda_t \approx 0$ rather than artificially inflating cost.
 This asymmetry is by design: the pacer constrains spend
@@ -231,15 +231,15 @@ is structural and holds independent of any particular dataset.
 
   \item \textbf{Cost at scale.}
     Consider a deployment routing 100{,}000 requests/day.
-    Moving from the unconstrained policy (\$0.0082/req, quality~0.923)
+    Moving from the unconstrained policy (\$0.0097/req, quality~0.922)
     to the pacer at $B{=}\$0.0019$/req saves
-    $(\$0.0082 - \$0.0019) \times 100{,}000 = \$630$/day
-    (\textbf{\$230{,}000/year})
-    while maintaining quality~$0.905 \pm 0.0009$---a 1.9\% quality
-    reduction for a 77\% cost reduction.
+    $(\$0.0097 - \$0.0018) \times 100{,}000 = \$790$/day
+    (\textbf{\$288{,}000/year})
+    while maintaining quality~$0.908 \pm 0.0007$---a 1.5\% quality
+    reduction for an 81\% cost reduction.
 
   \item \textbf{Budget compliance as an SLA.}
-    The $0.98$--$1.07\times$ utilisation range at binding targets
+    The $0.97$--$1.02\times$ utilisation range at binding targets
     means the pacer can underpin a cost SLA:
     ``average spend will not exceed $1.10 \times B$ over any
     rolling 1{,}000-request window.''

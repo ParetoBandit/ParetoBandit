@@ -10,14 +10,14 @@
     offline and deploying statically.
     \textbf{Naive Bandit ($\gamma{=}1.0$)} adds online LinUCB
     with infinite memory.
-    \textbf{BanditGPT ($\gamma{=}0.997$)} adds geometric
-    forgetting with a tuned effective memory of ${\sim}333$ steps.
+    \textbf{BanditGPT ($\gamma{=}0.995$)} adds geometric
+    forgetting with a tuned effective memory of ${\sim}200$ steps.
     %
     Each component yields a significant regret reduction:
     online learning reduces regret by 8.5\%
     ($208.4 \to 190.6$; $p < 10^{-6}$),
-    and geometric forgetting reduces it by a further 37.0\%
-    ($190.6 \to 120.0$; $p < 10^{-26}$).
+    and geometric forgetting reduces it by a further 36.5\%
+    ($190.6 \to 121.0$; $p < 10^{-26}$).
     All pairwise comparisons are significant after
     Holm--Bonferroni correction (paired $t$-tests, 39~d.f.).
     %

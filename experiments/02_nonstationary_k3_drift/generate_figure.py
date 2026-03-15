@@ -9,7 +9,7 @@ increasing sophistication:
 
   1. **Fixed Policy (offline)** — frozen warmup priors, no online learning.
   2. **Naive Bandit (γ=1.0)** — online LinUCB, infinite memory.
-  3. **BanditGPT (γ=0.997)** — warmup priors + geometric forgetting.
+  3. **BanditGPT (γ=0.995)** — warmup priors + geometric forgetting.
 
 A secondary figure shows BanditGPT's arm selection dynamics.
 
@@ -37,25 +37,25 @@ RESULTS_DIR = Path(__file__).parent / "results"
 CONDITION_ORDER: List[str] = [
     "Fixed Policy (offline)",
     "Naive Bandit (γ=1.0)",
-    "BanditGPT (γ=0.997)",
+    "BanditGPT (γ=0.995)",
 ]
 
 CONDITION_COLORS: Dict[str, str] = {
     "Fixed Policy (offline)": "#888888",
     "Naive Bandit (γ=1.0)": "#D55E00",
-    "BanditGPT (γ=0.997)": "#0072B2",
+    "BanditGPT (γ=0.995)": "#0072B2",
 }
 
 CONDITION_STYLES: Dict[str, str] = {
     "Fixed Policy (offline)": "--",
     "Naive Bandit (γ=1.0)": "--",
-    "BanditGPT (γ=0.997)": "-",
+    "BanditGPT (γ=0.995)": "-",
 }
 
 CONDITION_LINEWIDTHS: Dict[str, float] = {
     "Fixed Policy (offline)": 2.0,
     "Naive Bandit (γ=1.0)": 2.0,
-    "BanditGPT (γ=0.997)": 2.8,
+    "BanditGPT (γ=0.995)": 2.8,
 }
 
 ARM_COLORS: Dict[str, str] = {

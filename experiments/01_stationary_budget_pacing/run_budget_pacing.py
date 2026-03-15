@@ -10,7 +10,7 @@ cost_penalty sweep on the K=3 portfolio under stationary conditions.
   offline dataset (the same costs used for Pareto metrics), not the router's
   heuristic token-count estimate.  This mirrors production, where the billing
   system provides exact costs.
-- *Forgetting factor*:  ``ff = 0.997`` — selected jointly with alpha and
+- *Forgetting factor*:  ``ff = 0.995`` — selected jointly with alpha and
   n_eff via the epsilon-constraint hyperparameter sweep.  Mild forgetting
   is applied consistently across all experiments for a fair comparison.
 - *Knob asymmetry*:  The static baseline sweeps a dimensionless

@@ -33,8 +33,8 @@ This exponential weighting, originally proposed for
 switching bandits by Garivier and
 Moulines~\cite{garivier2011switching}, gives observations an
 effective half-life of $\ln 2 / (1 - \gamma)$ steps.
-With $\gamma{=}0.997$, the effective memory window is
-$\sim\!333$ steps: recent evidence dominates while historical
+With $\gamma{=}0.995$, the effective memory window is
+$\sim\!200$ steps: recent evidence dominates while historical
 observations---including warmup priors---are geometrically
 discounted.
 The parameter $\gamma$ thus controls a
@@ -89,9 +89,9 @@ increasing levels of routing sophistication:
     LinUCB with warmup priors and online learning, but
     infinite memory (no forgetting).
     The obvious first attempt at adaptive routing.
-  \item \textbf{BanditGPT ($\gamma{=}0.997$):}
+  \item \textbf{BanditGPT ($\gamma{=}0.995$):}
     Warmup priors with jointly-tuned geometric forgetting
-    (effective memory ${\sim}333$ steps; $\gamma$ selected
+    (effective memory ${\sim}200$ steps; $\gamma$ selected
     jointly with $\alpha$ and $n_{\mathrm{eff}}$ via
     epsilon-constraint).
 \end{enumerate}
@@ -125,9 +125,9 @@ improvement:
 \toprule
 Condition & Phase~1 & Phase~2 & Total & $\sigma$ \\
 \midrule
-Fixed Policy (offline) & 60.8 & 147.6 & 208.4 & 0.0 \\
-Naive Bandit ($\gamma{=}1.0$) & 68.4 & 122.2 & 190.6 & 17.6 \\
-\textbf{BanditGPT ($\gamma{=}0.997$)} & 69.1 & \textbf{51.0} & \textbf{120.0} & \textbf{8.0} \\
+Fixed Policy (offline) & 56.9 & 151.5 & 208.4 & 0.0 \\
+Naive Bandit ($\gamma{=}1.0$) & 64.3 & 126.3 & 190.6 & 17.6 \\
+\textbf{BanditGPT ($\gamma{=}0.995$)} & 65.6 & \textbf{55.4} & \textbf{121.0} & \textbf{7.2} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -139,24 +139,24 @@ each component matters:
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy $\to$ Naive Bandit ($-8.5\%$):}
     Online learning alone reduces regret from $208.4$ to $190.6$.
-    The Naive Bandit adapts in Phase~2 (regret $122.2$ vs.\ $147.6$),
+    The Naive Bandit adapts in Phase~2 (regret $126.3$ vs.\ $151.5$),
     but infinite memory means Phase~1 inertia dilutes the new signal:
     at step~1{,}785, it still routes only 60\% to Llama
-    (vs.\ BanditGPT's 92\%).
+    (vs.\ BanditGPT's 81\%).
 
-  \item \textbf{Naive Bandit $\to$ BanditGPT ($-37.0\%$):}
+  \item \textbf{Naive Bandit $\to$ BanditGPT ($-36.5\%$):}
     Adding geometric forgetting reduces regret from $190.6$ to
-    $120.0$.  The gain is entirely in Phase~2 ($51.0$ vs.\ $122.2$,
-    a 58\% reduction): the 333-step effective memory window
+    $121.0$.  The gain is entirely in Phase~2 ($55.4$ vs.\ $126.3$,
+    a 56\% reduction): the 200-step effective memory window
     discounts stale Phase~1 evidence, allowing BanditGPT to
     re-learn the new optimum within ${\sim}200$ steps of the swap.
 
   \item \textbf{Phase~1 is ``free.''}
     All three conditions achieve similar Phase~1 regret
-    ($60.8$--$69.1$) because warmup priors anchor the initial
-    policy.  The Fixed Policy is slightly lower ($60.8$) because
+    ($56.9$--$65.6$) because warmup priors anchor the initial
+    policy.  The Fixed Policy is slightly lower ($56.9$) because
     it never explores; the learning conditions pay a small
-    exploration tax ($68$--$69$) that pays dividends in Phase~2.
+    exploration tax ($64$--$66$) that pays dividends in Phase~2.
 \end{itemize}
 
 \paragraph{The Fixed Policy failure mode.}
@@ -165,23 +165,23 @@ because it routes deterministically from its frozen priors.
 Without online feedback, it continues routing 65\%~Mistral-Large
 and 35\%~Llama throughout the entire trajectory---even after
 the swap makes Mistral the worst arm.
-Its Phase~2 regret ($147.6$) accounts for 71\% of its total regret,
+Its Phase~2 regret ($151.5$) accounts for 73\% of its total regret,
 illustrating the cost of deploying a static router in a
 non-stationary environment.
 
 \paragraph{Deployment reliability.}
 Beyond mean regret, the \emph{variance} across seeds reveals a
 critical distinction.
-BanditGPT ($\gamma{=}0.997$) has the lowest cross-seed standard
-deviation among learning conditions ($\sigma{=}8.0$), while
-the Naive Bandit's is $2.2\times$ higher ($\sigma{=}17.6$).
+BanditGPT ($\gamma{=}0.995$) has the lowest cross-seed standard
+deviation among learning conditions ($\sigma{=}7.2$), while
+the Naive Bandit's is $2.4\times$ higher ($\sigma{=}17.6$).
 This disparity arises because infinite memory creates sensitivity
 to the random ordering of Phase~2 observations: some seeds happen
 to present high-information prompts early (enabling faster
 adaptation), while others present ambiguous prompts that delay
 the policy update.
 Geometric forgetting regularizes this variance by ensuring that
-the effective sample size never grows beyond ${\sim}333$
+the effective sample size never grows beyond ${\sim}200$
 observations, regardless of the data ordering.
 A production team gets one deployment---BanditGPT's low variance
 means every deployment reliably adapts.
@@ -205,8 +205,8 @@ correction~\cite{holm1979simple} for three comparisons.
 \toprule
 \textbf{Comparison} & \textbf{$\Delta$} & \textbf{95\% CI} & \textbf{$p$} \\
 \midrule
-BanditGPT vs.\ Fixed Policy & $-88.4$ & $[-90.9, -85.8]$ & $< 10^{-42}$ \\
-BanditGPT vs.\ Naive Bandit & $-70.5$ & $[-75.8, -65.3]$ & $< 10^{-26}$ \\
+BanditGPT vs.\ Fixed Policy & $-87.4$ & $[-89.7, -85.0]$ & $< 10^{-43}$ \\
+BanditGPT vs.\ Naive Bandit & $-69.5$ & $[-75.8, -63.3]$ & $< 10^{-23}$ \\
 Naive Bandit vs.\ Fixed Policy & $-17.8$ & $[-23.5, -12.1]$ & $< 10^{-6}$ \\
 \bottomrule
 \end{tabular}
@@ -233,15 +233,15 @@ value of each BanditGPT component under non-stationarity:
     reduces regret by 8.5\%, but infinite memory limits
     the adaptation speed ($p < 10^{-6}$).
   \item \textbf{Geometric forgetting} (Naive $\to$ BanditGPT):
-    reduces regret by a further 37.0\% by discounting stale
-    evidence ($p < 10^{-26}$).
+    reduces regret by a further 36.5\% by discounting stale
+    evidence ($p < 10^{-23}$).
   \item \textbf{Warmup priors} keep Phase~1 regret low for all
     conditions and provide the lowest cross-seed variance
-    ($\sigma{=}8.0$) when combined with forgetting.
+    ($\sigma{=}7.2$) when combined with forgetting.
 \end{enumerate}
 
 \noindent
-The jointly-tuned $\gamma{=}0.997$ (effective memory ${\sim}333$
+The jointly-tuned $\gamma{=}0.995$ (effective memory ${\sim}200$
 steps) strikes the right balance: it forgets stale evidence
 fast enough to track the new optimum while retaining enough
 observations for confident exploitation.

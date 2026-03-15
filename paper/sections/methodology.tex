@@ -62,6 +62,6 @@ BanditGPT addresses non-stationarity through a \emph{forgetting factor} $\gamma 
     b_{a_t} &\leftarrow \gamma \, b_{a_t} + r_t \, x_t
     \label{eq:forget_b}
 \end{align}
-This exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps. We empirically find that $\gamma=0.997$ strikes an optimal balance, creating an effective memory window of approximately $333$ steps. Recent evidence dominates, allowing the router to adapt to shifts rapidly, while historical observations (including the critical offline warmup priors) are geometrically discounted but not erased entirely. 
+This exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps. We empirically find that $\gamma=0.995$ strikes an optimal balance, creating an effective memory window of approximately $200$ steps (see Section~\ref{sec:exp4_hparam_sweep} for the formal selection procedure). Recent evidence dominates, allowing the router to adapt to shifts rapidly, while historical observations (including the critical offline warmup priors) are geometrically discounted but not erased entirely. 
 
 The parameter $\gamma$ thus controls a bias--variance tradeoff between \emph{stability} (trusting historical evidence to maintain high baseline quality) and \emph{plasticity} (responding quickly to new evidence when models degrade).

@@ -15,8 +15,8 @@ systematically selects $\gamma{=}1.0$ (infinite memory)
 because forgetting \emph{always} hurts stationary performance.
 However, $\gamma{=}1.0$ fails catastrophically under distribution
 shift: as shown in Section~\ref{sec:nonstationarity}, the
-no-forgetting condition accumulates $58.8\%$ more cumulative regret
-than the tuned $\gamma{=}0.997$ after a reward swap.
+no-forgetting condition accumulates $57.5\%$ more cumulative regret
+than the tuned $\gamma{=}0.995$ after a reward swap.
 Conversely, optimising solely for adaptability yields
 $\gamma \ll 1$ with excessive forgetting that destabilises the
 stationary policy.
@@ -97,10 +97,10 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
 \caption{%
   \textbf{$\epsilon$-constraint hyperparameter selection.}
   AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
-  both variants, maximising stationary AUC but doubling Phase-2
-  regret under reward shift.
+  both variants, maximising stationary AUC but increasing Phase-2
+  regret by $12$--$16\%$ under reward shift.
   The $\epsilon$-constraint method ($\epsilon{=}5\%$) trades
-  ${<}0.4\%$ AUC for ${\sim}50\%$ lower adaptation regret by
+  ${<}0.3\%$ AUC for $12$--$16\%$ lower adaptation regret by
   selecting moderate forgetting factors.
   Metrics: budget-paced Pareto AUC (val, 10~seeds) and Phase-2
   cumulative regret (val, averaged over all arm-pair swaps,
@@ -116,11 +116,11 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
   & \textbf{BP AUC} & \textbf{P2 Regret} \\
 \midrule
 \multirow{2}{*}{BanditGPT}
-  & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.929$ & $92.5 \pm 45.1$ \\
-  & $\epsilon$-constr.\ & $0.10$ & $10$   & $0.997$ & $0.926$ & $\mathbf{46.3 \pm 6.0}$ \\[3pt]
+  & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.929$ & $79.2 \pm 22.9$ \\
+  & $\epsilon$-constr.\ & $0.10$ & $10$   & $0.995$ & $0.927$ & $\mathbf{69.6 \pm 8.3}$ \\[3pt]
 \multirow{2}{*}{Tabula Rasa}
-  & AUC-only     & $0.25$ & ---    & $1.000$ & $0.928$ & $93.1 \pm 39.4$ \\
-  & $\epsilon$-constr.\ & $0.01$ & ---    & $0.999$ & $0.927$ & $\mathbf{46.7 \pm 40.5}$ \\
+  & AUC-only     & $0.10$ & ---    & $1.000$ & $0.928$ & $83.3 \pm 21.6$ \\
+  & $\epsilon$-constr.\ & $0.10$ & ---    & $0.995$ & $0.927$ & $\mathbf{70.3 \pm 9.3}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -129,13 +129,12 @@ AUC-only optimisation selects $\gamma{=}1.0$ for \emph{both}
 variants---exactly the infinite-memory pathology that
 Section~\ref{sec:nonstationarity} shows is catastrophic under
 drift.
-The $\epsilon$-constraint method instead selects $\gamma{=}0.997$
-(BanditGPT, effective memory ${\sim}333$ steps) and
-$\gamma{=}0.999$ (Tabula Rasa, ${\sim}1{,}000$ steps),
-trading ${<}0.4\%$ budget-paced AUC for a ${\sim}50\%$ reduction
-in Phase-2 regret ($92.5 \to 46.3$ and $93.1 \to 46.7$).
+The $\epsilon$-constraint method instead selects $\gamma{=}0.995$
+for both variants (effective memory ${\sim}200$ steps),
+trading ${<}0.3\%$ budget-paced AUC for a $12$--$16\%$ reduction
+in Phase-2 regret ($79.2 \to 69.6$ and $83.3 \to 70.3$).
 On the held-out test split, the selected configurations achieve
-Pareto AUC of $0.924$ (BanditGPT) and $0.926$ (Tabula Rasa),
+Pareto AUC of $0.925$ for both BanditGPT and Tabula Rasa,
 confirming that the val-selected hyperparameters generalise.
 
 Three additional patterns merit attention:
@@ -143,13 +142,13 @@ Three additional patterns merit attention:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{The variance gap.}
     BanditGPT's Phase-2 regret standard deviation under
-    $\epsilon$-constraint selection is $6.0$---nearly $7\times$ lower
-    than the AUC-only selection ($45.1$) and the Tabula Rasa
-    $\epsilon$-constraint ($40.5$).
-    Warmup priors anchor the initial policy, ensuring that the
-    forgetting factor operates on a well-calibrated baseline rather
-    than a noisy cold-start estimate.
-    This reliability advantage is critical for single-deployment
+    $\epsilon$-constraint selection is $8.3$---nearly $2.8\times$ lower
+    than under AUC-only selection ($22.9$).
+    The Tabula Rasa $\epsilon$-constraint achieves a comparable
+    standard deviation ($9.3$), but both $\epsilon$-constraint
+    selections dramatically reduce variance relative to their
+    respective AUC-only baselines ($22.9$ and $21.6$).
+    This reliability advantage matters for single-deployment
     production use, where the operator does not average over seeds.
 
   \item \textbf{Prior strength shrinks.}
@@ -162,9 +161,9 @@ Three additional patterns merit attention:
     The $\epsilon$-constraint method discovers this tradeoff
     automatically.
 
-  \item \textbf{Exploration increases.}
-    AUC-only selects $\alpha{=}0.01$ (minimal exploration),
-    while $\epsilon$-constraint selects $\alpha{=}0.1$
+  \item \textbf{Exploration increases for BanditGPT.}
+    For BanditGPT, AUC-only selects $\alpha{=}0.01$ (minimal
+    exploration), while $\epsilon$-constraint selects $\alpha{=}0.1$
     ($10\times$ higher).
     Under non-stationarity, the router must re-explore arms whose
     quality may have changed; a higher exploration coefficient
@@ -205,8 +204,8 @@ that explicitly encodes the dual requirements of
 production routing---efficiency under stationarity and resilience
 under drift.
 The empirical result that single-objective tuning
-\emph{systematically} selects $\gamma{=}1.0$ and that this doubles
-Phase-2 regret is itself a cautionary finding: any practitioner
+\emph{systematically} selects $\gamma{=}1.0$ and that this increases
+Phase-2 regret by $12$--$16\%$ is itself a cautionary finding: any practitioner
 deploying a non-stationary bandit router who tunes via standard
 cross-validation will converge on the worst possible forgetting
 factor.

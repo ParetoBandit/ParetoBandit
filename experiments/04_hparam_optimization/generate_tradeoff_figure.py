@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Generate the efficiency-vs-adaptability tradeoff figure.
+"""Generate the epsilon-constraint tradeoff figure (BanditGPT only).
 
 Reads ``results/hparam_sweep_results.json`` and produces:
   - ``results/epsilon_tradeoff.{pdf,png}``
 
-The figure shows each (alpha, n_eff, gamma) configuration as a
-point in (Budget-Paced AUC, Phase-2 Regret) space, coloured by
-gamma.  The epsilon-feasible region is shaded, and the selected
-configurations are highlighted.
+Single-panel scatter of (Budget-Paced AUC, Phase-2 Regret) for every
+BanditGPT configuration, coloured by gamma.  The epsilon-feasible
+region is shaded, and the epsilon-constraint winner and AUC-only
+winner are highlighted with annotations.
 
 Usage::
 
@@ -23,7 +23,6 @@ from typing import Any, Dict, List
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import numpy as np
 
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -41,11 +40,6 @@ GAMMA_LABELS: Dict[float, str] = {
     1.0:   r"$\gamma=1.0$ (no forgetting)",
 }
 
-VARIANT_TITLES: Dict[str, str] = {
-    "banditgpt": "BanditGPT (warmup priors)",
-    "tabula_rasa": "Tabula Rasa (cold start)",
-}
-
 EPSILON = 0.05
 
 
@@ -57,11 +51,10 @@ def _load_data() -> Dict[str, Any]:
 def _build_merged(
     stat_results: List[Dict[str, Any]],
     nonstat_results: List[Dict[str, Any]],
-    variant: str,
 ) -> List[Dict[str, Any]]:
-    """Merge stationary AUC and non-stationary regret for a variant."""
-    var_stat = [r for r in stat_results if r["variant"] == variant]
-    var_ns = [r for r in nonstat_results if r["variant"] == variant]
+    """Merge stationary AUC and non-stationary regret for BanditGPT."""
+    var_stat = [r for r in stat_results if r["variant"] == "banditgpt"]
+    var_ns = [r for r in nonstat_results if r["variant"] == "banditgpt"]
 
     merged: List[Dict[str, Any]] = []
     for s in var_stat:
@@ -88,91 +81,110 @@ def main() -> None:
     data = _load_data()
     stat_results = data["val_budget_paced"]
     ns_results = data["val_nonstationary"]
-    best_per_variant = data["best_per_variant"]
-    auc_only_best = data["auc_only_best"]
-    variants = data["grid"]["variants"]
+    best = data["best_per_variant"]["banditgpt"]
+    auc_best = data["auc_only_best"]["banditgpt"]
 
-    fig, axes = plt.subplots(
-        1, 2, figsize=(10, 4.2), sharey=True,
-        gridspec_kw={"wspace": 0.08},
+    merged = _build_merged(stat_results, ns_results)
+    best_auc = max(m["auc"] for m in merged)
+    threshold = best_auc * (1.0 - EPSILON)
+
+    all_aucs = [m["auc"] for m in merged]
+    all_regs = [m["p2_regret"] for m in merged]
+    x_lo = min(all_aucs) - 0.001
+    x_hi = max(all_aucs) + 0.002
+
+    fig, ax = plt.subplots(figsize=(5.5, 4.5))
+
+    # --- Epsilon-feasible region (clipped to visible x-range) ---
+    ax.axvspan(
+        max(threshold, x_lo), x_hi,
+        color="#E8F5E9", alpha=0.6, zorder=0,
     )
-
-    for ax, variant in zip(axes, variants):
-        merged = _build_merged(stat_results, ns_results, variant)
-        best_auc = max(m["auc"] for m in merged)
-        threshold = best_auc * (1.0 - EPSILON)
-
-        ax.axvspan(
-            threshold, best_auc + 0.001,
-            color="#E8F5E9", alpha=0.7, zorder=0,
-            label=r"$\epsilon$-feasible ($\geq$95\% of max)",
+    if threshold >= x_lo:
+        ax.axvline(threshold, color="#66BB6A", ls="--", lw=0.9, alpha=0.8)
+        ax.text(
+            threshold - 0.0003, max(all_regs) + 0.3,
+            r"$\epsilon$-feasible" "\n" r"($\geq$95% best AUC)",
+            fontsize=7.5, color="#388E3C", ha="right", va="top",
         )
-        ax.axvline(threshold, color="#66BB6A", ls="--", lw=0.8, alpha=0.7)
 
-        for gamma_val in sorted(GAMMA_COLORS.keys()):
-            pts = [m for m in merged if m["gamma"] == gamma_val]
-            if not pts:
-                continue
-            xs = [p["auc"] for p in pts]
-            ys = [p["p2_regret"] for p in pts]
-            ax.scatter(
-                xs, ys,
-                c=GAMMA_COLORS[gamma_val],
-                s=28, alpha=0.6, edgecolors="none",
-                label=GAMMA_LABELS[gamma_val],
-                zorder=2,
-            )
+    # --- Scatter by gamma ---
+    for gamma_val in sorted(GAMMA_COLORS.keys()):
+        pts = [m for m in merged if m["gamma"] == gamma_val]
+        if not pts:
+            continue
+        xs = [p["auc"] for p in pts]
+        ys = [p["p2_regret"] for p in pts]
+        ax.scatter(
+            xs, ys,
+            c=GAMMA_COLORS[gamma_val],
+            s=36, alpha=0.65, edgecolors="white", linewidths=0.3,
+            label=GAMMA_LABELS[gamma_val],
+            zorder=2,
+        )
 
-        sel = best_per_variant[variant]
-        sel_pt = [
-            m for m in merged
-            if m["alpha"] == sel["alpha"]
-            and m["n_eff"] == sel["n_eff"]
-            and m["gamma"] == sel["gamma"]
-        ]
-        if sel_pt:
-            ax.scatter(
-                [sel_pt[0]["auc"]], [sel_pt[0]["p2_regret"]],
-                marker="*", s=220, c="black", zorder=4,
-                label=r"$\epsilon$-constraint selected",
-            )
-
-        auc_b = auc_only_best[variant]
-        auc_pt = [
-            m for m in merged
-            if m["alpha"] == auc_b["alpha"]
-            and m["gamma"] == auc_b["gamma"]
-            and (variant == "tabula_rasa" or m["n_eff"] == auc_b["n_eff"])
-        ]
-        if auc_pt:
-            ax.scatter(
-                [auc_pt[0]["auc"]], [auc_pt[0]["p2_regret"]],
-                marker="X", s=140, c="red", zorder=4, edgecolors="darkred",
-                linewidths=0.5,
-                label="AUC-only selected",
-            )
-
-        ax.set_title(VARIANT_TITLES[variant], fontsize=11, fontweight="bold")
-        ax.set_xlabel("Budget-Paced Pareto AUC (val)", fontsize=10)
-        ax.tick_params(labelsize=9)
-        ax.grid(alpha=0.2, ls="--")
-
-    axes[0].set_ylabel("Phase-2 Cumulative Regret\n(lower = better adaptation)", fontsize=10)
-
-    handles, labels = axes[0].get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    fig.legend(
-        by_label.values(), by_label.keys(),
-        loc="lower center", ncol=3, fontsize=8.5,
-        framealpha=0.9, bbox_to_anchor=(0.5, -0.04),
+    # --- Epsilon-constraint winner ---
+    sel_pt = next(
+        m for m in merged
+        if m["alpha"] == best["alpha"]
+        and m["n_eff"] == best["n_eff"]
+        and m["gamma"] == best["gamma"]
+    )
+    ax.scatter(
+        [sel_pt["auc"]], [sel_pt["p2_regret"]],
+        marker="*", s=280, c="black", zorder=5,
+        label=r"$\epsilon$-constraint selected",
+    )
+    ax.annotate(
+        f"Selected: $\\gamma={sel_pt['gamma']}$, regret={sel_pt['p2_regret']:.0f}",
+        xy=(sel_pt["auc"], sel_pt["p2_regret"]),
+        xytext=(-40, -22), textcoords="offset points",
+        fontsize=8, ha="center",
+        arrowprops=dict(arrowstyle="->", color="black", lw=0.8),
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.7", alpha=0.9),
     )
 
-    fig.suptitle(
-        r"Efficiency--Adaptability Tradeoff ($K{=}3$, PCA-25, 10 seeds)",
-        fontsize=12, y=1.0,
+    # --- AUC-only winner ---
+    auc_pt = next(
+        m for m in merged
+        if m["alpha"] == auc_best["alpha"]
+        and m["n_eff"] == auc_best["n_eff"]
+        and m["gamma"] == auc_best["gamma"]
     )
-    fig.subplots_adjust(bottom=0.22, top=0.88, wspace=0.08)
+    ax.scatter(
+        [auc_pt["auc"]], [auc_pt["p2_regret"]],
+        marker="X", s=160, c="red", zorder=5,
+        edgecolors="darkred", linewidths=0.5,
+        label="AUC-only selected",
+    )
+    ax.annotate(
+        f"AUC-only: $\\gamma={auc_pt['gamma']}$, regret={auc_pt['p2_regret']:.0f}",
+        xy=(auc_pt["auc"], auc_pt["p2_regret"]),
+        xytext=(30, 18), textcoords="offset points",
+        fontsize=8, ha="center",
+        arrowprops=dict(arrowstyle="->", color="red", lw=0.8),
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.7", alpha=0.9),
+    )
 
+    # --- Axis labels and formatting ---
+    ax.set_xlim(x_lo, x_hi)
+    y_pad = (max(all_regs) - min(all_regs)) * 0.12
+    ax.set_ylim(min(all_regs) - y_pad, max(all_regs) + y_pad)
+
+    ax.set_xlabel("Budget-Paced Pareto AUC (val)", fontsize=11)
+    ax.set_ylabel(
+        "Phase-2 Cumulative Regret\n(lower = better adaptation)",
+        fontsize=11,
+    )
+    ax.tick_params(labelsize=9)
+    ax.grid(alpha=0.2, ls="--")
+
+    ax.legend(
+        loc="upper left", fontsize=8, framealpha=0.9,
+        borderpad=0.6, handletextpad=0.4,
+    )
+
+    fig.tight_layout()
     for ext in ("pdf", "png"):
         fig.savefig(
             RESULTS_DIR / f"epsilon_tradeoff.{ext}",

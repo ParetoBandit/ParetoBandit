@@ -58,7 +58,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
@@ -647,6 +647,18 @@ def _simulate_nonstationary_regret(
         chosen = reward - cost_penalty * nc[model]
         phase1_regret += oracle - chosen
 
+    # --- Swap registry costs so the router's internal cost penalty
+    #     reflects the Phase-2 cost environment. ---
+    reg_a1, reg_a2 = router.registry[a1], router.registry[a2]
+    for field in ("input_cost_per_m", "output_cost_per_m"):
+        reg_a1[field], reg_a2[field] = reg_a2[field], reg_a1[field]
+    # Remove cached blended figures so _resolve_registry_costs re-derives them.
+    reg_a1.pop("blended_cost_per_m", None)
+    reg_a2.pop("blended_cost_per_m", None)
+    router._resolve_registry_costs()
+
+    nc_phase2 = compute_normalized_costs(router.registry, ARM_ORDER)
+
     phase2_regret = 0.0
     for idx in val_order[mid:]:
         model, log = router.route(val_data["embeddings"][idx])
@@ -655,10 +667,10 @@ def _simulate_nonstationary_regret(
         router.process_feedback(log.request_id, reward=reward)
 
         oracle = max(
-            float(swapped_rewards[a][idx]) - cost_penalty * nc[a]
+            float(swapped_rewards[a][idx]) - cost_penalty * nc_phase2[a]
             for a in ARM_ORDER
         )
-        chosen = reward - cost_penalty * nc[model]
+        chosen = reward - cost_penalty * nc_phase2[model]
         phase2_regret += oracle - chosen
 
     return phase1_regret, phase2_regret

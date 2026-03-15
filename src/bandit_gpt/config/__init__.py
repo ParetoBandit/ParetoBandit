@@ -132,16 +132,16 @@ adaptability; see Experiments 02-04 for the empirical justification.
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.01,
+    "alpha": 0.10,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 0.999,
+    "forgetting_factor": 0.995,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
 Selected via epsilon-constraint (best AUC within 5% of lowest Phase 2 regret).
-Val Pareto AUC = 0.9273, test Pareto AUC = 0.9261.
-Without warmup priors the bandit must learn from scratch; near-zero exploration
-(alpha=0.01) and very mild forgetting (gamma=0.999) work best, allowing the
-accumulating posterior to stabilise quickly.
+Val Pareto AUC = 0.9267, test Pareto AUC = 0.9246.
+Geometric forgetting (gamma=0.995, effective memory ~200 steps) matches the
+BanditGPT selection; moderate exploration (alpha=0.10) provides sufficient
+re-exploration budget after distribution shifts.
 """

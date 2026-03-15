@@ -264,7 +264,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
 
     fig.suptitle(
         r"BanditGPT Adaptation Dynamics Under Cost Drift ($K{=}3$, "
-        rf"Pacer + $\gamma{{=}}0.997$, {n_seeds} seeds, $\pm$1 SE)",
+        rf"Pacer + $\gamma{{=}}0.995$, {n_seeds} seeds, $\pm$1 SE)",
         fontsize=12, fontweight="bold", y=1.03,
     )
     fig.tight_layout()
