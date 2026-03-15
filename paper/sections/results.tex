@@ -111,7 +111,7 @@ trajectories across 40~seeds
 \begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{figures/cumulative_regret.pdf}
-\caption{Cumulative regret under reward drift (4~conditions, 40~seeds, $\pm$1\,SE).  BanditGPT ($\gamma{=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase~1 cost) with geometric forgetting (fast Phase~2 adaptation).  SW-UCB adapts fastest post-shift but pays a large cold-start tax.}
+\caption{Cumulative regret under reward drift (4~conditions, 40~seeds, 95\% bootstrap CI).  BanditGPT ($\gamma{=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase~1 cost) with geometric forgetting (fast Phase~2 adaptation).  SW-UCB adapts fastest post-shift but pays a large cold-start tax.}
 \label{fig:cumulative_regret}
 \end{figure}
 
@@ -151,7 +151,7 @@ All three regimes show highly significant reward lifts ($\Delta{=}+0.017$ to $+0
 \centering
 \includegraphics[width=\textwidth]{figures/adaptation_dynamics.pdf}
 \caption{BanditGPT dual-variable dynamics under a mid-stream
-Gemini price drop (step~912; 50~seeds, $\pm$1\,SE).
+Gemini price drop (step~912; 50~seeds, 95\% bootstrap CI).
 \textbf{(a)}~The dual variable $\lambda_t$ reveals qualitatively
 distinct responses: at tight budget, $\lambda_t$ \emph{rises}
 because costs still exceed the target (binding constraint); at
@@ -214,7 +214,7 @@ BanditGPT stays within $2\%$ of target, demonstrating that the primal-dual mecha
 \subsection{Hyperparameter Selection via Epsilon-Constraint}
 \label{sec:exp4_hparam_sweep}
 
-Selecting hyperparameters ($\alpha$, $n_\mathit{eff}$, $\gamma$) for a non-stationary router poses a fundamental tension: standard cross-validation maximises stationary quality and selects near-stationary $\gamma$ values ($\gamma{=}1.0$ for BanditGPT, $0.999$ for Tabula Rasa), yet Section~\ref{sec:exp2_reward_shift} showed that infinite or near-infinite memory fails to adapt under distribution drift.  We resolve this with the \textbf{epsilon-constraint method}, a principled bi-objective selection procedure.
+Selecting hyperparameters ($\alpha$, $n_\mathit{eff}$, $\gamma$) for a non-stationary router poses a fundamental tension: standard cross-validation maximises stationary quality and selects near-stationary $\gamma$ values ($\gamma{=}1.0$ for BanditGPT, $0.997$ for Tabula Rasa), yet Section~\ref{sec:exp2_reward_shift} showed that infinite or near-infinite memory fails to adapt under distribution drift.  We resolve this with the \textbf{epsilon-constraint method}, a principled bi-objective selection procedure.
 
 \paragraph{Two objectives.}
 Each configuration in the grid ($\hpGridAlpha \times \hpGridNeff \times \hpGridGamma$ values of $\alpha$, $n_\mathit{eff}$, $\gamma$) is scored on two metrics using the validation split:

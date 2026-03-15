@@ -97,7 +97,7 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
 \caption{%
   \textbf{$\epsilon$-constraint hyperparameter selection.}
   AUC-only optimisation selects $\gamma{=}1.0$ for BanditGPT
-  and $\gamma{=}0.999$ for Tabula Rasa---both near-stationary
+  and $\gamma{=}0.997$ for Tabula Rasa---both near-stationary
   configurations that maximise stationary AUC but degrade
   adaptation under reward shift.
   The $\epsilon$-constraint method ($\epsilon{=}0.25\%$) trades
@@ -120,18 +120,18 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
   & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.931$ & --- \\
   & $\epsilon$-constr.\ & $0.10$ & $1000$ & $0.995$ & $0.929$ & $\mathbf{48.4}$ \\[3pt]
 \multirow{2}{*}{Tabula Rasa}
-  & AUC-only     & $0.50$ & ---    & $0.999$ & $0.929$ & --- \\
+  & AUC-only     & $0.25$ & ---    & $0.997$ & $0.929$ & --- \\
   & $\epsilon$-constr.\ & $0.10$ & ---    & $0.995$ & $0.929$ & $\mathbf{49.0}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 AUC-only optimisation selects $\gamma{=}1.0$ for BanditGPT
-and $\gamma{=}0.999$ for Tabula Rasa---both near-stationary
+and $\gamma{=}0.997$ for Tabula Rasa---both near-stationary
 configurations that maximise stationary AUC.
 Section~\ref{sec:nonstationarity} shows that $\gamma{=}1.0$
-is catastrophic under drift; $\gamma{=}0.999$ (half-life $693$
-steps) offers minimal protection.
+is catastrophic under drift; $\gamma{=}0.997$ (half-life $231$
+steps) offers limited protection.
 The $\epsilon$-constraint method instead selects $\gamma{=}0.995$
 for both variants (effective memory ${\sim}200$ steps),
 trading ${<}0.3\%$ budget-paced AUC ($0.931 \to 0.929$ and
@@ -155,11 +155,11 @@ Two additional patterns merit attention:
     tuning literature~\cite{kang2024cdt}, which observes that the
     optimal $\alpha$ is non-stationary itself.
 
-  \item \textbf{Tabula Rasa exploration also increases.}
-    AUC-only selects $\alpha{=}0.50$ for Tabula Rasa, while
-    $\epsilon$-constraint selects $\alpha{=}0.10$.
+  \item \textbf{Tabula Rasa exploration decreases.}
+    AUC-only selects $\alpha{=}0.25$ for Tabula Rasa, while
+    $\epsilon$-constraint selects $\alpha{=}0.10$ ($2.5\times$ lower).
     The lower $\alpha$ under $\epsilon$-constraint reflects
-    the reduced need for exploration when forgetting
+    the reduced need for explicit exploration when forgetting
     ($\gamma{=}0.995$) keeps the effective sample size
     bounded---the router naturally re-explores as stale evidence
     is discounted.
@@ -197,7 +197,7 @@ production routing---efficiency under stationarity and resilience
 under drift.
 The empirical result that single-objective tuning
 \emph{systematically} selects near-stationary $\gamma$ values
-($1.0$ for BanditGPT, $0.999$ for Tabula Rasa) is itself a
+($1.0$ for BanditGPT, $0.997$ for Tabula Rasa) is itself a
 cautionary finding: any practitioner deploying a non-stationary
 bandit router who tunes via standard cross-validation will
 converge on a forgetting factor that offers minimal protection
