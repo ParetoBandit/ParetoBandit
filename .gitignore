@@ -186,6 +186,10 @@ data/
 !src/bandit_gpt/data/artifacts/priors_k3_25comp.joblib
 !src/bandit_gpt/data/README.md
 
+# Large archive files (too big for GitHub, keep local only)
+data_collection/embeddings/archive/lmsys_pca_training_embeddings.npz
+data_collection/rewards/archive/legacy_k10/dev_rewards_complete_all_models.jsonl.gz
+
 # RouteLLM comparison data
 data/routellm/*.jsonl.gz
 data/routellm/*.jsonl
