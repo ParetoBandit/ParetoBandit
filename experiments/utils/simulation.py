@@ -102,6 +102,45 @@ def load_split(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Reward Manipulation
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def apply_reward_swap(
+    split: SplitData,
+    arm_a: str,
+    arm_b: str,
+) -> SplitData:
+    """Return a new ``SplitData`` with rewards swapped between two arms.
+
+    Only reward columns are exchanged; cost columns are left unchanged.
+    This models a pure quality shift (e.g. a provider upgrades one model
+    and degrades another) while API pricing remains fixed.  Cost-level
+    shifts are tested separately in Experiment 03.
+
+    Args:
+        split: Original data.
+        arm_a: First arm ID whose reward column is exchanged.
+        arm_b: Second arm ID whose reward column is exchanged.
+
+    Returns:
+        New ``SplitData`` with swapped reward arrays (costs and embeddings
+        are shallow-copied unchanged).
+    """
+    new_rewards = dict(split.rewards)
+    new_rewards[arm_a], new_rewards[arm_b] = (
+        split.rewards[arm_b].copy(),
+        split.rewards[arm_a].copy(),
+    )
+    return SplitData(
+        prompts=split.prompts,
+        rewards=new_rewards,
+        costs=split.costs,
+        embeddings=split.embeddings,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Model Registry
 # ═══════════════════════════════════════════════════════════════════════════
 

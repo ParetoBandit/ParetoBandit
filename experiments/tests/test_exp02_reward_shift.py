@@ -23,7 +23,12 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import BEST_K3_HPARAMS, K3_ARM_ORDER
 from bandit_gpt.feature_service import FeatureService
-from utils.simulation import SplitData, build_model_registry, compute_normalized_costs
+from utils.simulation import (
+    SplitData,
+    apply_reward_swap,
+    build_model_registry,
+    compute_normalized_costs,
+)
 
 from helpers import assert_metrics_match, load_reference, save_reference
 
@@ -126,8 +131,8 @@ def test_exp02_single_seed_regression(
         costs={a: val_split.costs[a][p2_idx] for a in arm_order},
         embeddings=val_split.embeddings[p2_idx],
     )
-    phase2_online = mod._apply_reward_swap(phase2_raw, *swap_arms)
-    phase2_holdout = mod._apply_reward_swap(test_split, *swap_arms)
+    phase2_online = apply_reward_swap(phase2_raw, *swap_arms)
+    phase2_holdout = apply_reward_swap(test_split, *swap_arms)
 
     normalized_costs = compute_normalized_costs(model_registry, arm_order)
 

@@ -17,11 +17,14 @@ real benchmark data:
   cheapest.
 
   **Phase 2** (steps 894--1785): **Reward swap** — Llama-8B and
-  Mistral-Large exchange their per-prompt reward and cost columns,
-  simulating simultaneous API changes: Llama receives a major quality
-  upgrade while Mistral regresses.  After the swap, Llama-8B
-  (previously worst) becomes both cheapest *and* highest-quality,
-  while Mistral-Large (previously utility-best) drops to worst.
+  Mistral-Large exchange their per-prompt reward columns, simulating
+  provider-side quality changes: Llama receives a major quality
+  upgrade while Mistral regresses.  API pricing (costs) is unchanged,
+  so the router must navigate a new quality--cost tradeoff where
+  Llama-8B (previously cheapest-but-worst) now delivers the highest
+  quality at its original low price, while Mistral-Large (previously
+  utility-best) drops to worst quality at its original high price.
+  Cost-level shifts are tested separately in Experiment 03.
 
   Gemini-Pro is unchanged (anchor), preserving a realistic three-way
   competition.
@@ -35,8 +38,8 @@ representing increasing levels of routing sophistication:
   - **Naive Bandit (γ=1.0)**: LinUCB with infinite memory and warmup
     priors.  The obvious first attempt at online routing — adapts, but
     Phase 1 inertia dilutes Phase 2 signal.
-  - **BanditGPT (γ=0.997)**: Warmup priors with jointly-tuned
-    geometric forgetting.  Effective memory ~333 steps.
+  - **BanditGPT (γ=0.995)**: Warmup priors with jointly-tuned
+    geometric forgetting.  Effective memory ~200 steps.
 
 Outputs (``results/``)
     reward_shift_results.json
@@ -70,7 +73,12 @@ from bandit_gpt.config import (
 from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import BanditRouter
 from bandit_gpt.storage import EphemeralContextStore
-from utils.simulation import SplitData, build_model_registry, compute_normalized_costs
+from utils.simulation import (
+    SplitData,
+    apply_reward_swap,
+    build_model_registry,
+    compute_normalized_costs,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -124,7 +132,7 @@ CONDITIONS: List[Dict[str, Any]] = [
         "online_learn": True,
     },
     {
-        "label": "BanditGPT (γ=0.997)",
+        "label": "BanditGPT (γ=0.995)",
         "warmup": True,
         "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
         "alpha": ALPHA_WARMUP,
@@ -179,37 +187,6 @@ def _load_all(
         rewards={a: np.array(v) for a, v in rewards.items()},
         costs={a: np.array(v) for a, v in costs.items()},
         embeddings=embeddings,
-    )
-
-
-def _apply_reward_swap(
-    split: SplitData,
-    arm_a: str,
-    arm_b: str,
-) -> SplitData:
-    """Return a new ``SplitData`` with rewards and costs swapped between two arms.
-
-    Parameters
-    ----------
-    split : SplitData
-        Original data.
-    arm_a, arm_b : str
-        The two arm IDs whose reward/cost columns are exchanged.
-
-    Returns
-    -------
-    SplitData
-        New object with swapped arrays (shallow copy of non-swapped fields).
-    """
-    new_rewards = dict(split.rewards)
-    new_costs = dict(split.costs)
-    new_rewards[arm_a], new_rewards[arm_b] = split.rewards[arm_b].copy(), split.rewards[arm_a].copy()
-    new_costs[arm_a], new_costs[arm_b] = split.costs[arm_b].copy(), split.costs[arm_a].copy()
-    return SplitData(
-        prompts=split.prompts,
-        rewards=new_rewards,
-        costs=new_costs,
-        embeddings=split.embeddings,
     )
 
 
@@ -279,7 +256,8 @@ def _frozen_holdout_eval(
     router : BanditRouter
         Router with current learned policy.
     holdout : SplitData
-        Held-out evaluation data (Phase 2 reward landscape).
+        Held-out evaluation data with Phase 2 reward landscape
+        (reward-swapped, costs unchanged).
     arm_order : list[str]
         Model identifiers.
     normalized_costs : dict[str, float]
@@ -535,19 +513,19 @@ def main() -> None:
         embeddings=train_all.embeddings[p2_indices],
     )
 
-    phase2_online = _apply_reward_swap(phase2_raw, *SWAP_ARMS)
-    phase2_holdout = _apply_reward_swap(test_all, *SWAP_ARMS)
+    phase2_online = apply_reward_swap(phase2_raw, *SWAP_ARMS)
+    phase2_holdout = apply_reward_swap(test_all, *SWAP_ARMS)
 
     logger.info(
         "  Phase 1: %d prompts (normal rewards)",
         phase1.n,
     )
     logger.info(
-        "  Phase 2 online: %d prompts (Llama <-> Mistral swapped)",
+        "  Phase 2 online: %d prompts (Llama <-> Mistral rewards swapped)",
         phase2_online.n,
     )
     logger.info(
-        "  Phase 2 holdout: %d prompts (swapped)",
+        "  Phase 2 holdout: %d prompts (rewards swapped, costs unchanged)",
         phase2_holdout.n,
     )
 

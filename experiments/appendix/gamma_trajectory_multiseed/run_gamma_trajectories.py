@@ -46,7 +46,12 @@ from bandit_gpt.config import (
 from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import BanditRouter
 from bandit_gpt.storage import EphemeralContextStore
-from utils.simulation import SplitData, build_model_registry, compute_normalized_costs
+from utils.simulation import (
+    SplitData,
+    apply_reward_swap,
+    build_model_registry,
+    compute_normalized_costs,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -118,30 +123,6 @@ def _load_all(
         rewards={a: np.array(v) for a, v in rewards.items()},
         costs={a: np.array(v) for a, v in costs.items()},
         embeddings=embeddings,
-    )
-
-
-def _apply_reward_swap(
-    split: SplitData,
-    arm_a: str,
-    arm_b: str,
-) -> SplitData:
-    """Return a new ``SplitData`` with rewards and costs swapped between two arms."""
-    new_rewards = dict(split.rewards)
-    new_costs = dict(split.costs)
-    new_rewards[arm_a], new_rewards[arm_b] = (
-        split.rewards[arm_b].copy(),
-        split.rewards[arm_a].copy(),
-    )
-    new_costs[arm_a], new_costs[arm_b] = (
-        split.costs[arm_b].copy(),
-        split.costs[arm_a].copy(),
-    )
-    return SplitData(
-        prompts=split.prompts,
-        rewards=new_rewards,
-        costs=new_costs,
-        embeddings=split.embeddings,
     )
 
 
@@ -342,7 +323,7 @@ def main() -> None:
 
     # ---- Reward shift ----
     logger.info("\n=== Reward Shift ===")
-    phase2_reward_swap = _apply_reward_swap(phase2_raw, *SWAP_ARMS)
+    phase2_reward_swap = apply_reward_swap(phase2_raw, *SWAP_ARMS)
     reward_shift_data = _record_gamma_trajectories(
         phase1, phase2_reward_swap, registry, feature_dim, normalized_costs,
     )
