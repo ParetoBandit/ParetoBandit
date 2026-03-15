@@ -56,8 +56,7 @@ ARTIFACTS_DIR = PROJECT_ROOT / "src" / "artifacts"
 DATA_DIR = PROJECT_ROOT / "data"
 
 DEFAULT_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_25.joblib"
-FULL_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_32.joblib"
-GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
+DEFAULT_WARMUP_PRIORS_PATH = _PACKAGE_ARTIFACTS_DIR / "priors_k3_25comp.joblib"
 
 # ==============================================================================
 # Canonical Data Paths
@@ -130,10 +129,6 @@ RAW_EMBEDDINGS_CACHE_PATH = EMBEDDINGS_CACHE_DIR / "raw_embeddings.npz"
 # Calibrated Router & Model Registry
 # ==============================================================================
 
-BANDIT_DATA_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data"
-CANONICAL_CALIBRATED_ROUTER_PATH = (
-    BANDIT_DATA_DIR / "artifacts" / "canonical_router_calibrated.joblib"
-)
 DEFAULT_MODEL_REGISTRY_PATH = Path(__file__).parent / "models.json"
 
 # ==============================================================================
@@ -196,10 +191,12 @@ ablation) to show the value of priors.
 """
 
 # ==============================================================================
-# Best K=3 Hyperparameters (from appendix alpha sweep, 14 configs x 10 seeds)
+# Best K=3 Hyperparameters (from appendix alpha sweep, 3-split protocol)
 # ==============================================================================
 #
-# Selected by Pareto AUC on holdout with a global cost range.
+# Protocol: train on train.jsonl → select on val.jsonl → report on test.jsonl.
+# Per-seed Pareto AUC (10 seeds) with fixed-model endpoints and cost range
+# anchored to arm cost extremes.  Avoids phantom-frontier artifacts.
 # Source of truth: experiments_v2/appendix/hparam_sweep/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
@@ -215,14 +212,14 @@ BEST_K3_HPARAMS: Dict[str, Any] = {
 }
 """Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
 
-Holdout Pareto AUC = 0.9247.  Monotonically decreasing in alpha: strong
-warmup priors (n_eff=5000) encode reliable initial beliefs, so near-zero
-exploration suffices.  The top three alphas (0.01, 0.05, 0.10) are within
-0.15% AUC, indicating robustness.
+Val Pareto AUC = 0.9295, test Pareto AUC = 0.9289 (Δ=+0.37% vs fixed).
+Monotonically decreasing in alpha: strong warmup priors (n_eff=5000) encode
+reliable initial beliefs, so near-zero exploration suffices.  The top three
+alphas (0.01, 0.05, 0.10) are within 0.07% AUC, indicating robustness.
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.05,
+    "alpha": 0.25,
     "pca_components": 25,
     "prior_n_effective": 1.0,
     "policy": "disjoint",
@@ -231,10 +228,10 @@ BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
-Holdout Pareto AUC = 0.9229.  Requires 5x more exploration (alpha=0.05
-vs 0.01) than BanditGPT to compensate for lack of warmup priors.
-At alpha=0.01 Tabula Rasa collapses (AUC=0.8926) — insufficient
-exploration without priors to bootstrap the policy.
+Val Pareto AUC = 0.9277, test Pareto AUC = 0.9268 (Δ=+0.14% vs fixed).
+Requires 25x more exploration (alpha=0.25 vs 0.01) than BanditGPT to
+compensate for lack of warmup priors.  After the train-phase (8K prompts),
+moderate exploration outperforms both conservative and aggressive strategies.
 """
 
 # ==============================================================================

@@ -1,0 +1,19 @@
+{
+  "rubric_version": "v4_metacognitive",
+  "judge_model": "deepseek/deepseek-r1",
+  "judge_panel_size": 1,
+  "weights": {
+    "correctness": 0.5,
+    "reasoning": 0.35,
+    "completeness": 0.15
+  },
+  "models": [
+    "meta-llama/llama-3.1-8b-instruct",
+    "google/gemini-2.5-pro",
+    "meta-llama/llama-3.2-3b-instruct",
+    "google/gemini-2.5-flash"
+  ],
+  "n_prompts": 12000,
+  "seed": 42,
+  "created_at": "2026-03-13T08:07:24Z"
+}

@@ -3748,7 +3748,7 @@ class BanditRouter:
         cls,
         model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        priors: str = "none",
+        priors: str = "warmup",
         prior_n_effective: float = 5000.0,
         **kwargs
     ) -> "BanditRouter":
@@ -3757,10 +3757,12 @@ class BanditRouter:
         Args:
             model_registry: Dictionary of model configurations.
             context_model: Model to use for embedding generation.
-            priors: Prior initialization strategy. ``"none"`` (default) starts
-                with standard LinUCB cold-start (identity covariance + quality-based
-                bias).  Pass a path to a ``.joblib`` file to load custom priors
-                generated via :func:`generate_warmup_priors`.
+            priors: Prior initialization strategy. ``"warmup"`` (default) loads
+                the shipped K=3 warmup priors for an informed cold-start.
+                ``"none"`` starts with standard LinUCB cold-start (identity
+                covariance + quality-based bias).  Pass a path to a ``.joblib``
+                file to load custom priors generated via
+                :func:`generate_warmup_priors`.
             prior_n_effective: Effective sample count attributed to loaded
                 priors.  Controls how strongly the offline priors are trusted:
                 ``scale = prior_n_effective / n_warmup`` where ``n_warmup`` is
@@ -3815,9 +3817,17 @@ class BanditRouter:
             **init_kwargs
         )
         
-        # 4. Load Priors from explicit path
-        # Users generate their own priors via generate_warmup_priors() and
-        # pass the .joblib path here.  No default artifact is shipped.
+        # 4. Load Priors from explicit path or shipped default
+        if priors == "warmup" and warmup_path is None:
+            from .config import DEFAULT_WARMUP_PRIORS_PATH
+            if DEFAULT_WARMUP_PRIORS_PATH.exists():
+                warmup_path = str(DEFAULT_WARMUP_PRIORS_PATH)
+            else:
+                logger.warning(
+                    "Shipped warmup priors not found at %s; "
+                    "falling back to cold-start.",
+                    DEFAULT_WARMUP_PRIORS_PATH,
+                )
         _priors_path_str = warmup_path or (priors if priors != "none" else None)
         if isinstance(_priors_path_str, str) and (
             _priors_path_str.endswith(".joblib") or "/" in _priors_path_str

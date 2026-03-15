@@ -1,0 +1,10 @@
+{
+  "encoder": "all-MiniLM-L6-v2",
+  "pca_path": "src/bandit_gpt/data/artifacts/pca_25.joblib",
+  "n_components": 25,
+  "whiten": true,
+  "vector_dim": 26,
+  "n_prompts": 8363,
+  "timestamp": "2026-03-11 14:55:25",
+  "source": "projected from raw_embeddings.npz"
+}

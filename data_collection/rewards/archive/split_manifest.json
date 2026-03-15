@@ -1,0 +1,80 @@
+{
+  "seed": 42,
+  "train_frac": 0.7,
+  "val_frac": 0.15,
+  "test_frac": 0.15,
+  "source_file": "/Users/annette/repostitories/banditGPT/data_collection/pareto_dataset/pareto_classified.jsonl",
+  "pca_artifact": "pca_15.joblib",
+  "encoder": "all-MiniLM-L6-v2",
+  "plasticity": 0.1,
+  "arm_order": [
+    "meta-llama/llama-3.1-8b-instruct",
+    "mistralai/mistral-large-2512",
+    "google/gemini-2.5-pro"
+  ],
+  "train": {
+    "n_prompts": 8374,
+    "n_sources": 32,
+    "mean_reward_small": 0.7994,
+    "mean_reward_medium": 0.9206,
+    "mean_reward_large": 0.9364,
+    "difficulty_distribution": {
+      "hard_but_dominated": 3744,
+      "trivial": 2513,
+      "moderate": 1455,
+      "pareto_interesting": 662
+    },
+    "best_arm_distribution": {
+      "medium": 3199,
+      "large": 2370,
+      "small": 2805
+    }
+  },
+  "val": {
+    "n_prompts": 1785,
+    "n_sources": 30,
+    "mean_reward_small": 0.7885,
+    "mean_reward_medium": 0.9241,
+    "mean_reward_large": 0.9345,
+    "difficulty_distribution": {
+      "hard_but_dominated": 795,
+      "moderate": 307,
+      "trivial": 540,
+      "pareto_interesting": 143
+    },
+    "best_arm_distribution": {
+      "medium": 725,
+      "large": 492,
+      "small": 568
+    }
+  },
+  "test": {
+    "n_prompts": 1824,
+    "n_sources": 30,
+    "mean_reward_small": 0.793,
+    "mean_reward_medium": 0.9233,
+    "mean_reward_large": 0.9322,
+    "difficulty_distribution": {
+      "hard_but_dominated": 828,
+      "trivial": 550,
+      "pareto_interesting": 141,
+      "moderate": 305
+    },
+    "best_arm_distribution": {
+      "medium": 714,
+      "small": 613,
+      "large": 497
+    }
+  },
+  "priors": {
+    "path": "train_priors.joblib",
+    "n_prompts": 8374,
+    "context_dim": 16,
+    "models": [
+      "google/gemini-2.5-pro",
+      "meta-llama/llama-3.1-8b-instruct",
+      "mistralai/mistral-large-2512"
+    ],
+    "pca_whitened": true
+  }
+}

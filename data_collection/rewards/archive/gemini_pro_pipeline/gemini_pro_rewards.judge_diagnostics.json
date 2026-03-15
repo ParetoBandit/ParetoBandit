@@ -1,0 +1,66 @@
+{
+  "summary": {
+    "qwen/qwen-2.5-72b-instruct": {
+      "google/gemini-2.5-pro": {
+        "n": 2991,
+        "mean": 0.901111334002006,
+        "std": 0.09479269102313037
+      },
+      "_overall": {
+        "n": 2991,
+        "mean": 0.901111334002006,
+        "std": 0.09479269102313037
+      }
+    },
+    "anthropic/claude-3.5-haiku": {
+      "google/gemini-2.5-pro": {
+        "n": 2991,
+        "mean": 0.8755643597459044,
+        "std": 0.12795912524493902
+      },
+      "_overall": {
+        "n": 2991,
+        "mean": 0.8755643597459044,
+        "std": 0.12795912524493902
+      }
+    },
+    "deepseek/deepseek-r1": {
+      "google/gemini-2.5-pro": {
+        "n": 2991,
+        "mean": 0.866273487128051,
+        "std": 0.1365850743803052
+      },
+      "_overall": {
+        "n": 2991,
+        "mean": 0.866273487128051,
+        "std": 0.1365850743803052
+      }
+    }
+  },
+  "bias_matrix": {
+    "qwen/qwen-2.5-72b-instruct": {
+      "google/gemini-2.5-pro": 0.0201
+    },
+    "anthropic/claude-3.5-haiku": {
+      "google/gemini-2.5-pro": -0.0054
+    },
+    "deepseek/deepseek-r1": {
+      "google/gemini-2.5-pro": -0.0147
+    }
+  },
+  "weights_equal": {
+    "qwen/qwen-2.5-72b-instruct": 0.3333333333333333,
+    "anthropic/claude-3.5-haiku": 0.3333333333333333,
+    "deepseek/deepseek-r1": 0.3333333333333333
+  },
+  "weights_inverse_variance": {
+    "qwen/qwen-2.5-72b-instruct": 0.4925006492767854,
+    "anthropic/claude-3.5-haiku": 0.2702800478972627,
+    "deepseek/deepseek-r1": 0.23721930282595188
+  },
+  "weights_inverse_bias": {
+    "qwen/qwen-2.5-72b-instruct": 0.16421522993855894,
+    "anthropic/claude-3.5-haiku": 0.611245578104636,
+    "deepseek/deepseek-r1": 0.22453919195680508
+  }
+}

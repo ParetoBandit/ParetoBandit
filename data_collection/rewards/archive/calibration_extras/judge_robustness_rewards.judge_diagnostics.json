@@ -1,0 +1,66 @@
+{
+  "judges": [
+    "openai/gpt-4.1-mini",
+    "anthropic/claude-3.5-haiku"
+  ],
+  "n_tasks": 6000,
+  "n_written": 5991,
+  "summary": {
+    "openai/gpt-4.1-mini": {
+      "meta-llama/llama-3.1-8b-instruct": {
+        "n": 1997,
+        "mean": 0.8577265898848272,
+        "std": 0.17744144825935998
+      },
+      "google/gemini-2.5-pro": {
+        "n": 1997,
+        "mean": 0.9635928893340009,
+        "std": 0.06660745332748001
+      },
+      "mistralai/mistral-large-2512": {
+        "n": 1997,
+        "mean": 0.9526564847270906,
+        "std": 0.08074060156682913
+      },
+      "_overall": {
+        "n": 5991,
+        "mean": 0.9246586546486395,
+        "std": 0.12808944733233465
+      }
+    },
+    "anthropic/claude-3.5-haiku": {
+      "meta-llama/llama-3.1-8b-instruct": {
+        "n": 1996,
+        "mean": 0.8560050100200399,
+        "std": 0.1438621444583885
+      },
+      "google/gemini-2.5-pro": {
+        "n": 1995,
+        "mean": 0.9139348370927318,
+        "std": 0.06697269682273742
+      },
+      "mistralai/mistral-large-2512": {
+        "n": 1996,
+        "mean": 0.9091442885771542,
+        "std": 0.06441249227258966
+      },
+      "_overall": {
+        "n": 5987,
+        "mean": 0.8930245531985969,
+        "std": 0.1023082565275795
+      }
+    }
+  },
+  "bias_matrix": {
+    "openai/gpt-4.1-mini": {
+      "meta-llama/llama-3.1-8b-instruct": 0.0009,
+      "google/gemini-2.5-pro": 0.0248,
+      "mistralai/mistral-large-2512": 0.0218
+    },
+    "anthropic/claude-3.5-haiku": {
+      "meta-llama/llama-3.1-8b-instruct": -0.0009,
+      "google/gemini-2.5-pro": -0.0248,
+      "mistralai/mistral-large-2512": -0.0218
+    }
+  }
+}

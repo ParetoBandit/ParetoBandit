@@ -1,0 +1,13 @@
+{
+  "encoder": "all-MiniLM-L6-v2",
+  "vector_dim": 384,
+  "n_prompts": 8363,
+  "timestamp": "2026-03-10 18:49:13",
+  "data_sources": [
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/archive/legacy_k10/dev_rewards_complete_all_models.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/archive/legacy_k10/holdout_rewards_complete_all_models.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/train.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/val.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout.jsonl.gz"
+  ]
+}

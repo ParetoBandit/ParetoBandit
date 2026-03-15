@@ -1,0 +1,38 @@
+{
+  "n_paired": 100,
+  "binarization_threshold": 1.0,
+  "gpt41": {
+    "mean_reward": 0.9133,
+    "std_reward": 0.1754,
+    "logic_pass_rate": 0.94
+  },
+  "mini": {
+    "mean_reward": 0.8892,
+    "std_reward": 0.2085,
+    "logic_pass_rate": 0.89,
+    "delta_vs_gpt41": -0.0241,
+    "wins_vs_gpt41": 12,
+    "losses_vs_gpt41": 18,
+    "ties_vs_gpt41": 70,
+    "tetrachoric_vs_gpt41": 0.8066,
+    "pearson_vs_gpt41": 0.5165,
+    "agreement_vs_gpt41": 0.82,
+    "logic_agreement_vs_gpt41": 0.89,
+    "transfer_verdict": "IDEAL"
+  },
+  "nano": {
+    "mean_reward": 0.8792,
+    "std_reward": 0.1917,
+    "logic_pass_rate": 0.84,
+    "delta_vs_gpt41": -0.034,
+    "wins_vs_gpt41": 16,
+    "losses_vs_gpt41": 25,
+    "ties_vs_gpt41": 59,
+    "tetrachoric_vs_gpt41": 0.6222,
+    "pearson_vs_gpt41": 0.36,
+    "agreement_vs_gpt41": 0.72,
+    "logic_agreement_vs_gpt41": 0.84,
+    "transfer_verdict": "GOOD"
+  },
+  "mini_vs_nano_tetrachoric": 0.8073
+}
