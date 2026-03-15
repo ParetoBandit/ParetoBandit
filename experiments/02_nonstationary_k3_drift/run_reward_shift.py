@@ -465,11 +465,14 @@ def _run_learning_curve(
 
         arm_frac: Dict[str, float] = {}
         arm_frac_std: Dict[str, float] = {}
+        per_seed_arm_fracs: Dict[str, List[float]] = {}
         n_eval = phase2_holdout.n
         for arm in ARM_ORDER:
             fracs = [d["arm_counts"][arm] / n_eval for d in seed_data]
-            arm_frac[ARM_SHORT[arm]] = float(np.mean(fracs))
-            arm_frac_std[ARM_SHORT[arm]] = float(np.std(fracs))
+            short = ARM_SHORT[arm]
+            arm_frac[short] = float(np.mean(fracs))
+            arm_frac_std[short] = float(np.std(fracs))
+            per_seed_arm_fracs[short] = [float(f) for f in fracs]
 
         entry: Dict[str, Any] = {
             "step": step,
@@ -482,10 +485,12 @@ def _run_learning_curve(
             "std_cost": float(np.std(costs_agg)),
             "mean_cumulative_regret": float(np.mean(regrets)),
             "std_cumulative_regret": float(np.std(regrets)),
+            "per_seed_cumulative_regret": [float(r) for r in regrets],
             "mean_forgetting_factor": float(np.mean(gammas)),
             "std_forgetting_factor": float(np.std(gammas)),
             "arm_fractions": arm_frac,
             "arm_fractions_std": arm_frac_std,
+            "per_seed_arm_fractions": per_seed_arm_fracs,
             "n_seeds": len(seed_data),
             "label": label,
         }

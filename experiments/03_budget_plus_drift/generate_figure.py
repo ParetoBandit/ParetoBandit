@@ -14,13 +14,19 @@ Usage:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+
+from utils.bootstrap import bootstrap_ci_series
 
 RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_FILE = "budget_cost_drift_results.json"
@@ -90,26 +96,40 @@ def _add_phase_boundary(
 # ======================================================================
 
 
-def _extract_curve(
+def _extract_curve_with_ci(
     conditions: Dict[str, Any],
     prefix: str,
     budget_label: str,
-    field: str,
-    sqrt_n: float,
+    mean_field: str,
+    per_seed_field: Optional[str] = None,
     std_field: Optional[str] = None,
-) -> Optional[Tuple[List[int], List[float], List[float]]]:
-    """Extract (steps, means, SEs) for a condition's checkpoint curve."""
+    sqrt_n: float = 1.0,
+) -> Optional[Tuple[List[int], List[float], np.ndarray, np.ndarray]]:
+    """Extract (steps, means, ci_lo, ci_hi) for a condition's checkpoint curve.
+
+    When *per_seed_field* is present in the JSON, bootstrap CIs are computed.
+    Otherwise falls back to ``mean ± std / sqrt(n)`` (SE-based bands).
+    """
     key = _find_condition_key(conditions, prefix, budget_label)
     if key is None:
         return None
     curve = conditions[key]["curves"]
     steps = [c["step"] for c in curve]
-    means = [c[field] for c in curve]
-    if std_field is not None:
+    means = [c[mean_field] for c in curve]
+
+    has_per_seed = per_seed_field is not None and per_seed_field in curve[0]
+    if has_per_seed:
+        matrix = np.array([c[per_seed_field] for c in curve])
+        ci_lo, ci_hi = bootstrap_ci_series(matrix)
+    elif std_field is not None:
         ses = [c[std_field] / sqrt_n for c in curve]
+        ci_lo = np.array([m - s for m, s in zip(means, ses)])
+        ci_hi = np.array([m + s for m, s in zip(means, ses)])
     else:
-        ses = [0.0] * len(means)
-    return steps, means, ses
+        ci_lo = np.array(means)
+        ci_hi = np.array(means)
+
+    return steps, means, ci_lo, ci_hi
 
 
 def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
@@ -133,15 +153,21 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
 
     fig, axes = plt.subplots(1, 3, figsize=(17, 4.5))
 
+    # ------------------------------------------------------------------
+    # (a) Dual variable λ_t
+    # ------------------------------------------------------------------
     ax_lam = axes[0]
     for blabel, _btarget in zip(budget_labels, budget_targets):
-        cond_key = _find_condition_key(conditions, "BanditGPT", blabel)
-        if cond_key is None:
+        result = _extract_curve_with_ci(
+            conditions, "BanditGPT", blabel,
+            mean_field="mean_lambda",
+            per_seed_field="per_seed_lambda",
+            std_field="std_lambda",
+            sqrt_n=sqrt_n,
+        )
+        if result is None:
             continue
-        curve = conditions[cond_key]["curves"]
-        steps = [c["step"] for c in curve]
-        lambdas = [c["mean_lambda"] for c in curve]
-        se_lambdas = [c["std_lambda"] / sqrt_n for c in curve]
+        steps, lambdas, ci_lo, ci_hi = result
         color = BUDGET_COLORS[blabel]
 
         ax_lam.plot(
@@ -150,9 +176,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             zorder=4,
         )
         ax_lam.fill_between(
-            steps,
-            [m - s for m, s in zip(lambdas, se_lambdas)],
-            [m + s for m, s in zip(lambdas, se_lambdas)],
+            steps, ci_lo, ci_hi,
             alpha=0.18, color=color, zorder=2,
         )
 
@@ -166,44 +190,65 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ax_lam.grid(True, alpha=0.2, linewidth=0.5)
     ax_lam.tick_params(labelsize=9)
 
+    # ------------------------------------------------------------------
+    # (b) Gemini-Pro selection fraction
+    # ------------------------------------------------------------------
     ax_mix = axes[1]
+
+    def _plot_gemini_fraction(
+        ax: plt.Axes,
+        cond_key: str,
+        color: str,
+        label: str,
+        linestyle: str = "-",
+        linewidth: float = 2.2,
+        alpha_fill: float = 0.18,
+        zorder_line: int = 4,
+        zorder_fill: int = 2,
+    ) -> None:
+        curve = conditions[cond_key]["curves"]
+        steps = [c["step"] for c in curve]
+        fracs = [c["arm_fractions"].get("Gemini-Pro", 0.0) for c in curve]
+
+        has_per_seed = "per_seed_arm_fractions" in curve[0]
+        if has_per_seed:
+            matrix = np.array([
+                c["per_seed_arm_fractions"]["Gemini-Pro"] for c in curve
+            ])
+            ci_lo, ci_hi = bootstrap_ci_series(matrix)
+        else:
+            ses = [
+                c["arm_fractions_std"].get("Gemini-Pro", 0.0) / sqrt_n
+                for c in curve
+            ]
+            ci_lo = [m - s for m, s in zip(fracs, ses)]
+            ci_hi = [m + s for m, s in zip(fracs, ses)]
+
+        ax.plot(
+            steps, fracs,
+            color=color, linestyle=linestyle, linewidth=linewidth,
+            label=label, zorder=zorder_line,
+        )
+        ax.fill_between(
+            steps, ci_lo, ci_hi,
+            alpha=alpha_fill, color=color, zorder=zorder_fill,
+        )
+
     for blabel in budget_labels:
         cond_key = _find_condition_key(conditions, "BanditGPT", blabel)
         if cond_key is None:
             continue
-        curve = conditions[cond_key]["curves"]
-        steps = [c["step"] for c in curve]
-        fracs = [c["arm_fractions"].get("Gemini-Pro", 0.0) for c in curve]
-        ses = [c["arm_fractions_std"].get("Gemini-Pro", 0.0) / sqrt_n for c in curve]
-        color = BUDGET_COLORS[blabel]
-
-        ax_mix.plot(
-            steps, fracs,
-            color=color, linewidth=2.2, label=BUDGET_NICE_LABELS[blabel],
-            zorder=4,
-        )
-        ax_mix.fill_between(
-            steps,
-            [m - s for m, s in zip(fracs, ses)],
-            [m + s for m, s in zip(fracs, ses)],
-            alpha=0.18, color=color, zorder=2,
+        _plot_gemini_fraction(
+            ax_mix, cond_key, BUDGET_COLORS[blabel],
+            label=BUDGET_NICE_LABELS[blabel],
         )
 
     if "Unconstrained" in conditions:
-        uc_curve = conditions["Unconstrained"]["curves"]
-        uc_steps = [c["step"] for c in uc_curve]
-        uc_fracs = [c["arm_fractions"].get("Gemini-Pro", 0.0) for c in uc_curve]
-        uc_ses = [c["arm_fractions_std"].get("Gemini-Pro", 0.0) / sqrt_n for c in uc_curve]
-        ax_mix.plot(
-            uc_steps, uc_fracs,
-            color=UNCONSTRAINED_COLOR, linestyle="-.", linewidth=2.0,
-            label="Unconstrained", zorder=3,
-        )
-        ax_mix.fill_between(
-            uc_steps,
-            [m - s for m, s in zip(uc_fracs, uc_ses)],
-            [m + s for m, s in zip(uc_fracs, uc_ses)],
-            alpha=0.12, color=UNCONSTRAINED_COLOR, zorder=2,
+        _plot_gemini_fraction(
+            ax_mix, "Unconstrained", UNCONSTRAINED_COLOR,
+            label="Unconstrained",
+            linestyle="-.", linewidth=2.0,
+            alpha_fill=0.12, zorder_line=3,
         )
 
     _add_phase_boundary(ax_mix, phase_boundary, label=False)
@@ -217,15 +262,21 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ax_mix.grid(True, alpha=0.2, linewidth=0.5)
     ax_mix.tick_params(labelsize=9)
 
+    # ------------------------------------------------------------------
+    # (c) Running average cost per request
+    # ------------------------------------------------------------------
     ax_cost = axes[2]
     for blabel, btarget in zip(budget_labels, budget_targets):
-        cond_key = _find_condition_key(conditions, "BanditGPT", blabel)
-        if cond_key is None:
+        result = _extract_curve_with_ci(
+            conditions, "BanditGPT", blabel,
+            mean_field="mean_avg_cost",
+            per_seed_field="per_seed_avg_cost",
+            std_field="std_avg_cost",
+            sqrt_n=sqrt_n,
+        )
+        if result is None:
             continue
-        curve = conditions[cond_key]["curves"]
-        steps = [c["step"] for c in curve]
-        avg_costs = [c["mean_avg_cost"] for c in curve]
-        se_costs = [c["std_avg_cost"] / sqrt_n for c in curve]
+        steps, avg_costs, ci_lo, ci_hi = result
         color = BUDGET_COLORS[blabel]
 
         ax_cost.plot(
@@ -234,9 +285,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             zorder=4,
         )
         ax_cost.fill_between(
-            steps,
-            [m - s for m, s in zip(avg_costs, se_costs)],
-            [m + s for m, s in zip(avg_costs, se_costs)],
+            steps, ci_lo, ci_hi,
             alpha=0.18, color=color, zorder=2,
         )
         ax_cost.axhline(
@@ -248,16 +297,23 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         uc_curve = conditions["Unconstrained"]["curves"]
         uc_steps = [c["step"] for c in uc_curve]
         uc_costs = [c["mean_avg_cost"] for c in uc_curve]
-        uc_ses = [c["std_avg_cost"] / sqrt_n for c in uc_curve]
+
+        has_per_seed = "per_seed_avg_cost" in uc_curve[0]
+        if has_per_seed:
+            matrix = np.array([c["per_seed_avg_cost"] for c in uc_curve])
+            uc_ci_lo, uc_ci_hi = bootstrap_ci_series(matrix)
+        else:
+            uc_ses = [c["std_avg_cost"] / sqrt_n for c in uc_curve]
+            uc_ci_lo = [m - s for m, s in zip(uc_costs, uc_ses)]
+            uc_ci_hi = [m + s for m, s in zip(uc_costs, uc_ses)]
+
         ax_cost.plot(
             uc_steps, uc_costs,
             color=UNCONSTRAINED_COLOR, linestyle="-.", linewidth=2.0,
             label="Unconstrained", zorder=3,
         )
         ax_cost.fill_between(
-            uc_steps,
-            [m - s for m, s in zip(uc_costs, uc_ses)],
-            [m + s for m, s in zip(uc_costs, uc_ses)],
+            uc_steps, uc_ci_lo, uc_ci_hi,
             alpha=0.12, color=UNCONSTRAINED_COLOR, zorder=2,
         )
 
@@ -273,7 +329,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
 
     fig.suptitle(
         r"Budget Pacing Under Cost Drift ($K{=}3$, "
-        rf"{n_seeds} seeds, $\pm$1 SE)",
+        rf"{n_seeds} seeds, 95% bootstrap CI)",
         fontsize=13, fontweight="bold", y=1.02,
     )
     fig.tight_layout()

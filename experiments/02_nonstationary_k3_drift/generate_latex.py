@@ -193,7 +193,7 @@ def generate_figure_caption() -> str:
     \centering
     \includegraphics[width=\linewidth]{../experiments/02_nonstationary_k3_drift/results/cumulative_regret.pdf}
     \caption{Cumulative cost-adjusted regret under model quality shift
-    ($K{=}3$; 40~seeds, $\pm$1\,SE shading).
+    ($K{=}3$; 40~seeds, 95\% bootstrap CI shading).
     %
     Four conditions of increasing sophistication are compared:
     \textbf{Fixed Policy (offline)} deploys warmup priors without

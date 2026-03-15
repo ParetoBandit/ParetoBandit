@@ -73,52 +73,52 @@
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Dataset splits and model portfolio ($K{=}3$). All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1. The $500\times $ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff.}}{5}{table.caption.10}\protected@file@percent }
 \newlabel{tab:dataset}{{1}{5}{Dataset splits and model portfolio ($K{=}3$). All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1. The $500\times $ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff}{table.caption.10}{}}
 \@writefile{toc}{\contentsline {paragraph}{Context representation.}{5}{section*.11}\protected@file@percent }
+\citation{panda2025pilot,wang2025barp,li2025llmbandit}
+\citation{garivier2011switching}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Environment Construction}{6}{subsection.5.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{6}{subsection.5.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Metrics}{6}{subsection.5.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Summary of main results. \textit  {Panel\nonbreakingspace (a):} cumulative regret decomposed by phase under reward drift (Exp.\nonbreakingspace 2; 40\nonbreakingspace seeds, $\lambda _s{=}0.20$). \textit  {Panel\nonbreakingspace (b):} Phase\nonbreakingspace 1 budget utilisation under cost drift (Exp.\nonbreakingspace 3; 50\nonbreakingspace seeds). Utilisation\nonbreakingspace $=$\nonbreakingspace realised cost\nonbreakingspace /\nonbreakingspace target\nonbreakingspace $B$; values near $1.0\times $ indicate precise budget control. All six pairwise differences in\nonbreakingspace (a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$).}}{6}{table.caption.12}\protected@file@percent }
+\newlabel{tab:main_results}{{2}{6}{Summary of main results. \textit {Panel~(a):} cumulative regret decomposed by phase under reward drift (Exp.~2; 40~seeds, $\lambda _s{=}0.20$). \textit {Panel~(b):} Phase~1 budget utilisation under cost drift (Exp.~3; 50~seeds). Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times $ indicate precise budget control. All six pairwise differences in~(a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$)}{table.caption.12}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {6}Results}{6}{section.6}\protected@file@percent }
 \newlabel{sec:results}{{6}{6}{Results}{section.6}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Summary of main results. \textit  {Panel\nonbreakingspace (a):} cumulative regret decomposed by phase under reward drift (Exp.\nonbreakingspace 2; 40\nonbreakingspace seeds, $\lambda _s{=}0.20$). \textit  {Panel\nonbreakingspace (b):} Phase\nonbreakingspace 1 budget utilisation under cost drift (Exp.\nonbreakingspace 3; 50\nonbreakingspace seeds). Utilisation\nonbreakingspace $=$\nonbreakingspace realised cost\nonbreakingspace /\nonbreakingspace target\nonbreakingspace $B$; values near $1.0\times $ indicate precise budget control. All pairwise differences in\nonbreakingspace (a) are significant after Holm--Bonferroni correction ($p < 10^{-6}$).}}{6}{table.caption.12}\protected@file@percent }
-\newlabel{tab:main_results}{{2}{6}{Summary of main results. \textit {Panel~(a):} cumulative regret decomposed by phase under reward drift (Exp.~2; 40~seeds, $\lambda _s{=}0.20$). \textit {Panel~(b):} Phase~1 budget utilisation under cost drift (Exp.~3; 50~seeds). Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times $ indicate precise budget control. All pairwise differences in~(a) are significant after Holm--Bonferroni correction ($p < 10^{-6}$)}{table.caption.12}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Stationary Budget Pacing}{6}{subsection.6.1}\protected@file@percent }
 \newlabel{sec:exp1_budget_pacing}{{6.1}{6}{Stationary Budget Pacing}{subsection.6.1}{}}
 \@writefile{toc}{\contentsline {paragraph}{Pareto frontier.}{6}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{6}{section*.15}\protected@file@percent }
+\citation{panda2025pilot}
+\citation{wang2025barp}
+\citation{garivier2011switching}
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The Pareto frontier under stationary conditions. BanditGPT with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning.}}{7}{figure.caption.14}\protected@file@percent }
 \newlabel{fig:pareto}{{2}{7}{The Pareto frontier under stationary conditions. BanditGPT with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning}{figure.caption.14}{}}
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{7}{section*.15}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions.}}{7}{figure.caption.16}\protected@file@percent }
 \newlabel{fig:model_mix}{{3}{7}{Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions}{figure.caption.16}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Adapting to Model Quality Shifts}{7}{subsection.6.2}\protected@file@percent }
 \newlabel{sec:exp2_reward_shift}{{6.2}{7}{Adapting to Model Quality Shifts}{subsection.6.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Cumulative Regret under Reward Drift. BanditGPT ($\gamma =0.995$) adapts rapidly to quality degradation, unlike naive bandits or frozen policies.}}{7}{figure.caption.17}\protected@file@percent }
-\newlabel{fig:cumulative_regret}{{4}{7}{Cumulative Regret under Reward Drift. BanditGPT ($\gamma =0.995$) adapts rapidly to quality degradation, unlike naive bandits or frozen policies}{figure.caption.17}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{7}{subsection.6.3}\protected@file@percent }
-\newlabel{sec:exp3_cost_drift}{{6.3}{7}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{7}{section*.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{8}{section*.19}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Tight budgets: binding constraints as a feature.}{8}{section*.21}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why these baselines.}{7}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Deployment reliability.}{7}{section*.19}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Cumulative regret under reward drift (4\nonbreakingspace conditions, 40\nonbreakingspace seeds, $\pm $1\,SE). BanditGPT ($\gamma {=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase\nonbreakingspace 1 cost) with geometric forgetting (fast Phase\nonbreakingspace 2 adaptation). SW-UCB adapts fastest post-shift but pays a large cold-start tax.}}{8}{figure.caption.18}\protected@file@percent }
+\newlabel{fig:cumulative_regret}{{4}{8}{Cumulative regret under reward drift (4~conditions, 40~seeds, $\pm $1\,SE). BanditGPT ($\gamma {=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase~1 cost) with geometric forgetting (fast Phase~2 adaptation). SW-UCB adapts fastest post-shift but pays a large cold-start tax}{figure.caption.18}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{8}{subsection.6.3}\protected@file@percent }
+\newlabel{sec:exp3_cost_drift}{{6.3}{8}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{8}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{8}{section*.21}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Budget compliance under cost drift (Experiment\nonbreakingspace 3, 50\nonbreakingspace seeds). Each cell shows realised average cost as a multiple of the budget target ($1.00\times $ = perfect). \textbf  {Bold} marks values within $5\%$ of $1.00\times $. $\dagger $\nonbreakingspace Phase\nonbreakingspace 2 constraint non-binding: the price drop reduces all methods' costs below target, regardless of algorithm. BanditGPT is the only condition that reliably meets the target in Phase\nonbreakingspace 1 and, where the constraint remains binding (tight), in Phase\nonbreakingspace 2.}}{8}{table.caption.23}\protected@file@percent }
+\newlabel{tab:budget_compliance}{{3}{8}{Budget compliance under cost drift (Experiment~3, 50~seeds). Each cell shows realised average cost as a multiple of the budget target ($1.00\times $ = perfect). \textbf {Bold} marks values within $5\%$ of $1.00\times $. $\dagger $~Phase~2 constraint non-binding: the price drop reduces all methods' costs below target, regardless of algorithm. BanditGPT is the only condition that reliably meets the target in Phase~1 and, where the constraint remains binding (tight), in Phase~2}{table.caption.23}{}}
+\@writefile{toc}{\contentsline {paragraph}{Tight budgets: binding constraints as a feature.}{8}{section*.24}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hyperparameter Selection via Epsilon-Constraint}{8}{subsection.6.4}\protected@file@percent }
 \newlabel{sec:exp4_hparam_sweep}{{6.4}{8}{Hyperparameter Selection via Epsilon-Constraint}{subsection.6.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Two objectives.}{8}{section*.22}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Selection rule.}{8}{section*.23}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Result.}{8}{section*.24}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{8}{section.7}\protected@file@percent }
-\newlabel{sec:discussion}{{7}{8}{Discussion and Production Implications}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{8}{subsection.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{8}{section*.26}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{8}{section*.27}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Cost Savings at Scale.}{8}{section*.28}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces BanditGPT dual-variable dynamics under a mid-stream Gemini price drop (step\nonbreakingspace 912; 50\nonbreakingspace seeds, $\pm $1\,SE). \textbf  {(a)}\nonbreakingspace The dual variable $\lambda _t$ reveals qualitatively distinct responses: at tight budget, $\lambda _t$ \emph  {rises} because costs still exceed the target (binding constraint); at moderate/loose budgets, $\lambda _t$ decays to zero as post-drop costs fall well below target (slack constraint). \textbf  {(b)}\nonbreakingspace Gemini selection fraction mirrors the dual signal---tight budget drives $87\%$ Gemini adoption via cost-penalty concentration; moderate/loose converge toward the unconstrained baseline (dash-dot). \textbf  {(c)}\nonbreakingspace Running average cost per request; dotted lines mark budget targets. All three regimes exhibit the correct Lagrangian response. Quantitative compliance comparisons with baselines are in Table\nonbreakingspace \ref {tab:budget_compliance}.}}{9}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:adaptation_dynamics}{{5}{9}{BanditGPT dual-variable dynamics under a mid-stream Gemini price drop (step~912; 50~seeds, $\pm $1\,SE). \textbf {(a)}~The dual variable $\lambda _t$ reveals qualitatively distinct responses: at tight budget, $\lambda _t$ \emph {rises} because costs still exceed the target (binding constraint); at moderate/loose budgets, $\lambda _t$ decays to zero as post-drop costs fall well below target (slack constraint). \textbf {(b)}~Gemini selection fraction mirrors the dual signal---tight budget drives $87\%$ Gemini adoption via cost-penalty concentration; moderate/loose converge toward the unconstrained baseline (dash-dot). \textbf {(c)}~Running average cost per request; dotted lines mark budget targets. All three regimes exhibit the correct Lagrangian response. Quantitative compliance comparisons with baselines are in Table~\ref {tab:budget_compliance}}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {paragraph}{Two objectives.}{9}{section*.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection rule.}{9}{section*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Result.}{9}{section*.27}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Efficiency--adaptability tradeoff for BanditGPT ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit  {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $95\% of best AUC). The black star is the $\epsilon $-constraint winner; the red \textbf  {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret.}}{9}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:epsilon_tradeoff}{{6}{9}{Efficiency--adaptability tradeoff for BanditGPT ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $95\% of best AUC). The black star is the $\epsilon $-constraint winner; the red \textbf {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret}{figure.caption.28}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{9}{section.7}\protected@file@percent }
+\newlabel{sec:discussion}{{7}{9}{Discussion and Production Implications}{section.7}{}}
 \bibstyle{ACM-Reference-Format}
 \bibdata{references}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Budget pacing under cost drift (50\nonbreakingspace seeds, $\pm $1\,SE shading). At step\nonbreakingspace 912, Gemini-2.5-Pro's price drops to near-zero. \textbf  {Top row:} BanditGPT adaptation mechanics. At moderate/loose budgets, $\lambda _t$ decays to zero (slack constraint) and Gemini rises to ${\sim }47$--$48\%$. At the tight budget, $\lambda _t$ \emph  {rises} (binding constraint) and Gemini surges to $87\%$. \textbf  {Bottom row:} All-condition budget compliance at each budget level. BanditGPT (solid) is the only condition that tracks the target (black dotted) across both phases; the Recalibrated Bandit (dash-dot) re-tunes $\lambda _s$ at Phase\nonbreakingspace 2 but inherits Phase\nonbreakingspace 1 non-compliance.}}{9}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:adaptation_dynamics}{{5}{9}{Budget pacing under cost drift (50~seeds, $\pm $1\,SE shading). At step~912, Gemini-2.5-Pro's price drops to near-zero. \textbf {Top row:} BanditGPT adaptation mechanics. At moderate/loose budgets, $\lambda _t$ decays to zero (slack constraint) and Gemini rises to ${\sim }47$--$48\%$. At the tight budget, $\lambda _t$ \emph {rises} (binding constraint) and Gemini surges to $87\%$. \textbf {Bottom row:} All-condition budget compliance at each budget level. BanditGPT (solid) is the only condition that tracks the target (black dotted) across both phases; the Recalibrated Bandit (dash-dot) re-tunes $\lambda _s$ at Phase~2 but inherits Phase~1 non-compliance}{figure.caption.20}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Efficiency--adaptability tradeoff for BanditGPT ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit  {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $95\% of best AUC). The black star is the $\epsilon $-constraint winner; the red \textbf  {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret.}}{9}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:epsilon_tradeoff}{{6}{9}{Efficiency--adaptability tradeoff for BanditGPT ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $95\% of best AUC). The black star is the $\epsilon $-constraint winner; the red \textbf {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret}{figure.caption.25}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{9}{subsection.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Warm-Start Dependence at Tight Budgets.}{9}{section*.29}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback (RLHF).}{9}{section*.30}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{9}{section*.31}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{9}{section.8}\protected@file@percent }
 \bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
 \bibcite{ailem2024benchmarkrobustness}{{2}{2024}{{Ailem et~al\mbox  {.}}}{{}}}
 \bibcite{chen2023frugalgpt}{{3}{2023a}{{Chen et~al\mbox  {.}}}{{}}}
@@ -128,6 +128,17 @@
 \bibcite{garivier2011switching}{{7}{2011}{{Garivier and Moulines}}{{}}}
 \bibcite{li2010contextual}{{8}{2010}{{Li et~al\mbox  {.}}}{{}}}
 \bibcite{li2025llmbandit}{{9}{2025}{{Li}}{{}}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{10}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{10}{section*.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{10}{section*.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cost Savings at Scale.}{10}{section*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{10}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Warm-Start Dependence at Tight Budgets.}{10}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Static Unit-Cost Normalization.}{10}{section*.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback (RLHF).}{10}{section*.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{10}{section*.35}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{10}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{10}{section*.37}\protected@file@percent }
 \bibcite{ma2024prompt}{{10}{2024}{{Ma et~al\mbox  {.}}}{{}}}
 \bibcite{ong2024routellm}{{11}{2025}{{Ong et~al\mbox  {.}}}{{}}}
 \bibcite{panda2025pilot}{{12}{2025}{{Panda et~al\mbox  {.}}}{{}}}
@@ -142,6 +153,5 @@
 \newlabel{tocindent3}{0pt}
 \newlabel{tocindent4}{0pt}
 \newlabel{tocindent5}{0pt}
-\@writefile{toc}{\contentsline {section}{References}{10}{section*.33}\protected@file@percent }
-\newlabel{TotPages}{{10}{10}{}{page.10}{}}
-\gdef \@abspage@last{10}
+\newlabel{TotPages}{{11}{11}{}{page.11}{}}
+\gdef \@abspage@last{11}
