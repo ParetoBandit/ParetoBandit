@@ -83,6 +83,12 @@ TRAIN_DATA_PATH = OFFLINE_DATASET_DIR / "train.jsonl"
 VAL_DATA_PATH = OFFLINE_DATASET_DIR / "val.jsonl"
 HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "test.jsonl"
 
+# ── Judge robustness appendix ─────────────────────────────────────────
+CALIBRATION_DIR = OFFLINE_DATASET_DIR / "calibration"
+PARETO_REWARDS_PATH = (
+    DATA_COLLECTION_DIR / "pareto_dataset" / "pareto_rewards.jsonl"
+)
+
 # ==============================================================================
 # Warmup Priors
 # ==============================================================================

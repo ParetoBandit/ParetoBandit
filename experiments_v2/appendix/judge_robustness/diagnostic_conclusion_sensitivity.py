@@ -20,18 +20,13 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 import numpy as np
 from scipy import stats as sp_stats
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from bandit_gpt.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
 
-CALIBRATION_DIR = PROJECT_ROOT / "data_collection" / "rewards" / "calibration"
-PARETO_REWARDS_PATH = (
-    PROJECT_ROOT / "data_collection" / "pareto_dataset" / "pareto_rewards.jsonl"
-)
 SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
 SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"
 

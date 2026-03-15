@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from bandit_gpt.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,10 +36,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CALIBRATION_DIR = PROJECT_ROOT / "data_collection" / "rewards" / "calibration"
-PARETO_REWARDS_PATH = (
-    PROJECT_ROOT / "data_collection" / "pareto_dataset" / "pareto_rewards.jsonl"
-)
 SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
 SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
