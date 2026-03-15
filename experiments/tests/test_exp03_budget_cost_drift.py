@@ -102,8 +102,8 @@ def test_exp03_single_seed_regression(
 ):
     """Run one BanditGPT (moderate) seed and compare to pinned reference.
 
-    Sets up the two-phase cost drift exactly as ``main()`` does, but for
-    a single seed only.
+    Sets up the train-then-evaluate cost drift exactly as ``main()``
+    does, but for a single seed only.
     """
     mod = _import_exp03()
 
@@ -112,23 +112,23 @@ def test_exp03_single_seed_regression(
     phase2_n = mod.PHASE2_N
     gemini_id = mod.GEMINI_ID
 
-    # Subsample Phase 1 / Phase 2 (same global RNG as main).
+    # Split holdout into Phase 1 / Phase 2 (same global RNG as main).
     rng_global = np.random.default_rng(42)
-    all_indices = rng_global.permutation(val_split.n)
+    all_indices = rng_global.permutation(test_split.n)
     p1_idx = all_indices[:phase1_n]
     p2_idx = all_indices[phase1_n : phase1_n + phase2_n]
 
     phase1 = SplitData(
-        prompts=[val_split.prompts[i] for i in p1_idx],
-        rewards={a: val_split.rewards[a][p1_idx] for a in arm_order},
-        costs={a: val_split.costs[a][p1_idx] for a in arm_order},
-        embeddings=val_split.embeddings[p1_idx],
+        prompts=[test_split.prompts[i] for i in p1_idx],
+        rewards={a: test_split.rewards[a][p1_idx] for a in arm_order},
+        costs={a: test_split.costs[a][p1_idx] for a in arm_order},
+        embeddings=test_split.embeddings[p1_idx],
     )
     phase2_raw = SplitData(
-        prompts=[val_split.prompts[i] for i in p2_idx],
-        rewards={a: val_split.rewards[a][p2_idx] for a in arm_order},
-        costs={a: val_split.costs[a][p2_idx] for a in arm_order},
-        embeddings=val_split.embeddings[p2_idx],
+        prompts=[test_split.prompts[i] for i in p2_idx],
+        rewards={a: test_split.rewards[a][p2_idx] for a in arm_order},
+        costs={a: test_split.costs[a][p2_idx] for a in arm_order},
+        embeddings=test_split.embeddings[p2_idx],
     )
 
     gemini_meta = model_registry[gemini_id]
@@ -153,6 +153,7 @@ def test_exp03_single_seed_regression(
 
     seed_result = mod._run_two_phase_trial(
         condition_label="BanditGPT (moderate)",
+        train_data=val_split,
         phase1=phase1,
         phase2=phase2,
         registry=copy.deepcopy(model_registry),

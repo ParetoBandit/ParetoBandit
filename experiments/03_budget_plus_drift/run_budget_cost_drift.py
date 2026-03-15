@@ -8,17 +8,26 @@ LLM routing.
 
 Experimental setup
 ------------------
-The router is deployed on a two-phase data stream constructed from
-real benchmark data (K=3: Llama-8B, Mistral-Large, Gemini-Pro):
+The pipeline follows a **train-then-evaluate** design (matching Exp 01):
 
-  **Phase 1** (steps 1--893): Normal pricing.  Gemini-Pro is expensive
-  (normalized cost 0.67); the BudgetPacer enforces the dollar budget
-  target by raising lambda_t, which suppresses Gemini selection.
+  **Train phase** (val split, 1,785 prompts): The router online-learns
+  under normal pricing.  No evaluation metrics are recorded.  This uses
+  the validation split (``VAL_DATA_PATH``), the same data Exp 04 uses
+  for hyperparameter tuning --- but here it serves only as a learning
+  stream, not an evaluation surface.
 
-  **Phase 2** (steps 894--1785): **Gemini price drop** — pricing falls
-  to $0.10/$0.10 per million tokens (normalized cost ~0.0).  The router
-  registry is updated at the boundary.  The cost EMA should decline,
-  driving lambda_t downward and allowing Gemini routing.
+  **Evaluation phase** (holdout split, 1,824 prompts): The router is
+  evaluated on held-out data (``HOLDOUT_DATA_PATH``) that was never
+  used for hyperparameter selection:
+
+    **Phase 1** (steps 1--912): Normal pricing.  Gemini-Pro is expensive
+    (normalized cost 0.67); the BudgetPacer enforces the dollar budget
+    target by raising lambda_t, which suppresses Gemini selection.
+
+    **Phase 2** (steps 913--1824): **Gemini price drop** — pricing falls
+    to $0.10/$0.10 per million tokens (normalized cost ~0.0).  The router
+    registry is updated at the boundary.  The cost EMA should decline,
+    driving lambda_t downward and allowing Gemini routing.
 
 Three budget targets span the constraint regime:
 
@@ -53,7 +62,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -97,12 +106,12 @@ GEMINI_ID: str = "google/gemini-2.5-pro"
 GEMINI_NEW_INPUT_COST: float = 0.10
 GEMINI_NEW_OUTPUT_COST: float = 0.10
 
-N_SEEDS: int = 20
+N_SEEDS: int = 50
 SEED_OFFSET: int = 7000
 RESULTS_DIR = Path(__file__).parent / "results"
 
-PHASE1_N: int = 893
-PHASE2_N: int = 892
+PHASE1_N: int = 912
+PHASE2_N: int = 912
 CHECKPOINT_INTERVAL: int = 25
 
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
@@ -273,6 +282,7 @@ def _create_router(
 def _run_two_phase_trial(
     *,
     condition_label: str,
+    train_data: SplitData,
     phase1: SplitData,
     phase2: SplitData,
     registry: Dict[str, Any],
@@ -284,19 +294,24 @@ def _run_two_phase_trial(
     budget_pacer: Optional[BudgetPacer] = None,
     seed: int,
 ) -> SeedResult:
-    """Run one seed through the two-phase cost-drift scenario.
+    """Run one seed through the train-then-evaluate cost-drift scenario.
 
-    Phase 1 uses original pricing; at the boundary the registry is
-    updated to reflect the Gemini price drop, and Phase 2 continues
-    with the new costs.  The BudgetPacer (if present) receives actual
-    per-request costs and adapts lambda_t continuously.
+    The trial has three stages:
+
+    1. **Train** (val split, normal pricing): online-learn without
+       recording metrics.  Skipped when ``online_learn=False``.
+    2. **Phase 1** (holdout split, normal pricing): evaluate and record.
+    3. **Phase 2** (holdout split, Gemini price drop): the registry is
+       updated at the boundary, then evaluate and record.
 
     Parameters
     ----------
     condition_label : str
         Human-readable condition name.
+    train_data : SplitData
+        Validation split used for online learning (no metrics recorded).
     phase1, phase2 : SplitData
-        Online learning data for each phase.
+        Holdout evaluation data for each phase.
     registry : dict
         Original model registry (Phase 1 pricing).
     feature_dim : int
@@ -309,7 +324,7 @@ def _run_two_phase_trial(
         Fixed forgetting factor.
     online_learn : bool
         If False, the policy is frozen at deployment — ``process_feedback``
-        is never called.
+        is never called and the train phase is skipped.
     budget_pacer : BudgetPacer or None
         Budget pacer instance (reset before each seed).
     seed : int
@@ -318,7 +333,7 @@ def _run_two_phase_trial(
     Returns
     -------
     SeedResult
-        Per-step metrics for this seed.
+        Per-step metrics for this seed (eval phases only).
     """
     rng = np.random.default_rng(seed)
 
@@ -334,6 +349,16 @@ def _run_two_phase_trial(
         budget_pacer=budget_pacer,
     )
 
+    # --- Train phase (val split, normal pricing, no metrics) ---
+    if online_learn:
+        train_order = rng.permutation(train_data.n)
+        for i in train_order:
+            model, log = router.route(train_data.embeddings[i])
+            reward = float(train_data.rewards[model][i])
+            log.cost_usd = float(train_data.costs[model][i])
+            router.process_feedback(log.request_id, reward=reward)
+
+    # --- Eval phases (holdout split) ---
     n_p1 = phase1.n
     n_p2 = phase2.n
 
@@ -583,26 +608,26 @@ def main() -> None:
     train_all = _load_all(VAL_DATA_PATH, fs, ARM_ORDER)
     test_all = _load_all(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
 
-    logger.info("  Online (val): %d prompts", train_all.n)
-    logger.info("  Holdout (test): %d prompts", test_all.n)
+    logger.info("  Train (val): %d prompts — online learning, no eval", train_all.n)
+    logger.info("  Eval (holdout): %d prompts — Phase 1 + Phase 2", test_all.n)
 
     rng_global = np.random.default_rng(42)
-    all_indices = rng_global.permutation(train_all.n)
+    all_indices = rng_global.permutation(test_all.n)
     p1_indices = all_indices[:PHASE1_N]
     p2_indices = all_indices[PHASE1_N : PHASE1_N + PHASE2_N]
 
     phase1 = SplitData(
-        prompts=[train_all.prompts[i] for i in p1_indices],
-        rewards={a: train_all.rewards[a][p1_indices] for a in ARM_ORDER},
-        costs={a: train_all.costs[a][p1_indices] for a in ARM_ORDER},
-        embeddings=train_all.embeddings[p1_indices],
+        prompts=[test_all.prompts[i] for i in p1_indices],
+        rewards={a: test_all.rewards[a][p1_indices] for a in ARM_ORDER},
+        costs={a: test_all.costs[a][p1_indices] for a in ARM_ORDER},
+        embeddings=test_all.embeddings[p1_indices],
     )
 
     phase2_raw = SplitData(
-        prompts=[train_all.prompts[i] for i in p2_indices],
-        rewards={a: train_all.rewards[a][p2_indices] for a in ARM_ORDER},
-        costs={a: train_all.costs[a][p2_indices] for a in ARM_ORDER},
-        embeddings=train_all.embeddings[p2_indices],
+        prompts=[test_all.prompts[i] for i in p2_indices],
+        rewards={a: test_all.rewards[a][p2_indices] for a in ARM_ORDER},
+        costs={a: test_all.costs[a][p2_indices] for a in ARM_ORDER},
+        embeddings=test_all.embeddings[p2_indices],
     )
 
     registry = build_model_registry(ARM_ORDER)
@@ -644,6 +669,7 @@ def main() -> None:
                 seed = SEED_OFFSET + s
                 sr = _run_two_phase_trial(
                     condition_label=label,
+                    train_data=train_all,
                     phase1=phase1,
                     phase2=phase2,
                     registry=registry,
@@ -682,6 +708,7 @@ def main() -> None:
         seed = SEED_OFFSET + s
         sr = _run_two_phase_trial(
             condition_label="Unconstrained",
+            train_data=train_all,
             phase1=phase1,
             phase2=phase2,
             registry=registry,
@@ -720,6 +747,8 @@ def main() -> None:
         "prior_n_effective": PRIOR_N_EFFECTIVE,
         "alpha": ALPHA,
         "checkpoint_interval": CHECKPOINT_INTERVAL,
+        "train_n": train_all.n,
+        "eval_n": test_all.n,
         "conditions": all_condition_results,
     }
 

@@ -113,6 +113,8 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     budget_targets = data["budget_targets"]
     conditions = data["conditions"]
     phase_boundary = data["phase1_n"]
+    n_seeds = data["n_seeds"]
+    sqrt_n = np.sqrt(n_seeds)
 
     fig, axes = plt.subplots(1, 3, figsize=(17, 4.5))
 
@@ -125,7 +127,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         curve = conditions[cond_key]["curves"]
         steps = [c["step"] for c in curve]
         lambdas = [c["mean_lambda"] for c in curve]
-        std_lambdas = [c["std_lambda"] for c in curve]
+        se_lambdas = [c["std_lambda"] / sqrt_n for c in curve]
         color = BUDGET_COLORS[blabel]
 
         ax_lam.plot(
@@ -135,9 +137,9 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         )
         ax_lam.fill_between(
             steps,
-            [m - s for m, s in zip(lambdas, std_lambdas)],
-            [m + s for m, s in zip(lambdas, std_lambdas)],
-            alpha=0.10, color=color, zorder=2,
+            [m - s for m, s in zip(lambdas, se_lambdas)],
+            [m + s for m, s in zip(lambdas, se_lambdas)],
+            alpha=0.18, color=color, zorder=2,
         )
 
     _add_phase_boundary(ax_lam, phase_boundary, label=False)
@@ -160,7 +162,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         curve = conditions[cond_key]["curves"]
         steps = [c["step"] for c in curve]
         fracs = [c["arm_fractions"].get("Gemini-Pro", 0.0) for c in curve]
-        stds = [c["arm_fractions_std"].get("Gemini-Pro", 0.0) for c in curve]
+        ses = [c["arm_fractions_std"].get("Gemini-Pro", 0.0) / sqrt_n for c in curve]
         color = BUDGET_COLORS[blabel]
 
         ax_mix.plot(
@@ -170,16 +172,16 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         )
         ax_mix.fill_between(
             steps,
-            [m - s for m, s in zip(fracs, stds)],
-            [m + s for m, s in zip(fracs, stds)],
-            alpha=0.10, color=color, zorder=2,
+            [m - s for m, s in zip(fracs, ses)],
+            [m + s for m, s in zip(fracs, ses)],
+            alpha=0.18, color=color, zorder=2,
         )
 
     if "Unconstrained" in conditions:
         uc_curve = conditions["Unconstrained"]["curves"]
         uc_steps = [c["step"] for c in uc_curve]
         uc_fracs = [c["arm_fractions"].get("Gemini-Pro", 0.0) for c in uc_curve]
-        uc_stds = [c["arm_fractions_std"].get("Gemini-Pro", 0.0) for c in uc_curve]
+        uc_ses = [c["arm_fractions_std"].get("Gemini-Pro", 0.0) / sqrt_n for c in uc_curve]
         ax_mix.plot(
             uc_steps, uc_fracs,
             color=UNCONSTRAINED_COLOR, linestyle="-.", linewidth=2.0,
@@ -187,9 +189,9 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         )
         ax_mix.fill_between(
             uc_steps,
-            [m - s for m, s in zip(uc_fracs, uc_stds)],
-            [m + s for m, s in zip(uc_fracs, uc_stds)],
-            alpha=0.08, color=UNCONSTRAINED_COLOR, zorder=2,
+            [m - s for m, s in zip(uc_fracs, uc_ses)],
+            [m + s for m, s in zip(uc_fracs, uc_ses)],
+            alpha=0.12, color=UNCONSTRAINED_COLOR, zorder=2,
         )
 
     _add_phase_boundary(ax_mix, phase_boundary, label=False)
@@ -213,7 +215,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         curve = conditions[cond_key]["curves"]
         steps = [c["step"] for c in curve]
         avg_costs = [c["mean_avg_cost"] for c in curve]
-        std_costs = [c["std_avg_cost"] for c in curve]
+        se_costs = [c["std_avg_cost"] / sqrt_n for c in curve]
         color = BUDGET_COLORS[blabel]
 
         ax_cost.plot(
@@ -223,9 +225,9 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         )
         ax_cost.fill_between(
             steps,
-            [m - s for m, s in zip(avg_costs, std_costs)],
-            [m + s for m, s in zip(avg_costs, std_costs)],
-            alpha=0.10, color=color, zorder=2,
+            [m - s for m, s in zip(avg_costs, se_costs)],
+            [m + s for m, s in zip(avg_costs, se_costs)],
+            alpha=0.18, color=color, zorder=2,
         )
         ax_cost.axhline(
             btarget, color=color, linestyle=":", linewidth=1.2,
@@ -236,7 +238,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         uc_curve = conditions["Unconstrained"]["curves"]
         uc_steps = [c["step"] for c in uc_curve]
         uc_costs = [c["mean_avg_cost"] for c in uc_curve]
-        uc_stds = [c["std_avg_cost"] for c in uc_curve]
+        uc_ses = [c["std_avg_cost"] / sqrt_n for c in uc_curve]
         ax_cost.plot(
             uc_steps, uc_costs,
             color=UNCONSTRAINED_COLOR, linestyle="-.", linewidth=2.0,
@@ -244,9 +246,9 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         )
         ax_cost.fill_between(
             uc_steps,
-            [m - s for m, s in zip(uc_costs, uc_stds)],
-            [m + s for m, s in zip(uc_costs, uc_stds)],
-            alpha=0.08, color=UNCONSTRAINED_COLOR, zorder=2,
+            [m - s for m, s in zip(uc_costs, uc_ses)],
+            [m + s for m, s in zip(uc_costs, uc_ses)],
+            alpha=0.12, color=UNCONSTRAINED_COLOR, zorder=2,
         )
 
     _add_phase_boundary(ax_cost, phase_boundary, label=False)
@@ -262,7 +264,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
 
     fig.suptitle(
         r"BanditGPT Adaptation Dynamics Under Cost Drift ($K{=}3$, "
-        r"Pacer + $\gamma{=}0.997$, 20 seeds, $\pm$1 SD)",
+        rf"Pacer + $\gamma{{=}}0.997$, {n_seeds} seeds, $\pm$1 SE)",
         fontsize=12, fontweight="bold", y=1.03,
     )
     fig.tight_layout()

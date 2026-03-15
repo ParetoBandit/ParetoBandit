@@ -13,24 +13,47 @@ price drop to improve quality while maintaining budget compliance,
 and how does it compare with static cost-control baselines?}
 
 \paragraph{Setup.}
-The $K{=}3$ portfolio is deployed on a two-phase cost-drift stream:
-Phase~1 ($n{=}893$) uses normal pricing (Gemini normalized cost
-$\tilde{c}{=}0.67$); Phase~2 ($n{=}892$) applies a Gemini price
-drop to \$0.10/\$0.10 per million tokens ($\tilde{c} \approx 0.0$).
-Online learning uses the validation split ($n{=}1{,}785$) and
-priors are trained on the disjoint training split
+The $K{=}3$ portfolio follows a \emph{train-then-evaluate} pipeline
+(matching Experiment~01).
+The router first online-learns on the validation split
+($n{=}1{,}785$) under normal pricing without recording evaluation
+metrics; priors are trained on the disjoint training split
 ($n_{\mathrm{eff}}{=}10$, $\alpha{=}0.1$;
 Section~\ref{sec:hparam_sweep}).
+Evaluation uses the held-out test split ($n{=}1{,}824$),
+partitioned into two phases:
+Phase~1 ($n{=}912$) uses normal pricing (Gemini normalized cost
+$\tilde{c}{=}0.67$); Phase~2 ($n{=}912$) applies a Gemini price
+drop to \$0.10/\$0.10 per million tokens ($\tilde{c} \approx 0.0$).
 
-Three budget targets span the constraint regime:
+Three budget targets are chosen to span qualitatively distinct
+operating regimes of the primal-dual controller:
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Tight} ($B{=}\$2.3{\times}10^{-4}$/req):
-    Lambda high, Llama-dominant in Phase~1.
+    The budget constraint fully dominates routing decisions.
+    $\lambda_t$ is persistently high, forcing the router into a
+    near-corner solution (Llama-dominant).  This regime tests
+    whether the pacer can maintain exact budget compliance when
+    there is almost no room to trade cost for quality.
   \item \textbf{Moderate} ($B{=}\$6.6{\times}10^{-4}$/req):
-    Mixed Llama/Mistral routing in Phase~1.
+    The constraint is actively binding but not saturating.
+    The router must continuously balance quality and cost,
+    producing a mixed Llama/Mistral policy.  This is the
+    regime where the closed-loop nature of the BudgetPacer
+    matters most, because small routing changes cause immediate
+    cost feedback that the dual update must absorb.
   \item \textbf{Loose} ($B{=}\$1.9{\times}10^{-3}$/req):
-    Light constraint in Phase~1.
+    The budget barely constrains routing; $\lambda_t$ is low
+    and the router operates close to its unconstrained optimum.
+    This regime tests whether the pacer gracefully ``gets out
+    of the way'' when the budget is not a binding constraint.
 \end{itemize}
+
+\noindent
+Together, these three levels cover the full spectrum from
+budget-dominated to quality-dominated routing, allowing us to
+evaluate adaptation behavior across the entire operating envelope
+rather than at a single hand-picked budget.
 
 \noindent
 Per target, three conditions represent increasing levels of
@@ -51,8 +74,16 @@ routing sophistication, each using warmup priors:
 
 \noindent
 An \textbf{unconstrained BanditGPT} baseline (same algorithm,
-same priors, no budget pacer, $\lambda_s{=}0$) serves as
-quality ceiling.
+same priors, no budget pacer, $\lambda_s{=}0$) is included in
+every panel of Figure~\ref{fig:exp03_adaptation}.  This baseline
+answers two questions that budget-constrained results alone cannot:
+(i)~\emph{how much quality does the budget cost us?}---the gap
+between a constrained curve and the unconstrained curve quantifies
+the price of budget compliance; and
+(ii)~\emph{does the pacer converge toward unconstrained behavior
+after the price drop?}---when Gemini becomes nearly free, a
+well-adapted pacer should approach the unconstrained routing mix,
+and the unconstrained trace provides the reference to verify this.
 
 \paragraph{Fixed Policy cost awareness.}
 The ``Fixed Policy'' freezes the \emph{reward model} (no online
@@ -92,17 +123,17 @@ targeting}:
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
 \multirow{3}{*}{Tight ($\$2.3 \times 10^{-4}$)}
-  & Fixed Policy     & \$2.9e-5 & $0.13\times$ \\
-  & Naive Bandit     & \$9.4e-4 & $4.02\times$ \\
-  & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.01\times}$ \\[3pt]
+  & Fixed Policy     & \$2.9e-5 & $0.12\times$ \\
+  & Naive Bandit     & \$2.2e-4 & $0.92\times$ \\
+  & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.00\times}$ \\[3pt]
 \multirow{3}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
-  & Fixed Policy     & \$1.3e-4 & $0.19\times$ \\
-  & Naive Bandit     & \$2.1e-3 & $3.22\times$ \\
+  & Fixed Policy     & \$1.3e-4 & $0.20\times$ \\
+  & Naive Bandit     & \$7.0e-4 & $1.05\times$ \\
   & \textbf{BanditGPT} & \textbf{\$6.6e-4} & $\mathbf{1.00\times}$ \\[3pt]
 \multirow{3}{*}{Loose ($\$1.9 \times 10^{-3}$)}
-  & Fixed Policy     & \$9.1e-4 & $0.49\times$ \\
-  & Naive Bandit     & \$5.4e-3 & $2.91\times$ \\
-  & \textbf{BanditGPT} & \textbf{\$1.8e-3} & $\mathbf{0.98\times}$ \\
+  & Fixed Policy     & \$9.2e-4 & $0.49\times$ \\
+  & Naive Bandit     & \$5.2e-3 & $2.78\times$ \\
+  & \textbf{BanditGPT} & \textbf{\$1.8e-3} & $\mathbf{0.97\times}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -112,7 +143,7 @@ The \textbf{Ratio} column shows Phase~1 cost as a multiple of the
 budget target.  Two failure modes emerge:
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy under-spends} ($0.13$--$0.49\times$).
+  \item \textbf{Fixed Policy under-spends} ($0.12$--$0.49\times$).
     The static cost penalty, tuned to produce similar Phase~1 spend
     for the pacer conditions, is too aggressive for a frozen policy
     that cannot refine its reward estimates.
@@ -120,18 +151,21 @@ budget target.  Two failure modes emerge:
     but also the lowest-quality---wasting the entire quality headroom
     that the budget allows.
 
-  \item \textbf{Naive Bandit over-spends} ($2.9$--$4.0\times$).
-    Online learning discovers that Mistral-Large has high quality
-    and shifts routing toward it, but the static cost penalty cannot
-    absorb the resulting cost increase.
-    At moderate budget, the Naive Bandit spends \$2.1e-3/req---over
-    $3\times$ the target.
-    In production, this would exhaust the monthly budget in 10~days.
+  \item \textbf{Naive Bandit is inconsistent across budgets.}
+    After pre-training on the validation split, the Naive Bandit
+    happens to land near target at tight ($0.92\times$) and moderate
+    ($1.05\times$) budgets---but this is coincidental, not controlled.
+    At loose budget, the same static penalty ($\lambda_s{=}0.10$)
+    cannot contain the shift toward expensive arms: the Naive Bandit
+    spends \$5.2e-3/req ($2.78\times$ target).
+    The static penalty provides no feedback mechanism to correct this;
+    a different penalty per budget tier would require the very
+    closed-loop calibration that the BudgetPacer provides automatically.
 \end{itemize}
 
 \noindent
 \textbf{BanditGPT is the only condition that reliably hits the
-budget target} ($0.98$--$1.01\times$).  The BudgetPacer's
+budget target} ($0.97$--$1.00\times$).  The BudgetPacer's
 primal-dual mechanism adjusts $\lambda_t$ continuously based on
 observed costs, providing a closed-loop budget controller that
 static penalties cannot replicate.
@@ -140,28 +174,46 @@ static penalties cannot replicate.
 % ADAPTATION DYNAMICS
 % =====================================================================
 
+\paragraph{Why show the dual variable.}
+The dual variable $\lambda_t$ is the central internal signal of the
+BudgetPacer: it acts as a learned, time-varying ``price of cost''
+that modulates the score of every arm at every step
+(Eq.~\ref{eq:dual_update}).
+When $\lambda_t$ is high, the router penalizes expensive arms
+heavily; when $\lambda_t$ drops toward zero, cost is effectively
+ignored and the router optimizes for quality alone.
+Plotting $\lambda_t$ therefore exposes the \emph{mechanism} by
+which the pacer adapts---not just the outcome (routing mix, cost)
+but the control signal that produces it.
+This is important because, unlike static cost penalties, $\lambda_t$
+is never manually tuned: it emerges from the interaction between
+the primal routing decisions and the dual budget feedback.
+Observing its trajectory lets us verify that the adaptation is
+smooth, timely, and regime-appropriate.
+
 \paragraph{Lambda adaptation (Figure~\ref{fig:exp03_adaptation}a).}
 The dual variable $\lambda_t$ responds directly to the cost EMA.
-At \textbf{moderate} budget, $\lambda_t$ oscillates around
-$0.29$ during Phase~1 then drops sharply
-to ${\sim}0$ within ${\sim}100$ steps of the price drop as
+At \textbf{moderate} budget, $\lambda_t$ averages
+$0.32$ during Phase~1 then drops sharply
+to ${\sim}0.01$ within Phase~2 as
 $\bar{c}_t$ falls below target.
 At \textbf{loose} budget, $\lambda_t$ starts at $0.10$
-and rapidly reaches zero after the price drop.
-At \textbf{tight} budget, $\lambda_t$ decreases from $0.64$
-to $0.39$ but stays elevated---the budget is so stringent that
-even the EMA takes many observations to ratchet down from the
-near-ceiling values accumulated during Phase~1.
+and rapidly reaches near-zero after the price drop.
+At \textbf{tight} budget, $\lambda_t$ averages $0.45$
+in Phase~1 and stays elevated at $0.42$ in Phase~2---the budget
+is so stringent that even the EMA takes many observations to
+ratchet down from the near-ceiling values accumulated during
+Phase~1.
 This EMA-mediated response requires no external change-detection
 signal: the dual update (Eq.~\ref{eq:dual_update}) naturally tracks
 the cost regime.
 
 \paragraph{Gemini adoption (Figure~\ref{fig:exp03_adaptation}b).}
 At \textbf{moderate} budget, the pacer increases Gemini selection
-from ${\sim}2\%$ to ${\sim}47\%$ within Phase~2, approaching the
-unconstrained baseline (${\sim}68\%$ Gemini in Phase~2).
+from ${\sim}2\%$ to ${\sim}44\%$ within Phase~2, approaching the
+unconstrained baseline (${\sim}75\%$ Gemini in Phase~2).
 At \textbf{loose} budget, Gemini selection rises from ${\sim}9\%$
-to ${\sim}46\%$, also converging toward the unconstrained level.
+to ${\sim}48\%$, also converging toward the unconstrained level.
 At \textbf{tight} budget, Gemini selection remains near $0\%$
 even after the price drop---an important limitation discussed below.
 
@@ -173,22 +225,22 @@ even after the price drop---an important limitation discussed below.
 \toprule
 \textbf{Budget} & \textbf{Target} & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Overall} & \textbf{Util.} \\
 \midrule
-Tight    & \$2.34e-4 & \$2.37e-4 & \$2.33e-4 & \$2.35e-4 & $1.01\times$ \\
-Moderate & \$6.62e-4 & \$6.64e-4 & \$3.49e-4 & \$5.07e-4 & $0.77\times$ \\
-Loose    & \$1.87e-3 & \$1.83e-3 & \$3.52e-4 & \$1.09e-3 & $0.58\times$ \\
+Tight    & \$2.34e-4 & \$2.35e-4 & \$2.34e-4 & \$2.34e-4 & $1.00\times$ \\
+Moderate & \$6.62e-4 & \$6.59e-4 & \$3.67e-4 & \$5.13e-4 & $0.77\times$ \\
+Loose    & \$1.87e-3 & \$1.82e-3 & \$3.53e-4 & \$1.09e-3 & $0.58\times$ \\
 \midrule
-Unconstr.\ & ---     & \$9.06e-3 & \$3.20e-4 & \$4.69e-3 & --- \\
+Unconstr.\ & ---     & \$1.19e-2 & \$3.14e-4 & \$6.13e-3 & --- \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
-BanditGPT achieves Phase~1 costs within 1\% of the target at all
+BanditGPT achieves Phase~1 costs within 3\% of the target at all
 budget levels.  After the price drop, costs decline below target
 (the pacer constrains from above, never inflates); the overall
 utilization ratio therefore falls below $1.0\times$.
-The unconstrained baseline spends ${\sim}5$--$39\times$ more than
-pacer targets in Phase~1 (\$9.1e-3/req), confirming that the pacer
+The unconstrained baseline spends ${\sim}6$--$51\times$ more than
+pacer targets in Phase~1 (\$1.19e-2/req), confirming that the pacer
 provides genuine cost control.
 
 \paragraph{Reward lift after price drop.}
@@ -203,18 +255,18 @@ comparison; each budget level serves as its own control).
 \toprule
 \textbf{Budget} & \textbf{P1 Rwd} & \textbf{P2 Rwd} & $\boldsymbol{\Delta}$ & \textbf{95\% CI} \\
 \midrule
-Tight    & 0.843 & 0.873 & $+0.030$ & $[0.025,\; 0.034]$ \\
-Moderate & 0.879 & 0.925 & $+0.046$ & $[0.042,\; 0.050]$ \\
-Loose    & 0.901 & 0.924 & $+0.023$ & $[0.019,\; 0.026]$ \\
+Tight    & 0.854 & 0.861 & $+0.007$ & $[0.006,\; 0.009]$ \\
+Moderate & 0.882 & 0.922 & $+0.041$ & $[0.038,\; 0.043]$ \\
+Loose    & 0.907 & 0.924 & $+0.017$ & $[0.015,\; 0.019]$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
 All budget levels show highly significant reward improvement
-($p < 10^{-11}$ for all; one-sample $t$-test on per-seed deltas,
-19~d.f.).  The moderate target exhibits the largest lift
-($\Delta{=}+0.046$), reflecting the biggest shift from
+($p < 10^{-9}$ for all; one-sample $t$-test on per-seed deltas,
+49~d.f.).  The moderate target exhibits the largest lift
+($\Delta{=}+0.041$), reflecting the biggest shift from
 Llama-dominated to Gemini-heavy routing.
 
 \paragraph{Exploration starvation at tight budgets.}
@@ -223,7 +275,7 @@ after the price drop (Figure~\ref{fig:exp03_adaptation}b).
 Two factors combine:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{EMA momentum.}
-    $\lambda_t$ was saturated near $0.64$ for much of
+    $\lambda_t$ was saturated near $0.45$ for much of
     Phase~1.  The smoothing constant $\alpha_\mathrm{ema}{=}0.05$
     creates ${\sim}14$-step inertia; many low-cost observations are
     needed to ratchet $\lambda_t$ down from its Phase~1 plateau.
@@ -250,13 +302,14 @@ budget pacing}:
   \item The \textbf{Fixed Policy} under-spends the budget by
     $2$--$8\times$ because it cannot refine its reward estimates---it
     sacrifices quality unnecessarily.
-  \item The \textbf{Naive Bandit} over-spends the budget by
-    $3$--$4\times$ because online learning shifts routing toward
-    expensive arms faster than the static penalty can absorb.
+  \item The \textbf{Naive Bandit} is inconsistent: it coincidentally
+    tracks the target at tight and moderate budgets but over-spends
+    by $2.8\times$ at loose budget, because no feedback mechanism
+    corrects the static cost penalty.
   \item \textbf{BanditGPT} is the only condition that achieves
-    precise budget compliance ($0.98$--$1.01\times$ target) while
+    precise budget compliance ($0.97$--$1.00\times$ target) while
     automatically exploiting the Gemini price drop to improve quality
-    ($\Delta_\mathrm{reward}{=}+0.023$ to $+0.046$).
+    ($\Delta_\mathrm{reward}{=}+0.007$ to $+0.041$).
   \item Very tight budgets create an \textbf{exploration starvation}
     effect: the bandit cannot learn about expensive arms it was
     prevented from selecting, and this information deficit persists
