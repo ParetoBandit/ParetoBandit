@@ -24,7 +24,7 @@ cost_penalty sweep on the K=3 portfolio under stationary conditions.
 
 For each condition × seed the script:
   1. Creates a router with K=3 warmup priors.
-  2. Online-learns on the train split (shuffled).
+  2. Online-learns on the validation split (shuffled).
   3. Evaluates on the holdout/test split (shuffled).
   4. Tracks per-step reward, cost, model selection, lambda_t, and budget
      compliance diagnostics.
@@ -154,7 +154,7 @@ def _create_router(
 
 
 def _run_trial(
-    train: SplitData,
+    online: SplitData,
     test: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
@@ -166,7 +166,7 @@ def _run_trial(
     seed: int,
     record_per_step: bool = False,
 ) -> TrialResult:
-    """Run one train->test trial and return aggregate metrics.
+    """Run one online-learning -> test trial and return aggregate metrics.
 
     The pacer receives **actual per-request costs** from the offline dataset
     (via ``log.cost_usd`` override) rather than the router's heuristic token
@@ -174,7 +174,7 @@ def _run_trial(
     scale, consistent with production where billing provides exact costs.
 
     Args:
-        train: Training split data.
+        online: Online-learning split (validation set, disjoint from warmup).
         test: Test/holdout split data.
         registry: Model registry with pricing info.
         feature_dim: Embedding dimensionality.
@@ -199,12 +199,12 @@ def _run_trial(
         budget_pacer=budget_pacer,
     )
 
-    # --- Train phase (online learning, no metrics) ---
-    train_order = rng.permutation(train.n)
-    for i in train_order:
-        model, log = router.route(train.embeddings[i])
-        reward = float(train.rewards[model][i])
-        log.cost_usd = float(train.costs[model][i])
+    # --- Online-learning phase (no metrics) ---
+    online_order = rng.permutation(online.n)
+    for i in online_order:
+        model, log = router.route(online.embeddings[i])
+        reward = float(online.rewards[model][i])
+        log.cost_usd = float(online.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
     # --- Test phase (metrics) ---
@@ -279,7 +279,7 @@ def _run_trial(
 # ======================================================================
 
 
-def _compute_budget_targets(train: SplitData) -> List[float]:
+def _compute_budget_targets(online: SplitData) -> List[float]:
     """Compute 7 log-spaced targets from empirical per-model mean costs.
 
     Uses the actual dataset cost distribution rather than synthetic
@@ -287,7 +287,7 @@ def _compute_budget_targets(train: SplitData) -> List[float]:
     costs the pacer will observe during the trial.
 
     Args:
-        train: Training split with per-model costs.
+        online: Online-learning split with per-model costs.
 
     Returns:
         Seven log-spaced budget targets spanning the cheapest to most
@@ -295,7 +295,7 @@ def _compute_budget_targets(train: SplitData) -> List[float]:
     """
     per_model_means = []
     for m in ARM_ORDER:
-        per_model_means.append(float(np.mean(train.costs[m])))
+        per_model_means.append(float(np.mean(online.costs[m])))
 
     lo = min(per_model_means)
     hi = max(per_model_means)
@@ -317,17 +317,17 @@ def main() -> None:
     feature_dim = fs.dimension
     # Online learning uses val (unseen by warmup priors, which were
     # trained on train.jsonl).  Evaluation uses the held-out test split.
-    train = load_split(VAL_DATA_PATH, fs, ARM_ORDER)
+    online = load_split(VAL_DATA_PATH, fs, ARM_ORDER)
     test = load_split(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
     registry = build_model_registry(ARM_ORDER)
-    logger.info("  Online=%d  Test=%d  dim=%d", train.n, test.n, feature_dim)
+    logger.info("  Online=%d  Test=%d  dim=%d", online.n, test.n, feature_dim)
     logger.info("  Models: %s", ARM_ORDER)
 
     logger.info("  Empirical mean cost/req:")
     for m in ARM_ORDER:
-        logger.info("    %s: $%.8f", m, float(np.mean(train.costs[m])))
+        logger.info("    %s: $%.8f", m, float(np.mean(online.costs[m])))
 
-    budget_targets = _compute_budget_targets(train)
+    budget_targets = _compute_budget_targets(online)
     logger.info(
         "  Budget targets ($/req): %s",
         [f"${t:.6f}" for t in budget_targets],
@@ -344,7 +344,7 @@ def main() -> None:
         for s in range(N_SEEDS):
             seed = SEED_OFFSET + s
             trial = _run_trial(
-                train, test, registry, feature_dim,
+                online, test, registry, feature_dim,
                 condition=f"static_cp{cp:.2f}",
                 cost_penalty=cp,
                 seed=seed,
@@ -400,7 +400,7 @@ def main() -> None:
         for s in range(N_SEEDS):
             seed = SEED_OFFSET + s
             trial = _run_trial(
-                train, test, registry, feature_dim,
+                online, test, registry, feature_dim,
                 condition=f"pacer_target{target:.8f}",
                 budget_pacer=pacer,
                 target_spend=target,
@@ -477,7 +477,7 @@ def main() -> None:
         "pacer_lambda_max": PACER_LAMBDA_MAX,
         "budget_targets": budget_targets,
         "static_cost_penalties": STATIC_COST_PENALTIES,
-        "train_n": train.n,
+        "online_n": online.n,
         "test_n": test.n,
         "results": all_results,
     }
