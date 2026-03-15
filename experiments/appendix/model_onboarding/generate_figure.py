@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -21,6 +22,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+
+from utils.bootstrap import bootstrap_ci_series
 
 RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_FILE = "model_onboarding_results.json"
@@ -97,12 +103,23 @@ def _panel_flash_adoption(
         flash_mean = [
             c["windowed_mix_mean"].get(FLASH_ID, 0.0) for c in trace
         ]
-        flash_se = [
-            c["windowed_mix_se"].get(FLASH_ID, 0.0) for c in trace
-        ]
         color = BUDGET_COLORS[blabel]
         ls = "-." if blabel == "unconstrained" else "-"
         lw = 1.8 if blabel == "unconstrained" else 2.2
+
+        has_per_seed = "per_seed_windowed_mix" in trace[0]
+        if has_per_seed:
+            matrix = np.array([
+                c["per_seed_windowed_mix"].get(FLASH_ID, [0.0])
+                for c in trace
+            ])
+            ci_lo, ci_hi = bootstrap_ci_series(matrix)
+        else:
+            flash_se = [
+                c["windowed_mix_se"].get(FLASH_ID, 0.0) for c in trace
+            ]
+            ci_lo = [m - s for m, s in zip(flash_mean, flash_se)]
+            ci_hi = [m + s for m, s in zip(flash_mean, flash_se)]
 
         ax.plot(
             steps, flash_mean,
@@ -110,9 +127,7 @@ def _panel_flash_adoption(
             label=BUDGET_NICE[blabel], zorder=4,
         )
         ax.fill_between(
-            steps,
-            [m - s for m, s in zip(flash_mean, flash_se)],
-            [m + s for m, s in zip(flash_mean, flash_se)],
+            steps, ci_lo, ci_hi,
             alpha=0.10, color=color, zorder=2,
         )
 
@@ -154,21 +169,31 @@ def _panel_arm_composition(
 
     steps = [c["step"] for c in trace]
 
+    has_per_seed = "per_seed_windowed_mix" in trace[0]
+
     for arm_id in arms:
         means = [
             c["windowed_mix_mean"].get(arm_id, 0.0) for c in trace
         ]
-        ses = [c["windowed_mix_se"].get(arm_id, 0.0) for c in trace]
         color = ARM_COLORS[arm_id]
+
+        if has_per_seed:
+            matrix = np.array([
+                c["per_seed_windowed_mix"].get(arm_id, [0.0])
+                for c in trace
+            ])
+            ci_lo, ci_hi = bootstrap_ci_series(matrix)
+        else:
+            ses = [c["windowed_mix_se"].get(arm_id, 0.0) for c in trace]
+            ci_lo = [m - s for m, s in zip(means, ses)]
+            ci_hi = [m + s for m, s in zip(means, ses)]
 
         ax.plot(
             steps, means,
             color=color, linewidth=2.2, label=ARM_SHORT[arm_id], zorder=4,
         )
         ax.fill_between(
-            steps,
-            [m - s for m, s in zip(means, ses)],
-            [m + s for m, s in zip(means, ses)],
+            steps, ci_lo, ci_hi,
             alpha=0.12, color=color, zorder=2,
         )
 
@@ -266,7 +291,7 @@ def main() -> None:
 
     fig.suptitle(
         r"Model Onboarding: K=3 $\to$ K=4 (Gemini Flash)"
-        r" — 20 seeds, $\pm$1 SE",
+        r" — 20 seeds, 95% bootstrap CI",
         fontsize=13, fontweight="bold", y=1.02,
     )
     fig.tight_layout()

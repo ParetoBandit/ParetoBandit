@@ -85,7 +85,7 @@ The 1{,}785-step trajectory has two phases:
 
   \item \textbf{Phase~2} (steps 894--1{,}785): \textbf{Reward swap}.
     Llama-8B and Mistral-Large exchange their per-prompt reward
-    and cost columns, simulating simultaneous API quality changes.
+    columns, simulating simultaneous API quality changes.
     Post-swap, Llama-8B is utility-best
     ($0.922 = 0.922 - 0$) while Mistral-Large drops to worst
     ($0.727 = 0.804 - 0.077$).  Gemini-Pro is unchanged (anchor).
@@ -153,7 +153,7 @@ policy without priors; the lower exploration rate avoids
 excessive early regret).
 The Naive Bandit's stationary-optimal configuration
 ($\alpha{=}0.01$, $n_{\mathrm{eff}}{=}1{,}000$;
-Appendix~\ref{app:hparam_sweep}) would perform \emph{worse}
+Section~\ref{sec:hparam_sweep}) would perform \emph{worse}
 under the shift due to stronger prior inertia; the shared
 hyperparameters represent a conservative comparison.
 

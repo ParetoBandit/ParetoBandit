@@ -307,6 +307,7 @@ def _aggregate_seeds(
                 "se_cumulative_regret": float(
                     np.std(cum_regrets) / np.sqrt(n_seeds)
                 ),
+                "per_seed_cumulative_regret": [float(r) for r in cum_regrets],
                 "mean_oracle_agreement": float(np.mean(oracle_agreements)),
                 "se_oracle_agreement": float(
                     np.std(oracle_agreements) / np.sqrt(n_seeds)

@@ -666,6 +666,10 @@ def _aggregate_checkpoints(
             "windowed_mix_se": {
                 a: _se(wmix_arrays[a]) for a in K4_ARMS
             },
+            "per_seed_windowed_mix": {
+                a: [float(v) for v in wmix_arrays[a]] for a in K4_ARMS
+            },
+            "per_seed_cumulative_cost": [float(v) for v in costs],
             "cumulative_reward": float(np.mean(rewards)),
             "cumulative_cost": float(np.mean(costs)),
             "cumulative_regret": float(np.mean(regrets)),

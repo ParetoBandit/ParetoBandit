@@ -351,11 +351,14 @@ def main() -> None:
             )
             seed_trials.append(trial)
 
-        mean_reward = float(np.mean([t.mean_reward for t in seed_trials]))
-        mean_cost = float(np.mean([t.mean_cost for t in seed_trials]))
+        per_seed_rewards = [t.mean_reward for t in seed_trials]
+        per_seed_costs = [t.mean_cost for t in seed_trials]
+
+        mean_reward = float(np.mean(per_seed_rewards))
+        mean_cost = float(np.mean(per_seed_costs))
         mean_quality_gap = float(np.mean([t.cumulative_quality_gap for t in seed_trials]))
-        se_reward = float(np.std([t.mean_reward for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
-        se_cost = float(np.std([t.mean_cost for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
+        se_reward = float(np.std(per_seed_rewards, ddof=1) / np.sqrt(N_SEEDS))
+        se_cost = float(np.std(per_seed_costs, ddof=1) / np.sqrt(N_SEEDS))
 
         avg_fracs = {}
         for m in ARM_ORDER:
@@ -371,6 +374,8 @@ def main() -> None:
             "se_cost": se_cost,
             "mean_quality_gap": mean_quality_gap,
             "model_fractions": avg_fracs,
+            "per_seed_rewards": [float(v) for v in per_seed_rewards],
+            "per_seed_costs": [float(v) for v in per_seed_costs],
         }
         all_results.append(row)
         logger.info(
@@ -405,11 +410,14 @@ def main() -> None:
             seed_trials.append(trial)
             record_first_seed = False
 
-        mean_reward = float(np.mean([t.mean_reward for t in seed_trials]))
-        mean_cost = float(np.mean([t.mean_cost for t in seed_trials]))
+        per_seed_rewards = [t.mean_reward for t in seed_trials]
+        per_seed_costs = [t.mean_cost for t in seed_trials]
+
+        mean_reward = float(np.mean(per_seed_rewards))
+        mean_cost = float(np.mean(per_seed_costs))
         mean_quality_gap = float(np.mean([t.cumulative_quality_gap for t in seed_trials]))
-        se_reward = float(np.std([t.mean_reward for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
-        se_cost = float(np.std([t.mean_cost for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
+        se_reward = float(np.std(per_seed_rewards, ddof=1) / np.sqrt(N_SEEDS))
+        se_cost = float(np.std(per_seed_costs, ddof=1) / np.sqrt(N_SEEDS))
         mean_util = float(np.mean([t.budget_utilization for t in seed_trials]))
 
         avg_fracs = {}
@@ -432,6 +440,8 @@ def main() -> None:
             "se_cost": se_cost,
             "mean_quality_gap": mean_quality_gap,
             "model_fractions": avg_fracs,
+            "per_seed_rewards": [float(v) for v in per_seed_rewards],
+            "per_seed_costs": [float(v) for v in per_seed_costs],
             "final_lambda": float(np.mean([t.final_lambda for t in seed_trials])),
             "trailing_100_cost": float(np.mean([t.trailing_100_cost for t in seed_trials])),
             "budget_utilization": mean_util,

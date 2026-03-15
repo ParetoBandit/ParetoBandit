@@ -19,14 +19,20 @@ Usage:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+
+from utils.bootstrap import bootstrap_ci
 
 # ======================================================================
 # Paths
@@ -101,6 +107,32 @@ def _dollar_fmt(x: float, _pos: Any = None) -> str:
 # ======================================================================
 
 
+def _ci_errorbars(
+    rows: List[Dict[str, Any]],
+    field: str,
+) -> Tuple[List[float], List[float]]:
+    """Compute asymmetric error bar half-widths from bootstrap CI or SE.
+
+    Returns (lo_err, hi_err) suitable for ``ax.errorbar(..., yerr=...)``.
+    """
+    means = [r[f"mean_{field}"] for r in rows]
+    per_seed_key = f"per_seed_{field}s"
+    se_key = f"se_{field}"
+
+    lo_errs: List[float] = []
+    hi_errs: List[float] = []
+    for i, r in enumerate(rows):
+        if per_seed_key in r:
+            ci_lo, ci_hi = bootstrap_ci(np.array(r[per_seed_key]))
+            lo_errs.append(means[i] - ci_lo)
+            hi_errs.append(ci_hi - means[i])
+        else:
+            se = r[se_key]
+            lo_errs.append(se)
+            hi_errs.append(se)
+    return lo_errs, hi_errs
+
+
 def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
     """Quality-cost Pareto frontier: BudgetPacer vs. static baseline."""
     results = data["results"]
@@ -111,13 +143,13 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
 
     s_costs = [r["mean_cost"] for r in static]
     s_rewards = [r["mean_reward"] for r in static]
-    s_se_r = [r["se_reward"] for r in static]
-    s_se_c = [r["se_cost"] for r in static]
+    s_err_r_lo, s_err_r_hi = _ci_errorbars(static, "reward")
+    s_err_c_lo, s_err_c_hi = _ci_errorbars(static, "cost")
 
     p_costs = [r["mean_cost"] for r in pacer]
     p_rewards = [r["mean_reward"] for r in pacer]
-    p_se_r = [r["se_reward"] for r in pacer]
-    p_se_c = [r["se_cost"] for r in pacer]
+    p_err_r_lo, p_err_r_hi = _ci_errorbars(pacer, "reward")
+    p_err_c_lo, p_err_c_hi = _ci_errorbars(pacer, "cost")
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -132,7 +164,9 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
         label="Static cost penalty", zorder=4,
     )
     ax.errorbar(
-        s_costs, s_rewards, xerr=s_se_c, yerr=s_se_r,
+        s_costs, s_rewards,
+        xerr=[s_err_c_lo, s_err_c_hi],
+        yerr=[s_err_r_lo, s_err_r_hi],
         fmt="none", ecolor=CB_GRAY, alpha=0.4, capsize=3, zorder=3,
     )
 
@@ -144,7 +178,9 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
         label="BudgetPacer (adaptive)", zorder=6,
     )
     ax.errorbar(
-        p_costs, p_rewards, xerr=p_se_c, yerr=p_se_r,
+        p_costs, p_rewards,
+        xerr=[p_err_c_lo, p_err_c_hi],
+        yerr=[p_err_r_lo, p_err_r_hi],
         fmt="none", ecolor=CB_BLUE, alpha=0.4, capsize=3, zorder=5,
     )
 

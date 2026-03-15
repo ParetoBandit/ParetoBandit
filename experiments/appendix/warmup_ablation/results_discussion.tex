@@ -13,11 +13,11 @@ $\gamma{=}1.0$) on the $K{=}3$ stationary portfolio.
 \small
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
-\textbf{Condition} & \textbf{Regret} ($\pm$1\,SE) & \textbf{Regret@200} ($\pm$1\,SE) & \textbf{Mean Rwd} & \textbf{Oracle Agr.} \\
+\textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Regret@200} (95\% CI) & \textbf{Mean Rwd} & \textbf{Oracle Agr.} \\
 \midrule
-BanditGPT (warmup) & $\mathbf{58.0 \pm 0.4}$ & $\mathbf{5.6 \pm 0.2}$ & $\mathbf{0.931}$ & $\mathbf{0.662}$ \\
-Tabula Rasa        & $90.1 \pm 0.6$           & $14.1 \pm 0.4$          & $0.913$           & $0.644$           \\
-Random             & $145.3 \pm 1.2$          & $16.3 \pm 0.4$          & $0.882$           & $0.528$           \\
+BanditGPT (warmup) & $\mathbf{58.0}$\,[57.2, 58.8] & $\mathbf{5.6}$\,[5.1, 6.0]  & $\mathbf{0.931}$ & $\mathbf{0.662}$ \\
+Tabula Rasa        & $90.1$\,[89.0, 91.2]         & $14.1$\,[13.3, 14.9]        & $0.913$           & $0.644$           \\
+Random             & $145.3$\,[142.8, 147.6]      & $16.3$\,[15.5, 17.1]        & $0.882$           & $0.528$           \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -32,4 +32,4 @@ exploratory phase that the cold-start router must perform.
 Beyond step~${\sim}800$, the cold-start router has accumulated
 enough observations to converge, but the regret gap established
 early persists through the full horizon.
-Twenty seeds; $\pm$1\,SE shading; val split ($n{=}1{,}785$).
+Twenty seeds; 95\% bootstrap CI shading; val split ($n{=}1{,}785$).
