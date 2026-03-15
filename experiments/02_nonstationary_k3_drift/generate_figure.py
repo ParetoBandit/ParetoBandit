@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -28,38 +29,47 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+
+from bandit_gpt.config import BEST_K3_HPARAMS
+from utils.bootstrap import bootstrap_ci_series
+
 RESULTS_DIR = Path(__file__).parent / "results"
 
 # ======================================================================
 # Visual encoding — maximally distinct for 4 conditions
 # ======================================================================
 
+BANDITGPT_LABEL: str = f"BanditGPT (\u03b3={BEST_K3_HPARAMS['forgetting_factor']})"
+
 CONDITION_ORDER: List[str] = [
     "Fixed Policy (offline)",
-    "Naive Bandit (γ=1.0)",
+    "Naive Bandit (\u03b3=1.0)",
     "SW-UCB (W=200)",
-    "BanditGPT (γ=0.995)",
+    BANDITGPT_LABEL,
 ]
 
 CONDITION_COLORS: Dict[str, str] = {
     "Fixed Policy (offline)": "#888888",
-    "Naive Bandit (γ=1.0)": "#D55E00",
+    "Naive Bandit (\u03b3=1.0)": "#D55E00",
     "SW-UCB (W=200)": "#CC79A7",
-    "BanditGPT (γ=0.995)": "#0072B2",
+    BANDITGPT_LABEL: "#0072B2",
 }
 
 CONDITION_STYLES: Dict[str, str] = {
     "Fixed Policy (offline)": "--",
-    "Naive Bandit (γ=1.0)": "--",
+    "Naive Bandit (\u03b3=1.0)": "--",
     "SW-UCB (W=200)": "-.",
-    "BanditGPT (γ=0.995)": "-",
+    BANDITGPT_LABEL: "-",
 }
 
 CONDITION_LINEWIDTHS: Dict[str, float] = {
     "Fixed Policy (offline)": 2.0,
-    "Naive Bandit (γ=1.0)": 2.0,
+    "Naive Bandit (\u03b3=1.0)": 2.0,
     "SW-UCB (W=200)": 2.0,
-    "BanditGPT (γ=0.995)": 2.8,
+    BANDITGPT_LABEL: 2.8,
 }
 
 ARM_COLORS: Dict[str, str] = {
@@ -130,10 +140,6 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
         curve = conditions[label]
         steps = [c["step"] for c in curve]
         regrets = [c["mean_cumulative_regret"] for c in curve]
-        se_regrets = [
-            c["std_cumulative_regret"] / np.sqrt(c["n_seeds"])
-            for c in curve
-        ]
 
         if phase_boundary is None:
             phase_boundary = curve[0]["phase_boundary"]
@@ -142,15 +148,25 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
         ls = CONDITION_STYLES[label]
         lw = CONDITION_LINEWIDTHS[label]
 
+        has_per_seed = "per_seed_cumulative_regret" in curve[0]
+        if has_per_seed:
+            matrix = np.array([c["per_seed_cumulative_regret"] for c in curve])
+            ci_lo, ci_hi = bootstrap_ci_series(matrix)
+        else:
+            se_regrets = [
+                c["std_cumulative_regret"] / np.sqrt(c["n_seeds"])
+                for c in curve
+            ]
+            ci_lo = [r - s for r, s in zip(regrets, se_regrets)]
+            ci_hi = [r + s for r, s in zip(regrets, se_regrets)]
+
         ax.plot(
             steps, regrets,
             color=color, linestyle=ls, linewidth=lw,
             label=label, zorder=4,
         )
         ax.fill_between(
-            steps,
-            [r - s for r, s in zip(regrets, se_regrets)],
-            [r + s for r, s in zip(regrets, se_regrets)],
+            steps, ci_lo, ci_hi,
             alpha=0.12, color=color, zorder=2,
         )
 
@@ -171,7 +187,7 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
     ax.set_xlabel("Training Step", fontsize=13)
     ax.set_ylabel("Cumulative Regret", fontsize=13)
     ax.set_title(
-        "Cumulative Regret Under Reward Swap (K=3, 40 seeds, \u00b11 SE)",
+        "Cumulative Regret Under Reward Swap (K=3, 40 seeds, 95% bootstrap CI)",
         fontsize=14, fontweight="bold", pad=12,
     )
     ax.grid(True, alpha=0.2, linewidth=0.5)
@@ -187,9 +203,6 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
 # ======================================================================
 
 
-BANDITGPT_LABEL: str = "BanditGPT (\u03b3=0.997)"
-
-
 def plot_arm_fractions(data: Dict[str, Any]) -> plt.Figure:
     """Per-arm selection fractions for BanditGPT, showing routing adaptation.
 
@@ -201,37 +214,49 @@ def plot_arm_fractions(data: Dict[str, Any]) -> plt.Figure:
     Returns
     -------
     plt.Figure
+
+    Raises
+    ------
+    ValueError
+        If no BanditGPT condition is found in the results.
     """
     conditions = data["conditions"]
     arm_short_names = list(data["arm_short"].values())
 
     if BANDITGPT_LABEL not in conditions:
-        fallbacks = [k for k in conditions if k.startswith("BanditGPT")]
-        if not fallbacks:
-            raise ValueError("No BanditGPT condition found in results")
-        bandit_label = fallbacks[0]
-    else:
-        bandit_label = BANDITGPT_LABEL
+        raise ValueError(
+            f"Expected condition {BANDITGPT_LABEL!r} not found in results. "
+            f"Available: {list(conditions.keys())}"
+        )
 
-    curve = conditions[bandit_label]
+    curve = conditions[BANDITGPT_LABEL]
     steps = [c["step"] for c in curve]
     phase_boundary = curve[0]["phase_boundary"]
 
     fig, ax = plt.subplots(figsize=(9, 5.5))
 
+    has_per_seed = "per_seed_arm_fractions" in curve[0]
+
     for arm in arm_short_names:
         means = [c["arm_fractions"].get(arm, 0.0) for c in curve]
-        stds = [c["arm_fractions_std"].get(arm, 0.0) for c in curve]
         color = ARM_COLORS[arm]
+
+        if has_per_seed:
+            matrix = np.array([
+                c["per_seed_arm_fractions"][arm] for c in curve
+            ])
+            ci_lo, ci_hi = bootstrap_ci_series(matrix)
+        else:
+            stds = [c["arm_fractions_std"].get(arm, 0.0) for c in curve]
+            ci_lo = [m - s for m, s in zip(means, stds)]
+            ci_hi = [m + s for m, s in zip(means, stds)]
 
         ax.plot(
             steps, means,
             color=color, linewidth=2.4, label=arm, zorder=4,
         )
         ax.fill_between(
-            steps,
-            [m - s for m, s in zip(means, stds)],
-            [m + s for m, s in zip(means, stds)],
+            steps, ci_lo, ci_hi,
             alpha=0.15, color=color, zorder=2,
         )
 
@@ -244,7 +269,7 @@ def plot_arm_fractions(data: Dict[str, Any]) -> plt.Figure:
     ax.set_xlabel("Training Step", fontsize=13)
     ax.set_ylabel("Arm Selection Fraction", fontsize=13)
     ax.set_title(
-        "Model Selection Dynamics Under Reward Swap (BanditGPT)",
+        "Model Selection Dynamics Under Reward Swap (BanditGPT, 95% bootstrap CI)",
         fontsize=14, fontweight="bold", pad=12,
     )
     ax.set_ylim(0, 1)

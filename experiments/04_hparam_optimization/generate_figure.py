@@ -12,6 +12,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Dict, List
 
@@ -19,6 +20,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from bandit_gpt.config import BEST_K3_HPARAMS, BEST_K3_TABULA_RASA_HPARAMS
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
@@ -40,8 +46,10 @@ def main() -> None:
     best_per_variant = data["best_per_variant"]
     val_results = data["val_budget_paced_full"]
 
-    # Filter to gamma=1.0 and best n_eff per variant (matching title)
-    BEST_NEFF: Dict[str, float] = {"banditgpt": 1000.0, "tabula_rasa": 1.0}
+    BEST_NEFF: Dict[str, float] = {
+        "banditgpt": BEST_K3_HPARAMS["prior_n_effective"],
+        "tabula_rasa": BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"],
+    }
     PLOT_GAMMA = 1.0
 
     auc_by_variant: Dict[str, List[float]] = {v: [] for v in variants}
@@ -86,9 +94,13 @@ def main() -> None:
 
     ax.set_xlabel(r"$\alpha$ (exploration parameter)", fontsize=11)
     ax.set_ylabel("Val Pareto AUC (per-seed, 10 seeds)", fontsize=11)
+    pca_d = BEST_K3_HPARAMS["pca_components"]
+    neff_w = int(BEST_NEFF["banditgpt"])
+    neff_c = int(BEST_NEFF["tabula_rasa"])
     ax.set_title(
-        rf"Alpha Sweep — K=3, PCA-25, $\gamma$={PLOT_GAMMA}, "
-        r"$n_{\mathrm{eff}}$=1000/1 (warmup/cold), train$\to$val protocol",
+        rf"Alpha Sweep — K=3, PCA-{pca_d}, $\gamma$={PLOT_GAMMA}, "
+        rf"$n_{{\mathrm{{eff}}}}$={neff_w}/{neff_c} (warmup/cold), "
+        r"train$\to$val protocol",
         fontsize=12,
     )
 
