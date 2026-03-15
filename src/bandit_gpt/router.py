@@ -1058,10 +1058,17 @@ class BanditRouter:
         """
         Apply hard constraints (cost, latency, quality floor).
 
-        Cost filtering interprets ``max_cost`` as a unit price ceiling in
+        Cost filtering interprets ``max_cost`` as a **unit price ceiling** in
         ``$/1k tokens`` (as documented in the README). Each model's
         ``blended_cost_per_m`` (stored in ``$/M``) is converted to ``$/1k`` by
         dividing by 1000.
+
+        Design note: the filter uses a static blended rate rather than a
+        token-weighted estimate because ``max_cost`` is a per-model *tier*
+        gate ("exclude models above price X"), not a per-request budget cap.
+        Log-scale normalization preserves model cost ranking across any
+        reasonable input:output ratio.  For per-request budget enforcement,
+        the ``BudgetPacer`` uses exact observed costs from the billing loop.
 
         Latency filtering uses ``time_to_first_token_seconds`` from the registry.
         All constraints are enforced on actual registry metadata, not predictions.
@@ -1724,7 +1731,17 @@ class BanditRouter:
         )
 
     def _get_normalized_cost(self, model_id: str) -> float:
-        """Compute normalized [0, 1] cost for a model from registry metadata."""
+        """Compute normalized [0, 1] cost for a model from registry metadata.
+
+        Uses a static 1:1 blend of input/output rates rather than weighting
+        by the current request's token counts.  This is intentional: the UCB
+        penalty is a *model-level* bias term (paper Eq. 4), not a per-request
+        cost estimate.  Log-scale normalization ensures the cost ranking is
+        preserved for any plausible token ratio; the bandit's reward model
+        corrects any residual mis-pricing through online learning.  Exact
+        per-request costs are handled by ``_estimate_cost`` and the
+        ``BudgetPacer`` feedback loop.
+        """
         m_data = self.registry.get(model_id, {})
         default_cost = self.config.default_missing_cost_per_m
         input_cost = m_data.get("input_cost_per_m")

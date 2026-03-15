@@ -24,6 +24,12 @@ In our experiments this is not limiting---the warm prior is sufficiently accurat
 If the warmup prior were poorly calibrated for a newly added model (e.g., no historical data), a tight budget could delay adoption even after a price drop.
 Future work could investigate targeted exploration strategies (e.g., small $\epsilon$-greedy budget reserves) that periodically evaluate under-explored arms to maintain calibrated quality estimates independent of the prior.
 
+\paragraph{Static Unit-Cost Normalization.}
+The normalized cost $\tilde{c}_a$ in Equation~\ref{eq:budget_ucb} and the hard ceiling filter both use a static blended rate $(\text{input\_cost} + \text{output\_cost})/2$ rather than weighting by the actual input/output token counts of each request.
+For workloads with highly asymmetric token ratios (e.g., retrieval-augmented generation with $\gg$10$\times$ more input than output tokens), a token-weighted cost would give a more precise per-request estimate.
+In practice, this does not affect our experimental conclusions for three reasons: (i)~the Pareto frontiers are evaluated using \emph{exact per-request costs} from the offline dataset, not the router's blended estimate; (ii)~the log-scale normalization preserves the cost \emph{ranking} of models across any reasonable token ratio; and (iii)~the bandit's learned quality model is independent of the cost penalty---$\tilde{c}_a$ biases arm selection but does not distort the reward posterior.
+A production deployment serving heterogeneous workloads (e.g., both summarization and RAG) could benefit from passing the expected token ratio at routing time; the open-source release already accepts \texttt{input\_tokens}/\texttt{output\_tokens} parameters and uses them for post-hoc cost logging.
+
 \paragraph{Delayed Feedback (RLHF).}
 BanditGPT assumes immediate feedback (i.e., the reward $r_t$ is observed immediately after routing $x_t$). In production, feedback such as user thumbs-up/down or delayed human-in-the-loop annotations may arrive hours or days later. The system architecture must decouple the routing decision from the LinUCB update, maintaining a persistent log of context vectors that can be asynchronously updated when feedback arrives. The open-source release includes a \texttt{SqliteContextStore} to facilitate this delayed RLHF workflow.
 
