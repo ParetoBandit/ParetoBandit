@@ -48,6 +48,12 @@ Gemini-2.5-Pro  & Frontier & \$0.015 \\
 \end{tabular}
 \end{table}
 
+\paragraph{Context representation.}
+Each prompt is encoded by the \texttt{all-MiniLM-L6-v2} SentenceTransformer (384-D) and projected to a 25-dimensional context vector via PCA, followed by a bias term ($d{=}26$).
+Crucially, the PCA projection matrix is fitted \emph{once}, \emph{offline}, on ${\sim}46{,}000$ LMSYS Arena prompts that are \textbf{strictly disjoint} from all three experimental splits (train/val/test).
+During all experiments the PCA transform is frozen and applied as an inference-only projection; no component of the feature pipeline is re-fitted on the evaluation data.
+A PCA-dimension ablation (Appendix~\ref{sec:pca_ablation}) confirms the Pareto AUC surface is flat across $d \in [6, 25]$.
+
 \subsection{Environment Construction}
 
 The $K{=}3$ portfolio spans three distinct cost tiers (Table~\ref{tab:dataset}, right).  The $500\times$ price differential between Llama-3.1-8B and Gemini-2.5-Pro stresses the router's ability to balance quality and cost efficiently.
@@ -63,7 +69,7 @@ We compare BanditGPT against two standard baselines representing different level
 2. \textbf{Naive Bandit ($\gamma=1.0$):} A standard LinUCB algorithm initialized with warmup priors. It learns online but retains infinite memory (no forgetting). A static cost penalty $\lambda_s$ is applied. This represents a straightforward application of online learning without adaptation for non-stationarity or budget pacing.
 3. \textbf{BanditGPT ($\gamma=0.995$):} Our proposed system, initialized with warmup priors, utilizing geometric forgetting, and governed by the Primal-Dual `BudgetPacer` targeting a specific dollar budget.
 
-All three conditions use the same exploration rate ($\alpha=0.1$) and prior strength ($n_{eff}=10$).
+All three conditions use the same exploration rate ($\alpha=0.1$) and prior strength ($n_\mathit{eff}=1000$).
 
 \subsection{Metrics}
 

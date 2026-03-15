@@ -29,7 +29,7 @@ real benchmark data:
   Gemini-Pro is unchanged (anchor), preserving a realistic three-way
   competition.
 
-Three conditions are compared at a fixed cost penalty (λ=0.2),
+Four conditions are compared at a fixed cost penalty (λ=0.2),
 representing increasing levels of routing sophistication:
 
   - **Fixed Policy (offline)**: Warmup priors deployed frozen — the
@@ -38,6 +38,9 @@ representing increasing levels of routing sophistication:
   - **Naive Bandit (γ=1.0)**: LinUCB with infinite memory and warmup
     priors.  The obvious first attempt at online routing — adapts, but
     Phase 1 inertia dilutes Phase 2 signal.
+  - **SW-UCB (W=200)**: Sliding-Window LinUCB without priors.  Retains
+    only the last W observations with equal weighting (Garivier &
+    Moulines 2011).  A structurally different non-stationary baseline.
   - **BanditGPT (γ=0.995)**: Warmup priors with jointly-tuned
     geometric forgetting.  Effective memory ~200 steps.
 
@@ -71,6 +74,7 @@ from bandit_gpt.config import (
     VAL_DATA_PATH,
 )
 from bandit_gpt.feature_service import FeatureService
+from bandit_gpt.policy import SlidingWindowLinUCBPolicy
 from bandit_gpt.router import BanditRouter
 from bandit_gpt.storage import EphemeralContextStore
 from utils.simulation import (
@@ -115,6 +119,11 @@ CHECKPOINT_INTERVAL: int = 50
 
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA_WARMUP: float = BEST_K3_HPARAMS["alpha"]
+ALPHA_NO_PRIOR: float = 0.01
+
+# SW-UCB window matched to BanditGPT's effective memory:
+# γ=0.995 → half-life = ln2/(1-0.995) ≈ 139 → effective window ≈ 200 steps.
+SW_UCB_WINDOW: int = 200
 
 CONDITIONS: List[Dict[str, Any]] = [
     {
@@ -130,6 +139,14 @@ CONDITIONS: List[Dict[str, Any]] = [
         "forgetting_factor": 1.0,
         "alpha": ALPHA_WARMUP,
         "online_learn": True,
+    },
+    {
+        "label": "SW-UCB (W=200)",
+        "warmup": False,
+        "forgetting_factor": 1.0,
+        "alpha": ALPHA_NO_PRIOR,
+        "online_learn": True,
+        "window_size": SW_UCB_WINDOW,
     },
     {
         "label": "BanditGPT (γ=0.995)",
@@ -202,6 +219,7 @@ def _create_router(
     warmup: bool = True,
     forgetting_factor: float = 1.0,
     alpha: float = ALPHA_WARMUP,
+    window_size: int = 0,
 ) -> BanditRouter:
     """Build a K=3 router with optional warmup priors.
 
@@ -217,10 +235,14 @@ def _create_router(
         Exponential discount on prior observations.
     alpha : float
         LinUCB exploration coefficient.
+    window_size : int
+        If > 0, replace the default policy with a
+        :class:`SlidingWindowLinUCBPolicy` retaining the last
+        *window_size* observations (SW-UCB baseline).
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
-    return BanditRouter.create(
+    router = BanditRouter.create(
         model_registry=registry,
         feature_service=fs,
         context_store=store,
@@ -230,8 +252,15 @@ def _create_router(
         alpha=alpha,
         cost_penalty=COST_PENALTY,
         forgetting_factor=forgetting_factor,
-        drift_threshold=0.0,
     )
+    if window_size > 0:
+        router.bandit = SlidingWindowLinUCBPolicy(
+            model_names=ARM_ORDER,
+            dim=feature_dim,
+            alpha=alpha,
+            window_size=window_size,
+        )
+    return router
 
 
 # ======================================================================
@@ -361,6 +390,7 @@ def _run_learning_curve(
             warmup=condition["warmup"],
             forgetting_factor=condition["forgetting_factor"],
             alpha=condition.get("alpha", ALPHA_WARMUP),
+            window_size=condition.get("window_size", 0),
         )
 
         p1_order = rng.permutation(n_p1)
@@ -482,6 +512,8 @@ def main() -> None:
 
     # ---- Load data ----
     logger.info("Loading K=3 data ...")
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService()
     feature_dim = fs.dimension
 
@@ -588,6 +620,8 @@ def main() -> None:
         "cost_penalty": COST_PENALTY,
         "prior_n_effective": PRIOR_N_EFFECTIVE,
         "alpha_warmup": ALPHA_WARMUP,
+        "alpha_no_prior": ALPHA_NO_PRIOR,
+        "sw_ucb_window": SW_UCB_WINDOW,
         "checkpoint_interval": CHECKPOINT_INTERVAL,
         "normalized_costs": {
             ARM_SHORT[a]: v for a, v in normalized_costs.items()

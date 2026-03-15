@@ -35,17 +35,22 @@ Three budget targets span the constraint regime:
   - **Moderate** ($6.6 × 10⁻⁴ $/req): mixed routing Phase 1
   - **Loose**    ($1.9 × 10⁻³ $/req): light constraint Phase 1
 
-Per target, three conditions are compared, representing increasing
+Per target, four conditions are compared, representing increasing
 levels of routing sophistication:
 
   1. **Fixed Policy (offline)** — Warmup priors with a matched static
      cost penalty but no online learning.  The dominant production
-     pattern: train offline, deploy, never update.  Helpless under drift.
+     pattern: train offline, deploy, never update.
   2. **Naive Bandit** — LinUCB with warmup priors, infinite memory
      (γ=1.0), and a matched static cost penalty.  The obvious first
      attempt at online routing — adapts, but Phase 1 inertia dilutes
      Phase 2 signal, and has no principled budget mechanism.
-  3. **BanditGPT** — Warmup priors + geometric forgetting (γ=0.995) +
+  3. **Recalibrated Bandit** — Same as Naive Bandit, but at the Phase 2
+     boundary the static cost penalty is re-tuned offline using the
+     validation split with Phase 2 pricing.  This isolates the value
+     of continuous online tracking (BanditGPT) vs. stepwise offline
+     recalibration.
+  4. **BanditGPT** — Warmup priors + geometric forgetting (γ=0.995) +
      primal-dual BudgetPacer.  The full system.
 
 Plus one unconstrained baseline (cp=0, no pacer) for quality ceiling.
@@ -56,6 +61,7 @@ Usage:
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import sys
@@ -129,6 +135,13 @@ MATCHED_STATIC_CPS: Dict[str, float] = {
     "moderate": 0.30,
     "loose": 0.10,
 }
+
+# Calibration sweep for the Recalibrated Bandit baseline.
+CAL_N_SEEDS: int = 10
+CAL_SEED_OFFSET: int = 9000
+CAL_LAMBDA_CANDIDATES: List[float] = [
+    0.0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0,
+]
 
 
 # ======================================================================
@@ -269,7 +282,6 @@ def _create_router(
         alpha=ALPHA,
         cost_penalty=cost_penalty,
         forgetting_factor=forgetting_factor,
-        drift_threshold=0.0,
         budget_pacer=budget_pacer,
     )
 
@@ -292,6 +304,7 @@ def _run_two_phase_trial(
     forgetting_factor: float = 1.0,
     online_learn: bool = True,
     budget_pacer: Optional[BudgetPacer] = None,
+    phase2_cost_penalty: Optional[float] = None,
     seed: int,
 ) -> SeedResult:
     """Run one seed through the train-then-evaluate cost-drift scenario.
@@ -327,6 +340,9 @@ def _run_two_phase_trial(
         is never called and the train phase is skipped.
     budget_pacer : BudgetPacer or None
         Budget pacer instance (reset before each seed).
+    phase2_cost_penalty : float or None
+        If provided, the router's ``cost_penalty`` is updated to this value
+        at the Phase 2 boundary — simulating periodic offline recalibration.
     seed : int
         Random seed for prompt ordering.
 
@@ -393,6 +409,8 @@ def _run_two_phase_trial(
             gemini_reg.pop("blended_cost_per_m", None)
             router._resolve_registry_costs()
             registry_updated = True
+            if phase2_cost_penalty is not None:
+                router.cost_penalty = phase2_cost_penalty
 
         phase = 1 if t < n_p1 else 2
 
@@ -424,6 +442,124 @@ def _run_two_phase_trial(
 
 
 # ======================================================================
+# Phase 2 cost-penalty calibration (Recalibrated Bandit)
+# ======================================================================
+
+
+def _calibrate_phase2_cp(
+    train_data: SplitData,
+    cal_data_phase2: SplitData,
+    registry: Dict[str, Any],
+    feature_dim: int,
+    original_cp: float,
+    budget_target: float,
+    n_cal_seeds: int = CAL_N_SEEDS,
+    candidates: Optional[List[float]] = None,
+) -> float:
+    """Find the static cost penalty that best tracks *budget_target* under Phase 2 pricing.
+
+    Simulates periodic offline recalibration: after observing a price change
+    an operator re-tunes the static cost penalty on a dev set with updated
+    pricing.  The candidate that minimises ``|mean_cost − target|`` wins.
+
+    The calibration trains a Naive Bandit (γ=1.0) on the validation split
+    under normal pricing, then — for each candidate λ — deep-copies the
+    trained router, applies the price drop, sets ``cost_penalty = λ``, and
+    evaluates on the **same** validation split with Phase 2 pricing.
+    Using the validation split for both training and calibration is
+    standard dev-set practice and avoids any leakage from the holdout set.
+
+    Parameters
+    ----------
+    train_data : SplitData
+        Validation split under **original** pricing (used for online training).
+    cal_data_phase2 : SplitData
+        Validation split with **Phase 2** Gemini pricing applied.
+    registry : dict
+        Original model registry (Phase 1 pricing).
+    feature_dim : int
+        Context vector dimensionality.
+    original_cp : float
+        Static cost penalty used during Phase 1 training.
+    budget_target : float
+        Dollar budget target per request.
+    n_cal_seeds : int
+        Number of calibration seeds.
+    candidates : list[float] or None
+        Candidate λ values to sweep.
+
+    Returns
+    -------
+    float
+        Cost penalty for Phase 2 that best tracks the budget target.
+    """
+    if candidates is None:
+        candidates = CAL_LAMBDA_CANDIDATES
+
+    candidate_costs: Dict[float, List[float]] = {c: [] for c in candidates}
+
+    for s in range(n_cal_seeds):
+        seed = CAL_SEED_OFFSET + s
+        rng = np.random.default_rng(seed)
+
+        base_router = _create_router(
+            registry,
+            feature_dim,
+            warmup=True,
+            forgetting_factor=1.0,
+            cost_penalty=original_cp,
+        )
+
+        train_order = rng.permutation(train_data.n)
+        for i in train_order:
+            model, log = base_router.route(train_data.embeddings[i])
+            log.cost_usd = float(train_data.costs[model][i])
+            base_router.process_feedback(
+                log.request_id, reward=float(train_data.rewards[model][i])
+            )
+
+        cal_order = rng.permutation(cal_data_phase2.n)
+
+        for cp_candidate in candidates:
+            router = copy.deepcopy(base_router)
+
+            gemini_reg = router.registry[GEMINI_ID]
+            gemini_reg["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
+            gemini_reg["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
+            gemini_reg.pop("blended_cost_per_m", None)
+            router._resolve_registry_costs()
+            router.cost_penalty = cp_candidate
+
+            costs: List[float] = []
+            for i in cal_order:
+                model, log = router.route(cal_data_phase2.embeddings[i])
+                cost = float(cal_data_phase2.costs[model][i])
+                log.cost_usd = cost
+                router.process_feedback(
+                    log.request_id,
+                    reward=float(cal_data_phase2.rewards[model][i]),
+                )
+                costs.append(cost)
+
+            candidate_costs[cp_candidate].append(float(np.mean(costs)))
+
+    best_cp = original_cp
+    best_gap = float("inf")
+    for cp_candidate in candidates:
+        avg_cost = float(np.mean(candidate_costs[cp_candidate]))
+        gap = abs(avg_cost - budget_target)
+        logger.info(
+            "    λ=%.3f → $%.6f/req (gap=$%.2e)", cp_candidate, avg_cost, gap,
+        )
+        if gap < best_gap:
+            best_gap = gap
+            best_cp = cp_candidate
+
+    logger.info("  → Best Phase 2 λ = %.3f (gap=$%.2e)", best_cp, best_gap)
+    return best_cp
+
+
+# ======================================================================
 # Condition definitions
 # ======================================================================
 
@@ -432,11 +568,12 @@ def _build_conditions(
     budget_target: float,
     budget_label: str,
     matched_cp: float,
+    recalibrated_phase2_cp: float,
 ) -> List[Dict[str, Any]]:
-    """Build three conditions for a given budget target.
+    """Build four conditions for a given budget target.
 
     The conditions represent increasing routing sophistication:
-    Fixed Policy → Naive Bandit → BanditGPT.
+    Fixed Policy → Naive Bandit → Recalibrated Bandit → BanditGPT.
 
     Parameters
     ----------
@@ -446,6 +583,8 @@ def _build_conditions(
         Human-readable budget label (tight/moderate/loose).
     matched_cp : float
         Static cost penalty that produces similar Phase 1 spend.
+    recalibrated_phase2_cp : float
+        Cost penalty recalibrated offline for Phase 2 pricing.
 
     Returns
     -------
@@ -460,6 +599,7 @@ def _build_conditions(
             "warmup": True,
             "forgetting_factor": 1.0,
             "online_learn": False,
+            "phase2_cost_penalty": None,
         },
         {
             "label": f"Naive Bandit ({budget_label})",
@@ -468,6 +608,16 @@ def _build_conditions(
             "warmup": True,
             "forgetting_factor": 1.0,
             "online_learn": True,
+            "phase2_cost_penalty": None,
+        },
+        {
+            "label": f"Recalibrated ({budget_label})",
+            "budget_target": None,
+            "cost_penalty": matched_cp,
+            "warmup": True,
+            "forgetting_factor": 1.0,
+            "online_learn": True,
+            "phase2_cost_penalty": recalibrated_phase2_cp,
         },
         {
             "label": f"BanditGPT ({budget_label})",
@@ -476,6 +626,7 @@ def _build_conditions(
             "warmup": True,
             "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
             "online_learn": True,
+            "phase2_cost_penalty": None,
         },
     ]
 
@@ -605,6 +756,8 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info("Loading K=3 data ...")
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService()
     feature_dim = fs.dimension
 
@@ -645,13 +798,41 @@ def main() -> None:
     )
 
     # ------------------------------------------------------------------
+    # Calibrate Phase 2 cost penalties for the Recalibrated Bandit
+    # ------------------------------------------------------------------
+    train_phase2 = _apply_gemini_cost_reduction(
+        train_all, GEMINI_ID,
+        old_input, old_output,
+        GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
+    )
+
+    recalibrated_cps: Dict[str, float] = {}
+    for target, blabel in zip(BUDGET_TARGETS, BUDGET_LABELS):
+        matched_cp = MATCHED_STATIC_CPS[blabel]
+        logger.info(
+            "\nCalibrating Phase 2 λ for %s (target=$%.2e) ...", blabel, target,
+        )
+        recalibrated_cps[blabel] = _calibrate_phase2_cp(
+            train_data=train_all,
+            cal_data_phase2=train_phase2,
+            registry=registry,
+            feature_dim=feature_dim,
+            original_cp=matched_cp,
+            budget_target=target,
+        )
+
+    logger.info("\nRecalibrated Phase 2 cost penalties: %s", recalibrated_cps)
+
+    # ------------------------------------------------------------------
     # Run all conditions
     # ------------------------------------------------------------------
     all_condition_results: Dict[str, Dict[str, Any]] = {}
 
     for target, blabel in zip(BUDGET_TARGETS, BUDGET_LABELS):
         matched_cp = MATCHED_STATIC_CPS[blabel]
-        conditions = _build_conditions(target, blabel, matched_cp)
+        conditions = _build_conditions(
+            target, blabel, matched_cp, recalibrated_cps[blabel],
+        )
 
         for cond in conditions:
             label = cond["label"]
@@ -682,6 +863,7 @@ def main() -> None:
                     forgetting_factor=cond["forgetting_factor"],
                     online_learn=cond.get("online_learn", True),
                     budget_pacer=pacer,
+                    phase2_cost_penalty=cond.get("phase2_cost_penalty"),
                     seed=seed,
                 )
                 seed_results.append(sr)
@@ -744,6 +926,9 @@ def main() -> None:
         "budget_targets": BUDGET_TARGETS,
         "budget_labels": BUDGET_LABELS,
         "matched_static_cps": MATCHED_STATIC_CPS,
+        "recalibrated_phase2_cps": recalibrated_cps,
+        "cal_n_seeds": CAL_N_SEEDS,
+        "cal_lambda_candidates": CAL_LAMBDA_CANDIDATES,
         "pacer_lr": PACER_LR,
         "pacer_lambda_max": PACER_LAMBDA_MAX,
         "pacer_ema_alpha": PACER_EMA_ALPHA,

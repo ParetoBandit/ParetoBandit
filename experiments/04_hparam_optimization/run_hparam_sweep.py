@@ -17,8 +17,29 @@ We fix PCA dimensionality to d=25 (~28.5% cumulative variance).
 For Tabula Rasa, n_eff is irrelevant (no priors), so only alpha x
 gamma is swept with n_eff fixed at 1.0.
 
-Protocol
---------
+Data protocol
+-------------
+Strict disjoint splits to avoid prior/online-stream overlap:
+
+- **train.jsonl** — used *only* for offline prior generation and to
+  anchor budget-target ranges.  Never seen during online learning.
+- **val.jsonl** — split into two disjoint portions at load time
+  (1/3 burn-in, 2/3 eval):
+
+  - ``val_burnin`` (first 1/3, ~595 prompts): online warm-up — the
+    router learns but no metrics are recorded.
+  - ``val_eval`` (remaining 2/3, ~1190 prompts): selection surface —
+    metrics are recorded here.  No prompt appears in both portions.
+
+  The asymmetric split preserves more data for evaluation (giving
+  stable metric estimates and ~595-step non-stationary phases) while
+  still providing adequate burn-in on top of the offline priors.
+
+- **test.jsonl** — held-out evaluation (burn-in on full val, eval on
+  test; never used for selection).
+
+Scoring protocol
+----------------
 Each (alpha, n_eff, gamma) config is scored on two objectives using
 the **same** fixed gamma (no adaptive mechanism):
 
@@ -90,7 +111,6 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.po
 
 ALPHA_VALUES: List[float] = [0.01, 0.05, 0.1, 0.25, 0.5, 1.0]
 N_EFF_VALUES: List[float] = [1.0, 10.0, 50.0, 200.0, 1000.0, 5000.0]
-COST_PENALTIES: List[float] = [0.0, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]
 BUDGET_TARGET_COUNT: int = 7
 PACER_LR: float = 0.05
 PACER_LAMBDA_MAX: float = 5.0
@@ -197,13 +217,55 @@ def _parse_and_embed(
     }
 
 
+def _split_data(
+    data: Dict[str, Any],
+    arm_order: List[str],
+    burnin_frac: float = 1 / 3,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Split a data dict into burn-in and eval portions.
+
+    Used to create ``val_burnin`` (first ``burnin_frac``) and
+    ``val_eval`` (remainder) so that the burn-in phase never sees
+    evaluation prompts.  The default 1/3 burn-in preserves 2/3 of the
+    data for evaluation, giving more statistical power for metric
+    estimation while still providing adequate online warm-up on top of
+    the offline priors.
+
+    Args:
+        data: Dict with ``prompts``, ``rewards``, ``costs``,
+            ``embeddings``, ``n`` as produced by :func:`_parse_and_embed`.
+        arm_order: Model identifiers for slicing reward/cost arrays.
+        burnin_frac: Fraction of data allocated to burn-in (default 1/3).
+
+    Returns:
+        ``(burnin_portion, eval_portion)`` — two dicts with the same
+        schema, disjoint by construction.
+    """
+    split_idx = int(data["n"] * burnin_frac)
+    first = {
+        "prompts": data["prompts"][:split_idx],
+        "rewards": {a: data["rewards"][a][:split_idx] for a in arm_order},
+        "costs": {a: data["costs"][a][:split_idx] for a in arm_order},
+        "embeddings": data["embeddings"][:split_idx],
+        "n": split_idx,
+    }
+    second = {
+        "prompts": data["prompts"][split_idx:],
+        "rewards": {a: data["rewards"][a][split_idx:] for a in arm_order},
+        "costs": {a: data["costs"][a][split_idx:] for a in arm_order},
+        "embeddings": data["embeddings"][split_idx:],
+        "n": data["n"] - split_idx,
+    }
+    return first, second
+
+
 # ======================================================================
 # Simulation
 # ======================================================================
 
 
 def _simulate_bandit(
-    train_data: Dict[str, Any],
+    burnin_data: Dict[str, Any],
     eval_data: Dict[str, Any],
     registry: Dict[str, Any],
     feature_dim: int,
@@ -215,11 +277,17 @@ def _simulate_bandit(
     cost_penalty: float,
     seed: int,
 ) -> Tuple[float, float]:
-    """Run train->eval bandit simulation, return (mean_reward, mean_cost).
+    """Run burn-in then eval bandit simulation, return (mean_reward, mean_cost).
+
+    The router first burns in on ``burnin_data`` (disjoint from both
+    priors and eval), then records metrics on ``eval_data``.  For val
+    selection, burn-in and eval are disjoint halves of val.jsonl; for
+    holdout reporting, burn-in is full val and eval is test.
 
     Args:
-        train_data: Training split (bandit updates but results not recorded).
-        eval_data: Evaluation split (per-prompt metrics recorded).
+        burnin_data: Burn-in split (bandit learns, results not recorded).
+        eval_data: Evaluation split (per-prompt metrics recorded).  Must
+            be disjoint from ``burnin_data`` to avoid look-ahead bias.
         registry: Filtered model registry.
         feature_dim: Context vector dimensionality.
         warmup_path: Path to warmup priors, or ``None`` for tabula rasa.
@@ -249,16 +317,15 @@ def _simulate_bandit(
         use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=gamma,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=None,
     )
 
-    train_order = rng.permutation(train_data["n"])
-    for i in train_order:
-        model, log = router.route(train_data["embeddings"][i])
-        reward = float(train_data["rewards"][model][i])
+    burnin_order = rng.permutation(burnin_data["n"])
+    for i in burnin_order:
+        model, log = router.route(burnin_data["embeddings"][i])
+        reward = float(burnin_data["rewards"][model][i])
         router.process_feedback(log.request_id, reward=reward)
 
     eval_order = rng.permutation(eval_data["n"])
@@ -276,100 +343,13 @@ def _simulate_bandit(
     return float(np.mean(eval_rewards)), float(np.mean(eval_costs))
 
 
-def compute_sweep_pareto_auc(
-    train_data: Dict[str, Any],
-    eval_data: Dict[str, Any],
-    registry: Dict[str, Any],
-    feature_dim: int,
-    *,
-    warmup_path: Optional[str],
-    alpha: float,
-    n_eff: float,
-    gamma: float,
-    n_seeds: int,
-    seed_offset: int,
-) -> Tuple[float, float, List[Dict[str, Any]]]:
-    """Sweep cost_penalty and compute per-seed Pareto AUC (then averaged).
-
-    For each seed independently:
-      1. Run train->eval for every cost_penalty value.
-      2. Build the Pareto frontier from the resulting (mean_cost,
-         mean_reward) points *plus* fixed-model endpoints.
-      3. Compute the seed's Pareto AUC.
-
-    Cost range is anchored to fixed-model extremes.
-
-    Args:
-        train_data: Training split.
-        eval_data: Evaluation split.
-        registry: Filtered model registry.
-        feature_dim: Context vector dimensionality.
-        warmup_path: Path to warmup priors, or ``None`` for tabula rasa.
-        alpha: LinUCB exploration coefficient.
-        n_eff: Prior effective sample size.
-        gamma: Forgetting factor (1.0 = no forgetting).
-        n_seeds: Number of independent random seeds.
-        seed_offset: Base offset added to each seed index.
-
-    Returns:
-        ``(mean_auc, std_auc, sweep_points)``.
-    """
-    fixed_costs = [float(eval_data["costs"][a].mean()) for a in ARM_ORDER]
-    fixed_rewards = [float(eval_data["rewards"][a].mean()) for a in ARM_ORDER]
-    cost_lo = min(fixed_costs)
-    cost_hi = max(fixed_costs)
-
-    per_seed_auc: List[float] = []
-    cp_reward_accum: Dict[float, List[float]] = {cp: [] for cp in COST_PENALTIES}
-    cp_cost_accum: Dict[float, List[float]] = {cp: [] for cp in COST_PENALTIES}
-
-    for s in range(n_seeds):
-        seed = seed_offset + s
-        seed_costs: List[float] = []
-        seed_rewards: List[float] = []
-
-        for cp in COST_PENALTIES:
-            mr, mc = _simulate_bandit(
-                train_data, eval_data, registry, feature_dim,
-                warmup_path=warmup_path,
-                alpha=alpha,
-                n_eff=n_eff,
-                gamma=gamma,
-                cost_penalty=cp,
-                seed=seed,
-            )
-            seed_costs.append(mc)
-            seed_rewards.append(mr)
-            cp_reward_accum[cp].append(mr)
-            cp_cost_accum[cp].append(mc)
-
-        all_c = seed_costs + fixed_costs
-        all_r = seed_rewards + fixed_rewards
-        per_seed_auc.append(pareto_auc(all_c, all_r, cost_lo, cost_hi))
-
-    mean_auc = float(np.mean(per_seed_auc))
-    std_auc = float(np.std(per_seed_auc, ddof=1)) if n_seeds > 1 else 0.0
-
-    sweep_points: List[Dict[str, Any]] = []
-    for cp in COST_PENALTIES:
-        sweep_points.append({
-            "cost_penalty": cp,
-            "mean_reward": round(float(np.mean(cp_reward_accum[cp])), 6),
-            "mean_cost": round(float(np.mean(cp_cost_accum[cp])), 6),
-            "std_reward": round(float(np.std(cp_reward_accum[cp])), 6),
-            "std_cost": round(float(np.std(cp_cost_accum[cp])), 6),
-        })
-
-    return mean_auc, std_auc, sweep_points
-
-
 # ======================================================================
 # Budget-Paced Simulation
 # ======================================================================
 
 
 def _simulate_budget_paced(
-    train_data: Dict[str, Any],
+    burnin_data: Dict[str, Any],
     eval_data: Dict[str, Any],
     registry: Dict[str, Any],
     feature_dim: int,
@@ -381,15 +361,16 @@ def _simulate_budget_paced(
     budget_target: float,
     seed: int,
 ) -> Tuple[float, float]:
-    """Run train->eval simulation with BudgetPacer, return (mean_reward, mean_cost).
+    """Run burn-in then budget-paced eval, return (mean_reward, mean_cost).
 
-    The BudgetPacer is active for the entire simulation (both train and
-    eval phases), matching deployment conditions where the pacer is
-    present from the start.
+    The router and BudgetPacer first burn in on ``burnin_data`` (disjoint
+    from both priors and eval), then record metrics on ``eval_data``.
 
     Args:
-        train_data: Training split (bandit + pacer learn, results not recorded).
-        eval_data: Evaluation split (per-prompt metrics recorded).
+        burnin_data: Burn-in split (bandit + pacer learn, results not
+            recorded).
+        eval_data: Evaluation split (per-prompt metrics recorded).  Must
+            be disjoint from ``burnin_data`` to avoid look-ahead bias.
         registry: Filtered model registry.
         feature_dim: Context vector dimensionality.
         warmup_path: Path to warmup priors, or ``None`` for tabula rasa.
@@ -426,17 +407,16 @@ def _simulate_budget_paced(
         use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=gamma,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=pacer,
     )
 
-    train_order = rng.permutation(train_data["n"])
-    for i in train_order:
-        model, log = router.route(train_data["embeddings"][i])
-        reward = float(train_data["rewards"][model][i])
-        log.cost_usd = float(train_data["costs"][model][i])
+    burnin_order = rng.permutation(burnin_data["n"])
+    for i in burnin_order:
+        model, log = router.route(burnin_data["embeddings"][i])
+        reward = float(burnin_data["rewards"][model][i])
+        log.cost_usd = float(burnin_data["costs"][model][i])
         router.process_feedback(log.request_id, reward=reward)
 
     eval_order = rng.permutation(eval_data["n"])
@@ -455,7 +435,7 @@ def _simulate_budget_paced(
 
 
 def compute_budget_paced_pareto_auc(
-    train_data: Dict[str, Any],
+    burnin_data: Dict[str, Any],
     eval_data: Dict[str, Any],
     registry: Dict[str, Any],
     feature_dim: int,
@@ -471,7 +451,8 @@ def compute_budget_paced_pareto_auc(
     """Sweep budget targets with BudgetPacer and compute per-seed Pareto AUC.
 
     For each seed independently:
-      1. Run train->eval for every budget target (with BudgetPacer).
+      1. Burn in on ``burnin_data`` (disjoint from both priors and eval),
+         then evaluate for every budget target with BudgetPacer.
       2. Build the Pareto frontier from the resulting (mean_cost,
          mean_reward) points *plus* fixed-model endpoints.
       3. Compute the seed's Pareto AUC.
@@ -480,8 +461,9 @@ def compute_budget_paced_pareto_auc(
     unbounded Pareto AUC for comparability).
 
     Args:
-        train_data: Training split.
-        eval_data: Evaluation split.
+        burnin_data: Burn-in split (bandit + pacer learn, results not
+            recorded).
+        eval_data: Evaluation split (disjoint from ``burnin_data``).
         registry: Filtered model registry.
         feature_dim: Context vector dimensionality.
         budget_targets: Per-request USD budget targets to sweep.
@@ -511,7 +493,7 @@ def compute_budget_paced_pareto_auc(
 
         for bt in budget_targets:
             mr, mc = _simulate_budget_paced(
-                train_data, eval_data, registry, feature_dim,
+                burnin_data, eval_data, registry, feature_dim,
                 warmup_path=warmup_path,
                 alpha=alpha,
                 n_eff=n_eff,
@@ -550,7 +532,7 @@ def compute_budget_paced_pareto_auc(
 
 
 def _simulate_nonstationary_regret(
-    train_data: Dict[str, Any],
+    burnin_data: Dict[str, Any],
     val_data: Dict[str, Any],
     registry: Dict[str, Any],
     feature_dim: int,
@@ -564,16 +546,19 @@ def _simulate_nonstationary_regret(
     seed: int,
     swap_arms: Tuple[str, str],
 ) -> Tuple[float, float]:
-    """Two-phase simulation with reward swap, returning per-phase regret.
+    """Burn-in then two-phase simulation with reward swap.
 
-    Uses the candidate's **fixed gamma** so that the tuning evaluation
-    is consistent with the budget-paced metric.  Phase 1 uses the
-    first half of ``val_data`` with normal rewards.  Phase 2 uses the
-    second half with ``swap_arms`` rewards/costs exchanged.
+    The router first burns in on ``burnin_data`` (disjoint from both
+    priors and eval), then runs Phase 1 + Phase 2 on ``val_data``.
+
+    Phase 1 uses the first half of ``val_data`` with normal rewards.
+    Phase 2 uses the second half with ``swap_arms`` rewards/costs
+    exchanged.
 
     Args:
-        train_data: Training split (bandit learns, results not recorded).
-        val_data: Validation split (split into Phase 1 + Phase 2).
+        burnin_data: Burn-in split (bandit learns, results not recorded).
+        val_data: Evaluation split (split into Phase 1 + Phase 2;
+            disjoint from ``burnin_data``).
         registry: Filtered model registry.
         feature_dim: Context vector dimensionality.
         normalized_costs: Per-model normalized costs for regret computation.
@@ -605,17 +590,15 @@ def _simulate_nonstationary_regret(
         use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=gamma,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=None,
     )
 
-    # --- Train phase ---
-    train_order = rng.permutation(train_data["n"])
-    for i in train_order:
-        model, log = router.route(train_data["embeddings"][i])
-        reward = float(train_data["rewards"][model][i])
+    burnin_order = rng.permutation(burnin_data["n"])
+    for i in burnin_order:
+        model, log = router.route(burnin_data["embeddings"][i])
+        reward = float(burnin_data["rewards"][model][i])
         router.process_feedback(log.request_id, reward=reward)
 
     # --- Build swapped reward/cost arrays for Phase 2 ---
@@ -677,7 +660,7 @@ def _simulate_nonstationary_regret(
 
 
 def compute_nonstat_metric(
-    train_data: Dict[str, Any],
+    burnin_data: Dict[str, Any],
     val_data: Dict[str, Any],
     registry: Dict[str, Any],
     feature_dim: int,
@@ -692,9 +675,10 @@ def compute_nonstat_metric(
 ) -> Tuple[float, float, float]:
     """Phase 2 regret averaged over all pairwise swaps and seeds.
 
-    For each swap pair and seed, runs a two-phase simulation and records
-    the Phase 2 (post-swap) cumulative regret.  Phase 1 regret is
-    discarded to avoid double-counting with the stationary AUC metric.
+    The router burns in on ``burnin_data`` (disjoint from both priors
+    and eval), then runs Phase 1 + Phase 2 on ``val_data``.  Phase 1
+    regret is discarded to avoid double-counting with the stationary
+    AUC metric.
 
     Returns:
         ``(mean_phase2_regret, std_phase2_regret, mean_phase1_regret)``
@@ -706,7 +690,8 @@ def compute_nonstat_metric(
     for swap_pair in NONSTAT_SWAP_PAIRS:
         for s in range(n_seeds):
             p1, p2 = _simulate_nonstationary_regret(
-                train_data, val_data, registry, feature_dim, normalized_costs,
+                burnin_data, val_data, registry, feature_dim,
+                normalized_costs,
                 warmup_path=warmup_path,
                 alpha=alpha,
                 n_eff=n_eff,
@@ -746,27 +731,34 @@ def main() -> None:
         len(train_records), len(val_records), len(test_records),
     )
 
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     logger.info("Initializing FeatureService (PCA-%d) ...", PCA_DIM)
     fs = FeatureService(pca_components=PCA_DIM)
     feature_dim = fs.dimension
     logger.info("  feature_dim=%d", feature_dim)
 
-    logger.info("Encoding and embedding prompts ...")
-    train_data = _parse_and_embed(train_records, fs)
+    logger.info("Encoding and embedding prompts (val + test) ...")
     val_data = _parse_and_embed(val_records, fs)
     test_data = _parse_and_embed(test_records, fs)
+
+    val_burnin, val_eval = _split_data(val_data, ARM_ORDER)
+    logger.info(
+        "  val split → val_burnin=%d  val_eval=%d  (disjoint)",
+        val_burnin["n"], val_eval["n"],
+    )
 
     registry = build_model_registry(ARM_ORDER)
     warmup_path = str(K3_WARMUP_PRIORS_PATH)
 
     # ------------------------------------------------------------------
-    # 2. Fixed-model baselines
+    # 2. Fixed-model baselines (computed on val_eval only)
     # ------------------------------------------------------------------
     val_fixed_baselines: Dict[str, Dict[str, float]] = {}
     for arm_id in ARM_ORDER:
         val_fixed_baselines[ARM_SHORT[arm_id]] = {
-            "mean_reward": round(float(val_data["rewards"][arm_id].mean()), 6),
-            "mean_cost": round(float(val_data["costs"][arm_id].mean()), 6),
+            "mean_reward": round(float(val_eval["rewards"][arm_id].mean()), 6),
+            "mean_cost": round(float(val_eval["costs"][arm_id].mean()), 6),
         }
     val_fixed_costs = [v["mean_cost"] for v in val_fixed_baselines.values()]
     val_fixed_rewards = [v["mean_reward"] for v in val_fixed_baselines.values()]
@@ -775,7 +767,7 @@ def main() -> None:
         min(val_fixed_costs), max(val_fixed_costs),
     )
 
-    logger.info("\nFixed-model baselines (val):")
+    logger.info("\nFixed-model baselines (val_eval):")
     logger.info("  Pareto AUC: %.6f", val_fixed_auc)
     for name, stats in val_fixed_baselines.items():
         logger.info(
@@ -788,7 +780,8 @@ def main() -> None:
     n_tabula = len(ALPHA_VALUES) * len(GAMMA_VALUES)
 
     per_model_means = {
-        a: float(np.mean(train_data["costs"][a])) for a in ARM_ORDER
+        a: float(np.mean([r["arms"][a]["cost"] for r in train_records]))
+        for a in ARM_ORDER
     }
     budget_targets = list(np.geomspace(
         min(per_model_means.values()),
@@ -829,7 +822,7 @@ def main() -> None:
 
         t_cfg = time.time()
         auc, auc_std, sweep = compute_budget_paced_pareto_auc(
-            train_data, val_data, registry, feature_dim,
+            val_burnin, val_eval, registry, feature_dim,
             budget_targets,
             warmup_path=wp,
             alpha=alpha,
@@ -905,7 +898,7 @@ def main() -> None:
 
         t_cfg = time.time()
         p2_reg, p2_std, p1_reg = compute_nonstat_metric(
-            train_data, val_data, registry, feature_dim, normalized_costs,
+            val_burnin, val_eval, registry, feature_dim, normalized_costs,
             warmup_path=wp,
             alpha=alpha,
             n_eff=n_eff,
@@ -1077,7 +1070,7 @@ def main() -> None:
         )
         t_test = time.time()
         test_auc, test_std, test_sweep = compute_budget_paced_pareto_auc(
-            train_data, test_data, registry, feature_dim,
+            val_data, test_data, registry, feature_dim,
             budget_targets,
             warmup_path=wp,
             alpha=best_alpha,
@@ -1112,8 +1105,12 @@ def main() -> None:
     output: Dict[str, Any] = {
         "experiment": "appendix_epsilon_constraint_hparam_selection",
         "protocol": (
-            "3-split: train on train.jsonl, select on val.jsonl, "
-            "report on test.jsonl. Epsilon-constraint selection: "
+            "3-split disjoint protocol: priors from train.jsonl, "
+            "val.jsonl split into val_burnin (first 1/3) + val_eval "
+            "(remaining 2/3) — burn-in on val_burnin, select on val_eval "
+            "(no prompt overlap between burn-in and eval), "
+            "report on test.jsonl (burn-in on full val, eval on test). "
+            "Epsilon-constraint selection: "
             "(1) budget-paced Pareto AUC as primary metric, "
             "(2) non-stationary Phase-2 regret as secondary. "
             f"All configs within {EPSILON:.0%} of best budget-paced AUC "

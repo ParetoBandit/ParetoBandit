@@ -206,6 +206,14 @@ class FeatureService:
     **Responsibility**: Convert prompts to feature vectors
     **Output**: [PCA_0...PCA_31, bias] = 33-dimensional vector (with default pca_32.joblib)
     
+    **PCA provenance guarantee:**
+    The PCA projection matrix shipped with the package (``pca_25.joblib``) is
+    fitted *once*, *offline*, on ~46K LMSYS Arena prompts that are strictly
+    disjoint from all experimental splits (train / val / test).  At runtime
+    this class only calls ``pca.transform()`` — the projection is never
+    re-fitted on evaluation data.  The JIT fallback path (when the artifact
+    is missing) fits on synthetic prompts, not on the incoming stream.
+
     **Design Philosophy:**
     - Isolated from router logic (no LinUCB dependencies)
     - Easily swappable for custom feature engineering

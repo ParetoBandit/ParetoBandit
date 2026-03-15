@@ -48,6 +48,7 @@ from bandit_gpt.config import (
     VAL_DATA_PATH,
 )
 from bandit_gpt.feature_service import FeatureService
+from bandit_gpt.policy import SlidingWindowLinUCBPolicy
 from bandit_gpt.router import BanditRouter
 from bandit_gpt.storage import EphemeralContextStore
 from utils.simulation import (
@@ -98,6 +99,8 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 GAMMA_VALUES: List[float] = [0.99, 0.995, 0.997, 0.999, 0.9995, 1.0]
 
+SW_UCB_WINDOW: int = 200
+
 CONDITIONS: List[Dict[str, Any]] = [
     {
         "label": f"γ={g}",
@@ -114,6 +117,14 @@ CONDITIONS: List[Dict[str, Any]] = [
         "adaptive_gamma": True,
         "warmup": True,
         "alpha": ALPHA_WARMUP,
+    },
+    {
+        "label": f"SW-UCB (W={SW_UCB_WINDOW})",
+        "forgetting_factor": 1.0,
+        "adaptive_gamma": False,
+        "warmup": False,
+        "alpha": ALPHA_TABULA_RASA,
+        "window_size": SW_UCB_WINDOW,
     },
 ] + [
     {
@@ -173,6 +184,7 @@ def _create_router(
     adaptive_gamma: bool = False,
     warmup: bool = True,
     alpha: float = 0.25,
+    window_size: int = 0,
 ) -> BanditRouter:
     """Build a K=3 router with optional warmup priors.
 
@@ -190,6 +202,9 @@ def _create_router(
         Whether to load warmup priors (False = Tabula Rasa).
     alpha : float
         LinUCB exploration coefficient.
+    window_size : int
+        If > 0, replace the default policy with a
+        :class:`SlidingWindowLinUCBPolicy` (SW-UCB baseline).
 
     Returns
     -------
@@ -197,7 +212,7 @@ def _create_router(
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
-    return BanditRouter.create(
+    router = BanditRouter.create(
         model_registry=registry,
         feature_service=fs,
         context_store=store,
@@ -208,10 +223,17 @@ def _create_router(
         use_corralling=False,
         cost_penalty=COST_PENALTY,
         forgetting_factor=forgetting_factor,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=adaptive_gamma,
     )
+    if window_size > 0:
+        router.bandit = SlidingWindowLinUCBPolicy(
+            model_names=ARM_ORDER,
+            dim=feature_dim,
+            alpha=alpha,
+            window_size=window_size,
+        )
+    return router
 
 
 # ======================================================================
@@ -266,6 +288,7 @@ def _evaluate_condition(
             adaptive_gamma=condition.get("adaptive_gamma", False),
             warmup=condition.get("warmup", True),
             alpha=condition.get("alpha", ALPHA_WARMUP),
+            window_size=condition.get("window_size", 0),
         )
 
         p1_order = rng.permutation(n_p1)
@@ -352,6 +375,8 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info("Loading K=3 data ...")
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService()
     feature_dim = fs.dimension
 

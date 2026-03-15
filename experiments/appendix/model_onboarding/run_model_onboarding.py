@@ -784,6 +784,8 @@ def main() -> None:
 
     # ── Load data ─────────────────────────────────────────────────────
     logger.info("Loading data...")
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService()
     feature_dim = fs.dimension
 

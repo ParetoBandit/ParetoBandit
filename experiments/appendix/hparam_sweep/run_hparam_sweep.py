@@ -267,7 +267,6 @@ def _simulate_bandit(
         use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=gamma,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=None,
@@ -436,7 +435,6 @@ def _simulate_budget_paced(
         use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=gamma,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=pacer,
@@ -610,7 +608,6 @@ def _simulate_nonstationary_regret(
         use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=gamma,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=None,
@@ -744,6 +741,8 @@ def main() -> None:
         len(train_records), len(val_records), len(test_records),
     )
 
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     logger.info("Initializing FeatureService (PCA-%d) ...", PCA_DIM)
     fs = FeatureService(pca_components=PCA_DIM)
     feature_dim = fs.dimension

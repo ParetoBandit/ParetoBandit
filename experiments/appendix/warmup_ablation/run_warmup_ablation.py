@@ -167,7 +167,6 @@ def _create_router(
         use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=FORGETTING_FACTOR,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=None,
@@ -365,6 +364,8 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info("Loading K=3 data ...")
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService()
     feature_dim = fs.dimension
 

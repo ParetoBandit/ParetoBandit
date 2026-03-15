@@ -134,7 +134,6 @@ def _simulate_budget_paced(
         use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=1.0,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=pacer,
@@ -205,7 +204,6 @@ def _simulate_nonstationary(
         use_corralling=False,
         cost_penalty=NONSTAT_COST_PENALTY,
         forgetting_factor=1.0,
-        drift_threshold=0.0,
         policy="disjoint",
         adaptive_gamma=True,
         budget_pacer=None,
@@ -263,6 +261,8 @@ def main() -> None:
     t0 = time.time()
 
     logger.info("Loading data ...")
+    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
+    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService(pca_path=str(DEFAULT_PCA_PATH), pca_components=PCA_DIM)
     feature_dim = fs.dimension
 
