@@ -31,11 +31,6 @@
 \citation{agrawal2014bandits}
 \citation{ong2024routellm}
 \citation{thompson2026timeline}
-\citation{agrawal2014bandits}
-\citation{li2010contextual}
-\citation{li2010contextual}
-\citation{li2010contextual}
-\citation{li2010contextual}
 \@writefile{toc}{\contentsline {section}{\numberline {3}Problem Formulation}{3}{section.3}\protected@file@percent }
 \newlabel{sec:problem}{{3}{3}{Problem Formulation}{section.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Contextual Bandit Routing}{3}{subsection.3.1}\protected@file@percent }
@@ -46,11 +41,15 @@
 \@writefile{toc}{\contentsline {section}{\numberline {4}Methodology: The BanditGPT System}{3}{section.4}\protected@file@percent }
 \newlabel{sec:methodology}{{4}{3}{Methodology: The BanditGPT System}{section.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}System Architecture Overview}{3}{subsection.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Primal-Dual Budget Pacing}{3}{subsection.4.2}\protected@file@percent }
-\newlabel{sec:budget_pacing}{{4.2}{3}{Primal-Dual Budget Pacing}{subsection.4.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt  {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother.}}{4}{figure.caption.5}\protected@file@percent }
-\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:architecture}{{1}{4}{BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother}{figure.caption.5}{}}
+\citation{agrawal2014bandits}
+\citation{li2010contextual}
+\citation{li2010contextual}
+\citation{li2010contextual}
+\citation{li2010contextual}
+\citation{garivier2011switching}
+\citation{zheng2023judging}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Primal-Dual Budget Pacing}{4}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:budget_pacing}{{4.2}{4}{Primal-Dual Budget Pacing}{subsection.4.2}{}}
 \newlabel{eq:budget_ucb}{{3}{4}{Primal-Dual Budget Pacing}{equation.3}{}}
 \@writefile{toc}{\contentsline {paragraph}{Dual-Variable Dynamics and EMA Smoothing.}{4}{section*.6}\protected@file@percent }
 \newlabel{eq:cost_ema}{{4}{4}{Dual-Variable Dynamics and EMA Smoothing}{equation.4}{}}
@@ -58,31 +57,46 @@
 \@writefile{toc}{\contentsline {paragraph}{Two-Layer Enforcement (Adaptive Mode).}{4}{section*.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Non-Stationary Adaptation via Geometric Forgetting}{4}{subsection.4.3}\protected@file@percent }
 \newlabel{sec:forgetting}{{4.3}{4}{Non-Stationary Adaptation via Geometric Forgetting}{subsection.4.3}{}}
-\citation{garivier2011switching}
-\citation{zheng2023judging}
-\newlabel{eq:forget_A}{{6}{5}{Non-Stationary Adaptation via Geometric Forgetting}{equation.6}{}}
-\newlabel{eq:forget_b}{{7}{5}{Non-Stationary Adaptation via Geometric Forgetting}{equation.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{5}{section.5}\protected@file@percent }
-\newlabel{sec:setup}{{5}{5}{Experimental Setup}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets and Ground Truth}{5}{subsection.5.1}\protected@file@percent }
+\newlabel{eq:forget_A}{{6}{4}{Non-Stationary Adaptation via Geometric Forgetting}{equation.6}{}}
+\newlabel{eq:forget_b}{{7}{4}{Non-Stationary Adaptation via Geometric Forgetting}{equation.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{4}{section.5}\protected@file@percent }
+\newlabel{sec:setup}{{5}{4}{Experimental Setup}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets and Ground Truth}{4}{subsection.5.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt  {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother.}}{5}{figure.caption.5}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:architecture}{{1}{5}{BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother}{figure.caption.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Environment Construction}{5}{subsection.5.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{5}{subsection.5.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Metrics}{5}{subsection.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{5}{section.6}\protected@file@percent }
-\newlabel{sec:results}{{6}{5}{Results}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Stationary Budget Pacing}{5}{subsection.6.1}\protected@file@percent }
-\newlabel{sec:exp1_budget_pacing}{{6.1}{5}{Stationary Budget Pacing}{subsection.6.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{6}{section.6}\protected@file@percent }
+\newlabel{sec:results}{{6}{6}{Results}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Stationary Budget Pacing}{6}{subsection.6.1}\protected@file@percent }
+\newlabel{sec:exp1_budget_pacing}{{6.1}{6}{Stationary Budget Pacing}{subsection.6.1}{}}
 \@writefile{toc}{\contentsline {paragraph}{Pareto frontier.}{6}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{6}{section*.9}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The Pareto frontier under stationary conditions. BanditGPT with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning.}}{6}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:pareto}{{2}{6}{The Pareto frontier under stationary conditions. BanditGPT with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning}{figure.caption.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{6}{section*.10}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions.}}{6}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:model_mix}{{3}{6}{Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions}{figure.caption.11}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Adapting to Model Quality Shifts}{6}{subsection.6.2}\protected@file@percent }
 \newlabel{sec:exp2_reward_shift}{{6.2}{6}{Adapting to Model Quality Shifts}{subsection.6.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{6}{subsection.6.3}\protected@file@percent }
-\newlabel{sec:exp3_cost_drift}{{6.3}{6}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{6}{section*.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{6}{section*.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploration starvation.}{6}{section*.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hyperparameter Optimization for Non-Stationarity}{6}{subsection.6.4}\protected@file@percent }
-\newlabel{sec:exp4_hparam_sweep}{{6.4}{6}{Hyperparameter Optimization for Non-Stationarity}{subsection.6.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Cumulative Regret under Reward Drift. BanditGPT ($\gamma =0.997$) adapts rapidly to quality degradation, unlike naive bandits or frozen policies.}}{7}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:cumulative_regret}{{4}{7}{Cumulative Regret under Reward Drift. BanditGPT ($\gamma =0.997$) adapts rapidly to quality degradation, unlike naive bandits or frozen policies}{figure.caption.12}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{7}{subsection.6.3}\protected@file@percent }
+\newlabel{sec:exp3_cost_drift}{{6.3}{7}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{7}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{7}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploration starvation.}{7}{section*.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hyperparameter Optimization for Non-Stationarity}{7}{subsection.6.4}\protected@file@percent }
+\newlabel{sec:exp4_hparam_sweep}{{6.4}{7}{Hyperparameter Optimization for Non-Stationarity}{subsection.6.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{7}{section.7}\protected@file@percent }
+\newlabel{sec:discussion}{{7}{7}{Discussion and Production Implications}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{7}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{7}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{7}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cost Savings at Scale.}{7}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{7}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploration Starvation.}{7}{section*.21}\protected@file@percent }
 \bibstyle{ACM-Reference-Format}
 \bibdata{references}
 \bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
@@ -95,22 +109,18 @@
 \bibcite{li2010contextual}{{8}{2010}{{Li et~al\mbox  {.}}}{{}}}
 \bibcite{li2025llmbandit}{{9}{2025}{{Li}}{{}}}
 \bibcite{ma2024prompt}{{10}{2024}{{Ma et~al\mbox  {.}}}{{}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Adaptation Dynamics under Cost Drift. At $t=1000$, Gemini-2.5-Pro becomes significantly cheaper. BanditGPT detects the cost drop, lowers the dual penalty, and dynamically reroutes traffic to the higher-quality model while perfectly pacing the remaining budget.}}{8}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:adaptation_dynamics}{{5}{8}{Adaptation Dynamics under Cost Drift. At $t=1000$, Gemini-2.5-Pro becomes significantly cheaper. BanditGPT detects the cost drop, lowers the dual penalty, and dynamically reroutes traffic to the higher-quality model while perfectly pacing the remaining budget}{figure.caption.15}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Hyperparameter Sensitivity Heatmap. BanditGPT's performance is robust across various budget targets and drift magnitudes without requiring environment-specific retuning.}}{8}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:hparam_sweep}{{6}{8}{Hyperparameter Sensitivity Heatmap. BanditGPT's performance is robust across various budget targets and drift magnitudes without requiring environment-specific retuning}{figure.caption.17}{}}
+\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback (RLHF).}{8}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{8}{section*.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{8}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{8}{section*.25}\protected@file@percent }
 \bibcite{ong2024routellm}{{11}{2025}{{Ong et~al\mbox  {.}}}{{}}}
 \bibcite{panda2025pilot}{{12}{2025}{{Panda et~al\mbox  {.}}}{{}}}
 \bibcite{qian2025xrouter}{{13}{2025}{{Qian et~al\mbox  {.}}}{{}}}
 \bibcite{thompson2026timeline}{{14}{2026}{{Thompson}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{7}{section.7}\protected@file@percent }
-\newlabel{sec:discussion}{{7}{7}{Discussion and Production Implications}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{7}{subsection.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{7}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{7}{section*.14}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Cost Savings at Scale.}{7}{section*.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{7}{subsection.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploration Starvation.}{7}{section*.16}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback (RLHF).}{7}{section*.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{7}{section*.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{7}{section.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{References}{7}{section*.20}\protected@file@percent }
 \bibcite{wang2025barp}{{15}{2025}{{Wang et~al\mbox  {.}}}{{}}}
 \bibcite{zheng2023judging}{{16}{2023}{{Zheng et~al\mbox  {.}}}{{}}}
 \newlabel{tocindent-1}{0pt}
@@ -120,5 +130,5 @@
 \newlabel{tocindent3}{0pt}
 \newlabel{tocindent4}{0pt}
 \newlabel{tocindent5}{0pt}
-\newlabel{TotPages}{{8}{8}{}{page.8}{}}
-\gdef \@abspage@last{8}
+\newlabel{TotPages}{{9}{9}{}{page.9}{}}
+\gdef \@abspage@last{9}
