@@ -1,0 +1,28 @@
+% Figure caption for model onboarding under budget constraints.
+% Include in the appendix as:
+%   \begin{figure}[t]
+%     \centering
+%     \includegraphics[width=\linewidth]{figures/model_onboarding.pdf}
+%     \caption{\input{experiments_v2/appendix/model_onboarding/figure_caption.tex}}
+%     \label{fig:model_onboarding}
+%   \end{figure}
+
+\textbf{Model onboarding under budget constraints (K=3 $\to$ K=4).}
+A K=3 router (Llama-8B, Mistral-Large, Gemini-Pro) learns on 1{,}785
+prompts with warmup priors, then onboards Gemini-2.5-Flash as a fourth arm
+via \texttt{register\_model()} (dashed vertical line).
+Phase~2 continues online on the K=4 test split (1{,}824 prompts).
+\textbf{(a)}~Flash adoption trajectory: the windowed selection fraction
+of Flash rises from zero after onboarding and stabilises within
+${\sim}500$ steps across all budget tiers. Loose and unconstrained
+budgets reach 30--35\% Flash share; tight budgets plateau at
+${\sim}10$\%.
+The grey dotted line marks 25\% (uniform~1/4 baseline).
+\textbf{(b)}~Full arm composition under the moderate budget: Flash
+primarily displaces Mistral-Large ($-15.5$\,pp), taking over the
+mid-tier quality niche at lower cost.
+\textbf{(c)}~Cost compliance on log scale: BanditGPT (solid) tracks
+each budget target (dotted) within ${\sim}1$\% across the full
+trajectory, while the Fixed Policy (dashed grey) exceeds all targets
+by 6--17$\times$.
+Mean $\pm$1\,SE across 20~seeds.
