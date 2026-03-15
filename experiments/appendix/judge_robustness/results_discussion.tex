@@ -27,11 +27,81 @@ generated---with two supplementary judges chosen for provider diversity:
     \item \textbf{Claude-3.7-Sonnet} (Anthropic).
 \end{itemize}
 
-\noindent All three judges use the identical v3 rubric (Reasoning Quality
-40\%, Instruction Following 30\%, Communication Quality 30\%) and score on
-the same $[0,1]$ continuous scale.  The judge panel spans three independent
-providers (DeepSeek, OpenAI, Anthropic), none of which overlaps with the
-model providers being routed (Meta, Mistral, Google).
+\noindent All three judges receive the \emph{identical} structured
+chain-of-thought (CoT) evaluation prompt.  The prompt instructs the judge
+to first produce a concise reasoning analysis of the candidate response,
+then score three continuous dimensions on a $[0,1]$ scale: \emph{Reasoning
+Quality} (weight 0.4), \emph{Instruction Following} (weight 0.3), and
+\emph{Communication Quality} (weight 0.3).  The composite reward is the
+weighted average
+$r = 0.4\,s_{\text{reason}} + 0.3\,s_{\text{instr}} + 0.3\,s_{\text{comm}}$.
+The judge panel spans three independent providers (DeepSeek, OpenAI,
+Anthropic), none of which overlaps with the model providers being routed
+(Meta, Mistral, Google).  The full prompt template is reproduced below for
+reproducibility.
+
+\begin{quote}
+\small\ttfamily
+You are a Discriminative Router Judge.\ Your goal is to evaluate how well
+an LLM response addresses the given prompt.
+
+\medskip
+Score on three continuous dimensions (0.0--1.0).\ Use the FULL range; do
+NOT default to 0 or 1.
+
+\medskip
+1.\ \textbf{Reasoning Quality (40\,\%)} --- How sound is the reasoning?\\
+\hspace*{1em}0.9--1.0\; Flawless; every step correct and clearly justified.\\
+\hspace*{1em}0.7--0.8\; Sound overall; minor inefficiency or a trivial error
+that does not change the conclusion.\\
+\hspace*{1em}0.5--0.6\; Partially correct; approach is reasonable but
+important steps are wrong or missing.\\
+\hspace*{1em}0.3--0.4\; Weak; only fragments of correct logic.\\
+\hspace*{1em}0.0--0.2\; No coherent reasoning, or completely wrong approach.\\
+If the prompt needs no multi-step reasoning, score factual accuracy and
+depth of explanation.
+
+\medskip
+2.\ \textbf{Instruction Following (30\,\%)} --- Were all explicit and
+implicit constraints satisfied?\\
+\hspace*{1em}0.9--1.0\; Every constraint followed precisely.\\
+\hspace*{1em}0.7--0.8\; All major constraints met; one minor instruction
+partially missed.\\
+\hspace*{1em}0.5--0.6\; Some important instructions missed or only
+partially addressed.\\
+\hspace*{1em}0.3--0.4\; Multiple instructions ignored or misinterpreted.\\
+\hspace*{1em}0.0--0.2\; Response largely ignores the prompt's requirements.
+
+\medskip
+3.\ \textbf{Communication Quality (30\,\%)} --- How clear,
+well-structured, and useful is the response?\\
+\hspace*{1em}0.9--1.0\; Exceptionally clear, well-organized, appropriate
+detail.\\
+\hspace*{1em}0.7--0.8\; Clear and competent; minor improvements possible.\\
+\hspace*{1em}0.5--0.6\; Adequate but noticeably unclear, verbose, or
+poorly organized.\\
+\hspace*{1em}0.3--0.4\; Hard to follow; significant clarity issues.\\
+\hspace*{1em}0.0--0.2\; Unintelligible, unhelpful, or inappropriate tone.
+
+\medskip
+Format your response EXACTLY as follows:
+
+\medskip
+\#\# Reasoning\\
+<Concise chain-of-thought analysis>
+
+\medskip
+\#\# Reasoning Quality\\
+<0.0 to 1.0>
+
+\medskip
+\#\# Instruction Following\\
+<0.0 to 1.0>
+
+\medskip
+\#\# Communication Quality\\
+<0.0 to 1.0>
+\end{quote}
 
 \subsubsection{All Judges Agree on the Expected Reward Ordering}
 
