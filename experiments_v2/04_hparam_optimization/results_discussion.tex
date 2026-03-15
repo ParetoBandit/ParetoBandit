@@ -1,0 +1,227 @@
+% Section: Hyperparameter Optimization for Non-Stationary Routing
+% Include from paper/sections/results.tex (main paper, not appendix)
+
+\subsection{Hyperparameter Optimization for Non-Stationary Routing}
+\label{sec:hparam_sweep}
+
+\paragraph{The challenge.}
+BanditGPT's three core hyperparameters---exploration coefficient
+$\alpha$, prior strength $\neff$, and forgetting factor
+$\gamma$---interact non-trivially with the stationarity of the
+deployment environment.
+Standard cross-validation assumes i.i.d.\ data and optimises a
+single stationary metric (e.g., reward or Pareto AUC), which
+systematically selects $\gamma{=}1.0$ (infinite memory)
+because forgetting \emph{always} hurts stationary performance.
+However, $\gamma{=}1.0$ fails catastrophically under distribution
+shift: as shown in Section~\ref{sec:nonstationarity}, the
+no-forgetting condition accumulates $58.8\%$ more cumulative regret
+than the tuned $\gamma{=}0.997$ after a reward swap.
+Conversely, optimising solely for adaptability yields
+$\gamma \ll 1$ with excessive forgetting that destabilises the
+stationary policy.
+This creates a fundamental tension absent from supervised routing:
+\emph{the same hyperparameter must simultaneously protect stationary
+efficiency and enable non-stationary recovery}.
+
+Existing bandit-based LLM routers do not address this tension.
+PILOT~\cite{panda2025pilot} grid-searches the exploration rate
+$\alpha$ to maximise a single reward metric on held-out data,
+with no forgetting mechanism and no non-stationarity consideration
+in the selection protocol.
+BaRP~\cite{wang2025barp} and LLM Bandit~\cite{li2025llmbandit}
+omit forgetting entirely.
+MixLLM~\cite{wang2025mixllm} delegates adaptation to periodic
+neural-network retraining rather than tuning bandit-specific
+parameters.
+In the general bandit literature, the CDT framework~\cite{kang2024cdt}
+proposes online hyperparameter tuning via a double-layer bandit that
+treats $\alpha$ selection as a non-stationary continuum-armed problem,
+extending earlier discrete methods~\cite{bouneffouf2020oplinucb}.
+However, CDT remains \emph{single-objective} (maximise cumulative
+reward) and does not tune the forgetting factor $\gamma$ or address
+the efficiency--adaptability tradeoff.
+The foundational Discounted UCB analysis by
+Garivier and Moulines~\cite{garivier2011switching} derives $\gamma$
+theoretically from the number of breakpoints, but this quantity is
+unknown in every production deployment.
+To the best of our knowledge, no prior work---in LLM routing or in
+the broader non-stationary bandit literature---proposes a
+multi-objective protocol for jointly selecting $(\alpha, \neff,
+\gamma)$ to balance stationary efficiency against non-stationary
+recovery.
+
+\paragraph{Multi-objective formulation.}
+We resolve this tension via an
+$\epsilon$-constraint method~\cite{haimes1971bicriterion} that
+treats hyperparameter selection as a bi-objective optimisation
+problem over the grid
+$\alpha \in \{0.01, 0.05, 0.1, 0.25, 0.5, 1.0\}$,
+$\neff \in \{1, 10, 50, 200, 1000, 5000\}$,
+$\gamma \in \{0.995, 0.997, 0.999, 1.0\}$:
+%
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Primary objective} (efficiency):
+    Maximise budget-paced Pareto AUC on the validation split, computed
+    by sweeping seven log-spaced budget targets with the BudgetPacer
+    active, building per-seed Pareto frontiers (with fixed-model
+    endpoints), and averaging AUC across 10~seeds.
+
+  \item \textbf{Constraint}:
+    Retain only configurations whose budget-paced AUC is within
+    $\epsilon{=}5\%$ of the grid maximum, forming a \emph{feasible set}
+    that protects stationary routing quality.
+
+  \item \textbf{Secondary objective} (adaptability):
+    Among feasible configurations, minimise the average Phase-2
+    cumulative regret under a synthetic reward/cost swap
+    (identical to the non-stationary protocol of
+    Section~\ref{sec:reward_shift}, averaged over all
+    $\binom{K}{2}$ arm-pair swaps and 10~seeds).
+\end{enumerate}
+%
+This formulation gives budget-pacing \emph{priority}---no
+configuration that materially degrades stationary routing can be
+selected---while using the secondary objective to break ties among
+near-optimal configurations by their ability to recover from
+distribution shift.
+The $\epsilon$ parameter gives the practitioner an explicit,
+auditable knob: it specifies the maximum stationary quality they are
+willing to sacrifice in exchange for non-stationary robustness.
+
+\paragraph{Results.}
+Table~\ref{tab:hparam_selection} summarises the selection outcome
+for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
+
+\begin{table}[t]
+\centering
+\caption{%
+  \textbf{$\epsilon$-constraint hyperparameter selection.}
+  AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
+  both variants, maximising stationary AUC but doubling Phase-2
+  regret under reward shift.
+  The $\epsilon$-constraint method ($\epsilon{=}5\%$) trades
+  ${<}0.4\%$ AUC for ${\sim}50\%$ lower adaptation regret by
+  selecting moderate forgetting factors.
+  Metrics: budget-paced Pareto AUC (val, 10~seeds) and Phase-2
+  cumulative regret (val, averaged over all arm-pair swaps,
+  10~seeds).%
+}
+\label{tab:hparam_selection}
+\small
+\begin{tabular}{@{}llcccccc@{}}
+\toprule
+\textbf{Variant} & \textbf{Method}
+  & $\boldsymbol{\alpha}$ & $\boldsymbol{\neff}$
+  & $\boldsymbol{\gamma}$
+  & \textbf{BP AUC} & \textbf{P2 Regret} \\
+\midrule
+\multirow{2}{*}{BanditGPT}
+  & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.929$ & $92.5 \pm 45.1$ \\
+  & $\epsilon$-constr.\ & $0.10$ & $10$   & $0.997$ & $0.926$ & $\mathbf{46.3 \pm 6.0}$ \\[3pt]
+\multirow{2}{*}{Tabula Rasa}
+  & AUC-only     & $0.25$ & ---    & $1.000$ & $0.928$ & $93.1 \pm 39.4$ \\
+  & $\epsilon$-constr.\ & $0.01$ & ---    & $0.999$ & $0.927$ & $\mathbf{46.7 \pm 40.5}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+AUC-only optimisation selects $\gamma{=}1.0$ for \emph{both}
+variants---exactly the infinite-memory pathology that
+Section~\ref{sec:nonstationarity} shows is catastrophic under
+drift.
+The $\epsilon$-constraint method instead selects $\gamma{=}0.997$
+(BanditGPT, effective memory ${\sim}333$ steps) and
+$\gamma{=}0.999$ (Tabula Rasa, ${\sim}1{,}000$ steps),
+trading ${<}0.4\%$ budget-paced AUC for a ${\sim}50\%$ reduction
+in Phase-2 regret ($92.5 \to 46.3$ and $93.1 \to 46.7$).
+On the held-out test split, the selected configurations achieve
+Pareto AUC of $0.924$ (BanditGPT) and $0.926$ (Tabula Rasa),
+confirming that the val-selected hyperparameters generalise.
+
+Three additional patterns merit attention:
+
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{The variance gap.}
+    BanditGPT's Phase-2 regret standard deviation under
+    $\epsilon$-constraint selection is $6.0$---nearly $7\times$ lower
+    than the AUC-only selection ($45.1$) and the Tabula Rasa
+    $\epsilon$-constraint ($40.5$).
+    Warmup priors anchor the initial policy, ensuring that the
+    forgetting factor operates on a well-calibrated baseline rather
+    than a noisy cold-start estimate.
+    This reliability advantage is critical for single-deployment
+    production use, where the operator does not average over seeds.
+
+  \item \textbf{Prior strength shrinks.}
+    AUC-only selects $\neff{=}1{,}000$ (strong priors), while
+    $\epsilon$-constraint selects $\neff{=}10$ (light priors).
+    Strong priors increase effective memory and
+    resist forgetting---beneficial for stationary AUC but
+    counterproductive when the environment shifts and stale priors
+    must be discounted.
+    The $\epsilon$-constraint method discovers this tradeoff
+    automatically.
+
+  \item \textbf{Exploration increases.}
+    AUC-only selects $\alpha{=}0.01$ (minimal exploration),
+    while $\epsilon$-constraint selects $\alpha{=}0.1$
+    ($10\times$ higher).
+    Under non-stationarity, the router must re-explore arms whose
+    quality may have changed; a higher exploration coefficient
+    accelerates this re-discovery.
+    This is consistent with findings in the online hyperparameter
+    tuning literature~\cite{kang2024cdt}, which observes that the
+    optimal $\alpha$ is non-stationary itself.
+\end{enumerate}
+
+\paragraph{Novelty and significance.}
+This $\epsilon$-constraint protocol is, to our knowledge, the first
+multi-objective hyperparameter selection framework for non-stationary
+bandit routing.
+It addresses a gap that spans both the LLM routing and the general
+bandit literatures:
+existing systems either assume stationarity in their tuning
+protocol~\cite{panda2025pilot,wang2025barp,li2025llmbandit},
+delegate adaptation to model retraining rather than tuning bandit
+parameters~\cite{wang2025mixllm}, or derive $\gamma$ from
+theoretical quantities (number of breakpoints) that are unknown in
+production~\cite{garivier2011switching}.
+The CDT framework~\cite{kang2024cdt} demonstrates that online
+hyperparameter tuning is feasible for contextual bandits, but it
+optimises a single reward objective and does not address the
+stability--plasticity tradeoff that arises when the router must
+simultaneously serve stationary traffic well and recover from shifts.
+
+Our contribution is complementary: rather than tuning $\alpha$
+online during execution (as CDT does), we propose a
+\emph{deployment-time} protocol that jointly selects
+$(\alpha, \neff, \gamma)$ using a multi-objective criterion
+that explicitly encodes the dual requirements of
+production routing---efficiency under stationarity and resilience
+under drift.
+The empirical result that single-objective tuning
+\emph{systematically} selects $\gamma{=}1.0$ and that this doubles
+Phase-2 regret is itself a cautionary finding: any practitioner
+deploying a non-stationary bandit router who tunes via standard
+cross-validation will converge on the worst possible forgetting
+factor.
+
+\paragraph{Practical implications.}
+From a deployment perspective, the protocol eliminates the need to
+hand-tune forgetting factors on live traffic---a practice that risks
+degrading routing quality during the tuning period and offers no
+reproducibility.
+The practitioner specifies two quantities: (i)~a grid of candidate
+hyperparameters, and (ii)~the tolerance $\epsilon$ (how much
+stationary quality they are willing to sacrifice for robustness).
+The output is a single configuration that is
+near-optimal for budget-paced routing and maximally adaptive within
+that quality budget.
+Because the secondary objective uses a synthetic reward swap
+(Section~\ref{sec:reward_shift}), the protocol requires no live
+non-stationary data and can be run entirely on a static validation
+split before deployment.
+This makes the tuning procedure safe, offline, and repeatable---a
+necessary property for production systems subject to change-management
+governance.

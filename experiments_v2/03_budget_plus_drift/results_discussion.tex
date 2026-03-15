@@ -13,13 +13,14 @@ price drop to improve quality while maintaining budget compliance,
 and how does this compare with unconstrained BanditGPT?}
 
 \paragraph{Setup.}
-The $K{=}3$ portfolio is deployed on a two-phase cost-drift stream
-using the same data as Experiment~02b (Section~\ref{sec:cost_shift}):
+The $K{=}3$ portfolio is deployed on a two-phase cost-drift stream:
 Phase~1 ($n{=}893$) uses normal pricing (Gemini normalized cost
 $\tilde{c}{=}0.67$); Phase~2 ($n{=}892$) applies a Gemini price
 drop to \$0.10/\$0.10 per million tokens ($\tilde{c} \approx 0.0$).
 Online learning uses the validation split ($n{=}1{,}785$) and
-priors are trained on the disjoint training split.
+priors are trained on the disjoint training split
+($n_{\mathrm{eff}}{=}10$, $\alpha{=}0.1$;
+Section~\ref{sec:hparam_sweep}).
 
 Three budget targets span the constraint regime:
 \begin{itemize}[nosep,leftmargin=*]
@@ -34,31 +35,31 @@ Three budget targets span the constraint regime:
 \noindent
 Per target, three pacer conditions are compared across 20~seeds:
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Pacer + adaptive~$\gamma$}: Full production config
-    (BudgetPacer~\cite{agrawal2014bandits} + residual-based adaptive
-    forgetting, Section~\ref{sec:adaptive_gamma}).
+  \item \textbf{Pacer + $\gamma{=}0.997$}: Production config
+    (BudgetPacer + jointly-tuned forgetting,
+    effective memory ${\sim}333$ steps).
   \item \textbf{Pacer + $\gamma{=}1.0$}: Pacer-only (no forgetting).
-  \item \textbf{Pacer + $\gamma{=}0.999$}: Pacer + blind forgetting
+  \item \textbf{Pacer + $\gamma{=}0.999$}: Pacer + mild forgetting
     (effective memory ${\sim}1{,}000$ steps).
 \end{enumerate}
 
 \noindent
 An \textbf{unconstrained BanditGPT} baseline (same algorithm, same
 priors, no budget pacer, $\lambda_s{=}0$) serves as quality ceiling.
-Figure~\ref{fig:exp03_adaptation} uses the production config
-(Pacer + adaptive~$\gamma$) as the representative pacer condition;
+Figure~\ref{fig:exp03_adaptation} uses the jointly-tuned config
+(Pacer + $\gamma{=}0.997$) as the representative pacer condition;
 variant ablation results are in Table~\ref{tab:exp03_ablation}.
 
 \paragraph{Lambda adaptation (Figure~\ref{fig:exp03_adaptation}a).}
 The dual variable $\lambda_t$ responds directly to the cost EMA.
 At \textbf{moderate} budget, $\lambda_t$ oscillates around
-$0.32$ during Phase~1 then drops sharply
-to ${\sim}0.006$ within ${\sim}200$ steps of the price drop as
+$0.29$ during Phase~1 then drops sharply
+to ${\sim}0$ within ${\sim}100$ steps of the price drop as
 $\bar{c}_t$ falls below target.
-At \textbf{loose} budget, $\lambda_t$ was already near zero
-and remains there.
-At \textbf{tight} budget, $\lambda_t$ decreases from $0.50$
-to $0.37$ but stays elevated---the budget is so stringent that
+At \textbf{loose} budget, $\lambda_t$ starts at $0.10$
+and rapidly reaches zero after the price drop.
+At \textbf{tight} budget, $\lambda_t$ decreases from $0.64$
+to $0.39$ but stays elevated---the budget is so stringent that
 even the EMA takes many observations to ratchet down from the
 near-ceiling values accumulated during Phase~1.
 This EMA-mediated response requires no external change-detection
@@ -67,17 +68,17 @@ the cost regime.
 
 \paragraph{Gemini adoption (Figure~\ref{fig:exp03_adaptation}b).}
 At \textbf{moderate} budget, the pacer increases Gemini selection
-from ${\sim}2\%$ to ${\sim}78\%$ within Phase~2, approaching the
-unconstrained baseline (${\sim}40\%$ Gemini overall, dash-dot green).
+from ${\sim}2\%$ to ${\sim}47\%$ within Phase~2, approaching the
+unconstrained baseline (${\sim}68\%$ Gemini in Phase~2).
 At \textbf{loose} budget, Gemini selection rises from ${\sim}10\%$
-to ${\sim}78\%$, also converging toward the unconstrained level.
+to ${\sim}46\%$, also converging toward the unconstrained level.
 At \textbf{tight} budget, however, Gemini selection remains below
-$2\%$ even after the price drop---an important limitation discussed
+$1\%$ even after the price drop---an important limitation discussed
 below.
 
-The unconstrained BanditGPT, by contrast, already routed heavily to
-quality-optimal models throughout Phase~1 and shows relatively
-stable Gemini selection across both phases.
+The unconstrained BanditGPT routes $57\%$ to Gemini in Phase~1
+(quality-optimal) and increases to $68\%$ after the price drop
+removes the cost barrier entirely.
 
 \paragraph{Cross-seed variance in routing paths.}
 The $\pm$1\,SD bands in Figure~\ref{fig:exp03_adaptation}b are
@@ -114,11 +115,11 @@ arm-selection paths.  Three observations make this acceptable:
 \toprule
 \textbf{Budget} & \textbf{Target} & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Overall} & \textbf{Util.} \\
 \midrule
-Tight    & \$2.34e-4 & \$2.37e-4 & \$2.33e-4 & \$2.35e-4 & $1.00\times$ \\
-Moderate & \$6.62e-4 & \$6.63e-4 & \$2.99e-4 & \$4.81e-4 & $0.73\times$ \\
-Loose    & \$1.87e-3 & \$1.85e-3 & \$2.83e-4 & \$1.07e-3 & $0.57\times$ \\
+Tight    & \$2.34e-4 & \$2.37e-4 & \$2.33e-4 & \$2.35e-4 & $1.01\times$ \\
+Moderate & \$6.62e-4 & \$6.64e-4 & \$3.49e-4 & \$5.07e-4 & $0.77\times$ \\
+Loose    & \$1.87e-3 & \$1.83e-3 & \$3.52e-4 & \$1.09e-3 & $0.58\times$ \\
 \midrule
-Unconstr.\ & ---     & \$9.00e-3 & \$3.48e-4 & \$4.68e-3 & --- \\
+Unconstr.\ & ---     & \$9.06e-3 & \$3.20e-4 & \$4.69e-3 & --- \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -129,7 +130,7 @@ After the price drop, costs decline below target (the pacer constrains
 from above, never inflates); the overall utilization ratio therefore
 falls below $1.0\times$.
 The unconstrained baseline spends ${\sim}5$--$39\times$ more than pacer
-targets in Phase~1 (\$9.0e-3/req), confirming that the pacer
+targets in Phase~1 (\$9.1e-3/req), confirming that the pacer
 provides genuine cost control.
 
 \paragraph{Reward lift after price drop.}
@@ -144,11 +145,11 @@ comparison; each condition serves as its own control).
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{P1 Rwd} & \textbf{P2 Rwd} & $\boldsymbol{\Delta}$ & \textbf{95\% CI} \\
 \midrule
-Tight    & Pacer + adapt.\ $\gamma$ & 0.849 & 0.871 & $+0.023$ & $[0.020,\; 0.025]$ \\
-Moderate & Pacer + adapt.\ $\gamma$ & 0.871 & 0.932 & $+0.062$ & $[0.058,\; 0.065]$ \\
-Loose    & Pacer + adapt.\ $\gamma$ & 0.904 & 0.930 & $+0.026$ & $[0.022,\; 0.029]$ \\
+Tight    & Pacer + $\gamma{=}0.997$ & 0.843 & 0.873 & $+0.030$ & $[0.025,\; 0.034]$ \\
+Moderate & Pacer + $\gamma{=}0.997$ & 0.879 & 0.925 & $+0.046$ & $[0.042,\; 0.050]$ \\
+Loose    & Pacer + $\gamma{=}0.997$ & 0.901 & 0.924 & $+0.023$ & $[0.019,\; 0.026]$ \\
 \midrule
----      & Unconstrained            & 0.934 & 0.930 & $-0.004$ & $[-0.005, -0.003]$ \\
+---      & Unconstrained            & 0.921 & 0.931 & $+0.010$ & $[0.009,\; 0.012]$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -157,14 +158,13 @@ Loose    & Pacer + adapt.\ $\gamma$ & 0.904 & 0.930 & $+0.026$ & $[0.022,\; 0.02
 All pacer conditions show highly significant reward improvement
 ($p < 10^{-11}$ for all; one-sample $t$-test on per-seed deltas,
 19~d.f.).  The moderate target exhibits the largest lift
-($\Delta{=}+0.062$), reflecting the biggest shift from
+($\Delta{=}+0.046$), reflecting the biggest shift from
 Llama-dominated to Gemini-heavy routing.
 The unconstrained baseline shows a small but significant
-\emph{decrease} ($\Delta{=}-0.004$, $p < 10^{-7}$).  Two factors may
-contribute: (i)~it was already at near-ceiling quality in Phase~1, so
-the price drop offers no additional quality lever; and (ii)~the Phase~1
-and Phase~2 prompt subsets are different, and the $0.4\%$ shift may
-partly reflect prompt-difficulty variation rather than a causal effect.
+\emph{increase} ($\Delta{=}+0.010$, $p < 10^{-10}$), reflecting the
+fact that the price drop removes the cost barrier for Gemini, allowing
+the router to exploit a quality-optimal model that was previously
+penalized.
 
 \paragraph{Pacer variant ablation.}
 
@@ -176,17 +176,17 @@ partly reflect prompt-difficulty variation rather than a causal effect.
 \textbf{Budget} & \textbf{Condition} & \textbf{Regret} & $\boldsymbol{\Delta}$\textbf{\ vs.\ $\gamma$=0.999} & $\boldsymbol{p}$ \\
 \midrule
 \multirow{3}{*}{Tight}
-  & Adapt.\ $\gamma$ & $184.8 \pm 1.5$ & $-1.9$ & $0.079$ \\
-  & $\gamma{=}1.0$   & $185.1 \pm 1.3$ & $-1.6$ & $0.051$ \\
-  & $\gamma{=}0.999$ & $186.7 \pm 1.6$ & --- & --- \\[2pt]
+  & $\gamma{=}0.997$ & $188.4 \pm 1.9$ & $-1.4$ & $0.536$ \\
+  & $\gamma{=}1.0$   & $190.2 \pm 2.7$ & $+0.4$ & $0.848$ \\
+  & $\gamma{=}0.999$ & $189.8 \pm 2.3$ & --- & --- \\[2pt]
 \multirow{3}{*}{Moderate}
-  & Adapt.\ $\gamma$ & $110.8 \pm 1.6$ & $-0.7$ & $0.737$ \\
-  & $\gamma{=}1.0$   & $106.9 \pm 1.9$ & $-4.6$ & $0.040^\dagger$ \\
-  & $\gamma{=}0.999$ & $111.5 \pm 1.5$ & --- & --- \\[2pt]
+  & $\gamma{=}0.997$ & $109.8 \pm 1.8$ & $+6.5$ & $0.017^\dagger$ \\
+  & $\gamma{=}1.0$   & $107.2 \pm 2.4$ & $+3.8$ & $0.209$ \\
+  & $\gamma{=}0.999$ & $103.3 \pm 2.6$ & --- & --- \\[2pt]
 \multirow{3}{*}{Loose}
-  & Adapt.\ $\gamma$ & $83.8 \pm 1.2$ & $\mathbf{-6.0}$ & $\mathbf{6.5{\times}10^{-4}}$ \\
-  & $\gamma{=}1.0$   & $75.2 \pm 0.9$ & $\mathbf{-14.6}$ & $< 10^{-9}$ \\
-  & $\gamma{=}0.999$ & $89.8 \pm 1.0$ & --- & --- \\
+  & $\gamma{=}0.997$ & $91.1 \pm 1.4$ & $\mathbf{+8.1}$ & $< 10^{-3}$ \\
+  & $\gamma{=}1.0$   & $86.4 \pm 1.9$ & $+3.4$ & $0.048^\dagger$ \\
+  & $\gamma{=}0.999$ & $83.0 \pm 1.0$ & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -197,22 +197,24 @@ $t$-tests (19~d.f.).  Bold entries are significant after
 Holm--Bonferroni correction at $\alpha{=}0.05$ across all six
 comparisons; $\dagger$ denotes nominally significant ($p < 0.05$)
 but not significant after correction.
-Blind forgetting ($\gamma{=}0.999$) is consistently the worst pacer
-condition: it decays the still-valid $\hat\theta$ estimates, inducing
-unnecessary exploration that the pacer cannot compensate for.
-Adaptive~$\gamma$ significantly outperforms blind forgetting at loose
-budget ($p{=}6.5{\times}10^{-4}$; survives correction) and is
-indistinguishable from $\gamma{=}1.0$ at tight and moderate budgets
-($p \geq 0.08$), confirming the mechanism is quiescent when rewards
-are stable.
+Under cost shift, the ranking reverses compared to reward shift
+(Experiment~02): $\gamma{=}0.999$ is consistently the \emph{best}
+pacer condition, because reward estimates remain valid and any
+forgetting needlessly decays them.
+The jointly-tuned $\gamma{=}0.997$ is significantly worse at loose
+budget ($+8.1$ regret, $p < 10^{-3}$), confirming that the
+${\sim}333$-step effective memory optimized for reward shifts
+forgets too aggressively when only costs change.
+All conditions are indistinguishable at tight budget ($p \geq 0.5$),
+where the dominant cost constraint overwhelms the forgetting effect.
 
 \paragraph{Exploration starvation at tight budgets.}
-At the tightest target, Gemini selection remains below 2\% even
+At the tightest target, Gemini selection remains below 1\% even
 after the price drop (Figure~\ref{fig:exp03_adaptation}b, orange).
 Two factors combine:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{EMA momentum.}
-    $\lambda_t$ was saturated near $\bar\lambda{=}5$ for much of
+    $\lambda_t$ was saturated near $0.64$ for much of
     Phase~1.  The smoothing constant $\alpha_\mathrm{ema}{=}0.05$
     creates ${\sim}14$-step inertia; many low-cost observations are
     needed to ratchet $\lambda_t$ down from its Phase~1 plateau.
@@ -221,7 +223,7 @@ Two factors combine:
     model for Gemini is almost entirely the warmup prior---it has not
     learned enough online to build a confident, calibrated estimate.
     Even when the cost penalty vanishes in Phase~2, the LinUCB
-    exploration bonus is too small (with $n_\mathrm{eff}{=}5{,}000$
+    exploration bonus is too small (with $n_\mathrm{eff}{=}10$
     prior) to pull Gemini above the well-explored Llama and Mistral
     arms.
 \end{enumerate}
@@ -245,14 +247,17 @@ maintaining budget compliance---without any external intervention.
   \item \textbf{Budget compliance is maintained} across both phases:
     Phase~1 costs are within 1\% of target, and the pacer naturally
     constrains from above (Figure~\ref{fig:exp03_adaptation}c).
-  \item The \textbf{unconstrained baseline} already operates at the
-    quality ceiling and gains nothing from the price drop, spending
-    ${\sim}5$--$39\times$ more.  The pacer recovers most of this quality
-    gap post-drop while maintaining strict cost control.
-  \item \textbf{Adaptive gamma composes safely} with the pacer,
-    correctly staying quiescent when rewards are stable and
-    significantly outperforming blind forgetting at loose budgets
-    ($p{=}6.5{\times}10^{-4}$; survives Holm--Bonferroni correction).
+  \item The \textbf{unconstrained baseline} already operates near the
+    quality ceiling, spending ${\sim}5$--$39\times$ more.
+    The pacer recovers most of the quality gap post-drop while
+    maintaining strict cost control.
+  \item Under pure cost shift, \textbf{less forgetting is better}:
+    $\gamma{=}0.999$ outperforms $\gamma{=}0.997$ at loose budget
+    ($p < 10^{-3}$) because reward estimates remain valid and
+    need not be discounted.
+    This contrasts with the reward shift in Experiment~02, where
+    $\gamma{=}0.997$ is optimal---a tradeoff inherent to
+    fixed-schedule forgetting.
   \item Very tight budgets create an \textbf{exploration starvation}
     effect: the bandit cannot learn about expensive arms it was
     prevented from selecting, and this information deficit persists

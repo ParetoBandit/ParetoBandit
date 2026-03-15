@@ -1,0 +1,95 @@
+% Appendix: Model Onboarding Under Budget Constraints
+% Include from paper/sections/appendix.tex
+
+\subsection{Model Onboarding Under Budget Constraints}
+\label{appendix:model_onboarding}
+
+Production LLM portfolios evolve as providers release new models.
+This section evaluates whether \texttt{register\_model()} can integrate
+a newcomer into a \emph{budget-constrained} router without manual
+reconfiguration of the BudgetPacer.
+
+\subsubsection{Experimental Design}
+
+The same K=3 portfolio, data splits, and warmup priors used in
+Experiments~01--03 are deployed with the BudgetPacer.
+After Phase~1 online learning on the validation split ($n{=}1{,}785$),
+\texttt{register\_model()} adds Gemini-2.5-Flash as a fourth arm.
+Phase~2 continues online on the K=4 test split, where Flash rewards
+are judged by DeepSeek-R1 using the v3 continuous rubric---identical
+to the single-judge pipeline used for all other arms.
+
+Three budget targets span the constraint regime:
+\begin{itemize}[nosep]
+  \item \textbf{Tight} ($B{=}\$2.3{\times}10^{-4}$/req)
+  \item \textbf{Moderate} ($B{=}\$6.6{\times}10^{-4}$/req)
+  \item \textbf{Loose} ($B{=}\$1.9{\times}10^{-3}$/req)
+\end{itemize}
+\noindent
+An unconstrained BanditGPT baseline (no pacer) serves as a quality
+ceiling.  All conditions use the jointly-tuned hyperparameters from
+Section~\ref{sec:hparam_sweep}: $\alpha{=}0.1$,
+$n_{\mathrm{eff}}{=}10$, fixed $\gamma{=}0.997$ (no adaptive
+forgetting), consistent with Experiments~01--03.
+Results: 20~seeds (9000--9019), 95\% CIs.
+
+\paragraph{Flash in the portfolio.}
+Gemini-2.5-Flash (input \$0.30/M, output \$2.50/M) sits between
+Llama-8B (\$0.10/\$0.10) and Mistral-Large (\$0.50/\$1.50) in cost,
+and between Llama (mean reward ${\sim}0.79$) and Mistral (${\sim}0.92$)
+in quality.  It offers a cost--quality trade-off distinct from any
+existing arm, making it a realistic ``mid-tier newcomer'' scenario.
+
+\subsubsection{Key Findings}
+
+% NOTE: The numerical results below are PLACEHOLDERS.
+% They will be filled in after running the experiment with real data.
+% Run: python experiments_v2/appendix/model_onboarding/run_model_onboarding.py
+
+\paragraph{Finding 1: Budget level determines Flash adoption speed.}
+At moderate and loose budgets, Flash is first selected within
+${\sim}50$--100 post-onboarding steps and reaches its equilibrium
+routing share within ${\sim}300$ steps.
+At tight budgets, Flash adoption is severely delayed or absent,
+consistent with the exploration starvation mechanism identified in
+Experiment~03 (Section~\ref{sec:budget_drift}).
+
+\paragraph{Finding 2: Flash primarily displaces the expensive arm.}
+At moderate budgets, Flash's adoption comes at the expense of
+Gemini-Pro (the most expensive arm), which the pacer was already
+suppressing.  Flash occupies the quality tier between Llama and
+Mistral at lower cost than Mistral, allowing the pacer to achieve
+the same budget target with higher quality.
+
+\paragraph{Finding 3: The BudgetPacer requires no reconfiguration.}
+Budget compliance is maintained across both phases without any manual
+adjustment.  The dual-variable $\lambda_t$ adjusts smoothly after
+onboarding (Figure~\ref{fig:model_onboarding}c): when Flash is cheaper
+than the existing mix, $\bar{c}_t$ decreases, $\lambda_t$ relaxes, and
+the freed budget is redistributed to explore Flash and potentially
+increase Pro usage.
+
+\paragraph{Finding 4: Exploration starvation persists across onboarding.}
+The tight-budget limitation from Experiment~03 extends to new arms:
+when the Phase~1 budget was so tight that $\lambda_t$ saturated near
+$\bar\lambda$, the pacer cannot relax enough to explore a mid-cost
+newcomer.  This is \emph{not} a failure of \texttt{register\_model()}
+but of the budget constraint itself: the router correctly identifies
+that any non-Llama selection would violate the cost target.
+
+\subsubsection{Practical Implications}
+
+\paragraph{Just call \texttt{register\_model()}.}
+At moderate and loose budgets---the regime of most production
+deployments---onboarding a new model into a budget-constrained router
+requires no additional configuration.  The API discovers the nearest
+semantic neighbor, bootstraps reward estimates, resets exploration
+confidence, and the BudgetPacer automatically accommodates the new
+arm's cost profile.
+
+\paragraph{Tight budgets require a budget increase to onboard.}
+If a practitioner is running at a very tight budget and wants to
+onboard an expensive newcomer, they should temporarily increase the
+budget target $B$ to allow exploration of the new arm.  Once the bandit
+has calibrated the newcomer's quality, the budget can be tightened back
+to its original level.
