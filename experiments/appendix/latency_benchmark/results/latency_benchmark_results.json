@@ -1,0 +1,72 @@
+{
+  "rounds": 5000,
+  "warmup": 500,
+  "seed": 42,
+  "results": [
+    {
+      "name": "BanditGPT (d=26)",
+      "dimension": 26,
+      "route_p50_us": 21.667,
+      "route_p95_us": 25.544050000000006,
+      "route_p99_us": 50.58467000000003,
+      "update_p50_us": 16.833,
+      "update_p95_us": 19.459,
+      "update_p99_us": 41.875,
+      "total_p50_us": 38.583,
+      "total_p95_us": 45.625,
+      "throughput_rps": 24346.796944321162,
+      "rounds_measured": 4500
+    },
+    {
+      "name": "BanditGPT (d=385)",
+      "dimension": 385,
+      "route_p50_us": 152.792,
+      "route_p95_us": 214.42325000000002,
+      "route_p99_us": 242.91742000000002,
+      "update_p50_us": 367.833,
+      "update_p95_us": 427.79310000000004,
+      "update_p99_us": 466.29241,
+      "total_p50_us": 524.0,
+      "total_p95_us": 619.8402000000001,
+      "throughput_rps": 1884.621605799629,
+      "rounds_measured": 4500
+    },
+    {
+      "name": "Naive Inv. (d=26)",
+      "dimension": 26,
+      "route_p50_us": 49.25,
+      "route_p95_us": 51.209,
+      "route_p99_us": 76.55449000000027,
+      "update_p50_us": 4.0,
+      "update_p95_us": 4.666,
+      "update_p99_us": 7.083420000000009,
+      "total_p50_us": 53.25,
+      "total_p95_us": 56.0,
+      "throughput_rps": 18707.820879349896,
+      "rounds_measured": 4500
+    },
+    {
+      "name": "Naive Inv. (d=385)",
+      "dimension": 385,
+      "route_p50_us": 4571.7915,
+      "route_p95_us": 4901.96215,
+      "route_p99_us": 5389.674580000001,
+      "update_p50_us": 128.0835,
+      "update_p95_us": 702.5851,
+      "update_p99_us": 719.6736700000001,
+      "total_p50_us": 4782.042,
+      "total_p95_us": 5303.985100000001,
+      "throughput_rps": 202.23078037878076,
+      "rounds_measured": 4500
+    }
+  ],
+  "speedups": {
+    "sm_vs_naive_d26_route": 2.27304195320072,
+    "sm_vs_naive_d26_update": 0.2376284678904533,
+    "sm_vs_naive_d385_route": 29.921668019268026,
+    "sm_vs_naive_d385_update": 0.3482110088001892,
+    "pca_vs_raw_sm_route": 7.051829971846587,
+    "pca_vs_raw_sm_update": 21.851898057387277,
+    "pca_vs_raw_sm_throughput": 12.918665937712746
+  }
+}

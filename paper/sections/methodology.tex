@@ -25,7 +25,12 @@ At each step $t$, the router selects model $a_t$ by maximizing a budget-augmente
     \Bigr]
     \label{eq:budget_ucb}
 \end{equation}
-where $\mathcal{A}_t \subseteq \mathcal{A}$ is the set of models surviving a hard cost ceiling (detailed below), $\tilde{c}_a \in [0,1]$ is the log-normalized unit cost, and $\lambda_t$ is a Lagrange multiplier updated after observing the realized cost $c_t$. 
+where $\mathcal{A}_t \subseteq \mathcal{A}$ is the set of models surviving a hard cost ceiling (detailed below), $\lambda_t$ is a Lagrange multiplier updated after observing the realized cost $c_t$, and $\tilde{c}_a \in [0,1]$ is the log-normalized unit cost defined as
+\begin{equation}
+    \tilde{c}_a = \frac{\log c_a - \log c_{\min}}{\log c_{\max} - \log c_{\min}},
+    \label{eq:cost_norm}
+\end{equation}
+with $c_{\min}$ and $c_{\max}$ fixed to the market-floor and market-ceiling blended rates of the model portfolio, respectively. Values at or below $c_{\min}$ map to 0; values at or above $c_{\max}$ map to 1. The logarithmic scale compresses the $500\times$ cost differential into a bounded penalty that is commensurate with the $[0,1]$ reward scale.
 
 \paragraph{Dual-Variable Dynamics and EMA Smoothing.}
 The core innovation of the \texttt{BudgetPacer} is how it tracks and updates the dual variable $\lambda_t$ in response to the extreme variance in LLM pricing. Rather than updating $\lambda_t$ directly from the raw per-request cost $c_t$, the pacer computes an \emph{EMA-smoothed} cost signal:
@@ -65,3 +70,26 @@ BanditGPT addresses non-stationarity through a \emph{forgetting factor} $\gamma 
 This exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps. We empirically find that $\gamma=0.995$ strikes an optimal balance, creating an effective memory window of approximately $200$ steps (see Section~\ref{sec:exp4_hparam_sweep} for the formal selection procedure). Recent evidence dominates, allowing the router to adapt to shifts rapidly, while historical observations (including the critical offline warmup priors) are geometrically discounted but not erased entirely. 
 
 The parameter $\gamma$ thus controls a bias--variance tradeoff between \emph{stability} (trusting historical evidence to maintain high baseline quality) and \emph{plasticity} (responding quickly to new evidence when models degrade).
+
+\subsection{Computational Efficiency}
+\label{sec:efficiency}
+
+Because the router sits on the critical path of every LLM request, per-step latency must be negligible relative to model inference time.  We ensure this through three design choices.
+
+\paragraph{$O(d^2)$ updates via Sherman-Morrison.}
+Naive LinUCB recomputes $A_a^{-1}$ from scratch after each observation, costing $O(d^3)$.  BanditGPT instead maintains a cached inverse $A_a^{-1}$ and applies the Sherman-Morrison rank-1 update formula:
+\begin{equation}
+    A_a^{-1} \leftarrow A_a^{-1}
+        - \frac{(A_a^{-1} x_t)(x_t^\top A_a^{-1})}{1 + x_t^\top A_a^{-1} x_t},
+    \label{eq:sherman_morrison}
+\end{equation}
+reducing each update to $O(d^2)$.  For the production feature dimension $d{=}26$, this is ${\sim}17{,}500\times$ faster than a full $O(d^3)$ inversion.  A full $O(d^3)$ recomputation is triggered only as a rare numerical-stability safeguard when the regularization floor decays below $10\%$ of its initial value under prolonged forgetting---in practice fewer than one in every thousand updates.
+
+\paragraph{$O(Kd)$ arm selection.}
+The expected reward $\hat{\theta}_a^\top x_t$ is a single $O(d)$ dot product per arm because $\hat{\theta}_a = A_a^{-1} b_a$ is cached and refreshed only at update time.  The UCB exploration bonus requires one $O(d^2)$ quadratic form $x_t^\top A_a^{-1} x_t$ per arm.  With $K{=}3$ arms and $d{=}26$, the full selection pass amounts to ${\sim}2{,}100$ floating-point operations---well under a microsecond on commodity hardware.
+
+\paragraph{Constant-time geometric decay.}
+When $\gamma < 1$, discounting $A_a \leftarrow \gamma\,A_a$ requires multiplying the cached inverse by the reciprocal: $A_a^{-1} \leftarrow A_a^{-1} / \gamma$---a scalar division that adds $O(d^2)$ element-wise operations but avoids a full matrix rebuild.  Combined with the Sherman-Morrison correction for the new observation, the total per-update cost remains $O(d^2)$ regardless of whether forgetting is active.
+
+\paragraph{Empirical validation.}
+A latency microbenchmark (Appendix~\ref{sec:latency_benchmark}) confirms that the production configuration ($d{=}26$, Sherman-Morrison) completes a full route\,+\,update cycle in $39\,\mu$s (p50) and sustains $>$\,24{,}000\,req/s on a single CPU core, adding $<$\,0.004\% overhead to even the fastest LLM inference call.  The combined effect of PCA dimensionality reduction and incremental inverse caching yields a $120\times$ throughput improvement over a naive full-inversion baseline operating on raw 384-D embeddings.

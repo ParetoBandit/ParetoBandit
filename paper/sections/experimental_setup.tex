@@ -49,10 +49,14 @@ Gemini-2.5-Pro  & Frontier & \$0.015 \\
 \end{table}
 
 \paragraph{Context representation.}
-Each prompt is encoded by the \texttt{all-MiniLM-L6-v2} SentenceTransformer (384-D) and projected to a 25-dimensional context vector via PCA, followed by a bias term ($d{=}26$).
+Each prompt is encoded by the \texttt{all-MiniLM-L6-v2} SentenceTransformer (384-D), L2-normalized, and projected to a 25-dimensional context vector via PCA, followed by a bias term ($d{=}26$).
+Dimensionality reduction is essential because LinUCB maintains a $d \times d$ design matrix $A_a$ per arm, making per-step updates $O(d^2)$; projecting from $384$ to $25$ dimensions reduces this cost by ${\sim}235\times$.
+We choose PCA over nonlinear alternatives (e.g., autoencoders) because LinUCB assumes a linear reward model $\mathbb{E}[r \mid x] = \theta^\top x$; PCA is the variance-maximizing linear projection, preserving the most signal under the same linearity assumption the bandit already makes.
+Although 25 components retain only ${\sim}29\%$ of total embedding variance, the routing-relevant signal---which dimensions of prompt semantics predict \emph{inter-model} reward gaps---concentrates in the leading principal components; a PCA-dimension ablation (Appendix~\ref{sec:pca_ablation}) confirms the Pareto AUC surface is flat across $d \in [6, 25]$, indicating that the remaining $71\%$ of variance encodes semantic distinctions orthogonal to routing quality.
+After projection, each PCA coordinate is divided by the square root of its explained variance (\emph{whitening}), yielding approximately zero-mean, unit-variance features.
+This whitening step is critical for LinUCB: the isotropic prior $A_0 = \lambda I$ implicitly assumes equal feature scale across dimensions; without whitening, leading principal components dominate the UCB exploration bonus and distort arm selection.
 Crucially, the PCA projection matrix is fitted \emph{once}, \emph{offline}, on ${\sim}46{,}000$ LMSYS Arena prompts that are \textbf{strictly disjoint} from all three experimental splits (train/val/test).
-During all experiments the PCA transform is frozen and applied as an inference-only projection; no component of the feature pipeline is re-fitted on the evaluation data.
-A PCA-dimension ablation (Appendix~\ref{sec:pca_ablation}) confirms the Pareto AUC surface is flat across $d \in [6, 25]$.
+During all experiments the PCA transform and whitening scales are frozen and applied as inference-only projections; no component of the feature pipeline is re-fitted on the evaluation data.
 
 \subsection{Environment Construction}
 

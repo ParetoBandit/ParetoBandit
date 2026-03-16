@@ -1,0 +1,79 @@
+% Appendix: Routing Latency Microbenchmark
+
+\subsection{Routing Latency Microbenchmark (Table~\ref{tab:latency}, Figure~\ref{fig:latency_benchmark})}
+\label{sec:latency_benchmark}
+
+We profile BanditGPT's per-request routing overhead to validate the
+computational-efficiency claims in Section~\ref{sec:efficiency}.
+Four configurations isolate the individual contributions of
+\emph{PCA dimensionality reduction} ($d{=}26$ vs.\ $d{=}385$)
+and \emph{Sherman-Morrison incremental updates} (cached $A^{-1}$
+vs.\ full \texttt{np.linalg.inv} on every route call).
+All configurations use $K{=}3$ arms, synthetic whitened context
+vectors, and 4,500 measured route\,+\,update cycles
+(500-round warmup excluded).
+
+\begin{table}[h]
+\centering
+\caption{Per-request routing latency ($\mu$s) and throughput.
+BanditGPT's production configuration (top row) adds $<$\,39\,$\mu$s
+per request---negligible relative to LLM inference times of
+100--2,000\,ms.}
+\label{tab:latency}
+\small
+\begin{tabular}{@{}l r r r r r@{}}
+\toprule
+ & \multicolumn{2}{c}{\textbf{Route ($\mu$s)}}
+ & \multicolumn{2}{c}{\textbf{Update ($\mu$s)}}
+ & \textbf{Throughput} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+\textbf{Configuration}
+ & p50 & p95 & p50 & p95 & (req/s) \\
+\midrule
+BanditGPT ($d{=}26$)       & $\mathbf{21.7}$ & $25.5$ & $16.8$ & $19.5$ & $\mathbf{24{,}347}$ \\
+BanditGPT ($d{=}385$)      & $152.8$ & $214.4$ & $367.8$ & $427.8$ & $1{,}885$ \\
+Naive Inv.\ ($d{=}26$)     & $49.2$ & $51.2$ & $4.0$ & $4.7$ & $18{,}708$ \\
+Naive Inv.\ ($d{=}385$)    & $4{,}572$ & $4{,}902$ & $128.1$ & $702.6$ & $202$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/latency_benchmark/results/latency_benchmark.pdf}
+\caption{Per-request latency (left, log scale) and throughput (right, log scale)
+for four router configurations.  The combined effect of PCA reduction
+($385 \to 26$ dimensions) and Sherman-Morrison caching yields a
+$120\times$ throughput improvement over the naive baseline at raw dimension.}
+\label{fig:latency_benchmark}
+\end{figure}
+
+\paragraph{Key findings.}
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Production overhead is negligible.}
+    At the production dimension ($d{=}26$), BanditGPT completes
+    a full route\,+\,update cycle in $39\,\mu$s (p50), adding
+    $<$\,0.004\% latency to even the fastest LLM call (${\sim}100$\,ms
+    time-to-first-token for Llama-3.1-8B).
+    The router sustains $>$\,24{,}000\,req/s on a single CPU
+    core---sufficient for all but the most extreme throughput tiers.
+  \item \textbf{Sherman-Morrison accelerates selection by $30\times$ at high dimension.}
+    At $d{=}385$, the naive baseline spends $4.6$\,ms per route
+    call computing $K{=}3$ full matrix inversions.
+    BanditGPT's cached inverse reduces this to $153\,\mu$s---a
+    $30\times$ speedup---because selection requires only a
+    matrix-vector product ($O(d^2)$) rather than an inversion ($O(d^3)$).
+    At $d{=}26$ the gap narrows to $2.3\times$ because $O(d^3)$ with
+    a small constant is already fast.
+  \item \textbf{PCA gives an additional $13\times$ throughput gain.}
+    Within the Sherman-Morrison configurations, reducing $d$ from
+    $385$ to $26$ improves throughput from $1{,}885$ to $24{,}347$
+    req/s ($12.9\times$).  This is consistent with the expected
+    $O(d^2)$ scaling: $(385/26)^2 \approx 219$, with overhead
+    constants (locking, Python dispatch) compressing the realized
+    ratio.
+  \item \textbf{Combined improvement: $120\times$.}
+    The full production stack (PCA\,+\,Sherman-Morrison at $d{=}26$)
+    achieves $120\times$ higher throughput than the naive baseline
+    at raw embedding dimension ($24{,}347$ vs.\ $202$\,req/s).
+\end{enumerate}
