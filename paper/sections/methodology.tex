@@ -66,10 +66,10 @@ Here $\mathcal{A}_t \subseteq \mathcal{A}$ is the set of models surviving a hard
     \tilde{c}_a = \frac{\log c_a - \log c_{\min}}{\log c_{\max} - \log c_{\min}},
     \label{eq:cost_norm}
 \end{equation}
-with $c_{\min}$ and $c_{\max}$ fixed to the market-floor and market-ceiling blended rates of the model portfolio, respectively. Values at or below $c_{\min}$ map to 0; values at or above $c_{\max}$ map to 1. The logarithmic scale compresses the $500\times$ cost differential into a bounded penalty that is commensurate with the $[0,1]$ reward scale.
+with $c_{\min}$ and $c_{\max}$ fixed to the market-floor and market-ceiling blended rates of the model portfolio, respectively. Values at or below $c_{\min}$ map to 0; values at or above $c_{\max}$ map to 1. The logarithmic scale compresses the $500\times$ cost differential into a bounded penalty that is commensurate with the $[0,1]$ reward scale.  Intuitively, the log captures the fact that jumping from a \$0.00003 model to a \$0.003 model ($100\times$) is a comparable ``tier leap'' to jumping from \$0.003 to \$0.015 ($5\times$); on a linear scale the first gap would be invisible while the second would dominate the penalty, distorting the router's cost--quality reasoning.
 
 \paragraph{Dual-Variable Dynamics and EMA Smoothing.}
-The core innovation of the \texttt{BudgetPacer} is how it tracks and updates the dual variable $\lambda_t$ in response to the extreme variance in LLM pricing. Rather than updating $\lambda_t$ directly from the raw per-request cost $c_t$, the pacer computes an \emph{EMA-smoothed} cost signal:
+The core innovation of the \texttt{BudgetPacer} is how it tracks and updates the dual variable $\lambda_t$ in response to the extreme variance in LLM pricing.  The mechanism works like a cruise-control system: when recent spending runs above the budget target, $\lambda_t$ increases, making expensive models less attractive and pushing the router toward cheaper options; when spending dips below target, $\lambda_t$ decreases, releasing the router to choose higher-quality (costlier) alternatives.  Rather than updating $\lambda_t$ directly from the raw per-request cost $c_t$, the pacer computes an \emph{EMA-smoothed} cost signal:
 \begin{align}
     \bar{c}_t &= (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1}
                  + \alpha_{\mathrm{ema}}\,c_t
@@ -104,7 +104,7 @@ ParetoBandit addresses non-stationarity through a \emph{forgetting factor} $\gam
     b_{a_t} &\leftarrow \gamma \, b_{a_t} + r_t \, x_t
     \label{eq:forget_b}
 \end{align}
-This exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps. We empirically find that $\gamma=0.995$ strikes an optimal balance, creating an effective memory window of approximately $200$ steps (see Section~\ref{sec:exp4_hparam_sweep} for the formal selection procedure). Recent evidence dominates, allowing the router to adapt to shifts rapidly, while historical observations (including the critical offline warmup priors) are geometrically discounted but not erased entirely. 
+This exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps.  Concretely, this means the router's memory fades exponentially: an observation from $200$ steps ago carries roughly half the weight of a fresh one.  If a model that was previously excellent suddenly degrades, the router notices within a few hundred requests rather than remaining anchored by thousands of stale observations.  We empirically find that $\gamma=0.995$ strikes an optimal balance, creating an effective memory window of approximately $200$ steps (see Section~\ref{sec:exp4_hparam_sweep} for the formal selection procedure). Recent evidence dominates, allowing the router to adapt to shifts rapidly, while historical observations (including the critical offline warmup priors) are geometrically discounted but not erased entirely. 
 
 The parameter $\gamma$ thus controls a bias--variance tradeoff between \emph{stability} (trusting historical evidence to maintain high baseline quality) and \emph{plasticity} (responding quickly to new evidence when models degrade).
 
@@ -120,7 +120,7 @@ Naive LinUCB recomputes $A_a^{-1}$ from scratch after each observation, costing 
         - \frac{(A_a^{-1} x_t)(x_t^\top A_a^{-1})}{1 + x_t^\top A_a^{-1} x_t},
     \label{eq:sherman_morrison}
 \end{equation}
-reducing each update to $O(d^2)$.  For the production feature dimension $d{=}26$, this is ${\sim}17{,}500\times$ faster than a full $O(d^3)$ inversion.  A full $O(d^3)$ recomputation is triggered only as a rare numerical-stability safeguard when the regularization floor decays below $10\%$ of its initial value under prolonged forgetting---in practice fewer than one in every thousand updates.
+which incrementally adjusts the existing inverse to account for the new data point $x_t$, rather than recomputing the entire inverse from scratch---reducing each update to $O(d^2)$.  For the production feature dimension $d{=}26$, this is ${\sim}17{,}500\times$ faster than a full $O(d^3)$ inversion.  A full $O(d^3)$ recomputation is triggered only as a rare numerical-stability safeguard when the regularization floor decays below $10\%$ of its initial value under prolonged forgetting---in practice fewer than one in every thousand updates.
 
 \paragraph{$O(Kd)$ arm selection.}
 The expected reward $\hat{\theta}_a^\top x_t$ is a single $O(d)$ dot product per arm because $\hat{\theta}_a = A_a^{-1} b_a$ is cached and refreshed only at update time.  The UCB exploration bonus requires one $O(d^2)$ quadratic form $x_t^\top A_a^{-1} x_t$ per arm.  With $K{=}3$ arms and $d{=}26$, the full selection pass amounts to ${\sim}2{,}100$ floating-point operations---well under a microsecond on commodity hardware.

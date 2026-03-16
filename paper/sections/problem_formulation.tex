@@ -20,6 +20,7 @@ The primary objective is to learn a routing policy $\pi$ that maximizes the expe
 \begin{equation}
     \max_{\pi} \mathbb{E} \left[ \sum_{t=1}^T r_{t,\pi(x_t)} \right]
 \end{equation}
+In words: the router aims to make the best model choice on every request so that, summed over all $T$ requests, the total quality is as high as possible---even though it never observes what would have happened had it chosen differently.
 
 \subsection{The Budget Constraint}
 
@@ -29,6 +30,7 @@ We formulate this as a \emph{Contextual Bandit with Knapsacks} (CBwK)~\cite{agra
 \begin{equation}
     \limsup_{T \to \infty} \frac{1}{T} \sum_{t=1}^T c_{\pi(x_t)}(x_t) \leq B
 \end{equation}
+In plain terms: averaged over many requests, the cost per request must stay at or below the target $B$.  The router may occasionally splurge on an expensive frontier model, but must offset that with cheaper choices elsewhere so the running average never exceeds the budget.
 
 The standard approach to this constraint in the routing literature is to scalarize the reward using a fixed penalty weight $\lambda > 0$, optimizing a penalized utility $u_{a,t} = r_{a,t} - \lambda c_a(x_t)$~\cite{ong2024routellm}. However, selecting $\lambda$ requires extensive offline simulation on historical data to find the weight that happens to yield an average cost of $B$. If the distribution of prompts shifts, or if the portfolio changes, the realized cost will drift away from $B$, requiring manual recalibration.
 
@@ -37,7 +39,7 @@ The standard approach to this constraint in the routing literature is to scalari
 Real-world LLM deployments are fundamentally non-stationary. We define two specific types of environment drift that a production router must handle autonomously:
 
 \paragraph{Reward Drift (Quality Shifts)}
-LLM providers silently update their models behind APIs, or internal teams push new versions of fine-tuned open-weight models. Formally, the conditional expected reward function $f_a(x) = \mathbb{E}[r_t \mid x, a]$ changes at some unknown time $\tau$, such that $f_a^{(t < \tau)}(x) \neq f_a^{(t \geq \tau)}(x)$. A router must detect this shift and rapidly unlearn its historical estimates for model $a$, avoiding a stale policy that continues routing traffic to a degraded model.
+LLM providers silently update their models behind APIs, or internal teams push new versions of fine-tuned open-weight models. Formally, the conditional expected reward function $f_a(x) = \mathbb{E}[r_t \mid x, a]$ changes at some unknown time $\tau$, such that $f_a^{(t < \tau)}(x) \neq f_a^{(t \geq \tau)}(x)$.  Put simply, the expected quality of a model's response to a given prompt is one value before the update and a different value after it---and the router does not know when the change occurred.  A router must detect this shift and rapidly unlearn its historical estimates for model $a$, avoiding a stale policy that continues routing traffic to a degraded model.
 
 \paragraph{Cost Drift (Price Drops)}
 API providers frequently reduce inference prices to remain competitive~\cite{thompson2026timeline}. Formally, the cost function $c_a(x)$ decreases at time $\tau$. If the router uses a fixed, offline-tuned penalty $\lambda$, it will continue to apply the same relative penalty to model $a$. While this mechanically reduces the total spend (pocketing the savings), it fails to recognize that model $a$ is now a relatively better value. An optimal router should dynamically exploit the newly freed budget to route more challenging queries to the newly-cheaper, higher-quality model, maximizing overall application quality while remaining precisely at the budget limit $B$.
