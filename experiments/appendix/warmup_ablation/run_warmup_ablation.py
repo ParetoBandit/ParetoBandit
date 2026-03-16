@@ -74,6 +74,23 @@ EARLY_STEP: int = 200
 """Step at which to report Regret@200 for the early-learning comparison."""
 
 
+def _snapshot_trace_A_inv(
+    router: Optional["BanditRouter"],
+    arms: List[str],
+) -> Dict[str, float]:
+    """Return tr(A_inv) for each arm — scalar summary of uncertainty.
+
+    Returns zeros if the router is None (random baseline).
+    """
+    if router is None:
+        return {a: 0.0 for a in arms}
+    return {
+        a: float(np.trace(router.bandit.A_inv[a]))
+        for a in arms
+        if a in router.bandit.A_inv
+    }
+
+
 # ======================================================================
 # Data types
 # ======================================================================
@@ -94,12 +111,23 @@ class StepRecord:
 
 
 @dataclass
+class UncertaintyCheckpoint:
+    """Snapshot of per-arm uncertainty at a given step."""
+
+    step: int
+    trace_A_inv: Dict[str, float]
+
+
+@dataclass
 class SeedResult:
     """Aggregate metrics for one (condition, seed) trial."""
 
     condition: str
     seed: int
     steps: List[StepRecord] = field(default_factory=list)
+    uncertainty_checkpoints: List[UncertaintyCheckpoint] = field(
+        default_factory=list,
+    )
 
     @property
     def n(self) -> int:
@@ -218,6 +246,15 @@ def _run_trial(
 
     result = SeedResult(condition=condition_label, seed=seed)
 
+    # Snapshot initial uncertainty (step 0, before any online learning)
+    if not is_random:
+        result.uncertainty_checkpoints.append(
+            UncertaintyCheckpoint(
+                step=0,
+                trace_A_inv=_snapshot_trace_A_inv(router, ARM_ORDER),
+            )
+        )
+
     for t_idx in range(data.n):
         orig_idx = order[t_idx]
 
@@ -242,6 +279,17 @@ def _run_trial(
                 oracle_reward=oracle_reward,
             )
         )
+
+        step = t_idx + 1
+        if not is_random and (
+            step % CHECKPOINT_INTERVAL == 0 or step == data.n
+        ):
+            result.uncertainty_checkpoints.append(
+                UncertaintyCheckpoint(
+                    step=step,
+                    trace_A_inv=_snapshot_trace_A_inv(router, ARM_ORDER),
+                )
+            )
 
     return result
 
@@ -317,6 +365,39 @@ def _aggregate_seeds(
             }
         )
 
+    # Aggregate uncertainty checkpoints (only for non-random conditions)
+    uncertainty_curves: List[Dict[str, Any]] = []
+    has_uncertainty = any(
+        len(sr.uncertainty_checkpoints) > 0 for sr in seed_results
+    )
+    if has_uncertainty:
+        ref_cps = seed_results[0].uncertainty_checkpoints
+        for cp_idx, ref_cp in enumerate(ref_cps):
+            per_arm: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
+            for sr in seed_results:
+                if cp_idx < len(sr.uncertainty_checkpoints):
+                    cp = sr.uncertainty_checkpoints[cp_idx]
+                    for a in ARM_ORDER:
+                        per_arm[a].append(cp.trace_A_inv.get(a, 0.0))
+            uncertainty_curves.append({
+                "step": ref_cp.step,
+                "trace_A_inv_mean": {
+                    ARM_SHORT[a]: float(np.mean(per_arm[a]))
+                    for a in ARM_ORDER
+                },
+                "trace_A_inv_se": {
+                    ARM_SHORT[a]: (
+                        float(np.std(per_arm[a], ddof=1) / np.sqrt(n_seeds))
+                        if n_seeds > 1 else 0.0
+                    )
+                    for a in ARM_ORDER
+                },
+                "per_seed_trace_A_inv": {
+                    ARM_SHORT[a]: [float(v) for v in per_arm[a]]
+                    for a in ARM_ORDER
+                },
+            })
+
     per_seed_regret = [sr.total_regret() for sr in seed_results]
     per_seed_reward = [sr.mean_reward() for sr in seed_results]
     per_seed_agree = [sr.oracle_agreement(window=50) for sr in seed_results]
@@ -349,6 +430,7 @@ def _aggregate_seeds(
         "per_seed_reward": per_seed_reward,
         "per_seed_oracle_agreement": per_seed_agree,
         f"per_seed_regret_at_{EARLY_STEP}": per_seed_regret_early,
+        "uncertainty_curves": uncertainty_curves,
     }
 
 

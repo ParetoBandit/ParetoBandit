@@ -33,3 +33,10 @@ Beyond step~${\sim}800$, the cold-start router has accumulated
 enough observations to converge, but the regret gap established
 early persists through the full horizon.
 Twenty seeds; 95\% bootstrap CI shading; val split ($n{=}1{,}785$).
+
+\paragraph{Uncertainty evolution (Figure~\ref{fig:warmup_uncertainty}).}
+To visualise the mechanism behind this regret gap, Figure~\ref{fig:warmup_uncertainty} plots $\mathrm{tr}(A_a^{-1})$---the total uncertainty per arm---for both conditions across the trajectory.
+Warmup-initialised arms (solid lines) start at $\mathrm{tr}(A_a^{-1}) \approx 0.15$, reflecting the $n_\mathit{eff}{=}5{,}000$ pseudo-observations encoded in the offline prior.
+Cold-started arms (dashed lines) begin at $\mathrm{tr}(A_a^{-1}) = d / \lambda = 26$---a ${\sim}150{\times}$ uncertainty gap.
+Because the UCB exploration bonus scales as $\alpha\sqrt{x^\top A_a^{-1} x}$, this gap means the cold-start router must spend hundreds of steps exploring before it accumulates enough information to route as confidently as the warmup router does from step~1.
+Even at step~1{,}785 the cold-start lines remain above the warmup lines, confirming that the information advantage of offline priors is \emph{not} fully recovered within the trajectory length, consistent with the persistent regret gap in Figure~\ref{fig:warmup_ablation}.

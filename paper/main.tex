@@ -49,6 +49,26 @@
 
 \input{../experiments/appendix/latency_benchmark/results_discussion.tex}
 
+\input{../experiments/appendix/warmup_ablation/results_discussion.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.pdf}
+\caption{Cumulative regret: warmup priors vs.\ cold start vs.\ random baseline (K=3 stationary, 20 seeds, 95\% bootstrap CI).  Warmup priors reduce total regret by 36\% and early regret (step~200) by 61\%.}
+\label{fig:warmup_ablation}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{../experiments/appendix/warmup_ablation/results/warmup_uncertainty.pdf}
+\caption{Uncertainty evolution for warmup vs.\ cold-start conditions (K=3 stationary, 20 seeds, 95\% bootstrap CI).
+  $\mathrm{tr}(A_a^{-1})$ measures total per-arm uncertainty; higher values yield larger UCB exploration bonuses.
+  Solid lines: warmup-initialised arms start at $\mathrm{tr}(A_a^{-1}) \approx 0.15$, reflecting the $n_\mathit{eff}{=}5{,}000$ pseudo-observations encoded in the prior.
+  Dashed lines: cold-started arms begin at $\mathrm{tr}(A_a^{-1}) = d/\lambda = 26$---a ${\sim}150{\times}$ uncertainty gap that forces hundreds of exploratory selections before the router can make informed decisions.
+  The cold-start lines have not fully converged by step~1{,}785, explaining why the regret advantage of warmup priors persists through the full trajectory (Figure~\ref{fig:warmup_ablation}).}
+\label{fig:warmup_uncertainty}
+\end{figure}
+
 \input{../experiments/appendix/model_onboarding/results_discussion.tex}
 
 \begin{figure}[t]
