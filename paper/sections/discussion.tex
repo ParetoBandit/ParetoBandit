@@ -96,6 +96,26 @@ The storage layer is extensible: implementing the \texttt{ContextStore} interfac
 \paragraph{Embedding Generation Costs.}
 Contextual bandits require a feature vector $x_t$ for every prompt. Generating this vector using a dense embedding model (e.g., SentenceTransformers) incurs a small latency and compute cost. While negligible compared to the inference cost of frontier LLMs, this overhead must be factored into the overall budget $B$ for ultra-low-cost, high-throughput deployments. Utilizing smaller, faster embedding models or distilling features directly from the prompt text are practical mitigations.
 
+\paragraph{Cross-Model Parameter Sharing.}
+BanditGPT uses disjoint LinUCB: each arm maintains fully independent sufficient statistics ($A_a$, $b_a$), so observations from one model contribute nothing to the quality estimates of another.
+This independence is conservative---it avoids negative transfer between dissimilar models---but it also means that the router cannot exploit the behavioural similarities that LLMs frequently exhibit.
+Models from different providers that are trained on overlapping data, fine-tuned with similar RLHF procedures, or positioned at the same price tier often share quality patterns: they tend to succeed on the same prompt types (straightforward instruction-following, factual retrieval) and struggle on the same failure modes (adversarial prompts, multi-step reasoning under ambiguity).
+
+A promising future direction is a \emph{hybrid} reward model that decomposes per-arm rewards into a shared component learned across all models and an arm-specific residual---the hybrid LinUCB formulation of Li et~al.~\cite{li2010contextual}, where $r_t = z_t^\top \beta + x_t^\top \theta_a$.
+Three benefits connect directly to the challenges studied in this paper:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \emph{Sample-efficient exploration under budget constraints.}
+    Under tight budgets, expensive arms receive very few observations (e.g., $<1\%$ Gemini traffic at the tight target).
+    With shared parameters, every observation---including those from cheap, frequently selected arms---updates the shared component $\beta$, indirectly improving quality estimates for under-explored arms without spending additional budget.
+  \item \emph{Faster adaptation under non-stationarity.}
+    When a provider update affects multiple models similarly (e.g., a shared inference-infrastructure change, or a training-data refresh that shifts quality on a broad prompt category), the shared component would propagate the signal across arms immediately, rather than requiring each arm to independently detect the drift.
+  \item \emph{Accelerated cold-start onboarding.}
+    The model onboarding experiment (Section~\ref{sec:model_onboarding_preview}) showed that a cold-started arm requires ${\sim}370$ steps to reach sustained adoption.
+    With shared parameters, a newly registered model would immediately inherit the shared component's knowledge of how prompt semantics relate to model quality, potentially reducing this discovery phase substantially.
+\end{enumerate}
+The key design challenge is calibrating the shared-vs.-specific split: too much sharing risks negative transfer when models are genuinely dissimilar (e.g., a code-specialist vs.\ a general-purpose model), while too little sharing collapses back to the disjoint case.
+Investigating this tradeoff---particularly under the budget and non-stationarity pressures that define production LLM routing---is a natural next step.
+
 \section{Conclusion}
 
 We introduced BanditGPT, an open-source framework for budget-constrained, non-stationary LLM routing.  By framing the problem as a Primal-Dual Contextual Bandit with Knapsacks and integrating geometric forgetting, we provide a robust solution to the dynamic challenges of production deployments.  Our system demonstrates precise budget compliance ($0.97$--$1.02\times$ target), eliminates the need for manual hyperparameter tuning of static cost penalties, and autonomously adapts to silent model updates and mid-cycle price drops.
