@@ -12,6 +12,8 @@ To address the need for online adaptation, recent work has formulated routing as
 2. \textbf{Catastrophic Memory vs. Agility}: Standard algorithms like LinUCB often use infinite memory (forgetting factor $\gamma=1.0$). While optimal for stationary settings, this causes the bandit to react far too slowly when a previously high-performing model suddenly degrades in quality, accumulating massive regret during the transition.
 3. \textbf{Contending Contribution Requirements}: Tuning an adaptive system to simultaneously maintain stable stationary performance (which favors infinite memory and low exploration) and agile non-stationary adaptation (which favors aggressive forgetting and high exploration) creates conflicting optimization objectives. Standard cross-validation optimizes solely for stationary metrics, leading to brittle real-world deployments.
 
+Left unaddressed, these gaps carry direct financial consequences: a static penalty that drifts from its budget target either wastes quality headroom (under-spend) or triggers cost overruns (over-spend), and a router that cannot detect a price drop leaves freed budget idle rather than reinvesting it in application quality.
+
 We address these practical deployment challenges with \textbf{BanditGPT}, an open-source contextual bandit framework explicitly designed for budget-constrained, non-stationary LLM routing. We make four key contributions, evaluated on a dataset of 1,785 prompts scored by a continuous three-factor rubric (cross-judge robustness validated in Appendix~\ref{sec:judge_robustness}) across a canonical three-tier model portfolio:
 
 \begin{enumerate}[nosep,leftmargin=*]
