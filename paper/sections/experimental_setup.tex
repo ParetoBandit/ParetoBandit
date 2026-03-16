@@ -49,7 +49,10 @@ Gemini-2.5-Pro  & Frontier & \$0.015 \\
 \end{table}
 
 \paragraph{Context representation.}
-Each prompt is encoded by the \texttt{all-MiniLM-L6-v2} SentenceTransformer (384-D), L2-normalized, and projected to a 25-dimensional context vector via PCA, followed by a bias term ($d{=}26$).
+Contextual routing rests on the inductive bias that \emph{semantically similar prompts benefit from the same model}: a coding question, a creative-writing task, and a factual look-up each exercise different model capabilities, so a representation that captures these semantic axes gives the bandit a signal for differential routing.
+Dense sentence embeddings are the consensus feature choice across the LLM routing literature---adopted by supervised systems (RouteLLM~\cite{ong2024routellm}, RouterDC~\cite{chen2024routerdc}, GraphRouter~\cite{feng2025graphrouter}), bandit-based routers (PILOT~\cite{panda2025pilot}, MixLLM~\cite{wang2025mixllm}), and RL approaches (PROTEUS~\cite{bhatti2026proteus})---because they compress a variable-length prompt into a fixed-dimensional vector that preserves the task-level distinctions relevant to model selection.
+
+Each prompt is encoded by the \texttt{all-MiniLM-L6-v2} SentenceTransformer~\cite{reimers2019sentence} (384-D), L2-normalized, and projected to a 25-dimensional context vector via PCA, followed by a bias term ($d{=}26$).
 Dimensionality reduction is essential because LinUCB maintains a $d \times d$ design matrix $A_a$ per arm, making per-step updates $O(d^2)$; projecting from $384$ to $25$ dimensions reduces this cost by ${\sim}235\times$.
 We choose PCA over nonlinear alternatives (e.g., autoencoders) because LinUCB assumes a linear reward model $\mathbb{E}[r \mid x] = \theta^\top x$; PCA is the variance-maximizing linear projection, preserving the most signal under the same linearity assumption the bandit already makes.
 Although 25 components retain only ${\sim}29\%$ of total embedding variance, the routing-relevant signal---which dimensions of prompt semantics predict \emph{inter-model} reward gaps---concentrates in the leading principal components; a PCA-dimension ablation (Appendix~\ref{sec:pca_ablation}) confirms the Pareto AUC surface is flat across $d \in [6, 25]$, indicating that the remaining $71\%$ of variance encodes semantic distinctions orthogonal to routing quality.
