@@ -140,6 +140,17 @@ SUSTAINED_THRESHOLD: float = 0.10
 SUSTAINED_HOLD_STEPS: int = 50
 
 
+def _snapshot_trace_A_inv(router: "BanditRouter", arms: List[str]) -> Dict[str, float]:
+    """Return tr(A_inv) for each arm — a scalar summary of uncertainty."""
+    traces: Dict[str, float] = {}
+    for arm in arms:
+        if arm in router.bandit.A_inv:
+            traces[arm] = float(np.trace(router.bandit.A_inv[arm]))
+        else:
+            traces[arm] = 0.0
+    return traces
+
+
 # ======================================================================
 # Phase 2 strategies
 # ======================================================================
@@ -165,6 +176,7 @@ class Checkpoint:
     cumulative_cost: float
     cumulative_regret: float
     lambda_t: float
+    trace_A_inv: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -390,6 +402,7 @@ def _run_trial(
                 cumulative_cost=cum_cost / step,
                 cumulative_regret=cum_regret,
                 lambda_t=lam,
+                trace_A_inv=_snapshot_trace_A_inv(router, K4_ARMS),
             ))
 
     phase1_reward = cum_reward / train_k3.n
@@ -478,6 +491,7 @@ def _run_trial(
                 cumulative_cost=(cum_cost + p2_cum_cost) / total_step,
                 cumulative_regret=cum_regret + p2_cum_regret,
                 lambda_t=lam,
+                trace_A_inv=_snapshot_trace_A_inv(router, K4_ARMS),
             ))
 
     phase2_reward = p2_cum_reward / n2 if n2 > 0 else 0.0
@@ -632,6 +646,7 @@ def _aggregate_checkpoints(
 
         mix_arrays: Dict[str, List[float]] = {a: [] for a in K4_ARMS}
         wmix_arrays: Dict[str, List[float]] = {a: [] for a in K4_ARMS}
+        trace_arrays: Dict[str, List[float]] = {a: [] for a in K4_ARMS}
         rewards, costs, regrets, lambdas = [], [], [], []
 
         for trial in trials:
@@ -641,6 +656,7 @@ def _aggregate_checkpoints(
             for a in K4_ARMS:
                 mix_arrays[a].append(cp.routing_mix.get(a, 0.0))
                 wmix_arrays[a].append(cp.windowed_mix.get(a, 0.0))
+                trace_arrays[a].append(cp.trace_A_inv.get(a, 0.0))
             rewards.append(cp.cumulative_reward)
             costs.append(cp.cumulative_cost)
             regrets.append(cp.cumulative_regret)
@@ -670,6 +686,15 @@ def _aggregate_checkpoints(
                 a: [float(v) for v in wmix_arrays[a]] for a in K4_ARMS
             },
             "per_seed_cumulative_cost": [float(v) for v in costs],
+            "trace_A_inv_mean": {
+                a: float(np.mean(trace_arrays[a])) for a in K4_ARMS
+            },
+            "trace_A_inv_se": {
+                a: _se(trace_arrays[a]) for a in K4_ARMS
+            },
+            "per_seed_trace_A_inv": {
+                a: [float(v) for v in trace_arrays[a]] for a in K4_ARMS
+            },
             "cumulative_reward": float(np.mean(rewards)),
             "cumulative_cost": float(np.mean(costs)),
             "cumulative_regret": float(np.mean(regrets)),

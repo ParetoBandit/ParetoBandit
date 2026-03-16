@@ -188,3 +188,19 @@ limited, slowing (but not preventing) Flash adoption.
 Practitioners running at very tight margins who want to onboard an
 expensive newcomer should temporarily increase the budget target to
 allow initial exploration, then tighten once the bandit calibrates.
+
+\subsubsection{Uncertainty Evolution: Warm-Start vs.\ Cold-Start (Figure~\ref{fig:uncertainty_evolution})}
+
+To visualise the mechanism driving Flash's adoption, Figure~\ref{fig:uncertainty_evolution} plots $\mathrm{tr}(A_a^{-1})$---a scalar summary of each arm's total uncertainty---across both phases.
+Lower values indicate more accumulated information and tighter confidence bounds; higher values indicate greater uncertainty and larger UCB exploration bonuses.
+
+At initialisation, the three warm-started arms begin with $\mathrm{tr}(A_a^{-1}) \approx 0.6$, reflecting the $n_\mathit{eff}{=}1{,}000$ pseudo-observations encoded in their warmup priors.
+When Flash is registered at the Phase~2 boundary, it starts at $\mathrm{tr}(A_a^{-1}) = d/\lambda = 26$---the isotropic prior $A = \lambda I$ with no prior information.
+This ${\sim}40{\times}$ uncertainty gap between Flash and the incumbents is the direct cause of LinUCB's exploration burst: the UCB bonus $\alpha\sqrt{x^\top A_a^{-1} x}$ is proportional to the arm's uncertainty, so Flash receives a massive selection advantage until observations shrink its confidence ellipsoid.
+Within ${\sim}300$ Phase~2 steps, Flash's uncertainty converges to the level of the warm-started arms, at which point its selection rate stabilises and reflects its learned quality--cost profile rather than exploration pressure.
+
+The figure also reveals an instructive side effect for Gemini-Pro, the most expensive arm.
+Under budget constraints, Gemini-Pro is rarely selected ($<2\%$ of Phase~2 traffic at the moderate target).
+Because geometric forgetting continuously decays $A_a$ with each step the arm goes unplayed, Gemini-Pro's uncertainty \emph{rises} over time---the router progressively ``forgets'' what it knows about an arm it can no longer afford to play.
+The sawtooth pattern reflects the interplay: uncertainty accumulates during long idle periods, occasionally triggering an exploratory selection when the inflated UCB bonus overcomes the budget penalty, which briefly reduces uncertainty before the cycle repeats.
+This is a concrete illustration of the forgetting--budget pacer feedback loop discussed in the design rationale (Section~\ref{sec:methodology}): forgetting inflates confidence, which drives exploration, which incurs cost, which drives up $\lambda_t$, which suppresses the expensive arm again.

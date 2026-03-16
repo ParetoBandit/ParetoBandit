@@ -58,4 +58,15 @@
 \label{fig:model_onboarding}
 \end{figure}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{../experiments/appendix/model_onboarding/results/uncertainty_evolution.pdf}
+\caption{Uncertainty evolution during model onboarding (moderate budget, 20 seeds, 95\% bootstrap CI).
+  $\mathrm{tr}(A_a^{-1})$ measures total uncertainty per arm: higher values indicate less information and larger exploration bonuses.
+  Warm-started arms (Llama-8B, Mistral-Large) maintain low, stable uncertainty (${\sim}0.6$--$2$) throughout both phases.
+  Cold-started Flash appears at the Phase~2 boundary with $\mathrm{tr}(A_a^{-1}) = d/\lambda = 26$ (the isotropic prior $A = \lambda I$) and converges to the incumbents' level within ${\sim}300$ steps as LinUCB's exploration bonus drives traffic to it.
+  Gemini-Pro exhibits rising, oscillatory uncertainty because it is rarely selected under budget pressure---geometric forgetting erases its accumulated information faster than new observations replenish it, illustrating the forgetting--budget pacer feedback loop described in Section~\ref{sec:methodology}.}
+\label{fig:uncertainty_evolution}
+\end{figure}
+
 \end{document}
