@@ -96,6 +96,27 @@ The storage layer is extensible: implementing the \texttt{ContextStore} interfac
 \paragraph{Embedding Generation Costs.}
 Contextual bandits require a feature vector $x_t$ for every prompt. Generating this vector using a dense embedding model (e.g., SentenceTransformers) incurs a small latency and compute cost. While negligible compared to the inference cost of frontier LLMs, this overhead must be factored into the overall budget $B$ for ultra-low-cost, high-throughput deployments. Utilizing smaller, faster embedding models or distilling features directly from the prompt text are practical mitigations.
 
+\paragraph{Linearity of the Reward Model.}
+LinUCB assumes that the expected reward is a linear function of the context: $\mathbb{E}[r_t \mid x_t, a] = \theta_a^\top x_t$.
+This is a strong modelling assumption.
+LLM reward functions are likely nonlinear in prompt semantics---prompt difficulty, model-specific failure modes, and interaction effects between semantic dimensions do not naturally compose linearly in embedding space.
+BanditGPT partially mitigates this through two mechanisms: (i)~the disjoint formulation gives each arm its own $\theta_a$, which is strictly more expressive than a single shared linear model, and (ii)~the PCA-whitened embedding pipeline (Section~\ref{sec:setup}) projects prompts into the subspace where the leading principal components concentrate the routing-relevant signal, improving the linear approximation in practice.
+Empirically, this combination is sufficient to produce consistent Pareto gains across all experiments in this paper.
+
+Nevertheless, richer reward surfaces could potentially be captured by \emph{neural contextual bandits}.
+NeuralUCB~\cite{zhou2020neural} replaces the linear reward model with a deep network while constructing UCB-style confidence bounds via the neural tangent kernel, achieving $\tilde{O}(\sqrt{T})$ regret without structural assumptions on the reward function.
+NeuralTS~\cite{zhang2021neural} provides an analogous extension for Thompson Sampling.
+Adopting either approach for LLM routing is appealing in principle but introduces three open challenges that the linear formulation avoids:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \emph{Non-stationary adaptation.}
+    LinUCB's geometric forgetting reduces to a scalar multiply on the sufficient statistics ($A_a$, $b_a$); neural networks have no analogous closed-form decay and would require more complex continual-learning or replay-based forgetting strategies to handle reward drift.
+  \item \emph{Warm-start initialization.}
+    Seeding LinUCB from offline data is a single matrix addition; transferring offline knowledge into a neural reward model requires careful pre-training or meta-learning to avoid catastrophic forgetting of the prior during online fine-tuning.
+  \item \emph{Latency.}
+    LinUCB's $O(d^2)$ update and $O(Kd)$ selection complete in ${<}\,40\,\mu$s; neural forward and backward passes are orders of magnitude slower, potentially conflicting with the sub-millisecond latency budget of a routing-critical path.
+\end{enumerate}
+Investigating whether the empirical gains from nonlinear reward models justify these engineering costs---and designing forgetting and warm-start mechanisms that work without closed-form sufficient statistics---is a compelling direction for future work.
+
 \paragraph{Cross-Model Parameter Sharing.}
 BanditGPT uses disjoint LinUCB: each arm maintains fully independent sufficient statistics ($A_a$, $b_a$), so observations from one model contribute nothing to the quality estimates of another.
 This independence is conservative---it avoids negative transfer between dissimilar models---but it also means that the router cannot exploit the behavioural similarities that LLMs frequently exhibit.
