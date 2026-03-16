@@ -5,6 +5,13 @@ We formalize LLM routing as an online decision-making problem under budget const
 
 \subsection{Contextual Bandit Routing}
 
+The key premise of contextual routing is that \emph{no single model is universally best}---the optimal choice depends on the prompt.
+LLMs exhibit heterogeneous capabilities across prompt types: a budget model may handle straightforward factual look-ups as well as a frontier API, while only the frontier model produces acceptable responses on complex multi-step reasoning or nuanced creative writing.
+A context-free router that ignores prompt content must commit to a single, fixed traffic distribution (e.g., 70\% budget, 25\% mid-tier, 5\% frontier) regardless of prompt difficulty.
+Under a budget constraint, this is wasteful: frontier calls are spent on easy prompts where a cheap model would suffice, while hard prompts that justify the $500{\times}$ cost premium receive frontier service no more often than easy ones.
+Conditioning on the prompt allows the router to learn \emph{which} prompt types each model excels at, reserving expensive calls for the prompts where they yield the largest quality gain and routing the rest to cheaper alternatives.
+This selective spending is what enables a contextual router to trace the quality--cost Pareto frontier---and it is impossible without a representation of the prompt that captures the task-level distinctions relevant to model selection.
+
 Let $t \in \{1, 2, \ldots, T\}$ denote a discrete sequence of user requests (prompts). At each step $t$, the router receives a context vector $x_t \in \mathbb{R}^d$ representing the prompt, derived from a pre-trained embedding model (e.g., SentenceTransformers). The router must select a single language model $a_t$ from a discrete portfolio of available models $\mathcal{A} = \{1, \dots, K\}$. 
 
 Upon executing the prompt on model $a_t$, the system observes a scalar reward $r_t \in [0, 1]$ indicating the quality of the response. This reward may be derived from an automated LLM-as-a-judge, explicit user feedback (e.g., thumbs up/down), or an implicit task completion metric. Crucially, the router operates under \emph{bandit feedback}: it only observes the reward for the chosen model $a_t$ and does not know what the counterfactual rewards would have been for the unselected models.
