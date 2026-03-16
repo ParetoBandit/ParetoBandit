@@ -15,20 +15,40 @@ This section evaluates whether a single API call,
 
 \subsubsection{Why Care?}
 
-The standard industry workflow for integrating a new model is:
+The standard industry workflow for integrating a new model into a
+supervised router is:
 \begin{enumerate}[nosep,leftmargin=*]
-  \item Run an offline evaluation (days to weeks of human or LLM-judge
+  \item Collect the new model's responses on a representative prompt
+    set and label them (days to weeks of human or LLM-judge
     annotation).
-  \item Retrain the routing policy on the updated dataset.
+  \item Retrain the routing policy on the expanded labeled dataset.
   \item Update hard-coded cost tables and budget thresholds.
   \item Re-deploy and monitor for regressions.
 \end{enumerate}
 This process is slow, manual, and error-prone: stale cost tables
 are the leading cause of budget violations in production
 routers~(internal post-mortems).
+Critically, step~1 requires a \emph{pre-collected evaluation dataset}
+for the new model before it can receive any live traffic---an
+offline data-collection campaign that must be repeated for every
+model addition.
+
 BanditGPT replaces steps 1--4 with a single call that seeds the new
 arm with a T-shirt prior and lets the online learner discover its
 quality--cost profile from live traffic.
+The bandit still requires a reward signal, but that signal comes
+from the same evaluation mechanism (LLM judge, user ratings, or
+implicit behavioural composites) already serving the existing
+portfolio---no dedicated offline dataset is collected for the new
+model.
+When the exploration mechanism routes a prompt to the new arm, the
+existing reward pipeline evaluates its response at zero marginal
+data-collection cost, and the bandit updates its posterior
+immediately.
+This also avoids two risks inherent to offline evaluation:
+\emph{distribution mismatch} (a curated eval set may not reflect the
+live prompt distribution) and \emph{dataset staleness} (the eval ages
+as deployment patterns drift).
 The BudgetPacer automatically accommodates the new arm's cost
 without any reconfiguration.
 
