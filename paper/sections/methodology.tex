@@ -19,10 +19,14 @@ The architectural cornerstone is the Contextual Bandit with Knapsacks (CBwK) fra
 This composability is what makes the design modular: the inner reward learner and the outer budget mechanism evolve independently, and the choice of inner algorithm is a free design parameter.
 
 For the inner learner we adopt LinUCB~\cite{li2010contextual}, which models expected reward as a linear function of the context and maintains closed-form sufficient statistics ($A_a$, $b_a$) per arm.
-This is not an arbitrary default; the sufficient-statistic representation simultaneously enables three capabilities that the principal alternatives---Thompson Sampling, neural bandits, policy-gradient methods~\cite{wang2025barp}---do not jointly provide:
+Standard LinUCB, however, implicitly assumes two conditions that fail in production LLM routing: \emph{stationarity} (reward distributions do not change) and \emph{prior correctness} (any initialisation is either uninformative or accurate).
+In practice, providers silently update models, pricing shifts, and prompt distributions drift---the canonical concept drift problem~\cite{gama2014survey,chen2023chatgptdrift}---invalidating both assumptions.
+Offline warmup priors, trained on historical data, may already be partially stale by the time the router is deployed.
+We therefore extend LinUCB with two robustness mechanisms, a \emph{forgetting factor} $\gamma$ and a \emph{tunable prior strength} $n_\mathit{eff}$, that address each failure mode.
+Crucially, LinUCB's sufficient-statistic representation is what makes these extensions lightweight---the principal alternatives (Thompson Sampling, neural bandits, policy-gradient methods~\cite{wang2025barp}) do not jointly support them without substantial algorithmic redesign:
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \emph{Non-stationary adaptation} reduces to a scalar multiply ($A_a \leftarrow \gamma A_a$, $b_a \leftarrow \gamma b_a$), directly realising the discounted-UCB principle of Garivier and Moulines~\cite{garivier2011switching} without redesigning the update rule.
-  \item \emph{Warm-start initialization} is a single matrix addition to $(A_a, b_a)$, instantiating the framework of Kveton et~al.~\cite{kveton2023warmstart} with a tunable prior strength $n_\mathit{eff}$.
+  \item \emph{Non-stationary adaptation via $\gamma$.}  Geometric forgetting reduces to a scalar multiply ($A_a \leftarrow \gamma A_a$, $b_a \leftarrow \gamma b_a$), directly realising the discounted-UCB principle of Garivier and Moulines~\cite{garivier2011switching} without redesigning the update rule.  The parameter $\gamma \in (0,1]$ controls the effective memory horizon: recent evidence dominates, allowing the router to track reward drift, while historical observations are geometrically discounted rather than erased.
+  \item \emph{Prior-strength control via $n_\mathit{eff}$.}  Warm-start initialization is a single matrix addition to $(A_a, b_a)$, instantiating the framework of Kveton et~al.~\cite{kveton2023warmstart}.  The tunable prior strength $n_\mathit{eff}$ acts as a safety valve against prior--reality mismatch: it sets how many pseudo-observations the offline priors contribute, controlling how quickly online evidence can override potentially stale offline estimates.  A conservative $n_\mathit{eff}$ lets the router begin learning from live traffic almost immediately; a large $n_\mathit{eff}$ trusts priors longer, trading adaptability for early stability.
   \item \emph{Computational efficiency} follows from Sherman--Morrison rank-1 updates at $O(d^2)$ per step, keeping the router on the critical path at ${<}\,40\,\mu$s per decision (Appendix~\ref{sec:latency_benchmark}).
 \end{enumerate}
 
@@ -90,7 +94,8 @@ The \texttt{BudgetPacer} combines two enforcement mechanisms simultaneously:
 \subsection{Non-Stationary Adaptation via Geometric Forgetting}
 \label{sec:forgetting}
 
-LLM routing in production is non-stationary: providers silently update models, creating reward drift. A naive LinUCB algorithm ($\gamma=1.0$) accumulates infinite memory, severely slowing adaptation to a shifting reward landscape because it must overcome thousands of historical observations. Conversely, entirely discarding history discards the valuable prior knowledge required for stable, informed routing.
+LLM routing in production is subject to \emph{concept drift}~\cite{gama2014survey}: the joint distribution of prompts, model quality, and pricing shifts over time as providers silently update models~\cite{chen2023chatgptdrift,chen2025silent}, user workloads evolve, and API pricing changes.
+A standard LinUCB algorithm ($\gamma=1.0$) accumulates infinite memory, severely slowing adaptation to a shifting reward landscape because it must overcome thousands of historical observations before its estimates reflect the new regime. Conversely, entirely discarding history discards the valuable prior knowledge required for stable, informed routing.
 
 ParetoBandit addresses non-stationarity through a \emph{forgetting factor} $\gamma \in (0, 1]$ applied directly to the disjoint LinUCB sufficient statistics. At each step $t$, before incorporating the new observation $(x_t, a_t, r_t)$, the design matrix and reward accumulator for the chosen arm $a_t$ are exponentially discounted:
 \begin{align}
