@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import numpy as np
-from bandit_gpt.router import BanditRouter
+from pareto_bandit.router import BanditRouter
 
 def test_late_model_receives_manual_priors():
     """Test that late-arriving models receive T-shirt sizing priors when no neighbor exists."""

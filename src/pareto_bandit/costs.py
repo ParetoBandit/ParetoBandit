@@ -1,7 +1,7 @@
 """Shared cost normalization utilities.
 
 Provides a single-source-of-truth logarithmic cost normalization used by both
-:class:`~bandit_gpt.router.BanditRouter` (production routing) and offline
+:class:`~pareto_bandit.router.BanditRouter` (production routing) and offline
 evaluation scripts (experiment baselines).  Any change to the normalization
 formula or market anchors propagates automatically to all consumers.
 """

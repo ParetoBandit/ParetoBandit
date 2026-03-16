@@ -1,5 +1,5 @@
 """
-PCA Manager for BanditGPT Dimensionality Reduction
+PCA Manager for ParetoBandit Dimensionality Reduction
 
 Handles PCA training, transformation, and prior covariance matrix generation
 for the Hybrid feature architecture (PCA semantic + handcrafted + cluster features).
@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import List, Tuple, Optional
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER
+from pareto_bandit.config import DEFAULT_SENTENCE_TRANSFORMER
 from sklearn.decomposition import PCA
 
 
@@ -90,7 +90,7 @@ class FeatureExtractor:
 
 
 class PCAManager:
-    """Manages PCA dimensionality reduction for BanditGPT"""
+    """Manages PCA dimensionality reduction for ParetoBandit"""
     
     def __init__(
         self,

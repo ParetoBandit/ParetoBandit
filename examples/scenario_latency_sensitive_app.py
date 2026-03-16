@@ -36,7 +36,7 @@ Expected dynamics:
       corralling, recovery is slower and noisier.
 
 Run:
-    pip install banditgpt matplotlib
+    pip install paretobandit matplotlib
     python examples/scenario_latency_sensitive_app.py
 """
 
@@ -49,7 +49,7 @@ from typing import Dict, List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 # ──────────────────────────────────────────────────────────────────────
 # Portfolio — fast + frontier with latency metadata

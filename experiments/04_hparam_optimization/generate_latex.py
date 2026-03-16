@@ -64,20 +64,20 @@ def build_command_set(
     cs.raw("Epsilon", str(epsilon))
 
     # -------------------------------------------------------------------------
-    # BanditGPT selected config (best_per_variant_val)
+    # ParetoBandit selected config (best_per_variant_val)
     # -------------------------------------------------------------------------
-    bg_best = best_val.get("banditgpt", {})
+    bg_best = best_val.get("paretobandit", {})
     if bg_best:
-        cs.raw("BanditGPTAlpha", format_alpha(bg_best["alpha"]))
-        cs.raw("BanditGPTNeff", fmt_int(bg_best["n_eff"]))
-        cs.raw("BanditGPTGamma", format_gamma(bg_best["gamma"]))
-        cs.num("BanditGPTAUC", bg_best["val_pareto_auc"], digits=3)
-        cs.num("BanditGPTRegret", bg_best["val_phase2_regret"], digits=1)
-    bg_test = test_per.get("banditgpt", {})
+        cs.raw("ParetoBanditAlpha", format_alpha(bg_best["alpha"]))
+        cs.raw("ParetoBanditNeff", fmt_int(bg_best["n_eff"]))
+        cs.raw("ParetoBanditGamma", format_gamma(bg_best["gamma"]))
+        cs.num("ParetoBanditAUC", bg_best["val_pareto_auc"], digits=3)
+        cs.num("ParetoBanditRegret", bg_best["val_phase2_regret"], digits=1)
+    bg_test = test_per.get("paretobandit", {})
     if bg_test:
-        cs.num("BanditGPTTestAUC", bg_test["test_pareto_auc"], digits=4)
-        cs.num("BanditGPTTestStd", bg_test["test_pareto_auc_std"], digits=4)
-        cs.num("BanditGPTTestDelta", bg_test["test_delta_pct"], digits=2)
+        cs.num("ParetoBanditTestAUC", bg_test["test_pareto_auc"], digits=4)
+        cs.num("ParetoBanditTestStd", bg_test["test_pareto_auc_std"], digits=4)
+        cs.num("ParetoBanditTestDelta", bg_test["test_delta_pct"], digits=2)
 
     tr_test = test_per.get("tabula_rasa", {})
     if tr_test:
@@ -89,9 +89,9 @@ def build_command_set(
         cs.num("FixedTestAUC", bg_test["test_fixed_auc"], digits=4)
 
     # -------------------------------------------------------------------------
-    # BanditGPT AUC-only config
+    # ParetoBandit AUC-only config
     # -------------------------------------------------------------------------
-    bg_auc = auc_only.get("banditgpt", {})
+    bg_auc = auc_only.get("paretobandit", {})
     if bg_auc:
         cs.raw("AUCOnlyAlpha", format_alpha(bg_auc["alpha"]))
         cs.raw("AUCOnlyGamma", format_gamma(bg_auc["gamma"]))

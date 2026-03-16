@@ -6,7 +6,7 @@ Compresses SentenceTransformer embeddings to 32 dimensions via PCA.
 
 Note:
 - The default encoder is `BAAI/bge-m3` (1024D). The shipped PCA reduces this to
-  32D, and BanditGPT appends a bias term to form 33D context vectors.
+  32D, and ParetoBandit appends a bias term to form 33D context vectors.
 """
 import joblib
 import numpy as np
@@ -16,7 +16,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 
 # Configuration
-from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
+from pareto_bandit.config import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
 
 MODEL_NAME = DEFAULT_SENTENCE_TRANSFORMER
 N_COMPONENTS = 32

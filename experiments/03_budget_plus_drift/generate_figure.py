@@ -4,7 +4,7 @@
 Reads ``results/budget_cost_drift_results.json`` and produces:
 
 ``adaptation_dynamics.pdf/.png``:
-  1x3 panel showing BanditGPT-only adaptation mechanics
+  1x3 panel showing ParetoBandit-only adaptation mechanics
   (λ_t, Gemini fraction, running cost) across three budget levels.
 
 Usage:
@@ -133,7 +133,7 @@ def _extract_curve_with_ci(
 
 
 def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
-    """1x3 figure showing BanditGPT adaptation dynamics under cost drift.
+    """1x3 figure showing ParetoBandit adaptation dynamics under cost drift.
 
     Parameters
     ----------
@@ -159,7 +159,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ax_lam = axes[0]
     for blabel, _btarget in zip(budget_labels, budget_targets):
         result = _extract_curve_with_ci(
-            conditions, "BanditGPT", blabel,
+            conditions, "ParetoBandit", blabel,
             mean_field="mean_lambda",
             per_seed_field="per_seed_lambda",
             std_field="std_lambda",
@@ -235,7 +235,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         )
 
     for blabel in budget_labels:
-        cond_key = _find_condition_key(conditions, "BanditGPT", blabel)
+        cond_key = _find_condition_key(conditions, "ParetoBandit", blabel)
         if cond_key is None:
             continue
         _plot_gemini_fraction(
@@ -268,7 +268,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ax_cost = axes[2]
     for blabel, btarget in zip(budget_labels, budget_targets):
         result = _extract_curve_with_ci(
-            conditions, "BanditGPT", blabel,
+            conditions, "ParetoBandit", blabel,
             mean_field="mean_avg_cost",
             per_seed_field="per_seed_avg_cost",
             std_field="std_avg_cost",

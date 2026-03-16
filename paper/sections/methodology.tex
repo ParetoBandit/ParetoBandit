@@ -1,9 +1,9 @@
-\section{Methodology: The BanditGPT System}
+\section{Methodology: The ParetoBandit System}
 \label{sec:methodology}
 
-We present the architecture of BanditGPT, an open-source contextual bandit routing framework.  At its core, LLM routing is an \emph{exploration--exploitation problem}: the router must balance selecting models it already knows to be good (exploitation) against trying uncertain or newly added models that might be better (exploration).  Maximising long-term expected reward requires getting this tradeoff right---and in production the tradeoff is complicated by two additional forces: \emph{budget constraints} that limit how much exploration the router can afford, and \emph{non-stationarity} that forces continuous re-exploration as model quality and pricing change.
+We present the architecture of ParetoBandit, an open-source contextual bandit routing framework.  At its core, LLM routing is an \emph{exploration--exploitation problem}: the router must balance selecting models it already knows to be good (exploitation) against trying uncertain or newly added models that might be better (exploration).  Maximising long-term expected reward requires getting this tradeoff right---and in production the tradeoff is complicated by two additional forces: \emph{budget constraints} that limit how much exploration the router can afford, and \emph{non-stationarity} that forces continuous re-exploration as model quality and pricing change.
 
-BanditGPT exposes a small set of interpretable hyperparameters, each governing a distinct facet of this tradeoff:
+ParetoBandit exposes a small set of interpretable hyperparameters, each governing a distinct facet of this tradeoff:
 \begin{itemize}[nosep,leftmargin=*]
   \item $\alpha$ (exploration rate): how aggressively the router tries uncertain models versus exploiting known-good ones (Section~\ref{sec:budget_pacing}).
   \item $n_\mathit{eff}$ (prior strength): how strongly the router trusts its offline priors versus new online evidence---controlling how quickly exploration begins (Section~\ref{sec:setup}).
@@ -14,7 +14,7 @@ Every experiment in this paper examines how these knobs interact under the reali
 
 \paragraph{Design rationale.}
 No single existing algorithm simultaneously learns reward surfaces from bandit feedback, enforces a long-run budget constraint, and adapts to non-stationarity.
-BanditGPT's architecture is therefore an evolution that composes four foundational results, each addressing one facet of the problem.
+ParetoBandit's architecture is therefore an evolution that composes four foundational results, each addressing one facet of the problem.
 The architectural cornerstone is the Contextual Bandit with Knapsacks (CBwK) framework of Agrawal and Devanur~\cite{agrawal2014bandits}, whose Lagrangian relaxation decomposes the constrained routing problem into a sequence of \emph{unconstrained} contextual bandit subproblems, coupled only through a dual variable $\lambda_t$ that encodes budget pressure.
 This composability is what makes the design modular: the inner reward learner and the outer budget mechanism evolve independently, and the choice of inner algorithm is a free design parameter.
 
@@ -33,7 +33,7 @@ The hyperparameter sweep in Section~\ref{sec:exp4_hparam_sweep} exists precisely
 
 \subsection{System Architecture Overview}
 
-BanditGPT operates as an asynchronous, closed-loop routing system (Figure~\ref{fig:architecture}). At inference time (step $t$), a user query $x_t$ is processed by a lightweight feature extractor (e.g., a SentenceTransformer embedding model), which passes the query vector to the \texttt{BanditRouter}. The router maintains a set of sufficient statistics for each model $a \in \mathcal{A}$, initialized via \emph{offline-to-online warmup priors} to mitigate the cold-start problem. The router computes a score for each model, incorporating uncertainty (LinUCB) and subtracting a dynamic cost penalty provided by the \texttt{BudgetPacer}. The router then selects the model $a_t$ with the highest score, returning its response to the user.
+ParetoBandit operates as an asynchronous, closed-loop routing system (Figure~\ref{fig:architecture}). At inference time (step $t$), a user query $x_t$ is processed by a lightweight feature extractor (e.g., a SentenceTransformer embedding model), which passes the query vector to the \texttt{BanditRouter}. The router maintains a set of sufficient statistics for each model $a \in \mathcal{A}$, initialized via \emph{offline-to-online warmup priors} to mitigate the cold-start problem. The router computes a score for each model, incorporating uncertainty (LinUCB) and subtracting a dynamic cost penalty provided by the \texttt{BudgetPacer}. The router then selects the model $a_t$ with the highest score, returning its response to the user.
 
 After the query completes and is evaluated (either synchronously by an automated judge, or asynchronously via delayed user feedback), the reward $r_t$ and exact cost $c_t$ are fed back into the system. The \texttt{BanditRouter} updates its reward estimates (incorporating geometric forgetting), while the \texttt{BudgetPacer} updates its internal dual variable $\lambda_t$, adjusting the cost penalties for future requests to steer the system back toward the target budget $B$.
 
@@ -42,7 +42,7 @@ After the query completes and is evaluated (either synchronously by an automated
 \subsection{Primal-Dual Budget Pacing}
 \label{sec:budget_pacing}
 
-To enforce strict, dynamically adjusting budget constraints without manual offline tuning of a static penalty weight $\lambda_s$, BanditGPT implements a Primal-Dual Contextual Bandit with Knapsacks (CBwK) formulation~\cite{agrawal2014bandits} via the \texttt{BudgetPacer}.
+To enforce strict, dynamically adjusting budget constraints without manual offline tuning of a static penalty weight $\lambda_s$, ParetoBandit implements a Primal-Dual Contextual Bandit with Knapsacks (CBwK) formulation~\cite{agrawal2014bandits} via the \texttt{BudgetPacer}.
 
 At each step $t$, the router selects model $a_t$ by maximizing a budget-augmented utility function:
 \begin{equation}
@@ -92,7 +92,7 @@ The \texttt{BudgetPacer} combines two enforcement mechanisms simultaneously:
 
 LLM routing in production is non-stationary: providers silently update models, creating reward drift. A naive LinUCB algorithm ($\gamma=1.0$) accumulates infinite memory, severely slowing adaptation to a shifting reward landscape because it must overcome thousands of historical observations. Conversely, entirely discarding history discards the valuable prior knowledge required for stable, informed routing.
 
-BanditGPT addresses non-stationarity through a \emph{forgetting factor} $\gamma \in (0, 1]$ applied directly to the disjoint LinUCB sufficient statistics. At each step $t$, before incorporating the new observation $(x_t, a_t, r_t)$, the design matrix and reward accumulator for the chosen arm $a_t$ are exponentially discounted:
+ParetoBandit addresses non-stationarity through a \emph{forgetting factor} $\gamma \in (0, 1]$ applied directly to the disjoint LinUCB sufficient statistics. At each step $t$, before incorporating the new observation $(x_t, a_t, r_t)$, the design matrix and reward accumulator for the chosen arm $a_t$ are exponentially discounted:
 \begin{align}
     A_{a_t} &\leftarrow \gamma \, A_{a_t} + x_t x_t^\top
     \label{eq:forget_A} \\
@@ -109,7 +109,7 @@ The parameter $\gamma$ thus controls a bias--variance tradeoff between \emph{sta
 Because the router sits on the critical path of every LLM request, per-step latency must be negligible relative to model inference time.  We ensure this through three design choices.
 
 \paragraph{$O(d^2)$ updates via Sherman-Morrison.}
-Naive LinUCB recomputes $A_a^{-1}$ from scratch after each observation, costing $O(d^3)$.  BanditGPT instead maintains a cached inverse $A_a^{-1}$ and applies the Sherman-Morrison rank-1 update formula:
+Naive LinUCB recomputes $A_a^{-1}$ from scratch after each observation, costing $O(d^3)$.  ParetoBandit instead maintains a cached inverse $A_a^{-1}$ and applies the Sherman-Morrison rank-1 update formula:
 \begin{equation}
     A_a^{-1} \leftarrow A_a^{-1}
         - \frac{(A_a^{-1} x_t)(x_t^\top A_a^{-1})}{1 + x_t^\top A_a^{-1} x_t},

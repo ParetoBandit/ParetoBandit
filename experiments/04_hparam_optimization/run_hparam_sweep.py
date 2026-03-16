@@ -5,7 +5,7 @@ Produces the results for Section~\\ref{sec:hparam_sweep} of the main
 paper, which presents the multi-objective framework and key insights.
 
 Grid search over exploration parameter (alpha), prior strength (n_eff),
-and forgetting factor (gamma) for **two variants** — BanditGPT (warmup
+and forgetting factor (gamma) for **two variants** — ParetoBandit (warmup
 priors) and Tabula Rasa (cold start) — using an epsilon-constraint
 method to balance budget-paced routing quality and non-stationary
 adaptation ability.
@@ -80,7 +80,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     DEFAULT_NONSTAT_COST_PENALTY,
     DEFAULT_PACER_LAMBDA_MAX,
     DEFAULT_PACER_LR,
@@ -92,10 +92,10 @@ from bandit_gpt.config import (
     TRAIN_DATA_PATH,
     VAL_DATA_PATH,
 )
-from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.storage import EphemeralContextStore
 from utils.pareto import pareto_auc
 from utils.simulation import build_model_registry, compute_normalized_costs
 
@@ -104,7 +104,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -117,7 +117,7 @@ BUDGET_TARGET_COUNT: int = 7
 PACER_LR: float = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
 EPSILON: float = 0.0025
-VARIANTS: List[str] = ["banditgpt", "tabula_rasa"]
+VARIANTS: List[str] = ["paretobandit", "tabula_rasa"]
 
 PCA_DIM: int = 25
 GAMMA_VALUES: List[float] = [0.995, 0.997, 0.999, 1.0]
@@ -141,7 +141,7 @@ NONSTAT_SWAP_PAIRS: List[Tuple[str, str]] = K3_ALL_SWAP_PAIRS
 def _build_configs() -> List[Dict[str, Any]]:
     """Generate all (variant, alpha, n_eff, gamma) configurations.
 
-    For BanditGPT: full alpha x n_eff x gamma grid.
+    For ParetoBandit: full alpha x n_eff x gamma grid.
     For Tabula Rasa: alpha x gamma (n_eff fixed at 1.0, priors unused).
     """
     configs: List[Dict[str, Any]] = []
@@ -149,7 +149,7 @@ def _build_configs() -> List[Dict[str, Any]]:
         ALPHA_VALUES, N_EFF_VALUES, GAMMA_VALUES,
     ):
         configs.append({
-            "variant": "banditgpt",
+            "variant": "paretobandit",
             "alpha": alpha,
             "n_eff": n_eff,
             "gamma": gamma,
@@ -513,8 +513,8 @@ def compute_budget_paced_pareto_auc(
             "budget_target": bt,
             "mean_reward": round(float(np.mean(bt_reward_accum[bt])), 6),
             "mean_cost": round(float(np.mean(bt_cost_accum[bt])), 6),
-            "std_reward": round(float(np.std(bt_reward_accum[bt])), 6),
-            "std_cost": round(float(np.std(bt_cost_accum[bt])), 6),
+            "std_reward": round(float(np.std(bt_reward_accum[bt], ddof=1)), 6),
+            "std_cost": round(float(np.std(bt_cost_accum[bt], ddof=1)), 6),
         })
 
     return mean_auc, std_auc, sweep_points
@@ -770,7 +770,7 @@ def main() -> None:
         )
 
     configs = _build_configs()
-    n_banditgpt = len(ALPHA_VALUES) * len(N_EFF_VALUES) * len(GAMMA_VALUES)
+    n_paretobandit = len(ALPHA_VALUES) * len(N_EFF_VALUES) * len(GAMMA_VALUES)
     n_tabula = len(ALPHA_VALUES) * len(GAMMA_VALUES)
 
     per_model_means = {
@@ -784,10 +784,10 @@ def main() -> None:
     ))
     total_trials = len(configs) * len(budget_targets) * N_SEEDS
     logger.info(
-        "\nSweep: %d banditgpt (alpha x n_eff x gamma) + %d tabula_rasa "
+        "\nSweep: %d paretobandit (alpha x n_eff x gamma) + %d tabula_rasa "
         "(alpha x gamma) = %d configs, %d budget targets x %d seeds "
         "= %d total val trials",
-        n_banditgpt, n_tabula, len(configs),
+        n_paretobandit, n_tabula, len(configs),
         len(budget_targets), N_SEEDS, total_trials,
     )
     logger.info(
@@ -811,7 +811,7 @@ def main() -> None:
             current_variant = variant
             logger.info("\n--- %s (budget-paced val selection) ---", variant)
 
-        use_warmup = variant == "banditgpt"
+        use_warmup = variant == "paretobandit"
         wp = warmup_path if use_warmup else None
 
         t_cfg = time.time()
@@ -887,7 +887,7 @@ def main() -> None:
             current_variant = variant
             logger.info("\n--- %s (non-stationary eval) ---", variant)
 
-        use_warmup = variant == "banditgpt"
+        use_warmup = variant == "paretobandit"
         wp = warmup_path if use_warmup else None
 
         t_cfg = time.time()
@@ -1051,7 +1051,7 @@ def main() -> None:
 
     test_results: Dict[str, Dict[str, Any]] = {}
     for variant in VARIANTS:
-        use_warmup = variant == "banditgpt"
+        use_warmup = variant == "paretobandit"
         wp = warmup_path if use_warmup else None
         best_alpha = per_variant_best[variant]["alpha"]
         best_n_eff = per_variant_best[variant]["n_eff"]

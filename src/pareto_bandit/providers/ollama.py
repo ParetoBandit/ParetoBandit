@@ -15,7 +15,7 @@ class OllamaClient:
         except ImportError as exc:
             raise ImportError(
                 "The ollama package is required for OllamaClient. "
-                "Install it with:  pip install banditgpt[ollama]"
+                "Install it with:  pip install paretobandit[ollama]"
             ) from exc
 
         self._client = Client(host=base_url or self.DEFAULT_BASE_URL)

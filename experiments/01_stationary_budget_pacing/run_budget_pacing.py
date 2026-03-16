@@ -51,8 +51,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
-from bandit_gpt.config import (
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     DEFAULT_PACER_LAMBDA_MAX,
     DEFAULT_PACER_LR,
@@ -61,9 +61,11 @@ from bandit_gpt.config import (
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.storage import EphemeralContextStore
+from scipy.stats import wilcoxon
+from utils.pareto import pareto_auc
 from utils.simulation import SplitData, build_model_registry, load_split
 
 logging.basicConfig(
@@ -71,7 +73,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -463,6 +465,79 @@ def main() -> None:
         )
 
     # ------------------------------------------------------------------
+    # Pareto dominance test (paired Wilcoxon across seeds)
+    # ------------------------------------------------------------------
+    fixed_test_costs = [float(np.mean(test.costs[m])) for m in ARM_ORDER]
+    fixed_test_rewards = [float(np.mean(test.rewards[m])) for m in ARM_ORDER]
+    cost_lo = min(fixed_test_costs)
+    cost_hi = max(fixed_test_costs)
+
+    static_rows = [r for r in all_results if r["method"] == "static"]
+    pacer_rows = [r for r in all_results if r["method"] == "pacer"]
+
+    per_seed_static_auc: List[float] = []
+    per_seed_pacer_auc: List[float] = []
+    for s in range(N_SEEDS):
+        s_costs = (
+            [r["per_seed_costs"][s] for r in static_rows] + fixed_test_costs
+        )
+        s_rewards = (
+            [r["per_seed_rewards"][s] for r in static_rows] + fixed_test_rewards
+        )
+        per_seed_static_auc.append(
+            pareto_auc(s_costs, s_rewards, cost_lo, cost_hi),
+        )
+
+        p_costs = (
+            [r["per_seed_costs"][s] for r in pacer_rows] + fixed_test_costs
+        )
+        p_rewards = (
+            [r["per_seed_rewards"][s] for r in pacer_rows] + fixed_test_rewards
+        )
+        per_seed_pacer_auc.append(
+            pareto_auc(p_costs, p_rewards, cost_lo, cost_hi),
+        )
+
+    pacer_auc_arr = np.array(per_seed_pacer_auc)
+    static_auc_arr = np.array(per_seed_static_auc)
+    auc_diff = pacer_auc_arr - static_auc_arr
+
+    wilcoxon_stat, wilcoxon_p = wilcoxon(
+        per_seed_pacer_auc, per_seed_static_auc, alternative="greater",
+    )
+
+    dominance_test: Dict[str, Any] = {
+        "test": "wilcoxon_signed_rank",
+        "alternative": "pacer_auc > static_auc",
+        "n_seeds": N_SEEDS,
+        "pacer_auc_mean": float(np.mean(pacer_auc_arr)),
+        "pacer_auc_std": float(np.std(pacer_auc_arr, ddof=1)),
+        "static_auc_mean": float(np.mean(static_auc_arr)),
+        "static_auc_std": float(np.std(static_auc_arr, ddof=1)),
+        "auc_diff_mean": float(np.mean(auc_diff)),
+        "auc_diff_std": float(np.std(auc_diff, ddof=1)),
+        "statistic": float(wilcoxon_stat),
+        "p_value": float(wilcoxon_p),
+        "per_seed_pacer_auc": [float(v) for v in per_seed_pacer_auc],
+        "per_seed_static_auc": [float(v) for v in per_seed_static_auc],
+    }
+
+    logger.info("\nPareto Dominance Test (Wilcoxon signed-rank):")
+    logger.info(
+        "  Pacer AUC:  %.6f ± %.6f",
+        dominance_test["pacer_auc_mean"], dominance_test["pacer_auc_std"],
+    )
+    logger.info(
+        "  Static AUC: %.6f ± %.6f",
+        dominance_test["static_auc_mean"], dominance_test["static_auc_std"],
+    )
+    logger.info(
+        "  Δ AUC:      %.6f ± %.6f",
+        dominance_test["auc_diff_mean"], dominance_test["auc_diff_std"],
+    )
+    logger.info("  Wilcoxon p: %.2e", dominance_test["p_value"])
+
+    # ------------------------------------------------------------------
     # Save results
     # ------------------------------------------------------------------
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -480,6 +555,7 @@ def main() -> None:
         "online_n": online.n,
         "test_n": test.n,
         "results": all_results,
+        "dominance_test": dominance_test,
     }
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)

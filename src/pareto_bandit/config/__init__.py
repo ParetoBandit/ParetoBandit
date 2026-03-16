@@ -1,5 +1,5 @@
 """
-Configuration Constants for BanditGPT
+Configuration Constants for ParetoBandit
 
 Centralized configuration for all data paths, model definitions, tuned
 hyperparameters, and immutable artifacts used across the project.
@@ -178,7 +178,7 @@ BEST_K3_HPARAMS: Dict[str, Any] = {
     "prior_n_effective": 1000.0,
     "forgetting_factor": 0.995,
 }
-"""Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
+"""Best K=3 ParetoBandit config (warmup priors, PCA-25, disjoint LinUCB).
 
 Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
 lowest Phase 2 regret).  Val BP AUC = 0.9289, test BP AUC = 0.9248.
@@ -200,6 +200,6 @@ BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
 lowest Phase 2 regret).  Val BP AUC = 0.9288, test BP AUC = 0.9246.
 Geometric forgetting (gamma=0.995, effective memory ~200 steps) matches the
-BanditGPT selection; moderate exploration (alpha=0.10) provides sufficient
+ParetoBandit selection; moderate exploration (alpha=0.10) provides sufficient
 re-exploration budget after distribution shifts.
 """

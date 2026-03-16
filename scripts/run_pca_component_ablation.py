@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PCA component-count ablation for BanditGPT (KDD-style).
+PCA component-count ablation for ParetoBandit (KDD-style).
 
 This script answers the reviewer question: "How many PCA components do we need
 before routing performance saturates?"
@@ -24,7 +24,7 @@ Outputs
 
 Notes
 -----
-- Uses the current default SentenceTransformer from `bandit_gpt.config`
+- Uses the current default SentenceTransformer from `pareto_bandit.config`
   (default: `all-MiniLM-L6-v2`) unless overridden.
 - Runs on CPU by default for reproducibility and to avoid device-dependent
   numerical differences.
@@ -54,13 +54,13 @@ import sys
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     LMSYS_BATTLES_PATH,
 )
-from bandit_gpt.rewards import extract_reward
+from pareto_bandit.rewards import extract_reward
 
 # Reuse the canonical train-then-freeze utilities used in the paper code.
 from utils.router_factory import create_experiment_router
@@ -80,7 +80,7 @@ REWARD_THEORETICAL_MAX: float = 1.0
 def compute_reward_normalization() -> Tuple[float, float]:
     """Return theoretical reward bounds for normalization.
 
-    BanditGPT's canonical reward is mean(vote × confidence), which lies in [0, 1].
+    ParetoBandit's canonical reward is mean(vote × confidence), which lies in [0, 1].
     Using theoretical bounds avoids any counterfactual leakage from the reward matrix.
     """
     return REWARD_THEORETICAL_MIN, REWARD_THEORETICAL_MAX

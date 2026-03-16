@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt.storage import SqliteContextStore, EphemeralContextStore
+from pareto_bandit.storage import SqliteContextStore, EphemeralContextStore
 
 
 class TestSqliteContextStore:

@@ -1,11 +1,11 @@
-# BanditGPT Data Directory
+# ParetoBandit Data Directory
 
-This directory contains all data files and preparation scripts for BanditGPT evaluation.
+This directory contains all data files and preparation scripts for ParetoBandit evaluation.
 
 ## Structure
 
 ```
-banditgpt/data/
+paretobandit/data/
 ├── scripts/              # Data preparation and generation scripts
 │   ├── data_manager.py          # Clustering & train/test splitting
 │   ├── pca_manager.py           # PCA & hybrid feature extraction
@@ -46,7 +46,7 @@ banditgpt/data/
 ### 1. Clustering Prompts
 
 ```python
-from banditgpt.data.scripts.data_manager import PromptClusterer
+from paretobandit.data.scripts.data_manager import PromptClusterer
 
 clusterer = PromptClusterer(n_clusters=100)
 clusterer.cluster_file(
@@ -58,7 +58,7 @@ clusterer.cluster_file(
 ### 2. Train/Test Split
 
 ```python
-from banditgpt.data.scripts.data_manager import DataSplitter
+from paretobandit.data.scripts.data_manager import DataSplitter
 
 splitter = DataSplitter(test_size=1000, train_size=4000)
 splitter.split_file(
@@ -71,7 +71,7 @@ test_path="test_prompts.jsonl",
 ### 3. Generate Priors (PCA-based)
 
 ```python
-from banditgpt.data.scripts.pca_manager import PCAManager
+from paretobandit.data.scripts.pca_manager import PCAManager
 
 manager = PCAManager(n_components=32)
 manager.fit_pca(prompts, pca_path="pca_32.joblib")
@@ -84,7 +84,7 @@ manager.generate_prior_covariance(
 ### 4. Evaluate with 3-Judge CoT
 
 ```python
-from banditgpt.rejudge_cot import CoTRewardGenerator
+from paretobandit.rejudge_cot import CoTRewardGenerator
 
 gen = CoTRewardGenerator(max_workers=64)
 gen.run(

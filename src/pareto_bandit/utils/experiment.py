@@ -7,8 +7,8 @@ from typing import Dict, List, Tuple, Optional
 from collections import Counter
 from sklearn.model_selection import train_test_split
 
-from bandit_gpt.rewards import extract_reward
-# from src.bandit_gpt.router import BanditRouter # Removed to avoid circular import
+from pareto_bandit.rewards import extract_reward
+# from src.pareto_bandit.router import BanditRouter # Removed to avoid circular import
 
 class ExperimentBurnIn:
     """
@@ -284,9 +284,9 @@ class ExperimentBurnIn:
             FileNotFoundError: If ``VAL_DATA_PATH_ALL_MODELS`` does not exist.
         """
         import gzip as _gzip
-        from bandit_gpt.router import BanditRouter
-        from bandit_gpt.config import VAL_DATA_PATH_ALL_MODELS, DEFAULT_PCA_PATH
-        from bandit_gpt.rewards import extract_reward
+        from pareto_bandit.router import BanditRouter
+        from pareto_bandit.config import VAL_DATA_PATH_ALL_MODELS, DEFAULT_PCA_PATH
+        from pareto_bandit.rewards import extract_reward
 
         if not VAL_DATA_PATH_ALL_MODELS.exists():
             raise FileNotFoundError(

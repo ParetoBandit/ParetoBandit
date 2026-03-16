@@ -19,7 +19,7 @@ This is the **frozen router problem**. Static routing — whether rule-based, se
 
 What if your router could learn *continuously*, directly from *your own* outcomes, and adapt automatically?
 
-That's what BanditGPT does.
+That's what ParetoBandit does.
 
 ---
 
@@ -36,7 +36,7 @@ But here's the deeper finding: models that are strictly *worse on average* can s
 ![Dynamic routing engine distributing prompts.](images/routing_concept.png)
 *Instead of assuming the expensive model is always best, an intelligent router discovers which prompt types match which models.*
 
-This is the core insight behind BanditGPT: rather than applying a hardcoded decision boundary, let the router *discover* these preference structures online, from its own traffic.
+This is the core insight behind ParetoBandit: rather than applying a hardcoded decision boundary, let the router *discover* these preference structures online, from its own traffic.
 
 ---
 
@@ -48,7 +48,7 @@ The naive approach: pull the first machine that pays well and never try anything
 
 The optimal strategy is a **bandit algorithm** — a mathematically principled way to balance **exploitation** (keep pulling what works) with **exploration** (try unknowns that might work better). 
 
-BanditGPT treats each LLM as a slot machine. But unlike a simple bandit, it uses **context** — the content of your prompt — to make different decisions for different prompt types. A coding question gets routed differently than a creative writing prompt, even if both could technically go to any model.
+ParetoBandit treats each LLM as a slot machine. But unlike a simple bandit, it uses **context** — the content of your prompt — to make different decisions for different prompt types. A coding question gets routed differently than a creative writing prompt, even if both could technically go to any model.
 
 This is a **contextual bandit**, the same algorithmic family behind Netflix recommendations and ad placement systems that serve billions of decisions per day. The key property: it converges on the optimal policy *while serving real traffic* — no separate training phase required.
 
@@ -56,7 +56,7 @@ This is a **contextual bandit**, the same algorithmic family behind Netflix reco
 
 ## The Architecture: Three Layers of Intelligent Routing
 
-Here's how BanditGPT works end to end. The system is a three-layer pipeline, each solving a distinct problem:
+Here's how ParetoBandit works end to end. The system is a three-layer pipeline, each solving a distinct problem:
 
 ![Three layers of intelligent routing: Constraint filtering, Safety layer, and Smart routing.](images/architecture_diagram.png)
 
@@ -64,7 +64,7 @@ Here's how BanditGPT works end to end. The system is a three-layer pipeline, eac
 Before any learning happens, hard business constraints prune the candidate set. If you set `max_cost=1.00`, models exceeding $1 per 1K tokens are instantly masked out. If a model's known quality score falls below your floor, it's excluded. This guarantees your operational requirements are met per-request.
 
 ### Layer 2: The Safety Net (Corralling)
-This is the insurance policy. BanditGPT maintains **two expert bandits** simultaneously:
+This is the insurance policy. ParetoBandit maintains **two expert bandits** simultaneously:
 - A **Warmup Expert** initialized with your historical data (to start strong).
 - A **Tabula Rasa Expert** that starts completely from scratch.
 
@@ -80,7 +80,7 @@ It learns what works (Quality Estimate), tries unproven models occasionally (Exp
 
 ## Seeing It In Action
 
-We evaluated BanditGPT across portfolios ranging from 2 to 10 models (spanning a 600× cost range) on held-out LMSYS Arena prompts. Here is what we found:
+We evaluated ParetoBandit across portfolios ranging from 2 to 10 models (spanning a 600× cost range) on held-out LMSYS Arena prompts. Here is what we found:
 
 ### 1. It Learns from Your Traffic Rapidly
 Starting completely from scratch, the router explores the space and surpasses static baselines within roughly **400 prompts**. 
@@ -97,7 +97,7 @@ At 10 models, no single model receives more than 17% of traffic. The router genu
 *Traffic is naturally distributed according to prompt complexity and model strengths.*
 
 ### 3. Finding the "Magic" Cost-Quality Frontier
-By sweeping a single parameter (the cost penalty), BanditGPT traces a smooth cost-quality envelope. 
+By sweeping a single parameter (the cost penalty), ParetoBandit traces a smooth cost-quality envelope. 
 
 The most striking result: we observed **up to 91% cost reduction with only a 6% quality loss** compared to always routing to the most expensive model. The router discovers these cheap-but-high-quality operating points automatically.
 
@@ -112,7 +112,7 @@ If you are considering adaptive routing for production, don't take our word for 
 
 Here is a rigorous framework for setting up an online A/B test:
 
-1. **Define Your Baselines:** Set up a Control track (your current static routing logic) and a Treatment track (BanditGPT).
+1. **Define Your Baselines:** Set up a Control track (your current static routing logic) and a Treatment track (ParetoBandit).
 2. **Isolate the Routing Layer:** Use a traffic splitter to randomly assign user prompts to either track. Log the selected model, the inference cost, the latency, and the resulting quality metric (e.g., explicit thumbs up/down, or an asynchronous LLM-as-a-judge score).
 3. **Let It Converge:** Bandit algorithms need data to explore. Do not evaluate the router after 50 prompts. Wait for the "steady state" after ~500 prompts, where the algorithm transitions from exploration to exploitation.
 4. **Analyze the Frontier:** Did average quality remain tied (or improve) while costs dropped? Does the traffic distribution show a healthy spread across your model portfolio?
@@ -121,10 +121,10 @@ Here is a rigorous framework for setting up an online A/B test:
 
 ## Five Minutes to a Production Router
 
-You can onboard new models to BanditGPT with zero downtime. No restarts, no retraining.
+You can onboard new models to ParetoBandit with zero downtime. No restarts, no retraining.
 
 ```python
-from bandit_gpt import BanditRouter, MultiProviderClient, OpenAIClient, AnthropicClient
+from pareto_bandit import BanditRouter, MultiProviderClient, OpenAIClient, AnthropicClient
 
 # Initialize with your portfolio constraints
 router = BanditRouter.create(model_registry)
@@ -149,7 +149,7 @@ No labels, no training pipeline, no GPU. The router runs locally and learns from
 
 ---
 
-## When BanditGPT Is the Right Choice
+## When ParetoBandit Is the Right Choice
 
 **It's a strong fit when:**
 - Your prompt distribution shifts over time (customer support, coding assistants).
@@ -167,13 +167,13 @@ Adaptive routing is the natural next step.
 
 ---
 
-**Try it today:** BanditGPT is open-source under the Apache 2.0 license.
+**Try it today:** ParetoBandit is open-source under the Apache 2.0 license.
 
 ```bash
-pip install banditgpt
+pip install paretobandit
 ```
 
-- **GitHub**: [github.com/atabernermiller/banditgpt](https://github.com/atabernermiller/banditgpt)
-- **Paper**: *banditGPT: Cost-Aware Online Learning for LLM Routing via Expert Corralling* (2026)
+- **GitHub**: [github.com/atabernermiller/paretobandit](https://github.com/atabernermiller/paretobandit)
+- **Paper**: *paretobandit: Cost-Aware Online Learning for LLM Routing via Expert Corralling* (2026)
 
 *If you found this useful, I'd appreciate a clap or follow. If you have questions, drop a comment — I read every one.*

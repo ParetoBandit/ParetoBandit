@@ -5,7 +5,7 @@
 \label{sec:hparam_sweep}
 
 \paragraph{The challenge.}
-BanditGPT's three core hyperparameters---exploration coefficient
+ParetoBandit's three core hyperparameters---exploration coefficient
 $\alpha$, prior strength $\neff$, and forgetting factor
 $\gamma$---interact non-trivially with the stationarity of the
 deployment environment.
@@ -16,7 +16,7 @@ because forgetting \emph{always} hurts stationary performance.
 However, $\gamma{=}1.0$ fails catastrophically under distribution
 shift: as shown in Section~\ref{sec:nonstationarity}, the
 no-forgetting Naive Bandit accumulates $34\%$ more cumulative regret
-than the tuned BanditGPT ($\gamma{=}0.995$) after a reward swap.
+than the tuned ParetoBandit ($\gamma{=}0.995$) after a reward swap.
 Conversely, optimising solely for adaptability yields
 $\gamma \ll 1$ with excessive forgetting that destabilises the
 stationary policy.
@@ -91,13 +91,13 @@ willing to sacrifice in exchange for non-stationary robustness.
 
 \paragraph{Results.}
 Table~\ref{tab:hparam_selection} summarises the selection outcome
-for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
+for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
 
 \begin{table}[t]
 \centering
 \caption{%
   \textbf{$\epsilon$-constraint hyperparameter selection.}
-  AUC-only optimisation selects $\gamma{=}1.0$ for BanditGPT
+  AUC-only optimisation selects $\gamma{=}1.0$ for ParetoBandit
   and $\gamma{=}0.997$ for Tabula Rasa---both near-stationary
   configurations that maximise stationary AUC but degrade
   adaptation under reward shift.
@@ -117,7 +117,7 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
   & $\boldsymbol{\gamma}$
   & \textbf{BP AUC} & \textbf{P2 Regret} \\
 \midrule
-\multirow{2}{*}{BanditGPT}
+\multirow{2}{*}{ParetoBandit}
   & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.931$ & --- \\
   & $\epsilon$-constr.\ & $0.10$ & $1000$ & $0.995$ & $0.929$ & $\mathbf{48.4}$ \\[3pt]
 \multirow{2}{*}{Tabula Rasa}
@@ -127,7 +127,7 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
 \end{tabular}
 \end{table}
 
-AUC-only optimisation selects $\gamma{=}1.0$ for BanditGPT
+AUC-only optimisation selects $\gamma{=}1.0$ for ParetoBandit
 and $\gamma{=}0.997$ for Tabula Rasa---both near-stationary
 configurations that maximise stationary AUC.
 Section~\ref{sec:nonstationarity} shows that $\gamma{=}1.0$
@@ -139,11 +139,11 @@ trading ${<}0.3\%$ budget-paced AUC ($0.931 \to 0.929$ and
 $0.929 \to 0.929$) for substantially lower Phase-2 regret
 ($48.4$ and $49.0$).
 On the held-out test split the selected configurations achieve
-Pareto AUC of $\hpBanditGPTTestAUC$ (BanditGPT) and
+Pareto AUC of $\hpParetoBanditTestAUC$ (ParetoBandit) and
 $\hpTabulaTestAUC$ (Tabula Rasa) versus $\hpFixedTestAUC$ for the
-fixed-model envelope---deltas of $\hpBanditGPTTestDelta\%$ and
+fixed-model envelope---deltas of $\hpParetoBanditTestDelta\%$ and
 $\hpTabulaTestDelta\%$, both within one standard deviation of
-seed variance ($\pm\hpBanditGPTTestStd$ and
+seed variance ($\pm\hpParetoBanditTestStd$ and
 $\pm\hpTabulaTestStd$).
 The val-selected hyperparameters thus transfer to test without
 statistically significant degradation, consistent with the
@@ -153,7 +153,7 @@ sacrifice in exchange for adaptation capability.
 Two additional patterns merit attention:
 
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Exploration increases for BanditGPT.}
+  \item \textbf{Exploration increases for ParetoBandit.}
     AUC-only selects $\alpha{=}0.01$ (minimal exploration),
     while $\epsilon$-constraint selects $\alpha{=}0.1$
     ($10\times$ higher).
@@ -205,7 +205,7 @@ production routing---efficiency under stationarity and resilience
 under drift.
 The empirical result that single-objective tuning
 \emph{systematically} selects near-stationary $\gamma$ values
-($1.0$ for BanditGPT, $0.997$ for Tabula Rasa) is itself a
+($1.0$ for ParetoBandit, $0.997$ for Tabula Rasa) is itself a
 cautionary finding: any practitioner deploying a non-stationary
 bandit router who tunes via standard cross-validation will
 converge on a forgetting factor that offers minimal protection

@@ -46,7 +46,7 @@ CONDITION_ORDER: tuple[str, ...] = (
     "Fixed Policy",
     "Naive Bandit",
     "Recalibrated",
-    "BanditGPT",
+    "ParetoBandit",
 )
 
 BINDING_RATIO_LOW = 0.95
@@ -68,13 +68,13 @@ def _condition_key(condition: str, budget_label: str) -> str:
 
 
 def _short_name(condition: str, budget_label: str) -> str:
-    """Build short name for commands, e.g. 'FixedTight', 'BanditGPTMod'."""
+    """Build short name for commands, e.g. 'FixedTight', 'ParetoBanditMod'."""
     short_budget = BUDGET_LABEL_TO_SHORT.get(budget_label, budget_label.title())
     cond_map = {
         "Fixed Policy": "Fixed",
         "Naive Bandit": "Naive",
         "Recalibrated": "Recal",
-        "BanditGPT": "BanditGPT",
+        "ParetoBandit": "ParetoBandit",
     }
     cond_short = cond_map.get(condition, condition.replace(" ", ""))
     return f"{cond_short}{short_budget}"
@@ -118,38 +118,38 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
             cs.raw(f"{short}PhaseOneCost", fmt_cost_eng(mean_cost_p1))
             # ratio already added above
 
-            # BanditGPT-specific: lambda, Gemini adoption, reward lift, Phase 1 util
-            if condition == "BanditGPT":
+            # ParetoBandit-specific: lambda, Gemini adoption, reward lift, Phase 1 util
+            if condition == "ParetoBandit":
                 mean_lambda_p1 = p1.get("mean_lambda", 0.0)
                 mean_lambda_p2 = p2.get("mean_lambda", 0.0)
-                cs.num(f"BanditGPT{short_budget}LambdaPhaseOne", mean_lambda_p1, digits=2)
-                cs.num(f"BanditGPT{short_budget}LambdaPhaseTwo", mean_lambda_p2, digits=2)
+                cs.num(f"ParetoBandit{short_budget}LambdaPhaseOne", mean_lambda_p1, digits=2)
+                cs.num(f"ParetoBandit{short_budget}LambdaPhaseTwo", mean_lambda_p2, digits=2)
 
                 arm_fracs_p2 = p2.get("arm_fractions") or {}
                 gemini_frac = arm_fracs_p2.get(GEMINI_ARM_KEY, 0.0)
                 cs.raw(
-                    f"BanditGPT{short_budget}GeminiPhaseTwo",
+                    f"ParetoBandit{short_budget}GeminiPhaseTwo",
                     fmt_int(gemini_frac * 100),
                 )
 
                 mean_reward_p1 = p1.get("mean_reward", 0.0)
                 mean_reward_p2 = p2.get("mean_reward", 0.0)
                 reward_lift = mean_reward_p2 - mean_reward_p1
-                cs.num(f"BanditGPT{short_budget}RewardLift", reward_lift, digits=3)
+                cs.num(f"ParetoBandit{short_budget}RewardLift", reward_lift, digits=3)
 
-                cs.ratio(f"BanditGPT{short_budget}PhaseOneUtil", ratio_p1)
+                cs.ratio(f"ParetoBandit{short_budget}PhaseOneUtil", ratio_p1)
 
     return cs
 
 
 def _format_ratio_cell(
     ratio: float,
-    is_banditgpt: bool,
+    is_paretobandit: bool,
     is_phase2_non_binding: bool = False,
 ) -> str:
     """Format a ratio cell with optional bold and dagger."""
     within_5pct = BINDING_RATIO_LOW <= ratio <= BINDING_RATIO_HIGH
-    should_bold = is_banditgpt or within_5pct
+    should_bold = is_paretobandit or within_5pct
 
     ratio_str = fmt_ratio(ratio)
     if should_bold:
@@ -178,7 +178,7 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
         r"\textbf{Bold} marks values within $5\%$ of $1.00\times$.",
         r"$\dagger$~Phase~2 constraint non-binding: the price drop reduces",
         r"all methods' costs below target, regardless of algorithm.",
-        r"BanditGPT is the only condition that reliably meets the target in",
+        r"ParetoBandit is the only condition that reliably meets the target in",
         r"Phase~1 and, where the constraint remains binding (tight), in",
         r"Phase~2.}",
         r"\label{tab:budget_compliance}",
@@ -210,12 +210,12 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
             ratio_p1 = mean_cost_p1 / target if target > 0 else 0.0
             ratio_p2 = mean_cost_p2 / target if target > 0 else 0.0
 
-            is_banditgpt = condition == "BanditGPT"
+            is_paretobandit = condition == "ParetoBandit"
             phase2_non_binding = ratio_p2 < NON_BINDING_RATIO_THRESHOLD
 
-            cond_display = "\\textbf{BanditGPT}" if is_banditgpt else condition
-            cell_p1 = _format_ratio_cell(ratio_p1, is_banditgpt, is_phase2_non_binding=False)
-            cell_p2 = _format_ratio_cell(ratio_p2, is_banditgpt, is_phase2_non_binding=phase2_non_binding)
+            cond_display = "\\textbf{ParetoBandit}" if is_paretobandit else condition
+            cell_p1 = _format_ratio_cell(ratio_p1, is_paretobandit, is_phase2_non_binding=False)
+            cell_p2 = _format_ratio_cell(ratio_p2, is_paretobandit, is_phase2_non_binding=phase2_non_binding)
 
             line_end = r"\\[3pt]" if cond_idx == len(CONDITION_ORDER) - 1 else r"\\"
             if cond_idx == 0:

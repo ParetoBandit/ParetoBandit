@@ -70,7 +70,7 @@ def get_heuristic_prior(
         quality = default_quality
     
     # CRITICAL: b[-1] assumes the BIAS term is the LAST feature in the vector.
-    # Verification Reference: src.bandit_gpt.feature_service.FeatureService.extract_features
+    # Verification Reference: src.pareto_bandit.feature_service.FeatureService.extract_features
     # Logic: np.append(emb_reduced, 1.0) -> bias is absolutely the last element.
     prior_reward_sum = float(quality) * float(n_effective)
     b[-1] = prior_reward_sum

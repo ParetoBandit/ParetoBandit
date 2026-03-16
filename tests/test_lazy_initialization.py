@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt.storage import SqliteContextStore
+from pareto_bandit.storage import SqliteContextStore
 import numpy as np
 
 
@@ -130,11 +130,11 @@ class TestLazyInitialization(unittest.TestCase):
             self.assertEqual(init_count, 1, "Database should be initialized exactly once")
     
     def test_user_directory_not_created_until_needed(self):
-        """Test that ~/.bandit_gpt/ directory is NOT created on instantiation."""
-        # Use default path which would resolve to ~/.bandit_gpt/ in library mode
+        """Test that ~/.pareto_bandit/ directory is NOT created on instantiation."""
+        # Use default path which would resolve to ~/.pareto_bandit/ in library mode
         # We'll use a custom path to avoid polluting the actual user directory
         test_home = Path(tempfile.mkdtemp())
-        test_bandit_dir = test_home / ".bandit_gpt"
+        test_bandit_dir = test_home / ".pareto_bandit"
         db_path = test_bandit_dir / "router_context.db"
         
         try:
@@ -143,14 +143,14 @@ class TestLazyInitialization(unittest.TestCase):
             
             # Directory should not exist yet
             self.assertFalse(test_bandit_dir.exists(), 
-                           "~/.bandit_gpt/ should not be created on instantiation")
+                           "~/.pareto_bandit/ should not be created on instantiation")
             
             # Save something
             store.save_context("req", np.random.rand(32), "model")
             
             # Now directory should exist
             self.assertTrue(test_bandit_dir.exists(),
-                          "~/.bandit_gpt/ should be created on first use")
+                          "~/.pareto_bandit/ should be created on first use")
             self.assertTrue(db_path.exists())
             
         finally:

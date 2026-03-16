@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.utils.warmup import get_heuristic_prior
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.utils.warmup import get_heuristic_prior
 
 class TestHeuristicPrior:
     def test_get_heuristic_prior_shapes(self):

@@ -1,6 +1,6 @@
 {
   "encoder": "all-MiniLM-L6-v2",
-  "pca_path": "src/bandit_gpt/data/artifacts/pca_25.joblib",
+  "pca_path": "src/pareto_bandit/data/artifacts/pca_25.joblib",
   "n_components": 25,
   "whiten": true,
   "vector_dim": 26,

@@ -11,13 +11,13 @@
     with infinite memory.
     \textbf{SW-UCB ($W{=}200$)} uses sliding-window LinUCB without
     warmup priors.
-    \textbf{BanditGPT ($\gamma{=}0.995$)} adds geometric
+    \textbf{ParetoBandit ($\gamma{=}0.995$)} adds geometric
     forgetting with a tuned effective memory of ${\sim}200$ steps.
     %
     Total regret: Fixed~\rsFixedTotal{},
     Naive~\rsNaiveTotal{} ($-$\rsReductionFixedNaive\%),
     SW-UCB~\rsSWUCBTotal{},
-    BanditGPT~\rsBanditGPTTotal{} ($-$\rsReductionNaiveBanditGPT\%
+    ParetoBandit~\rsParetoBanditTotal{} ($-$\rsReductionNaiveParetoBandit\%
     vs.\ Naive).
     All pairwise comparisons are significant after
     Holm--Bonferroni correction (paired $t$-tests, 39~d.f.).

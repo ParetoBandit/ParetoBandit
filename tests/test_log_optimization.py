@@ -7,7 +7,7 @@ from collections import deque
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from bandit_gpt.router import BanditRouter, RouterConfig
+from pareto_bandit.router import BanditRouter, RouterConfig
 
 def test_log_indexing_and_eviction():
     """Verify that log_index stays in sync with logs deque and handles eviction."""

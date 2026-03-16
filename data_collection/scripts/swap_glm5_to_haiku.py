@@ -146,7 +146,7 @@ def _query_haiku(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+        "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
     }
     payload = {
         "model": NEW_JUDGE,

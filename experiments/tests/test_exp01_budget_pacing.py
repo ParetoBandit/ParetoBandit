@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import BEST_K3_HPARAMS, K3_ARM_ORDER
+from pareto_bandit.config import BEST_K3_HPARAMS, K3_ARM_ORDER
 
 from helpers import assert_metrics_match, load_reference, save_reference
 

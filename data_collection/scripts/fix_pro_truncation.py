@@ -52,7 +52,7 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 sys.path.insert(0, str(_ROOT / "data_collection" / "scripts"))
 
-from bandit_gpt.config import REWARDS_PATH  # noqa: E402
+from pareto_bandit.config import REWARDS_PATH  # noqa: E402
 from rejudge_cot import CoTRewardGenerator  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -140,7 +140,7 @@ class ProFixGenerator(CoTRewardGenerator):
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
         payload = {
             "model": model_id,

@@ -17,7 +17,7 @@ from scipy.spatial.distance import pdist, squareform, cdist
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 
 # Import validation functions from project module
-from bandit_gpt.utils.validation import (
+from pareto_bandit.utils.validation import (
     compute_statistical_metrics,
     evaluate_threshold,
     compute_cluster_quality,

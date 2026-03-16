@@ -3,7 +3,7 @@
 \subsection{Routing Latency Microbenchmark (Table~\ref{tab:latency}, Figure~\ref{fig:latency_benchmark})}
 \label{sec:latency_benchmark}
 
-We profile BanditGPT's per-request routing overhead to validate the
+We profile ParetoBandit's per-request routing overhead to validate the
 computational-efficiency claims in Section~\ref{sec:efficiency}.
 Four configurations isolate the individual contributions of
 \emph{PCA dimensionality reduction} ($d{=}26$ vs.\ $d{=}385$)
@@ -16,7 +16,7 @@ vectors, and 4,500 measured route\,+\,update cycles
 \begin{table}[h]
 \centering
 \caption{Per-request routing latency ($\mu$s) and throughput.
-BanditGPT's production configuration (top row) adds $<$\,39\,$\mu$s
+ParetoBandit's production configuration (top row) adds $<$\,39\,$\mu$s
 per request---negligible relative to LLM inference times of
 100--2,000\,ms.}
 \label{tab:latency}
@@ -30,8 +30,8 @@ per request---negligible relative to LLM inference times of
 \textbf{Configuration}
  & p50 & p95 & p50 & p95 & (req/s) \\
 \midrule
-BanditGPT ($d{=}26$)       & $\mathbf{21.7}$ & $25.5$ & $16.8$ & $19.5$ & $\mathbf{24{,}347}$ \\
-BanditGPT ($d{=}385$)      & $152.8$ & $214.4$ & $367.8$ & $427.8$ & $1{,}885$ \\
+ParetoBandit ($d{=}26$)       & $\mathbf{21.7}$ & $25.5$ & $16.8$ & $19.5$ & $\mathbf{24{,}347}$ \\
+ParetoBandit ($d{=}385$)      & $152.8$ & $214.4$ & $367.8$ & $427.8$ & $1{,}885$ \\
 Naive Inv.\ ($d{=}26$)     & $49.2$ & $51.2$ & $4.0$ & $4.7$ & $18{,}708$ \\
 Naive Inv.\ ($d{=}385$)    & $4{,}572$ & $4{,}902$ & $128.1$ & $702.6$ & $202$ \\
 \bottomrule
@@ -48,15 +48,15 @@ $120\times$ throughput improvement over the naive baseline at raw dimension.}
 \label{fig:latency_benchmark}
 \end{figure}
 
-\paragraph{Why BanditGPT's route is fast but its update is slower than naive.}
-The most striking pattern in Table~\ref{tab:latency} is that BanditGPT's \emph{update} is slower than the naive baseline (17\,$\mu$s vs.\ 4\,$\mu$s at $d{=}26$), yet its \emph{route} is $2.3\times$ faster---and at $d{=}385$ the route gap widens to $30\times$.
-This is an intentional architectural trade-off: BanditGPT \emph{amortizes} the cost of maintaining the matrix inverse into the update path so the latency-critical route path is minimal.
+\paragraph{Why ParetoBandit's route is fast but its update is slower than naive.}
+The most striking pattern in Table~\ref{tab:latency} is that ParetoBandit's \emph{update} is slower than the naive baseline (17\,$\mu$s vs.\ 4\,$\mu$s at $d{=}26$), yet its \emph{route} is $2.3\times$ faster---and at $d{=}385$ the route gap widens to $30\times$.
+This is an intentional architectural trade-off: ParetoBandit \emph{amortizes} the cost of maintaining the matrix inverse into the update path so the latency-critical route path is minimal.
 
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Naive baseline.}  Update performs only the $O(d^2)$ outer-product addition $A_a \mathrel{+}= x_t x_t^\top$ (4\,$\mu$s at $d{=}26$).
     Route must then recompute $A_a^{-1}$ from scratch via $O(d^3)$ inversion for each of $K$ arms before computing the UCB score.
     At $d{=}385$ this costs $4.6$\,ms per route call.
-  \item \textbf{BanditGPT.}  Update pays a higher constant: the $O(d^2)$ Sherman-Morrison rank-1 correction on $A_a^{-1}$ (Eq.~\ref{eq:sherman_morrison}), plus a cached $\hat{\theta}_a = A_a^{-1} b_a$ refresh.
+  \item \textbf{ParetoBandit.}  Update pays a higher constant: the $O(d^2)$ Sherman-Morrison rank-1 correction on $A_a^{-1}$ (Eq.~\ref{eq:sherman_morrison}), plus a cached $\hat{\theta}_a = A_a^{-1} b_a$ refresh.
     Route then needs only one $O(d)$ dot product ($\hat{\theta}_a^\top x_t$) and one $O(d^2)$ quadratic form ($x_t^\top A_a^{-1} x_t$) per arm---no inversion at all.
 \end{itemize}
 
@@ -66,7 +66,7 @@ Because routing sits on the user-facing critical path while updates can be proce
 \paragraph{Key findings.}
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Production overhead is negligible.}
-    At the production dimension ($d{=}26$), BanditGPT completes
+    At the production dimension ($d{=}26$), ParetoBandit completes
     a full route\,+\,update cycle in $39\,\mu$s (p50), adding
     $<$\,0.004\% latency to even the fastest LLM call (${\sim}100$\,ms
     time-to-first-token for Llama-3.1-8B).
@@ -75,7 +75,7 @@ Because routing sits on the user-facing critical path while updates can be proce
   \item \textbf{Sherman-Morrison accelerates selection by $30\times$ at high dimension.}
     At $d{=}385$, the naive baseline spends $4.6$\,ms per route
     call computing $K{=}3$ full matrix inversions.
-    BanditGPT's cached inverse reduces this to $153\,\mu$s---a
+    ParetoBandit's cached inverse reduces this to $153\,\mu$s---a
     $30\times$ speedup---because selection requires only a
     matrix-vector product ($O(d^2)$) rather than an inversion ($O(d^3)$).
     At $d{=}26$ the gap narrows to $2.3\times$ because $O(d^3)$ with

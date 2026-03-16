@@ -46,7 +46,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     TRAIN_DATA_PATH_ALL_MODELS,
     VAL_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,

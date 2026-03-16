@@ -13,7 +13,7 @@ checkpoints without notice.
 When a model's quality changes, a router trained on historical data
 inherits a \emph{stale policy}: it continues routing to a model
 whose quality has degraded.
-We ask: \emph{can BanditGPT adapt to non-stationary environments
+We ask: \emph{can ParetoBandit adapt to non-stationary environments
 automatically, without manual re-calibration?}
 
 \paragraph{Why this matters.}
@@ -31,7 +31,7 @@ The experiment below quantifies the dollar cost of that lag
 under a controlled model quality shift.
 
 \paragraph{Algorithm.}
-BanditGPT addresses non-stationarity through a \emph{forgetting
+ParetoBandit addresses non-stationarity through a \emph{forgetting
 factor} $\gamma \in (0, 1]$ applied to the disjoint
 LinUCB~\cite{li2010contextual} sufficient statistics.
 At each step $t$, before incorporating the new observation
@@ -126,7 +126,7 @@ Four conditions are compared across 40~seeds:
     warmup priors ($\alpha{=}0.01$).  Retains only the most
     recent $W$ observations with equal weighting; older
     observations receive zero weight.  Window size is matched to
-    BanditGPT's effective memory (${\sim}200$ steps) for a
+    ParetoBandit's effective memory (${\sim}200$ steps) for a
     controlled comparison of the forgetting mechanism.
     This is a well-studied non-stationary bandit algorithm with
     known minimax regret bounds~\cite{garivier2011switching}; its
@@ -134,7 +134,7 @@ Four conditions are compared across 40~seeds:
     designed for changing environments, not just stationary
     baselines.
 
-  \item \textbf{BanditGPT ($\gamma{=}0.995$):}
+  \item \textbf{ParetoBandit ($\gamma{=}0.995$):}
     Warmup priors with jointly-tuned geometric forgetting
     (effective memory ${\sim}200$ steps; $\gamma$ selected
     jointly with $\alpha$ and $n_{\mathrm{eff}}$ via
@@ -178,7 +178,7 @@ Condition & Phase~1 & Phase~2 & Total & $\sigma$ \\
 Fixed Policy (offline) & 46.6 & 169.1 & 215.6 & 0.0 \\
 Naive Bandit ($\gamma{=}1.0$) & 56.1 & 97.1 & 153.2 & 9.1 \\
 SW-UCB ($W{=}200$) & 100.1 & 32.5 & 132.7 & 34.4 \\
-\textbf{BanditGPT ($\gamma{=}0.995$)} & 61.5 & \textbf{53.1} & \textbf{114.6} & \textbf{7.5} \\
+\textbf{ParetoBandit ($\gamma{=}0.995$)} & 61.5 & \textbf{53.1} & \textbf{114.6} & \textbf{7.5} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -193,7 +193,7 @@ column-by-column reveals \emph{why each design decision matters}:
     $153.2$.  The Naive Bandit adapts in Phase~2 (regret
     $97.1$ vs.\ $169.1$), but infinite memory means Phase~1
     inertia dilutes the new signal: the Naive Bandit accumulates
-    $83\%$ more Phase~2 regret than BanditGPT.
+    $83\%$ more Phase~2 regret than ParetoBandit.
     \textbf{For the practitioner:} this is the gap between
     ``we have online learning'' and ``we have online learning
     that actually works under change.''
@@ -204,11 +204,11 @@ column-by-column reveals \emph{why each design decision matters}:
     SW-UCB~\cite{garivier2011switching} achieves the
     \emph{lowest Phase~2 regret} of any condition ($32.5$),
     demonstrating that a purpose-built non-stationary algorithm
-    adapts faster than BanditGPT ($53.1$) once the shift occurs.
+    adapts faster than ParetoBandit ($53.1$) once the shift occurs.
     However, without warmup priors SW-UCB pays a $2.1\times$
     higher Phase~1 cost ($100.1$ vs.\ $46.6$--$61.5$), and its
     cross-seed standard deviation ($\sigma{=}34.4$) is
-    $4.6\times$ that of BanditGPT ($7.5$).
+    $4.6\times$ that of ParetoBandit ($7.5$).
 
     \emph{Why is SW-UCB so costly in Phase~1?}
     Without priors, SW-UCB starts from $A{=}\lambda I$, $b{=}0$:
@@ -233,16 +233,16 @@ column-by-column reveals \emph{why each design decision matters}:
 
     \textbf{For the practitioner:} SW-UCB is the better choice
     \emph{only if} you know the environment will shift and you
-    can tolerate high variance; BanditGPT is preferable when
+    can tolerate high variance; ParetoBandit is preferable when
     the environment may or may not shift, because its warmup
     priors protect the common case (stability) while forgetting
     handles the uncommon case (drift).
 
-  \item \textbf{Naive Bandit $\to$ BanditGPT ($-25\%$ total):}
+  \item \textbf{Naive Bandit $\to$ ParetoBandit ($-25\%$ total):}
     Adding geometric forgetting reduces regret from $153.2$ to
     $114.6$.  The gain is concentrated in Phase~2 ($53.1$ vs.\
     $97.1$, a $45\%$ reduction): the 200-step effective memory
-    window discounts stale Phase~1 evidence, allowing BanditGPT
+    window discounts stale Phase~1 evidence, allowing ParetoBandit
     to re-learn the new optimum within ${\sim}200$ steps of
     the swap.
     \textbf{For the practitioner:} forgetting is the single
@@ -253,7 +253,7 @@ column-by-column reveals \emph{why each design decision matters}:
     changes.
 
   \item \textbf{Phase~1 is ``free'' with warmup priors.}
-    Conditions with warmup priors (Fixed, Naive, BanditGPT)
+    Conditions with warmup priors (Fixed, Naive, ParetoBandit)
     achieve similar Phase~1 regret ($46.6$--$61.5$), while
     SW-UCB (no priors) incurs $100.1$---a cold-start tax of
     ${\sim}40$--$54$ regret units.
@@ -277,14 +277,14 @@ non-stationary environment.
 \paragraph{Deployment reliability.}
 Beyond mean regret, the \emph{variance} across seeds reveals a
 critical distinction.
-BanditGPT ($\gamma{=}0.995$) has the lowest cross-seed standard
+ParetoBandit ($\gamma{=}0.995$) has the lowest cross-seed standard
 deviation among learning conditions ($\sigma{=}7.5$), comparable
 to the Naive Bandit ($\sigma{=}9.1$) but far below SW-UCB
 ($\sigma{=}34.4$).
 Geometric forgetting regularizes this variance by ensuring that
 the effective sample size never grows beyond ${\sim}200$
 observations, regardless of the data ordering.
-A production team gets one deployment---BanditGPT's low variance
+A production team gets one deployment---ParetoBandit's low variance
 means every deployment reliably adapts.
 
 % =====================================================================
@@ -307,9 +307,9 @@ correction~\cite{holm1979simple} for all pairwise comparisons
 \toprule
 \textbf{Comparison} & \textbf{$\Delta$} & \textbf{95\% CI} & \textbf{$p$} \\
 \midrule
-BanditGPT vs.\ Fixed Policy   & $-101.0$ & $[-103.4, -98.6]$  & $< 10^{-45}$ \\
-BanditGPT vs.\ Naive Bandit   & $-38.5$  & $[-42.2, -34.8]$   & $< 10^{-22}$ \\
-BanditGPT vs.\ SW-UCB         & $-18.0$  & $[-29.5, -6.6]$    & $< 10^{-2}$  \\
+ParetoBandit vs.\ Fixed Policy   & $-101.0$ & $[-103.4, -98.6]$  & $< 10^{-45}$ \\
+ParetoBandit vs.\ Naive Bandit   & $-38.5$  & $[-42.2, -34.8]$   & $< 10^{-22}$ \\
+ParetoBandit vs.\ SW-UCB         & $-18.0$  & $[-29.5, -6.6]$    & $< 10^{-2}$  \\
 SW-UCB vs.\ Naive Bandit      & $-20.5$  & $[-32.6, -8.4]$    & $< 10^{-2}$  \\
 SW-UCB vs.\ Fixed Policy      & $-83.0$  & $[-94.1, -71.8]$   & $< 10^{-17}$ \\
 Naive Bandit vs.\ Fixed Policy & $-62.5$ & $[-65.4, -59.5]$   & $< 10^{-33}$ \\
@@ -320,7 +320,7 @@ Naive Bandit vs.\ Fixed Policy & $-62.5$ & $[-65.4, -59.5]$   & $< 10^{-33}$ \\
 \noindent
 All six pairwise comparisons remain significant after
 Holm--Bonferroni correction ($p < 10^{-2}$).
-The widest confidence interval is BanditGPT vs.\ SW-UCB
+The widest confidence interval is ParetoBandit vs.\ SW-UCB
 ($[-29.5, -6.6]$), reflecting SW-UCB's high cross-seed
 variance ($\sigma{=}34.4$); even so, the effect is significant
 at $p < 0.003$.
@@ -344,16 +344,16 @@ isolates the contribution of each design decision:
   \item \textbf{Non-stationary bandit theory} (SW-UCB):
     achieves the lowest Phase~2 regret ($32.5$) but suffers
     a $100.1$-unit cold-start tax in Phase~1 and exhibits
-    $4.6\times$ higher variance than BanditGPT.
+    $4.6\times$ higher variance than ParetoBandit.
     SW-UCB demonstrates that forgetting \emph{alone} is not
     enough---warmup priors are essential for reliable
     performance across both phases.
-  \item \textbf{Geometric forgetting} (Naive $\to$ BanditGPT):
+  \item \textbf{Geometric forgetting} (Naive $\to$ ParetoBandit):
     reduces total regret by a further $25\%$ ($p < 10^{-22}$).
-    This is the single mechanism that separates BanditGPT from
+    This is the single mechanism that separates ParetoBandit from
     all prior work, and its benefit is concentrated exactly where
     it matters: the post-shift Phase~2.
-  \item \textbf{Warmup priors + forgetting} (BanditGPT):
+  \item \textbf{Warmup priors + forgetting} (ParetoBandit):
     deliver the lowest total regret ($114.6$) \emph{and} the
     lowest variance ($\sigma{=}7.5$) of any learning condition.
     The combination provides the best of both worlds: fast
@@ -370,9 +370,9 @@ A production team deploying an LLM router faces a choice:
 (c)~adopt a non-stationary algorithm but sacrifice cold-start
 performance and accept high variance (SW-UCB: $132.7 \pm 34.4$);
 or (d)~combine priors + forgetting for the best total regret
-\emph{and} the lowest deployment risk (BanditGPT:
+\emph{and} the lowest deployment risk (ParetoBandit:
 $114.6 \pm 7.5$).
-The BanditGPT combination costs \emph{nothing} to add:
+The ParetoBandit combination costs \emph{nothing} to add:
 forgetting reduces stationary AUC by ${<}0.3\%$
 (Section~\ref{sec:hparam_sweep}), warmup priors are a one-time
 offline computation, and the $\gamma$ hyperparameter is selected

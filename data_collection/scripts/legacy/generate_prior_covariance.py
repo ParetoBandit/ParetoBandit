@@ -8,7 +8,7 @@ import json
 import numpy as np
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER
+from pareto_bandit.config import DEFAULT_SENTENCE_TRANSFORMER
 
 def main():
     base_dir = Path(__file__).parent

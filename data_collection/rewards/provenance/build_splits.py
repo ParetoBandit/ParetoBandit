@@ -30,7 +30,7 @@ fixed seed.
 Warmup priors
 -------------
 Generated from the *train split only* using the canonical
-``bandit_gpt.calibration.generate_warmup_priors`` implementation in the
+``pareto_bandit.calibration.generate_warmup_priors`` implementation in the
 production PCA-15 whitened coordinate system.
 
 Usage
@@ -56,8 +56,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.calibration import generate_warmup_priors
-from bandit_gpt.config import (
+from pareto_bandit.calibration import generate_warmup_priors
+from pareto_bandit.config import (
     DATA_COLLECTION_DIR,
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,

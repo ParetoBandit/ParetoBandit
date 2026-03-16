@@ -19,7 +19,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import validation functions
-from bandit_gpt.utils.validation import (
+from pareto_bandit.utils.validation import (
     compute_statistical_metrics,
     evaluate_threshold,
     compute_cluster_quality,

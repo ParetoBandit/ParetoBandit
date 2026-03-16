@@ -29,7 +29,7 @@ jobs:
 
       - name: Run linting
         run: |
-          ruff check src/bandit_gpt tests
+          ruff check src/pareto_bandit tests
 
       - name: Run tests
         run: |
@@ -52,7 +52,7 @@ jobs:
 
       - name: Run type checking
         run: |
-          mypy src/bandit_gpt --ignore-missing-imports
+          mypy src/pareto_bandit --ignore-missing-imports
 
   build:
     runs-on: ubuntu-latest
@@ -141,8 +141,8 @@ jobs:
           subprocess.check_call([pip_bin, "install", str(wheel)])
 
           code = r"""
-import bandit_gpt
-from bandit_gpt import BanditRouter
+import pareto_bandit
+from pareto_bandit import BanditRouter
 print("import-ok")
 """
           subprocess.check_call([python_bin, "-c", code])

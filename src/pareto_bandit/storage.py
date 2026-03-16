@@ -137,12 +137,12 @@ class SqliteContextStore(ContextStore):
         Initialize SQLite context store with intelligent path resolution.
         
         **Lazy Initialization**: Database file is NOT created until first use.
-        This prevents cluttering ~/.bandit_gpt/ for users who only route without feedback.
+        This prevents cluttering ~/.pareto_bandit/ for users who only route without feedback.
         
         **Path Resolution Strategy**:
         - Absolute path: Use as-is
         - Relative path in dev mode: Resolve to repo's data/ directory
-        - Relative path in library mode: Resolve to ~/.bandit_gpt/
+        - Relative path in library mode: Resolve to ~/.pareto_bandit/
         
         Args:
             db_path: Database file path (default: "data/router_context.db")
@@ -167,7 +167,7 @@ class SqliteContextStore(ContextStore):
         """
         Lazy initialization: Create database only on first use.
         
-        This prevents creating ~/.bandit_gpt/router_context.db for users who
+        This prevents creating ~/.pareto_bandit/router_context.db for users who
         never use context storage (e.g., routing-only without feedback).
         """
         if not self._initialized:
@@ -184,7 +184,7 @@ class SqliteContextStore(ContextStore):
         **Detection Logic**:
         1. Check if running from development repo (has .git or pyproject.toml nearby)
         2. If dev mode: Use repo's data/ directory
-        3. If library mode: Use ~/.bandit_gpt/
+        3. If library mode: Use ~/.pareto_bandit/
         
         This prevents issues with pip installs where site-packages may be read-only.
         
@@ -195,7 +195,7 @@ class SqliteContextStore(ContextStore):
             Resolved absolute path
         """
         # Get the package installation directory
-        package_dir = Path(__file__).parent.parent.parent  # banditGPT repo root or site-packages parent
+        package_dir = Path(__file__).parent.parent.parent  # paretobandit repo root or site-packages parent
         
         # Check for development mode indicators
         is_dev_mode = (
@@ -210,7 +210,7 @@ class SqliteContextStore(ContextStore):
             logger.info("Dev mode detected: Using repo database at %s", resolved)
         else:
             db_filename = relative_path.name if relative_path.name else "router_context.db"
-            resolved = Path.home() / ".bandit_gpt" / db_filename
+            resolved = Path.home() / ".pareto_bandit" / db_filename
             logger.info("Library mode detected: Using user database at %s", resolved)
         
         return resolved
@@ -379,12 +379,12 @@ class CheckpointManager:
     - Encoder model (loaded from HuggingFace on startup)
     """
     
-    def __init__(self, directory: str | Path = "~/.bandit_gpt/checkpoints"):
+    def __init__(self, directory: str | Path = "~/.pareto_bandit/checkpoints"):
         """
         Initialize checkpoint manager.
         
         Args:
-            directory: Where to store checkpoint files (default: ~/.bandit_gpt/checkpoints)
+            directory: Where to store checkpoint files (default: ~/.pareto_bandit/checkpoints)
         """
         self.directory = Path(directory).expanduser()
         self.directory.mkdir(parents=True, exist_ok=True)

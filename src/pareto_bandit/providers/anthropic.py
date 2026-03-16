@@ -14,7 +14,7 @@ class AnthropicClient:
         except ImportError as exc:
             raise ImportError(
                 "The anthropic package is required for AnthropicClient. "
-                "Install it with:  pip install banditgpt[anthropic]"
+                "Install it with:  pip install paretobandit[anthropic]"
             ) from exc
 
         self._client = anthropic.Anthropic(api_key=api_key)

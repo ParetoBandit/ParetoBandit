@@ -250,7 +250,7 @@ class CheapJudgeCalibrator:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
         payload = {
             "model": judge_model,

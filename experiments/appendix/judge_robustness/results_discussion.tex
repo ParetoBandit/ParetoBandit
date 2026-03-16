@@ -178,7 +178,7 @@ Claude-3.7-Sonnet
 
 \subsubsection{The Paper's Claims Are About Relative Method Performance}
 
-The main paper compares BanditGPT against baselines (Tabula~Rasa, Random,
+The main paper compares ParetoBandit against baselines (Tabula~Rasa, Random,
 static policies) using cumulative regret---a \emph{relative} measure.
 These comparisons are conducted within a single judge: all methods receive
 the same R1 rewards and are evaluated against the same R1 oracle.  Judge
@@ -187,12 +187,12 @@ only affect the \emph{magnitude} of regret differences.
 
 The effect sizes we report are large relative to judge noise.
 For reference, the warmup ablation (Appendix~\ref{sec:warmup_ablation})
-shows a regret gap of 32.1 between BanditGPT and Tabula~Rasa over
+shows a regret gap of 32.1 between ParetoBandit and Tabula~Rasa over
 1{,}785 steps, corresponding to a per-step advantage of 0.018.
 R1's oracle lift over the best-fixed policy is 0.031 per step; under
 GPT-4.1-mini the same quantity is 0.016, and under Claude it is 0.020.
 Using a different judge would therefore compress absolute effect sizes
-by up to ${\sim}50\%$, but the qualitative conclusions---BanditGPT
+by up to ${\sim}50\%$, but the qualitative conclusions---ParetoBandit
 outperforms Tabula~Rasa, budget pacing converges, drift adaptation
 recovers quality---depend on the expected reward ordering
 (Section~\ref{sec:judge_robustness}, Table~\ref{tab:expected_ordering}),
@@ -396,7 +396,7 @@ $\geq 97\%$ of any alternative judge's oracle reward.
 We also note that R1 sees the largest contextual-routing benefit (oracle
 lift 0.031 vs.\ 0.016--0.020), so our main-paper effect sizes represent
 an upper bound on the absolute advantage of adaptive routing.  The
-relative ordering of methods (BanditGPT $>$ Tabula~Rasa $>$ Random) is
+relative ordering of methods (ParetoBandit $>$ Tabula~Rasa $>$ Random) is
 preserved under all judges, but the magnitude of improvement would be
 smaller under a less discriminative evaluator.
 

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SqliteContextStore**: Disk-persisted context storage for delayed feedback (RLHF) with 7-day TTL
 - **Snapshot-swap concurrency**: Lock-free routing during O(d³) matrix inversions (250× lock-time reduction)
 - **Calibration API**: `train_pca()` and `generate_warmup_priors()` for custom encoder support
-- **CLI**: `banditgpt` command with routing, model download, and prior verification
+- **CLI**: `paretobandit` command with routing, model download, and prior verification
 - **Progressive model registration**: Three-tier knowledge system (archetypes, T-shirt sizing, agnostic)
 - **Feature contribution analysis**: `explain_decision()` for mathematical transparency
 - **Optimization profiles**: `auto` and `custom` with configurable quality/cost/latency weights

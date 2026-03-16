@@ -44,7 +44,7 @@ def _has_key(var: str) -> bool:
 @pytest.mark.skipif(not _has_key("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
 class TestOpenAIClient:
     def test_complete(self):
-        from bandit_gpt import OpenAIClient
+        from pareto_bandit import OpenAIClient
 
         client = OpenAIClient(api_key=os.environ["OPENAI_API_KEY"])
         resp = client.complete("openai/gpt-4o-mini", MESSAGES, **CALL_KW)
@@ -54,7 +54,7 @@ class TestOpenAIClient:
         """OpenAIClient with custom base_url (Together API)."""
         if not _has_key("TOGETHER_API_KEY"):
             pytest.skip("TOGETHER_API_KEY not set")
-        from bandit_gpt import OpenAIClient
+        from pareto_bandit import OpenAIClient
 
         client = OpenAIClient(
             api_key=os.environ["TOGETHER_API_KEY"],
@@ -69,7 +69,7 @@ class TestOpenAIClient:
         """OpenAIClient with custom base_url (xAI / Grok)."""
         if not _has_key("XAI_API_KEY"):
             pytest.skip("XAI_API_KEY not set")
-        from bandit_gpt import OpenAIClient
+        from pareto_bandit import OpenAIClient
 
         client = OpenAIClient(
             api_key=os.environ["XAI_API_KEY"],
@@ -83,7 +83,7 @@ class TestOpenAIClient:
 @pytest.mark.skipif(not _has_key("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
 class TestAnthropicClient:
     def test_complete(self):
-        from bandit_gpt import AnthropicClient
+        from pareto_bandit import AnthropicClient
 
         client = AnthropicClient(api_key=os.environ["ANTHROPIC_API_KEY"])
         resp = client.complete("anthropic/claude-sonnet-4-20250514", MESSAGES, **CALL_KW)
@@ -94,7 +94,7 @@ class TestAnthropicClient:
 @pytest.mark.skipif(not _has_key("OPENROUTER_API_KEY"), reason="OPENROUTER_API_KEY not set")
 class TestOpenRouterClient:
     def test_complete(self):
-        from bandit_gpt import OpenRouterClient
+        from pareto_bandit import OpenRouterClient
 
         client = OpenRouterClient(api_key=os.environ["OPENROUTER_API_KEY"])
         resp = client.complete("openai/gpt-4o-mini", MESSAGES, **CALL_KW)
@@ -108,7 +108,7 @@ class TestOpenRouterClient:
 )
 class TestGeminiClient:
     def test_complete(self):
-        from bandit_gpt import GeminiClient
+        from pareto_bandit import GeminiClient
 
         key = os.environ.get("GEMINI_API_KEY") or os.environ["GOOGLE_API_KEY"]
         client = GeminiClient(api_key=key)
@@ -126,7 +126,7 @@ class TestMultiProviderClient:
 
     @pytest.fixture()
     def multi_client(self):
-        from bandit_gpt import (
+        from pareto_bandit import (
             MultiProviderClient, OpenAIClient, AnthropicClient, GeminiClient,
         )
 
@@ -163,7 +163,7 @@ class TestMultiProviderClient:
             assert "56" in resp.strip(), f"{mid} returned unexpected: {resp!r}"
 
     def test_route_and_call(self, multi_client):
-        from bandit_gpt import BanditRouter
+        from pareto_bandit import BanditRouter
 
         client, prefixes = multi_client
         model_map = {

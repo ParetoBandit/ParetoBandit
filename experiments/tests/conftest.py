@@ -22,12 +22,12 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 # Allow ``from helpers import ...`` inside test modules.
 sys.path.insert(0, str(Path(__file__).parent))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
+from pareto_bandit.feature_service import FeatureService
 from utils.simulation import SplitData, build_model_registry, load_split
 
 

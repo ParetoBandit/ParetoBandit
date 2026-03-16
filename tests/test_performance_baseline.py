@@ -6,7 +6,7 @@ import time
 import numpy as np
 import pytest
 
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 from tests.stress_utils import (
     DEFAULT_DIMENSION,
     make_context,

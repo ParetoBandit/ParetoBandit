@@ -1,7 +1,7 @@
 """Regression tests for Experiment 02: Non-stationary Reward Shift.
 
 Fast tests verify config integration.  The ``@pytest.mark.slow`` smoke
-test runs one seed of the BanditGPT condition through the two-phase
+test runs one seed of the ParetoBandit condition through the two-phase
 learning curve and compares final-checkpoint metrics against a pinned
 reference.
 """
@@ -21,8 +21,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import BEST_K3_HPARAMS, K3_ARM_ORDER
-from bandit_gpt.feature_service import FeatureService
+from pareto_bandit.config import BEST_K3_HPARAMS, K3_ARM_ORDER
+from pareto_bandit.feature_service import FeatureService
 from utils.simulation import (
     SplitData,
     apply_reward_swap,
@@ -32,7 +32,7 @@ from utils.simulation import (
 
 from helpers import assert_metrics_match, load_reference, save_reference
 
-REFERENCE_NAME = "exp02_seed4000_banditgpt"
+REFERENCE_NAME = "exp02_seed4000_paretobandit"
 SEED = 4000
 
 
@@ -71,11 +71,11 @@ class TestExp02Config:
     def test_prior_n_effective_from_config(self):
         assert self.mod.PRIOR_N_EFFECTIVE == BEST_K3_HPARAMS["prior_n_effective"]
 
-    def test_banditgpt_forgetting_factor(self):
-        banditgpt_cond = [
-            c for c in self.mod.CONDITIONS if "BanditGPT" in c["label"]
+    def test_paretobandit_forgetting_factor(self):
+        paretobandit_cond = [
+            c for c in self.mod.CONDITIONS if "ParetoBandit" in c["label"]
         ][0]
-        assert banditgpt_cond["forgetting_factor"] == BEST_K3_HPARAMS["forgetting_factor"]
+        assert paretobandit_cond["forgetting_factor"] == BEST_K3_HPARAMS["forgetting_factor"]
 
     def test_fixed_policy_gamma_is_one(self):
         fixed = [c for c in self.mod.CONDITIONS if "Fixed" in c["label"]][0]
@@ -102,7 +102,7 @@ def test_exp02_single_seed_regression(
     model_registry,
     feature_dim,
 ):
-    """Run one BanditGPT seed through Phase 1 + Phase 2 and compare.
+    """Run one ParetoBandit seed through Phase 1 + Phase 2 and compare.
 
     Monkeypatches ``N_SEEDS=1`` inside ``_run_learning_curve`` by calling
     the per-seed inner loop directly rather than the aggregating wrapper.
@@ -136,16 +136,16 @@ def test_exp02_single_seed_regression(
 
     normalized_costs = compute_normalized_costs(model_registry, arm_order)
 
-    banditgpt_cond = [c for c in mod.CONDITIONS if "BanditGPT" in c["label"]][0]
+    paretobandit_cond = [c for c in mod.CONDITIONS if "ParetoBandit" in c["label"]][0]
 
     # Run a single seed directly (the inner loop of _run_learning_curve).
     rng = np.random.default_rng(SEED)
     router = mod._create_router(
         model_registry,
         feature_dim,
-        warmup=banditgpt_cond["warmup"],
-        forgetting_factor=banditgpt_cond["forgetting_factor"],
-        alpha=banditgpt_cond.get("alpha", mod.ALPHA_WARMUP),
+        warmup=paretobandit_cond["warmup"],
+        forgetting_factor=paretobandit_cond["forgetting_factor"],
+        alpha=paretobandit_cond.get("alpha", mod.ALPHA_WARMUP),
     )
 
     p1_order = rng.permutation(phase1.n)

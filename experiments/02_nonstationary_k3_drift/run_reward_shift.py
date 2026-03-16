@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Experiment 02: Non-stationary K=3 Adaptation via Reward Swap.
 
-Demonstrates that BanditGPT's combination of warmup priors and
+Demonstrates that ParetoBandit's combination of warmup priors and
 geometric forgetting enables automatic adaptation when a model's
 quality changes — a common production event as LLM providers iterate
 on their APIs.
@@ -41,7 +41,7 @@ representing increasing levels of routing sophistication:
   - **SW-UCB (W=200)**: Sliding-Window LinUCB without priors.  Retains
     only the last W observations with equal weighting (Garivier &
     Moulines 2011).  A structurally different non-stationary baseline.
-  - **BanditGPT (γ=0.995)**: Warmup priors with jointly-tuned
+  - **ParetoBandit (γ=0.995)**: Warmup priors with jointly-tuned
     geometric forgetting.  Effective memory ~200 steps.
 
 Outputs (``results/``)
@@ -66,7 +66,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     DEFAULT_NONSTAT_COST_PENALTY,
     HOLDOUT_DATA_PATH,
@@ -76,10 +76,10 @@ from bandit_gpt.config import (
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.policy import SlidingWindowLinUCBPolicy
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.policy import SlidingWindowLinUCBPolicy
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.storage import EphemeralContextStore
 from utils.simulation import (
     SplitData,
     apply_reward_swap,
@@ -92,7 +92,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -117,7 +117,7 @@ PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA_WARMUP: float = BEST_K3_HPARAMS["alpha"]
 ALPHA_NO_PRIOR: float = 0.01
 
-# SW-UCB window matched to BanditGPT's effective memory:
+# SW-UCB window matched to ParetoBandit's effective memory:
 # γ=0.995 → half-life = ln2/(1-0.995) ≈ 139 → effective window ≈ 200 steps.
 SW_UCB_WINDOW: int = 200
 
@@ -145,7 +145,7 @@ CONDITIONS: List[Dict[str, Any]] = [
         "window_size": SW_UCB_WINDOW,
     },
     {
-        "label": "BanditGPT (γ=0.995)",
+        "label": "ParetoBandit (γ=0.995)",
         "warmup": True,
         "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
         "alpha": ALPHA_WARMUP,

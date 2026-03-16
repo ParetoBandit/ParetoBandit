@@ -29,7 +29,7 @@ def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
     - installed package can read required files at runtime
     """
     repo_root = Path(__file__).resolve().parent.parent
-    src_pkg_root = repo_root / "src" / "bandit_gpt"
+    src_pkg_root = repo_root / "src" / "pareto_bandit"
     pytest.importorskip("build")
 
     dist_dir = tmp_path / "dist"
@@ -59,7 +59,7 @@ def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
     with tarfile.open(sdists[0], "r:gz") as tf:
         sdist_names = tf.getnames()
     for rel in required_relpaths:
-        assert any(name.endswith(f"src/bandit_gpt/{rel}") for name in sdist_names), rel
+        assert any(name.endswith(f"src/pareto_bandit/{rel}") for name in sdist_names), rel
 
     # Install wheel into isolated venv and assert runtime availability.
     venv_dir = tmp_path / "venv"
@@ -71,9 +71,9 @@ def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
     check_script = r"""
 import json
 from pathlib import Path
-import bandit_gpt
+import pareto_bandit
 
-pkg_root = Path(bandit_gpt.__file__).resolve().parent
+pkg_root = Path(pareto_bandit.__file__).resolve().parent
 required = json.loads(Path.cwd().joinpath("_required_files.json").read_text(encoding="utf-8"))
 source_joblibs = json.loads(Path.cwd().joinpath("_source_joblibs.json").read_text(encoding="utf-8"))
 

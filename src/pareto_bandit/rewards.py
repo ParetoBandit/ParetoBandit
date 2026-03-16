@@ -1,5 +1,5 @@
 """
-Canonical reward extraction for BanditGPT.
+Canonical reward extraction for ParetoBandit.
 
 Every data-loading path must derive per-response rewards through
 :func:`extract_reward` so that the reward definition is consistent

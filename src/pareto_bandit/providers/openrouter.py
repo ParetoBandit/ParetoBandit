@@ -17,7 +17,7 @@ class OpenRouterClient:
         except ImportError as exc:
             raise ImportError(
                 "The openai package is required for OpenRouterClient. "
-                "Install it with:  pip install banditgpt[openrouter]"
+                "Install it with:  pip install paretobandit[openrouter]"
             ) from exc
 
         self._client = OpenAI(

@@ -2,7 +2,7 @@
 Tests that the PCA artifact ships correctly inside the package.
 
 Validates:
-1. DEFAULT_PCA_PATH resolves to a file inside the bandit_gpt package tree.
+1. DEFAULT_PCA_PATH resolves to a file inside the pareto_bandit package tree.
 2. The artifact exists on disk and is a loadable sklearn PCA object.
 3. The artifact dimensions match the default SentenceTransformer encoder.
 4. FeatureService loads the shipped PCA without JIT retraining.
@@ -22,7 +22,7 @@ import joblib
 import numpy as np
 import pytest
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     DEFAULT_PCA_PATH,
     _PACKAGE_ARTIFACTS_DIR,
     _PACKAGE_DIR,
@@ -38,7 +38,7 @@ class TestPCAPathResolution:
     """Ensure DEFAULT_PCA_PATH lives inside the installed package."""
 
     def test_default_pca_path_is_inside_package(self) -> None:
-        """DEFAULT_PCA_PATH must be a descendant of the bandit_gpt package dir."""
+        """DEFAULT_PCA_PATH must be a descendant of the pareto_bandit package dir."""
         assert DEFAULT_PCA_PATH.is_relative_to(
             _PACKAGE_DIR
         ), f"Expected PCA path under {_PACKAGE_DIR}, got {DEFAULT_PCA_PATH}"
@@ -62,7 +62,7 @@ class TestPCAArtifact:
     def test_artifact_exists(self) -> None:
         assert DEFAULT_PCA_PATH.exists(), (
             f"PCA artifact missing at {DEFAULT_PCA_PATH}. "
-            "Did you forget to copy it into src/bandit_gpt/data/artifacts/?"
+            "Did you forget to copy it into src/pareto_bandit/data/artifacts/?"
         )
 
     def test_artifact_loadable(self) -> None:
@@ -111,7 +111,7 @@ class TestFeatureServiceLoadsShippedPCA:
     """FeatureService should load the shipped PCA (no JIT retraining)."""
 
     def test_feature_service_uses_shipped_pca(self) -> None:
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
         pca = fs.pca
@@ -120,9 +120,9 @@ class TestFeatureServiceLoadsShippedPCA:
 
     def test_no_jit_warning_when_shipped_pca_exists(self, caplog: pytest.LogCaptureFixture) -> None:
         """Loading the shipped artifact should not emit a JIT CRITICAL log."""
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
-        with caplog.at_level(logging.WARNING, logger="bandit_gpt.feature_service"):
+        with caplog.at_level(logging.WARNING, logger="pareto_bandit.feature_service"):
             fs = FeatureService()
             _ = fs.pca
 
@@ -132,13 +132,13 @@ class TestFeatureServiceLoadsShippedPCA:
         )
 
     def test_feature_service_dimension(self) -> None:
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
         assert fs.dimension == 26, f"Expected 26 (25 PCA + 1 bias), got {fs.dimension}"
 
     def test_extract_features_shape(self) -> None:
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
         vec = fs.extract_features("Explain quantum entanglement in simple terms")
@@ -160,13 +160,13 @@ class TestPackagingManifests:
     def test_manifest_includes_joblib(self) -> None:
         manifest = (self._project_root / "MANIFEST.in").read_text()
         assert "*.joblib" in manifest, (
-            "MANIFEST.in missing *.joblib in recursive-include for bandit_gpt/data"
+            "MANIFEST.in missing *.joblib in recursive-include for pareto_bandit/data"
         )
 
     def test_pyproject_force_includes_data_dir(self) -> None:
         pyproject = (self._project_root / "pyproject.toml").read_text()
-        assert "bandit_gpt/data" in pyproject, (
-            "pyproject.toml missing force-include for bandit_gpt/data"
+        assert "pareto_bandit/data" in pyproject, (
+            "pyproject.toml missing force-include for pareto_bandit/data"
         )
 
     def test_build_would_include_pca(self) -> None:
@@ -186,7 +186,7 @@ class TestJITFallbackStillWorks:
     """Self-healing JIT path must still work when the shipped artifact is absent."""
 
     def test_jit_trains_when_path_missing(self) -> None:
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
         with tempfile.TemporaryDirectory() as tmpdir:
             missing_path = Path(tmpdir) / "nonexistent_pca.joblib"
@@ -196,7 +196,7 @@ class TestJITFallbackStillWorks:
             assert pca.n_components_ == 32
 
     def test_jit_persists_artifact(self) -> None:
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pca_path = Path(tmpdir) / "jit_pca.joblib"
@@ -205,7 +205,7 @@ class TestJITFallbackStillWorks:
             assert pca_path.exists(), "JIT-trained PCA should be persisted to disk"
 
     def test_jit_disabled_raises_on_missing_artifact(self) -> None:
-        from bandit_gpt.feature_service import FeatureService
+        from pareto_bandit.feature_service import FeatureService
 
         with tempfile.TemporaryDirectory() as tmpdir:
             missing_path = Path(tmpdir) / "nonexistent.joblib"

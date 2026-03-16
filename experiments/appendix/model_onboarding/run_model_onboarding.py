@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Appendix: Model Onboarding Under Budget Constraints (K=3 → K=4).
 
-Demonstrates that BanditGPT can incorporate a newly released model
+Demonstrates that ParetoBandit can incorporate a newly released model
 (Gemini-2.5-Flash) into a running K=3 portfolio while the BudgetPacer
 maintains cost compliance.
 
@@ -21,16 +21,16 @@ Key questions
   1. Does Flash get explored despite the budget constraint?
   2. Which arm does Flash displace (if any)?
   3. Does the pacer maintain budget compliance after onboarding?
-  4. Does BanditGPT onboarding outperform simpler strategies?
+  4. Does ParetoBandit onboarding outperform simpler strategies?
 
 Conditions (per budget target)
 ------------------------------
   - **Fixed Policy (uniform 1/4)**: No routing intelligence — equal
     allocation across all K=4 arms.  Simplest possible onboarding
     strategy.
-  - **BanditGPT (transfer)**: Phase 1 posteriors carry over; Flash gets
+  - **ParetoBandit (transfer)**: Phase 1 posteriors carry over; Flash gets
     a T-shirt prior via ``register_model()``.
-  - **BanditGPT (unconstrained)**: Same as transfer but without budget
+  - **ParetoBandit (unconstrained)**: Same as transfer but without budget
     pacer — quality ceiling reference.
 
 Hyperparameter note
@@ -64,8 +64,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
-from bandit_gpt.config import (
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     DEFAULT_PACER_EMA_ALPHA,
     DEFAULT_PACER_LAMBDA_MAX,
@@ -79,9 +79,9 @@ from bandit_gpt.config import (
     OFFLINE_DATASET_DIR,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.storage import EphemeralContextStore
 from utils.simulation import SplitData, build_model_registry, load_split
 
 logging.basicConfig(
@@ -89,7 +89,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -155,7 +155,7 @@ def _snapshot_trace_A_inv(router: "BanditRouter", arms: List[str]) -> Dict[str, 
 # Phase 2 strategies
 # ======================================================================
 
-STRATEGY_BANDITGPT_TRANSFER = "banditgpt_transfer"
+STRATEGY_BANDITGPT_TRANSFER = "paretobandit_transfer"
 STRATEGY_FIXED_UNIFORM = "fixed_uniform"
 
 
@@ -829,8 +829,8 @@ def main() -> None:
     #
     # For each budget tier we run:
     #   1. Fixed Policy (uniform 1/4)  — simplest onboarding baseline
-    #   2. BanditGPT (transfer)        — the system under test
-    # Plus one unconstrained BanditGPT run as a quality ceiling.
+    #   2. ParetoBandit (transfer)        — the system under test
+    # Plus one unconstrained ParetoBandit run as a quality ceiling.
     conditions: List[Dict[str, Any]] = []
 
     for budget_label, budget_target in zip(BUDGET_LABELS, BUDGET_TARGETS):
@@ -841,14 +841,14 @@ def main() -> None:
             "budget_target": budget_target,
         })
         conditions.append({
-            "condition": f"BanditGPT ({budget_label})",
+            "condition": f"ParetoBandit ({budget_label})",
             "strategy": STRATEGY_BANDITGPT_TRANSFER,
             "budget_label": budget_label,
             "budget_target": budget_target,
         })
 
     conditions.append({
-        "condition": "BanditGPT (unconstrained)",
+        "condition": "ParetoBandit (unconstrained)",
         "strategy": STRATEGY_BANDITGPT_TRANSFER,
         "budget_label": "unconstrained",
         "budget_target": 0.0,

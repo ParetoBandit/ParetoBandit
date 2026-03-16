@@ -1,4 +1,4 @@
-# BanditGPT
+# ParetoBandit
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -10,9 +10,9 @@
 
 ## Overview
 
-BanditGPT is an open-source contextual bandit framework for LLM routing. Instead of relying on static rules or pre-trained classifiers to choose between language models, it learns from your actual traffic which model performs best for each type of prompt — then adapts continuously as your usage patterns change.
+ParetoBandit is an open-source contextual bandit framework for LLM routing. Instead of relying on static rules or pre-trained classifiers to choose between language models, it learns from your actual traffic which model performs best for each type of prompt — then adapts continuously as your usage patterns change.
 
-**The core insight**: expensive models are not always better. On held-out LMSYS Arena prompts, roughly 14% of prompts are *actively worse* when routed to GPT-4-Turbo instead of Mixtral. A static router that equates "hard" with "needs GPT-4" will systematically over-provision the expensive model on these prompts — paying 43× more for 1.3% lower quality. BanditGPT discovers this preference structure online and routes accordingly.
+**The core insight**: expensive models are not always better. On held-out LMSYS Arena prompts, roughly 14% of prompts are *actively worse* when routed to GPT-4-Turbo instead of Mixtral. A static router that equates "hard" with "needs GPT-4" will systematically over-provision the expensive model on these prompts — paying 43× more for 1.3% lower quality. ParetoBandit discovers this preference structure online and routes accordingly.
 
 **Key results** (on 750 held-out prompts, 20 independent trials):
 
@@ -31,11 +31,11 @@ BanditGPT is an open-source contextual bandit framework for LLM routing. Instead
 ## Quick Start
 
 ```bash
-pip install banditgpt
+pip install paretobandit
 ```
 
 ```python
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 # Create router — learns from scratch, no external data needed
 router = BanditRouter.create(model_registry)
@@ -51,10 +51,10 @@ No labels, no retraining, no external API calls. The router runs locally and lea
 
 ### Bring Your Own Provider
 
-BanditGPT is provider-agnostic. For a single provider, pass any adapter directly:
+ParetoBandit is provider-agnostic. For a single provider, pass any adapter directly:
 
 ```python
-from bandit_gpt import BanditRouter, OpenAIClient
+from pareto_bandit import BanditRouter, OpenAIClient
 
 router = BanditRouter.create(model_registry)
 client = OpenAIClient(api_key="sk-...")
@@ -66,7 +66,7 @@ router.process_feedback(log.request_id, reward=0.95)
 For **mixed-provider portfolios**, use `MultiProviderClient` — it maps each model's provider prefix to the right client automatically:
 
 ```python
-from bandit_gpt import (
+from pareto_bandit import (
     BanditRouter, MultiProviderClient,
     OpenAIClient, AnthropicClient, OllamaClient,
 )
@@ -83,26 +83,26 @@ model_id, response, log = router.route_and_call("Parse this JSON", client)
 
 | Provider | Adapter | Install |
 |----------|---------|---------|
-| OpenRouter | `OpenRouterClient` | `pip install banditgpt[openrouter]` |
-| OpenAI | `OpenAIClient` | `pip install banditgpt[openai]` |
-| Anthropic | `AnthropicClient` | `pip install banditgpt[anthropic]` |
-| Google Gemini | `GeminiClient` | `pip install banditgpt[gemini]` |
-| Ollama (local) | `OllamaClient` | `pip install banditgpt[ollama]` |
-| DeepSeek, Grok, Together, etc. | `OpenAIClient(base_url=...)` | `pip install banditgpt[openai]` |
+| OpenRouter | `OpenRouterClient` | `pip install paretobandit[openrouter]` |
+| OpenAI | `OpenAIClient` | `pip install paretobandit[openai]` |
+| Anthropic | `AnthropicClient` | `pip install paretobandit[anthropic]` |
+| Google Gemini | `GeminiClient` | `pip install paretobandit[gemini]` |
+| Ollama (local) | `OllamaClient` | `pip install paretobandit[ollama]` |
+| DeepSeek, Grok, Together, etc. | `OpenAIClient(base_url=...)` | `pip install paretobandit[openai]` |
 
 See the [API Reference](docs/API_REFERENCE.md#providers) for the full multi-provider workflow.
 
 ---
 
-## When Should You Use BanditGPT?
+## When Should You Use ParetoBandit?
 
 | Scenario | Recommended Approach | Why |
 |----------|---------------------|-----|
 | Need routing today, no deployment data | **RouteLLM** | Pre-trained classifier works out of the box |
-| Prompt distribution shifts over time | **BanditGPT** | Adapts continuously; RouteLLM is frozen at training time |
-| No labeled routing data for your domain | **BanditGPT** | Requires zero labels — learns from routing outcomes |
-| Multiple models (K ≥ 3) at different price tiers | **BanditGPT** | Contextual bandit handles multi-model portfolios natively |
-| Maximum quality is the priority | **BanditGPT** | After ~400 prompts, surpasses what 100k supervised pairs achieve |
+| Prompt distribution shifts over time | **ParetoBandit** | Adapts continuously; RouteLLM is frozen at training time |
+| No labeled routing data for your domain | **ParetoBandit** | Requires zero labels — learns from routing outcomes |
+| Multiple models (K ≥ 3) at different price tiers | **ParetoBandit** | Contextual bandit handles multi-model portfolios natively |
+| Maximum quality is the priority | **ParetoBandit** | After ~400 prompts, surpasses what 100k supervised pairs achieve |
 | Simple cost-cutting on well-understood traffic | **RouteLLM** | Supervised pre-training is competitive at moderate budgets |
 
 The 400-prompt crossover means a new deployment can surpass a pre-trained router within minutes of production traffic, with no human annotation.
@@ -111,11 +111,11 @@ The 400-prompt crossover means a new deployment can surpass a pre-trained router
 
 ## Production Use Cases
 
-BanditGPT is designed for any system that routes heterogeneous prompts across multiple LLMs under cost, latency, or quality constraints. Below are concrete deployment archetypes where the library provides the most value.
+ParetoBandit is designed for any system that routes heterogeneous prompts across multiple LLMs under cost, latency, or quality constraints. Below are concrete deployment archetypes where the library provides the most value.
 
 ### Primary use cases
 
-| Use Case | Why BanditGPT Fits | Key Features Used |
+| Use Case | Why ParetoBandit Fits | Key Features Used |
 |----------|-------------------|-------------------|
 | **Customer support platforms** — Route millions of tickets where "reset my password" and "your API returns 500 on nested JSON" require very different models | Traffic mix shifts after product launches and seasonal spikes; hand-written heuristics break. Online learning adapts automatically, and the 65/35 easy-to-hard ratio means >60% of traffic routes to the cheapest model. | `max_cost`, `cost_penalty`, corralling |
 | **LLM API gateways** — Proxy services (LiteLLM, Portkey, Helicone-class) where each customer's traffic is different | One-size-fits-all routing leaves money on the table. Instantiate a router per customer, each learning its own optimal policy. New models are added to the fleet via `register_model()` without per-customer reconfiguration. | `MultiProviderClient`, `register_model()`, per-tenant instances |
@@ -124,13 +124,13 @@ BanditGPT is designed for any system that routes heterogeneous prompts across mu
 
 ### Secondary use cases
 
-| Use Case | Why BanditGPT Fits | Caveat |
+| Use Case | Why ParetoBandit Fits | Caveat |
 |----------|-------------------|--------|
 | **Content generation platforms** — Short social media copy vs. long-form brand-voice content require different quality tiers | The router learns from editorial feedback what "good enough" means per content type. | Needs sufficient volume (~100+ prompts/day) for fast convergence. |
 | **Multi-tenant AI-as-a-service** — Vertical SaaS wrapping LLMs for SMB customers with diverse traffic patterns | Per-tenant router instances learn independently; fleet-wide model changes propagate via `register_model()`. | Each tenant needs enough traffic for per-tenant learning to converge. |
 | **Agentic workflows** — Different steps in an agent pipeline (planning, code gen, formatting) have wildly different difficulty | Route per-step with the step's prompt as context; the bandit discovers which steps genuinely need a frontier model. | Not yet experimentally validated (flagged as future work in the paper). |
 
-### When BanditGPT is *not* the right tool
+### When ParetoBandit is *not* the right tool
 
 | Situation | Better Alternative |
 |-----------|-------------------|
@@ -163,7 +163,7 @@ Imagine 80 slot machines in a casino, each with unknown and different payout rat
 - **Exploitation**: keep pulling the machine that paid well so far
 - **Exploration**: try unknown machines that might pay even better
 
-BanditGPT treats each LLM as a slot machine. But unlike a regular bandit, it uses **context** — the content of your prompt — to predict which model will perform best *for this specific request*. A coding prompt gets routed differently than a creative writing prompt, even if both could technically go to any model.
+ParetoBandit treats each LLM as a slot machine. But unlike a regular bandit, it uses **context** — the content of your prompt — to predict which model will perform best *for this specific request*. A coding prompt gets routed differently than a creative writing prompt, even if both could technically go to any model.
 
 ### The 3-Stage Routing Funnel
 
@@ -232,11 +232,11 @@ This takes microseconds. No retraining, no gradient descent, no GPU required.
 
 ### Warm-Start Priors
 
-Cold-starting a bandit requires hundreds of interactions before it routes well. BanditGPT ships with **warm-start priors** — a < 1 MB covariance matrix distilled from 80,000 RouteLLM battle outcomes — that encode which model tends to win for which prompt types. The router starts intelligent on Day 1 and adapts to your specific traffic from there.
+Cold-starting a bandit requires hundreds of interactions before it routes well. ParetoBandit ships with **warm-start priors** — a < 1 MB covariance matrix distilled from 80,000 RouteLLM battle outcomes — that encode which model tends to win for which prompt types. The router starts intelligent on Day 1 and adapts to your specific traffic from there.
 
 ### Safety via Corralling
 
-What if the warm-start priors are wrong for your deployment? BanditGPT hedges via **Corralling**, a meta-learning algorithm that maintains two experts:
+What if the warm-start priors are wrong for your deployment? ParetoBandit hedges via **Corralling**, a meta-learning algorithm that maintains two experts:
 
 - A **Warmup Expert** initialized with offline priors
 - A **Tabula Rasa Expert** that learns from scratch
@@ -276,7 +276,7 @@ router = BanditRouter.create(exploration="safe")
 
 ### Prior Initialization Modes
 
-BanditGPT supports three initialization strategies, each with different trade-offs:
+ParetoBandit supports three initialization strategies, each with different trade-offs:
 
 | Mode | What It Provides | File Required | Best For |
 |------|-----------------|---------------|----------|
@@ -310,11 +310,11 @@ These let you independently tune "how confident are we in feature correlations?"
 
 ## PCA Projection
 
-BanditGPT compresses prompt embeddings from 1024 dimensions down to 32 via PCA before feeding them to the bandit. A pre-trained PCA artifact ships inside the wheel so the router works immediately after `pip install` — no extra downloads, no JIT retraining on first request.
+ParetoBandit compresses prompt embeddings from 1024 dimensions down to 32 via PCA before feeding them to the bandit. A pre-trained PCA artifact ships inside the wheel so the router works immediately after `pip install` — no extra downloads, no JIT retraining on first request.
 
 ### What ships and how it was trained
 
-The bundled `pca_32.joblib` (~133 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`BAAI/bge-m3`). This dataset is independent of BanditGPT's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture **32.7%** of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/03_figure/run_pca_neff_ablation.py`).
+The bundled `pca_32.joblib` (~133 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`BAAI/bge-m3`). This dataset is independent of ParetoBandit's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture **32.7%** of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/03_figure/run_pca_neff_ablation.py`).
 
 ### When the default PCA is enough
 
@@ -331,7 +331,7 @@ You should replace the bundled PCA when:
 ### Training a custom PCA
 
 ```python
-from bandit_gpt import train_pca
+from pareto_bandit import train_pca
 
 # Collect 200+ representative prompts from your actual traffic
 prompts = [...]
@@ -348,7 +348,7 @@ print(f"Explained variance: {sum(pca.explained_variance_ratio_):.1%}")
 Then pass the custom artifact when creating the router:
 
 ```python
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 
 fs = FeatureService(
     encoder_model="BAAI/bge-m3",
@@ -376,7 +376,7 @@ pca = train_pca(
 **Step 2: Generate warmup priors (optional)**
 
 ```python
-from bandit_gpt import generate_warmup_priors
+from pareto_bandit import generate_warmup_priors
 
 # Each entry: {"prompt": str, "rewards": {"model_id": float, ...}}
 rewards_data = [...]
@@ -392,7 +392,7 @@ priors = generate_warmup_priors(
 **Step 3: Create the router**
 
 ```python
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 
 fs = FeatureService(
     encoder_model="your-org/your-encoder",
@@ -416,13 +416,13 @@ If the PCA artifact is missing at runtime (e.g., deleted or moved), the `Feature
 
 ## Bring Your Own Embeddings
 
-BanditGPT does **not** require the default sentence-transformer pipeline. You can supply your own embedding function — OpenAI embeddings, Cohere, a local ONNX model, or any other source — and the library handles the rest (PCA, bias term, LinUCB math). This also means you can install just `pip install banditgpt` (no PyTorch, no Hugging Face).
+ParetoBandit does **not** require the default sentence-transformer pipeline. You can supply your own embedding function — OpenAI embeddings, Cohere, a local ONNX model, or any other source — and the library handles the rest (PCA, bias term, LinUCB math). This also means you can install just `pip install paretobandit` (no PyTorch, no Hugging Face).
 
 There are three embedding paths, from simplest to most flexible:
 
 | Path | When to use | Requires `sentence-transformers`? |
 |------|-------------|-----------------------------------|
-| **Default** — `FeatureService()` | Quick start, general-purpose traffic | Yes (`pip install banditgpt[embeddings]`) |
+| **Default** — `FeatureService()` | Quick start, general-purpose traffic | Yes (`pip install paretobandit[embeddings]`) |
 | **Custom encoder** — `FeatureService(custom_encoder=fn)` | You want to use OpenAI, Cohere, ONNX, etc. while the library handles PCA and bias | No |
 | **Pre-computed vectors** — `FeatureService.for_precomputed(dim)` | You manage the full embedding pipeline externally and pass numpy arrays directly | No |
 
@@ -432,7 +432,7 @@ Pass any function that maps `str → np.ndarray` (a 1-D float vector). You must 
 
 ```python
 import numpy as np
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 
 # Example: OpenAI embeddings
 from openai import OpenAI
@@ -483,7 +483,7 @@ fs = FeatureService(
 If you manage the full embedding pipeline externally, pass numpy arrays directly to `route()`:
 
 ```python
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 import numpy as np
 
 dim = 65  # 64 features + 1 bias
@@ -518,7 +518,7 @@ Before deploying with custom embeddings, verify:
 
 ## Production Features
 
-BanditGPT includes several mechanisms for production reliability:
+ParetoBandit includes several mechanisms for production reliability:
 
 | Feature | Problem It Solves | Mechanism |
 |---------|------------------|-----------|
@@ -530,11 +530,11 @@ BanditGPT includes several mechanisms for production reliability:
 
 ### Database Storage
 
-BanditGPT uses SQLite for context persistence, created lazily (only when you first call `process_feedback`):
+ParetoBandit uses SQLite for context persistence, created lazily (only when you first call `process_feedback`):
 
 | Environment | Location | When Created |
 |-------------|----------|-------------|
-| Library install | `~/.bandit_gpt/router_context.db` | On first feedback |
+| Library install | `~/.pareto_bandit/router_context.db` | On first feedback |
 | Development | `<repo>/data/router_context.db` | On first feedback |
 | Custom | User-specified path | On first feedback |
 
@@ -551,7 +551,7 @@ router.process_feedback(request_id, reward=0.95)
 You can customize TTL, location, and inspect statistics:
 
 ```python
-from bandit_gpt.storage import SqliteContextStore
+from pareto_bandit.storage import SqliteContextStore
 
 store = SqliteContextStore(
     db_path="/var/app/bandit_router.db",
@@ -570,7 +570,7 @@ print(f"Contexts: {stats['total_contexts']}, Size: {stats['db_size_mb']} MB")
 For deployments requiring verification of routing decisions:
 
 ```python
-from bandit_gpt import HybridRouter
+from pareto_bandit import HybridRouter
 
 hybrid = HybridRouter.create(
     model_registry=registry,
@@ -611,8 +611,8 @@ We report these limitations honestly to help practitioners make informed decisio
 ## Installation
 
 ```bash
-pip install banditgpt                # Core library (lightweight: numpy, pandas, scikit-learn)
-pip install banditgpt[embeddings]    # + default sentence-transformer embedding pipeline
+pip install paretobandit                # Core library (lightweight: numpy, pandas, scikit-learn)
+pip install paretobandit[embeddings]    # + default sentence-transformer embedding pipeline
 ```
 
 The **core** install is lightweight — no PyTorch, no Hugging Face downloads.  It's all you need if you [bring your own embeddings](#bring-your-own-embeddings).
@@ -620,29 +620,29 @@ The **core** install is lightweight — no PyTorch, no Hugging Face downloads.  
 The **`[embeddings]`** extra adds `torch`, `sentence-transformers`, and `transformers`, giving you the default embedding pipeline that works out of the box. On first use this downloads the sentence transformer model weights (~80 MB) from Hugging Face. To pre-download them (recommended for Docker images and CI pipelines):
 
 ```bash
-banditgpt --download-models
+paretobandit --download-models
 ```
 
 From source:
 
 ```bash
-git clone https://github.com/atabernermiller/banditgpt.git
-cd banditgpt
+git clone https://github.com/atabernermiller/paretobandit.git
+cd paretobandit
 pip install -e ".[embeddings]"
 ```
 
 Optional extras:
 
 ```bash
-pip install banditgpt[embeddings]    # Default sentence-transformer embedding pipeline
-pip install banditgpt[openrouter]    # OpenRouter adapter
-pip install banditgpt[openai]        # Direct OpenAI (also works for DeepSeek, Grok, etc.)
-pip install banditgpt[anthropic]     # Anthropic adapter
-pip install banditgpt[gemini]        # Google Gemini adapter
-pip install banditgpt[ollama]        # Local Ollama adapter
-pip install banditgpt[full]          # All providers + embeddings + utilities
-pip install banditgpt[experiments]   # Reproduce paper figures
-pip install banditgpt[dev]           # Development tools
+pip install paretobandit[embeddings]    # Default sentence-transformer embedding pipeline
+pip install paretobandit[openrouter]    # OpenRouter adapter
+pip install paretobandit[openai]        # Direct OpenAI (also works for DeepSeek, Grok, etc.)
+pip install paretobandit[anthropic]     # Anthropic adapter
+pip install paretobandit[gemini]        # Google Gemini adapter
+pip install paretobandit[ollama]        # Local Ollama adapter
+pip install paretobandit[full]          # All providers + embeddings + utilities
+pip install paretobandit[experiments]   # Reproduce paper figures
+pip install paretobandit[dev]           # Development tools
 ```
 
 ### Requirements
@@ -659,8 +659,8 @@ pip install banditgpt[dev]           # Development tools
 
 | Issue | Solution |
 |-------|----------|
-| Missing or corrupted priors | Run `banditgpt verify-priors` or reinstall |
-| `ImportError: sentence-transformers` | `pip install banditgpt[embeddings]`, or use a custom encoder / pre-computed vectors |
+| Missing or corrupted priors | Run `paretobandit verify-priors` or reinstall |
+| `ImportError: sentence-transformers` | `pip install paretobandit[embeddings]`, or use a custom encoder / pre-computed vectors |
 | Provider auth fails | Set the appropriate env var (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, etc.) |
 | Debug logging | Set `PYTHONLOGGING=DEBUG` for init/prior resolution details |
 
@@ -713,7 +713,7 @@ See [`paper/README.md`](paper/README.md) for the complete artifact guide and [`e
 | Location | Path | Purpose |
 |----------|------|---------|
 | Bundled | `<package>/data/priors/expert_priors.npz` | Expert-distilled defaults (read-only) |
-| User | `~/.banditgpt/priors/user_priors.npz` | Your learned updates |
+| User | `~/.paretobandit/priors/user_priors.npz` | Your learned updates |
 
 ### Adding New Models
 
@@ -723,16 +723,16 @@ router.add_model("openai/gpt-5", clone_from="openai/gpt-4o")
 
 ### Integrity and Recovery
 
-Bundled priors are checksummed via `banditgpt/data/priors/manifest.json`. To verify:
+Bundled priors are checksummed via `paretobandit/data/priors/manifest.json`. To verify:
 
 ```bash
-python -m banditgpt.core.cli verify-priors
+python -m paretobandit.core.cli verify-priors
 ```
 
 To restore from git if needed:
 
 ```bash
-git show <ref>:banditgpt/data/priors/expert_priors.npz > expert_priors.npz
+git show <ref>:paretobandit/data/priors/expert_priors.npz > expert_priors.npz
 ```
 
 Priors are loaded with `allow_pickle=False` and use fixed-width arrays for security.
@@ -750,8 +750,8 @@ Priors are loaded with `allow_pickle=False` and use fixed-width arrays for secur
 ## Project Structure
 
 ```
-banditgpt/
-├── src/bandit_gpt/          # Core library
+paretobandit/
+├── src/pareto_bandit/          # Core library
 │   ├── router.py            # BanditRouter, LinUCB, Corralling (~4700 lines)
 │   ├── providers/           # LLMClient protocol + provider adapters
 │   ├── storage.py           # SQLite context persistence
@@ -775,7 +775,7 @@ This section provides additional technical depth for researchers and advanced pr
 
 ### Feature Linearization
 
-BanditGPT uses a "Binary + Log" transformation (φ(x) = [𝟙(x>0), ln(1+x)]) rather than binning or piecewise linearization, for three reasons:
+ParetoBandit uses a "Binary + Log" transformation (φ(x) = [𝟙(x>0), ln(1+x)]) rather than binning or piecewise linearization, for three reasons:
 
 1. **Sample efficiency.** Binning would expand the feature space from d=14 to d≈140. Since LinUCB regret scales as O(d√T), this would extend the cold-start period by an order of magnitude.
 

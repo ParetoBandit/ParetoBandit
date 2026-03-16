@@ -1,10 +1,10 @@
 # API Reference
 
-Complete reference for the BanditGPT public API.
+Complete reference for the ParetoBandit public API.
 
 ```python
-import bandit_gpt
-print(bandit_gpt.__version__)  # "0.1.0"
+import pareto_bandit
+print(pareto_bandit.__version__)  # "0.1.0"
 ```
 
 ---
@@ -47,7 +47,7 @@ def create(
 **Example: Default usage**
 
 ```python
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 registry = {
     "openai/gpt-4o": {
@@ -74,7 +74,7 @@ router = BanditRouter.create(registry, priors="path/to/my_priors.joblib")
 **Example: Custom encoder (no sentence-transformers needed)**
 
 ```python
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 
 fs = FeatureService(
     custom_encoder=my_encoder_fn,   # Callable[[str], np.ndarray]
@@ -87,7 +87,7 @@ router = BanditRouter.create(registry, feature_service=fs, priors="none")
 **Example: Pre-computed vectors**
 
 ```python
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 
 fs = FeatureService.for_precomputed(dimension=33)
 router = BanditRouter.create(registry, feature_service=fs, priors="none")
@@ -191,7 +191,7 @@ def route_and_call(
 **Example**
 
 ```python
-from bandit_gpt import BanditRouter, OpenRouterClient
+from pareto_bandit import BanditRouter, OpenRouterClient
 
 router = BanditRouter.create(registry)
 client = OpenRouterClient(api_key="sk-or-...")
@@ -495,13 +495,13 @@ print(f"Context vector shape: {log.context_vector.shape}")  # (33,)
 
 Handles prompt embedding and PCA compression independently from bandit math. Supports three embedding paths:
 
-1. **Default SentenceTransformer** — `FeatureService()` (requires `pip install banditgpt[embeddings]`)
+1. **Default SentenceTransformer** — `FeatureService()` (requires `pip install paretobandit[embeddings]`)
 2. **Custom encoder callable** — `FeatureService(custom_encoder=fn, embedding_dim=N)` (no extra dependencies)
 3. **Pre-computed vectors** — `FeatureService.for_precomputed(dim)` (no extra dependencies)
 
 ### Bundled PCA Artifact
 
-A pre-trained PCA artifact (`pca_32.joblib`, ~133 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on 80,000 RouteLLM battle prompts (independent of BanditGPT's dev/holdout splits) using the default encoder (`BAAI/bge-m3`). The 32 components compress 1024-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
+A pre-trained PCA artifact (`pca_32.joblib`, ~133 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on 80,000 RouteLLM battle prompts (independent of ParetoBandit's dev/holdout splits) using the default encoder (`BAAI/bge-m3`). The 32 components compress 1024-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
 
 To replace it with a domain-specific PCA, pass `pca_path` to the constructor or use `train_pca()` to generate one from your own prompts (see [Calibration API](#calibration-api)).
 
@@ -539,10 +539,10 @@ FeatureService(
 **Example: Default usage (bundled PCA)**
 
 ```python
-from bandit_gpt import FeatureService
+from pareto_bandit import FeatureService
 
 # Uses the default encoder and the bundled pca_32.joblib
-# Requires: pip install banditgpt[embeddings]
+# Requires: pip install paretobandit[embeddings]
 fs = FeatureService()
 
 vector = fs.extract_features("Explain the Pythagorean theorem")
@@ -553,7 +553,7 @@ print(f"Bias term: {vector[-1]}")  # 1.0
 **Example: Custom PCA for your domain**
 
 ```python
-from bandit_gpt import FeatureService
+from pareto_bandit import FeatureService
 
 # Use a PCA trained on your own prompt distribution
 fs = FeatureService(pca_path="my_domain_pca.joblib")
@@ -564,7 +564,7 @@ fs = FeatureService(pca_path="my_domain_pca.joblib")
 ```python
 import numpy as np
 from openai import OpenAI
-from bandit_gpt import FeatureService, BanditRouter
+from pareto_bandit import FeatureService, BanditRouter
 
 client = OpenAI()
 
@@ -586,7 +586,7 @@ The resulting feature vector has shape `(1537,)` — 1536 raw embedding dimensio
 ```python
 import joblib
 from sklearn.decomposition import PCA
-from bandit_gpt import FeatureService
+from pareto_bandit import FeatureService
 
 # One-time: train PCA on representative prompts from your encoder
 embeddings = np.array([openai_embed(p) for p in representative_prompts])
@@ -620,7 +620,7 @@ Passing a string prompt to a pre-computed service raises `RuntimeError`. Only `n
 
 ```python
 import numpy as np
-from bandit_gpt import FeatureService
+from pareto_bandit import FeatureService
 
 # No sentence transformer download — accepts raw numpy vectors
 fs = FeatureService.for_precomputed(dimension=33)
@@ -753,7 +753,7 @@ Dataclass for all router hyperparameters. Pass to `BanditRouter.__init__()` or l
 **Example**
 
 ```python
-from bandit_gpt import RouterConfig
+from pareto_bandit import RouterConfig
 
 config = RouterConfig(
     max_log_size=5_000,           # Smaller memory footprint
@@ -780,7 +780,7 @@ Named presets for the exploration parameter (alpha).
 **Example**
 
 ```python
-from bandit_gpt import ExplorationRate
+from pareto_bandit import ExplorationRate
 
 # Use as alpha value directly
 router = BanditRouter.create(registry, alpha=ExplorationRate.SAFE)
@@ -800,7 +800,7 @@ This is an advanced internal class. Most users interact with it through `BanditR
 
 ## Calibration API
 
-BanditGPT ships with a pre-trained PCA artifact for the default encoder. The functions below let you **replace** it with a domain-specific projection or build one for a custom sentence transformer.
+ParetoBandit ships with a pre-trained PCA artifact for the default encoder. The functions below let you **replace** it with a domain-specific projection or build one for a custom sentence transformer.
 
 ### `train_pca()`
 
@@ -836,7 +836,7 @@ def train_pca(
 **Example: Replace the bundled PCA with a domain-specific one**
 
 ```python
-from bandit_gpt import train_pca, FeatureService, BanditRouter
+from pareto_bandit import train_pca, FeatureService, BanditRouter
 
 # 1. Collect representative prompts from your actual traffic
 prompts = [
@@ -895,7 +895,7 @@ def generate_warmup_priors(
 **Example**
 
 ```python
-from bandit_gpt import generate_warmup_priors
+from pareto_bandit import generate_warmup_priors
 
 rewards_data = [
     {
@@ -962,8 +962,8 @@ SqliteContextStore(
 **Example: Custom context store**
 
 ```python
-from bandit_gpt import BanditRouter
-from bandit_gpt.storage import SqliteContextStore
+from pareto_bandit import BanditRouter
+from pareto_bandit.storage import SqliteContextStore
 
 # 30-day retention for long RLHF feedback cycles
 store = SqliteContextStore(
@@ -984,7 +984,7 @@ print(f"Pruned {pruned} expired entries")
 **Example: Ephemeral store for testing**
 
 ```python
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.storage import EphemeralContextStore
 
 store = EphemeralContextStore(max_size=100)
 router = BanditRouter.create(registry, context_store=store)
@@ -994,12 +994,12 @@ router = BanditRouter.create(registry, context_store=store)
 
 ## Providers
 
-BanditGPT ships with a `LLMClient` protocol and thin adapters for popular LLM providers. The router itself never calls an LLM — it only selects a model ID. The providers module bridges the gap, letting you route **and** call in one step via `route_and_call()`.
+ParetoBandit ships with a `LLMClient` protocol and thin adapters for popular LLM providers. The router itself never calls an LLM — it only selects a model ID. The providers module bridges the gap, letting you route **and** call in one step via `route_and_call()`.
 
 ### `LLMClient` (Protocol)
 
 ```python
-from bandit_gpt import LLMClient
+from pareto_bandit import LLMClient
 
 class LLMClient(Protocol):
     def complete(
@@ -1019,16 +1019,16 @@ Any object with a matching `complete` method satisfies this protocol — no subc
 
 | Adapter | Provider | Install Extra | API Key Env Var |
 |---------|----------|---------------|-----------------|
-| `OpenRouterClient` | [OpenRouter](https://openrouter.ai) | `pip install banditgpt[openrouter]` | `OPENROUTER_API_KEY` |
-| `OpenAIClient` | OpenAI (and any compatible endpoint) | `pip install banditgpt[openai]` | `OPENAI_API_KEY` |
-| `AnthropicClient` | Anthropic | `pip install banditgpt[anthropic]` | `ANTHROPIC_API_KEY` |
-| `GeminiClient` | Google Gemini | `pip install banditgpt[gemini]` | `GEMINI_API_KEY` |
-| `OllamaClient` | Local Ollama | `pip install banditgpt[ollama]` | *(none)* |
+| `OpenRouterClient` | [OpenRouter](https://openrouter.ai) | `pip install paretobandit[openrouter]` | `OPENROUTER_API_KEY` |
+| `OpenAIClient` | OpenAI (and any compatible endpoint) | `pip install paretobandit[openai]` | `OPENAI_API_KEY` |
+| `AnthropicClient` | Anthropic | `pip install paretobandit[anthropic]` | `ANTHROPIC_API_KEY` |
+| `GeminiClient` | Google Gemini | `pip install paretobandit[gemini]` | `GEMINI_API_KEY` |
+| `OllamaClient` | Local Ollama | `pip install paretobandit[ollama]` | *(none)* |
 
 **OpenAI-compatible providers** (DeepSeek, Grok, Together, etc.) work via `OpenAIClient` with a custom `base_url`:
 
 ```python
-from bandit_gpt import OpenAIClient
+from pareto_bandit import OpenAIClient
 
 client = OpenAIClient(api_key="sk-...", base_url="https://api.deepseek.com")
 ```
@@ -1038,7 +1038,7 @@ client = OpenAIClient(api_key="sk-...", base_url="https://api.deepseek.com")
 When all your models are reachable through one provider, pass a single client:
 
 ```python
-from bandit_gpt import BanditRouter, OpenRouterClient
+from pareto_bandit import BanditRouter, OpenRouterClient
 
 router = BanditRouter.create(registry)
 client = OpenRouterClient(api_key="sk-or-...")
@@ -1052,7 +1052,7 @@ router.process_feedback(log.request_id, reward=0.9)
 When your model portfolio spans multiple providers, use `MultiProviderClient` to wire each provider prefix to the right client:
 
 ```python
-from bandit_gpt import (
+from pareto_bandit import (
     BanditRouter, MultiProviderClient,
     OpenAIClient, AnthropicClient, OllamaClient,
 )
@@ -1094,7 +1094,7 @@ router.process_feedback(log.request_id, reward=0.9)
 You can also add providers at runtime:
 
 ```python
-from bandit_gpt import GeminiClient
+from pareto_bandit import GeminiClient
 
 client.register("google", GeminiClient(api_key="..."))
 router.register_model("google/gemini-2.0-flash", speed="fast", capabilities=["reasoning"])
@@ -1134,7 +1134,7 @@ Infer model family from an ID string. Used for family-shared learning in `Hybrid
 **Example**
 
 ```python
-from bandit_gpt import infer_model_family
+from pareto_bandit import infer_model_family
 
 print(infer_model_family("openai/gpt-4o"))              # "openai/gpt-4o"
 print(infer_model_family("anthropic/claude-3.5-sonnet")) # "anthropic/claude-3"
@@ -1153,8 +1153,8 @@ Compute pairwise model-family correlation structure from binary preference data.
 ## CLI
 
 ```bash
-banditgpt --version              # Show version
-banditgpt "Your prompt here"     # Route a prompt
-banditgpt --download-models      # Pre-download sentence transformer weights
-banditgpt --max-cost 1.0 "..."   # Route with cost constraint
+paretobandit --version              # Show version
+paretobandit "Your prompt here"     # Route a prompt
+paretobandit --download-models      # Pre-download sentence transformer weights
+paretobandit --max-cost 1.0 "..."   # Route with cost constraint
 ```

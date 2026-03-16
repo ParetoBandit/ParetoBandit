@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Smoke-test for bandit_gpt installed via pip.
+Smoke-test for pareto_bandit installed via pip.
 
 Exercises every public API surface using *only* synthetic data and
 pre-computed context vectors so no model downloads or API keys are needed.
 
 Usage:
-    pip install banditgpt          # or: pip install -e .
+    pip install paretobandit          # or: pip install -e .
     python scripts/test_pip_install.py
 """
 
@@ -77,14 +77,14 @@ def synthetic_registry() -> dict:
 def test_imports() -> None:
     print("\n1. Import check")
     try:
-        from bandit_gpt import BanditRouter, ExplorationRate, RouterConfig, FeatureService
+        from pareto_bandit import BanditRouter, ExplorationRate, RouterConfig, FeatureService
         status("Public API imports", True)
     except ImportError as e:
         status("Public API imports", False, str(e))
         sys.exit(1)
 
     try:
-        from bandit_gpt.router import RoutingLog
+        from pareto_bandit.router import RoutingLog
         status("RoutingLog importable", True)
     except ImportError as e:
         status("RoutingLog importable", False, str(e))
@@ -96,7 +96,7 @@ def test_imports() -> None:
 
 def test_construction() -> dict:
     print("\n2. Router construction")
-    from bandit_gpt import BanditRouter, RouterConfig
+    from pareto_bandit import BanditRouter, RouterConfig
 
     registry = synthetic_registry()
     router = BanditRouter(
@@ -118,7 +118,7 @@ def test_construction() -> dict:
 
 def _make_passthrough_feature_service():
     """A lightweight FeatureService stand-in that returns pre-computed vectors as-is."""
-    from bandit_gpt import FeatureService
+    from pareto_bandit import FeatureService
 
     class _Passthrough(FeatureService):
         """Lightweight stand-in that skips model downloads entirely."""
@@ -301,7 +301,7 @@ def test_explainability(router) -> None:
 
 def test_exploration_presets() -> None:
     print("\n8. ExplorationRate presets")
-    from bandit_gpt import ExplorationRate
+    from pareto_bandit import ExplorationRate
 
     for name, expected in [("static", 0.0), ("safe", 0.1), ("balanced", 1.0), ("aggressive", 2.0)]:
         val = ExplorationRate.get(name)
@@ -317,7 +317,7 @@ def test_exploration_presets() -> None:
 
 def test_config() -> None:
     print("\n9. RouterConfig")
-    from bandit_gpt import RouterConfig
+    from pareto_bandit import RouterConfig
 
     cfg = RouterConfig()
     status("Default config instantiates", True)
@@ -336,11 +336,11 @@ def test_cli_entrypoint() -> None:
     print("\n10. CLI entry point")
     import subprocess
     result = subprocess.run(
-        [sys.executable, "-m", "bandit_gpt.cli", "--version"],
+        [sys.executable, "-m", "pareto_bandit.cli", "--version"],
         capture_output=True, text=True, timeout=30,
     )
     ok = result.returncode == 0 and "v0.1.0" in result.stdout
-    status("python -m bandit_gpt.cli --version", ok,
+    status("python -m pareto_bandit.cli --version", ok,
            result.stdout.strip() or result.stderr.strip())
 
 
@@ -355,7 +355,7 @@ def test_specialization_convergence() -> None:
     domain to the correct specialist.
     """
     print("\n11. Specialization convergence (2-domain synthetic)")
-    from bandit_gpt import BanditRouter
+    from pareto_bandit import BanditRouter
 
     registry = synthetic_registry()
     router = BanditRouter(
@@ -411,7 +411,7 @@ def main() -> None:
     logging.disable(logging.WARNING)
 
     print("=" * 60)
-    print("  bandit_gpt  pip-install smoke test")
+    print("  pareto_bandit  pip-install smoke test")
     print("=" * 60)
 
     test_imports()

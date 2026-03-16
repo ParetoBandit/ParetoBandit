@@ -222,7 +222,7 @@ class CoTRewardGenerator:
             # Try loading from .env manually if not in env
              try:
                 from dotenv import load_dotenv
-                # banditgpt/rejudge_cot.py -> parent = banditgpt -> parent = root
+                # paretobandit/rejudge_cot.py -> parent = paretobandit -> parent = root
                 env_path = Path(__file__).parent.parent.parent / '.env'
                 if env_path.exists():
                     load_dotenv(env_path)
@@ -302,7 +302,7 @@ class CoTRewardGenerator:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
         payload = {
             "model": model_id,
@@ -320,7 +320,7 @@ class CoTRewardGenerator:
 
     # Rubric v3 weights — all-continuous dimensions.  Must stay in sync
     # with ``_W_REASONING``, ``_W_INSTRUCTION``, ``_W_COMMUNICATION`` in
-    # ``src/bandit_gpt/rewards.py``.
+    # ``src/pareto_bandit/rewards.py``.
     _W_REASONING: float = 0.40
     _W_INSTRUCTION: float = 0.30
     _W_COMMUNICATION: float = 0.30
@@ -378,7 +378,7 @@ class CoTRewardGenerator:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
 
         max_tok = self._judge_max_tokens_override.get(
@@ -922,7 +922,7 @@ if __name__ == "__main__":
     gen = CoTRewardGenerator(max_workers=args.workers)
     gen.judge_weighting = args.judge_weighting
 
-    models_file = Path(args.models_file) if args.models_file else root / "src/bandit_gpt/config/models.json"
+    models_file = Path(args.models_file) if args.models_file else root / "src/pareto_bandit/config/models.json"
 
     if args.mode == "rejudge":
         if not args.rejudge_from:
@@ -959,9 +959,9 @@ if __name__ == "__main__":
         )
     else:
         gen.run(
-            prompts_file=root / "src/bandit_gpt/data/test_prompts.jsonl",
+            prompts_file=root / "src/pareto_bandit/data/test_prompts.jsonl",
             models_file=models_file,
-            output_file=root / "src/bandit_gpt/data/test_rewards_pareto.jsonl",
-            cache_file=root / "src/bandit_gpt/data/test_rewards_cache.jsonl",
+            output_file=root / "src/pareto_bandit/data/test_rewards_pareto.jsonl",
+            cache_file=root / "src/pareto_bandit/data/test_rewards_cache.jsonl",
             limit=args.limit,
         )

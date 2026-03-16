@@ -36,7 +36,7 @@ from collections import defaultdict
 import numpy as np
 import pytest
 
-from bandit_gpt.router import (
+from pareto_bandit.router import (
     BanditRouter,
     DisjointLinUCBPolicy,
     NoModelScoredError,
@@ -209,7 +209,7 @@ class TestBug4_DequeMaxlenFromInstanceConfig:
         SentenceTransformer, while still exercising the deque initialisation.
         """
         from unittest.mock import MagicMock, patch
-        from bandit_gpt.router import BanditRouter
+        from pareto_bandit.router import BanditRouter
 
         custom_cfg = RouterConfig(max_log_size=42)
 
@@ -677,7 +677,7 @@ class TestR3M8_ConstraintsFallback:
 
     def test_impossible_constraints_raise(self):
         """Over-constrained filter raises NoEligibleModelsError."""
-        from bandit_gpt.router import NoEligibleModelsError
+        from pareto_bandit.router import NoEligibleModelsError
 
         registry = {
             "model_a": {
@@ -914,7 +914,7 @@ class TestR5M2_ComplexityWeightsRemoved:
 
     def test_no_complexity_weight_attrs(self):
         """RegistrationConfig should not have complexity_weight fields."""
-        from bandit_gpt.router import RegistrationConfig
+        from pareto_bandit.router import RegistrationConfig
         config = RegistrationConfig()
         assert not hasattr(config, 'fast_complexity_weight')
         assert not hasattr(config, 'slow_complexity_weight')
@@ -933,7 +933,7 @@ class TestR5M2_ComplexityWeightsRemoved:
             }
         }
         router = BanditRouter.create(model_registry=registry, priors="none")
-        with unittest.mock.patch('bandit_gpt.router.logger') as mock_logger:
+        with unittest.mock.patch('pareto_bandit.router.logger') as mock_logger:
             router.register_model("model_b", speed="fast", cost_usd=1.0, latency_s=0.5)
             # Should NOT have any "Unknown feature" warnings
             for call in mock_logger.warning.call_args_list:

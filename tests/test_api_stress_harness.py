@@ -5,7 +5,7 @@ import importlib
 import numpy as np
 import pytest
 
-from bandit_gpt import BanditRouter, ExplorationRate, FeatureService
+from pareto_bandit import BanditRouter, ExplorationRate, FeatureService
 
 from tests.stress_utils import (
     DEFAULT_DIMENSION,
@@ -17,7 +17,7 @@ from tests.stress_utils import (
 
 @pytest.mark.stress
 def test_public_exports_resolve_and_are_callable():
-    module = importlib.import_module("bandit_gpt")
+    module = importlib.import_module("pareto_bandit")
     expected = {
         "BanditRouter",
         "ExplorationRate",

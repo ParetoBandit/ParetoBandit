@@ -1,7 +1,7 @@
 # Budget Pacing via Primal-Dual CBwK
 
 > **Status**: V1 Plan (pending implementation)
-> **Author**: Generated via code review of `src/bandit_gpt/router.py`
+> **Author**: Generated via code review of `src/pareto_bandit/router.py`
 > **Theory**: Primal-Dual framework for Contextual Bandits with Knapsacks (Agrawal & Devanur 2014)
 
 ## Architecture
@@ -15,7 +15,7 @@ A standalone `BudgetPacer` class owns all pacing state. Three user-selectable mo
 ### User API
 
 ```python
-from bandit_gpt.router import BanditRouter, BudgetPacer, PacingMode
+from pareto_bandit.router import BanditRouter, BudgetPacer, PacingMode
 
 # Hard-only: coarse-grained, zero internal changes
 pacer = BudgetPacer(target_avg_spend_usd=0.01, mode=PacingMode.HARD)
@@ -56,7 +56,7 @@ BanditRouter.process_feedback()
 
 ## Files to Change
 
-**Primary**: `src/bandit_gpt/router.py`
+**Primary**: `src/pareto_bandit/router.py`
 
 ## Implementation Steps
 

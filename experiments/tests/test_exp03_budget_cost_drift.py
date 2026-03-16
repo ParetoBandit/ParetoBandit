@@ -1,7 +1,7 @@
 """Regression tests for Experiment 03: Budget Pacing under Cost Drift.
 
 Fast tests verify config integration.  The ``@pytest.mark.slow`` smoke
-test runs one BanditGPT (moderate budget) seed through the two-phase
+test runs one ParetoBandit (moderate budget) seed through the two-phase
 cost-drift scenario and compares metrics against a pinned reference.
 """
 
@@ -20,13 +20,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
-from bandit_gpt.config import BEST_K3_HPARAMS, K3_ARM_ORDER
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit.config import BEST_K3_HPARAMS, K3_ARM_ORDER
 from utils.simulation import SplitData, build_model_registry
 
 from helpers import assert_metrics_match, load_reference, save_reference
 
-REFERENCE_NAME = "exp03_seed7000_banditgpt_moderate"
+REFERENCE_NAME = "exp03_seed7000_paretobandit_moderate"
 SEED = 7000
 
 
@@ -65,14 +65,14 @@ class TestExp03Config:
     def test_prior_n_effective_from_config(self):
         assert self.mod.PRIOR_N_EFFECTIVE == BEST_K3_HPARAMS["prior_n_effective"]
 
-    def test_banditgpt_forgetting_factor(self):
+    def test_paretobandit_forgetting_factor(self):
         conditions = self.mod._build_conditions(
             budget_target=6.62e-4,
             budget_label="moderate",
             matched_cp=0.30,
         )
-        banditgpt = [c for c in conditions if "BanditGPT" in c["label"]][0]
-        assert banditgpt["forgetting_factor"] == BEST_K3_HPARAMS["forgetting_factor"]
+        paretobandit = [c for c in conditions if "ParetoBandit" in c["label"]][0]
+        assert paretobandit["forgetting_factor"] == BEST_K3_HPARAMS["forgetting_factor"]
 
     def test_fixed_policy_gamma_is_one(self):
         conditions = self.mod._build_conditions(
@@ -100,7 +100,7 @@ def test_exp03_single_seed_regression(
     model_registry,
     feature_dim,
 ):
-    """Run one BanditGPT (moderate) seed and compare to pinned reference.
+    """Run one ParetoBandit (moderate) seed and compare to pinned reference.
 
     Sets up the train-then-evaluate cost drift exactly as ``main()``
     does, but for a single seed only.
@@ -141,7 +141,7 @@ def test_exp03_single_seed_regression(
         mod.GEMINI_NEW_INPUT_COST, mod.GEMINI_NEW_OUTPUT_COST,
     )
 
-    # BanditGPT (moderate) condition.
+    # ParetoBandit (moderate) condition.
     budget_target = mod.BUDGET_TARGETS[1]  # moderate
     pacer = BudgetPacer(
         target_avg_spend_usd=budget_target,
@@ -152,7 +152,7 @@ def test_exp03_single_seed_regression(
     )
 
     seed_result = mod._run_two_phase_trial(
-        condition_label="BanditGPT (moderate)",
+        condition_label="ParetoBandit (moderate)",
         train_data=val_split,
         phase1=phase1,
         phase2=phase2,

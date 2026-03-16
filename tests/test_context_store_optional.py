@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt import BanditRouter, SqliteContextStore, EphemeralContextStore
+from pareto_bandit import BanditRouter, SqliteContextStore, EphemeralContextStore
 
 
 @pytest.fixture

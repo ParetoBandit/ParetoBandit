@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 from pathlib import Path
-from bandit_gpt.router import DisjointLinUCBPolicy
+from pareto_bandit.router import DisjointLinUCBPolicy
 
 
 def test_state_save_includes_metadata(tmp_path):

@@ -1,7 +1,7 @@
 \section{Experimental Setup}
 \label{sec:setup}
 
-We evaluate BanditGPT on a canonical portfolio of three LLMs, spanning a large cost differential, and using realistic prompt data to simulate both stationary and non-stationary production environments.  Table~\ref{tab:dataset} summarises the data splits and model portfolio.
+We evaluate ParetoBandit on a canonical portfolio of three LLMs, spanning a large cost differential, and using realistic prompt data to simulate both stationary and non-stationary production environments.  Table~\ref{tab:dataset} summarises the data splits and model portfolio.
 
 \subsection{Datasets and Ground Truth}
 
@@ -71,7 +71,7 @@ We construct two distinct non-stationary test environments to evaluate the route
 
 \subsection{Baselines}
 
-We compare BanditGPT against three baselines representing increasing levels of routing sophistication:
+We compare ParetoBandit against three baselines representing increasing levels of routing sophistication:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (Offline):} Warmup priors deployed
     without online learning ($\gamma{=}1.0$, updates disabled)
@@ -85,19 +85,19 @@ We compare BanditGPT against three baselines representing increasing levels of r
   \item \textbf{SW-UCB ($W{=}200$):} Sliding-Window
     LinUCB~\cite{garivier2011switching} without warmup priors
     ($\alpha{=}0.01$).  Retains only the last $W$ observations
-    with equal weighting.  Window size is matched to BanditGPT's
+    with equal weighting.  Window size is matched to ParetoBandit's
     effective memory (${\sim}200$ steps) for a controlled
     comparison of the forgetting mechanism against an established
     non-stationary bandit algorithm.  Used in the reward-drift
     experiment (Section~\ref{sec:exp2_reward_shift}).
-  \item \textbf{BanditGPT ($\gamma{=}0.995$):} Our proposed system,
+  \item \textbf{ParetoBandit ($\gamma{=}0.995$):} Our proposed system,
     initialized with warmup priors, utilizing geometric forgetting,
     and governed by the Primal-Dual \texttt{BudgetPacer} targeting
     a specific dollar budget.
 \end{enumerate}
 
 \noindent
-All prior-initialised conditions (Fixed, Naive, BanditGPT) share
+All prior-initialised conditions (Fixed, Naive, ParetoBandit) share
 $\alpha{=}0.1$ and $n_\mathit{eff}{=}1{,}000$.
 The \emph{prior strength} $n_\mathit{eff}$~\cite{kveton2023warmstart} controls the explore--exploit tradeoff at initialisation: it sets the effective number of pseudo-observations encoded in the warmup prior, determining how long the offline quality estimates dominate over incoming online evidence.  A high $n_\mathit{eff}$ keeps the router close to its prior policy for many steps---stable early routing, but slow adaptation; a low $n_\mathit{eff}$ lets the router begin learning from live traffic almost immediately, at the cost of noisier early decisions.  With $n_\mathit{eff}{=}1{,}000$ and a validation split of $1{,}785$ prompts, the prior is substantially but not permanently influential: online evidence begins to dominate after several hundred observations per arm, consistent with the adaptation timescales measured in Experiments~2--3.
 SW-UCB uses $\alpha{=}0.01$ (appropriate for cold-start without

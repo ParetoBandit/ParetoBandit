@@ -33,7 +33,7 @@ for the new model before it can receive any live traffic---an
 offline data-collection campaign that must be repeated for every
 model addition.
 
-BanditGPT replaces steps 1--4 with a single call that seeds the new
+ParetoBandit replaces steps 1--4 with a single call that seeds the new
 arm with a T-shirt prior and lets the online learner discover its
 quality--cost profile from live traffic.
 The bandit still requires a reward signal, but that signal comes
@@ -74,7 +74,7 @@ Two Phase~2 strategies are compared per budget tier:
     Equal allocation across all K=4 arms.
     The simplest possible onboarding strategy---no routing
     intelligence, no budget awareness.
-  \item \textbf{BanditGPT (transfer):}
+  \item \textbf{ParetoBandit (transfer):}
     Phase~1 posteriors carry over; Flash gets a T-shirt prior.
     BudgetPacer continues without reconfiguration.
 \end{itemize}
@@ -84,7 +84,7 @@ Three budget targets span the constraint regime:
 tight ($B{=}\$2.3{\times}10^{-4}$/req),
 moderate ($B{=}\$6.6{\times}10^{-4}$/req),
 and loose ($B{=}\$1.9{\times}10^{-3}$/req).
-An unconstrained BanditGPT baseline (no pacer) serves as a quality
+An unconstrained ParetoBandit baseline (no pacer) serves as a quality
 ceiling.  Results: 20~seeds (9000--9019).
 
 \subsubsection{Results (Figure~\ref{fig:model_onboarding})}
@@ -100,20 +100,20 @@ ceiling.  Results: 20~seeds (9000--9019).
 Fixed Policy & any
   & 0.893 & \$4.05\text{e-}3 & 25.1\% & No (6--17$\times$) \\
 \midrule
-BanditGPT & tight
+ParetoBandit & tight
   & 0.853 & \$2.34\text{e-}4 & 10.7\% & \checkmark \\
-BanditGPT & moderate
+ParetoBandit & moderate
   & 0.889 & \$6.60\text{e-}4 & 19.4\% & \checkmark \\
-BanditGPT & loose
+ParetoBandit & loose
   & 0.913 & \$1.80\text{e-}3 & 28.1\% & \checkmark \\
-BanditGPT & unconstrained
+ParetoBandit & unconstrained
   & 0.924 & \$7.68\text{e-}3 & 20.8\% & --- \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \paragraph{Flash is discovered in every seed.}
-Across all 80 BanditGPT trials (20~seeds $\times$ 4~budget tiers),
+Across all 80 ParetoBandit trials (20~seeds $\times$ 4~budget tiers),
 Flash is first selected within ${\sim}340$ post-onboarding steps and
 reaches sustained adoption (windowed share $>10$\% for 50
 consecutive steps) by step~${\sim}370$.
@@ -149,7 +149,7 @@ reveals a clear pattern:
 \paragraph{The BudgetPacer requires no reconfiguration.}
 Figure~\ref{fig:model_onboarding}(c) shows cost compliance
 throughout the trajectory.
-BanditGPT meets each budget target to within 1\% across both
+ParetoBandit meets each budget target to within 1\% across both
 phases, despite the portfolio expanding from K=3 to K=4
 mid-trajectory.
 The dual variable $\lambda_t$ adjusts smoothly: when Flash's
@@ -162,7 +162,7 @@ constraints.
 By giving Gemini-Pro 25\% of traffic, it spends \$4.05e-3 per
 request---exceeding the tight budget by 17$\times$ and even the
 loose budget by 2$\times$.
-It achieves a reward of 0.893, which BanditGPT matches or exceeds
+It achieves a reward of 0.893, which ParetoBandit matches or exceeds
 at moderate and loose budgets (0.889 and 0.913) while spending
 6$\times$ and 2$\times$ less.
 
@@ -170,7 +170,7 @@ at moderate and loose budgets (0.889 and 0.913) while spending
 
 \paragraph{One API call, zero downtime.}
 At moderate and loose budgets---the regime of most production
-deployments---onboarding a new model into BanditGPT requires a
+deployments---onboarding a new model into ParetoBandit requires a
 single call to \texttt{register\_model()} with the model's pricing.
 No offline evaluation, no policy retraining, no budget
 reconfiguration.  The bandit discovers the model's quality--cost
@@ -179,7 +179,7 @@ niche from live traffic and the pacer auto-adjusts.
 \paragraph{Budget-quality Pareto improvement.}
 Flash is a Pareto-improving arm: it offers near-Pro quality at
 Mistral-level cost.  A static router would require human analysis
-to discover this; BanditGPT identifies and exploits it
+to discover this; ParetoBandit identifies and exploits it
 automatically, shifting the portfolio's cost--quality frontier.
 
 \paragraph{Tight budgets require deliberate exploration.}

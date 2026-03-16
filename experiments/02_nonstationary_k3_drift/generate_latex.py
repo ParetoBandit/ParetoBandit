@@ -23,7 +23,7 @@ CONDITION_MAP = {
     "Fixed Policy (offline)": "Fixed",
     "Naive Bandit (γ=1.0)": "Naive",
     "SW-UCB (W=200)": "SWUCB",
-    "BanditGPT (γ=0.995)": "BanditGPT",
+    "ParetoBandit (γ=0.995)": "ParetoBandit",
 }
 
 MISTRAL_ARM = "Mistral-Large"
@@ -75,7 +75,7 @@ def compute_phase_regrets(
 def extract_condition_values(data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """Extract terminal and phase-split values for each condition.
 
-    Returns a dict keyed by short name (Fixed, Naive, SWUCB, BanditGPT) with:
+    Returns a dict keyed by short name (Fixed, Naive, SWUCB, ParetoBandit) with:
     - total: mean cumulative regret at step 1785
     - std: std_cumulative_regret at step 1785
     - phase1, phase2: interpolated phase regrets
@@ -115,7 +115,7 @@ def build_command_set(data: Dict[str, Any], vals: Dict[str, Dict[str, Any]]) -> 
     cs = CommandSet(prefix="rs")
 
     # Per-condition terminal values
-    for short in ["Fixed", "Naive", "SWUCB", "BanditGPT"]:
+    for short in ["Fixed", "Naive", "SWUCB", "ParetoBandit"]:
         if short not in vals:
             continue
         v = vals[short]
@@ -123,7 +123,7 @@ def build_command_set(data: Dict[str, Any], vals: Dict[str, Dict[str, Any]]) -> 
         cs.num(f"{short}Std", v["std"], digits=1)
 
     # Per-condition phase-split regret
-    for short in ["Fixed", "Naive", "SWUCB", "BanditGPT"]:
+    for short in ["Fixed", "Naive", "SWUCB", "ParetoBandit"]:
         if short not in vals:
             continue
         v = vals[short]
@@ -134,12 +134,12 @@ def build_command_set(data: Dict[str, Any], vals: Dict[str, Dict[str, Any]]) -> 
     fixed_total = vals.get("Fixed", {}).get("total")
     naive_total = vals.get("Naive", {}).get("total")
     swucb_total = vals.get("SWUCB", {}).get("total")
-    bg_total = vals.get("BanditGPT", {}).get("total")
+    bg_total = vals.get("ParetoBandit", {}).get("total")
     naive_p2 = vals.get("Naive", {}).get("phase2")
-    bg_p2 = vals.get("BanditGPT", {}).get("phase2")
+    bg_p2 = vals.get("ParetoBandit", {}).get("phase2")
     swucb_p1 = vals.get("SWUCB", {}).get("phase1")
     swucb_std = vals.get("SWUCB", {}).get("std")
-    bg_std = vals.get("BanditGPT", {}).get("std")
+    bg_std = vals.get("ParetoBandit", {}).get("std")
 
     if fixed_total is not None and naive_total is not None and fixed_total > 0:
         reduction = (fixed_total - naive_total) / fixed_total * 100
@@ -147,7 +147,7 @@ def build_command_set(data: Dict[str, Any], vals: Dict[str, Dict[str, Any]]) -> 
 
     if naive_total is not None and bg_total is not None and naive_total > 0:
         reduction = (naive_total - bg_total) / naive_total * 100
-        cs.raw("ReductionNaiveBanditGPT", fmt_int(reduction))
+        cs.raw("ReductionNaiveParetoBandit", fmt_int(reduction))
 
     if naive_p2 is not None and bg_p2 is not None and bg_p2 > 0:
         excess = (naive_p2 - bg_p2) / bg_p2 * 100
@@ -158,7 +158,7 @@ def build_command_set(data: Dict[str, Any], vals: Dict[str, Dict[str, Any]]) -> 
             v for v in [
                 vals.get("Fixed", {}).get("phase1"),
                 vals.get("Naive", {}).get("phase1"),
-                vals.get("BanditGPT", {}).get("phase1"),
+                vals.get("ParetoBandit", {}).get("phase1"),
             ] if v is not None and v > 0
         ]
         if prior_p1_values:
@@ -172,7 +172,7 @@ def build_command_set(data: Dict[str, Any], vals: Dict[str, Dict[str, Any]]) -> 
 
     if naive_p2 is not None and bg_p2 is not None and naive_p2 > 0:
         reduction_p2 = (naive_p2 - bg_p2) / naive_p2 * 100
-        cs.raw("BanditGPTPhaseTwoReduction", fmt_int(reduction_p2))
+        cs.raw("ParetoBanditPhaseTwoReduction", fmt_int(reduction_p2))
 
     # Fixed Policy arm fractions at terminal
     fixed_af = vals.get("Fixed", {}).get("arm_fractions", {})
@@ -202,13 +202,13 @@ def generate_figure_caption() -> str:
     with infinite memory.
     \textbf{SW-UCB ($W{=}200$)} uses sliding-window LinUCB without
     warmup priors.
-    \textbf{BanditGPT ($\gamma{=}0.995$)} adds geometric
+    \textbf{ParetoBandit ($\gamma{=}0.995$)} adds geometric
     forgetting with a tuned effective memory of ${\sim}200$ steps.
     %
     Total regret: Fixed~\rsFixedTotal{},
     Naive~\rsNaiveTotal{} ($-$\rsReductionFixedNaive\%),
     SW-UCB~\rsSWUCBTotal{},
-    BanditGPT~\rsBanditGPTTotal{} ($-$\rsReductionNaiveBanditGPT\%
+    ParetoBandit~\rsParetoBanditTotal{} ($-$\rsReductionNaiveParetoBandit\%
     vs.\ Naive).
     All pairwise comparisons are significant after
     Holm--Bonferroni correction (paired $t$-tests, 39~d.f.).

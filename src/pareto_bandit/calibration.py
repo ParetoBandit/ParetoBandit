@@ -5,7 +5,7 @@ When using a non-default encoder model, the shipped PCA artifact and warmup
 priors become semantically invalid.  This module provides the two functions
 needed to produce compatible artifacts for any SentenceTransformer model:
 
-    from bandit_gpt.calibration import train_pca, generate_warmup_priors
+    from pareto_bandit.calibration import train_pca, generate_warmup_priors
 
     pca = train_pca(prompts, encoder_model="your-model", output_path="pca.joblib")
     priors = generate_warmup_priors(

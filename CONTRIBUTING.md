@@ -1,12 +1,12 @@
-# Contributing to BanditGPT
+# Contributing to ParetoBandit
 
-Thank you for your interest in contributing to BanditGPT! This guide will help you get started.
+Thank you for your interest in contributing to ParetoBandit! This guide will help you get started.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/atabernermiller/banditgpt.git
-cd banditgpt
+git clone https://github.com/atabernermiller/paretobandit.git
+cd paretobandit
 pip install -e ".[dev]"
 ```
 
@@ -25,7 +25,7 @@ python -m pytest tests/ -v -m "not slow"
 python -m pytest tests/test_router.py -v
 
 # With coverage
-python -m pytest tests/ --cov=bandit_gpt --cov-report=term-missing
+python -m pytest tests/ --cov=pareto_bandit --cov-report=term-missing
 ```
 
 ## Code Quality
@@ -40,7 +40,7 @@ ruff check src/
 ruff format src/
 
 # Type check
-mypy src/bandit_gpt/
+mypy src/pareto_bandit/
 ```
 
 All pull requests must pass lint and type checks. The CI pipeline runs these automatically.
@@ -74,7 +74,7 @@ Improve Figure 4 annotations and crossover detection
 ## Architecture Overview
 
 ```
-src/bandit_gpt/
+src/pareto_bandit/
 ├── router.py            # BanditRouter, LinUCB policies, Corralling meta-learner
 ├── feature_service.py   # Prompt embedding + PCA compression
 ├── storage.py           # Context persistence (SQLite, ephemeral)
@@ -96,7 +96,7 @@ src/bandit_gpt/
 When filing a bug report, please include:
 
 - Python version (`python --version`)
-- BanditGPT version (`banditgpt --version`)
+- ParetoBandit version (`paretobandit --version`)
 - Minimal reproduction code
 - Full traceback
 

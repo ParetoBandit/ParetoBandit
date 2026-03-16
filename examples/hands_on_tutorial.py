@@ -1,8 +1,8 @@
 """
-BanditGPT Hands-On Tutorial
+ParetoBandit Hands-On Tutorial
 ============================
 
-This script walks you through BanditGPT's adaptive LLM routing using a
+This script walks you through ParetoBandit's adaptive LLM routing using a
 synthetic reward oracle — no API keys, no cost, runs in under a minute.
 
 The synthetic oracle reproduces the statistical properties observed in the
@@ -25,7 +25,7 @@ By the end you will have seen:
     5. Comparison against static baselines (always-cheap, always-expensive)
 
 Run:
-    pip install banditgpt matplotlib
+    pip install paretobandit matplotlib
     python examples/hands_on_tutorial.py
 
 Each section maps 1:1 to a Jupyter notebook cell.
@@ -41,7 +41,7 @@ from collections import defaultdict, Counter
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 # ──────────────────────────────────────────────────────────────────────
 # Section 1 — Define the 5-Model Portfolio
@@ -451,14 +451,14 @@ router_avg_cost = sum(
     router_model_counts[mid] * (router_info[mid]["input_cost_per_m"] + router_info[mid]["output_cost_per_m"]) / 2
     for mid in MODEL_IDS
 ) / N_PROMPTS
-baselines["BanditGPT Router"] = {"reward": router_avg_reward, "cost": router_avg_cost}
+baselines["ParetoBandit Router"] = {"reward": router_avg_reward, "cost": router_avg_cost}
 
 print(f"\n{'Strategy':>30s}  {'Avg Reward':>10s}  {'Avg Cost/M':>10s}  {'Quality':>8s}")
 print("-" * 65)
 oracle_reward = baselines["Oracle (cheapest success)"]["reward"]
 for label, vals in baselines.items():
     gap = vals["reward"] / oracle_reward if oracle_reward > 0 else 0
-    marker = " ←" if label == "BanditGPT Router" else ""
+    marker = " ←" if label == "ParetoBandit Router" else ""
     print(f"{label:>30s}  {vals['reward']:>10.3f}  ${vals['cost']:>9.2f}  {gap:>7.1%}{marker}")
 
 
@@ -472,7 +472,7 @@ color_map = {name: palette[i] for i, name in enumerate(model_names)}
 
 fig, axes = plt.subplots(2, 2, figsize=(16, 11))
 fig.suptitle(
-    f"BanditGPT Learning Dynamics  (K={len(MODEL_IDS)}, N={N_PROMPTS}, "
+    f"ParetoBandit Learning Dynamics  (K={len(MODEL_IDS)}, N={N_PROMPTS}, "
     f"exploration={EXPLORATION}, λ_cost={COST_PENALTY})",
     fontsize=14, fontweight="bold", y=0.98,
 )
@@ -484,7 +484,7 @@ rewards_arr = np.array([h["reward"] for h in history])
 rolling_reward = np.convolve(rewards_arr, np.ones(window) / window, mode="valid")
 x_vals = np.arange(window, window + len(rolling_reward))
 ax.plot(x_vals, rolling_reward, color="steelblue", linewidth=2.2,
-        label="BanditGPT (rolling avg)")
+        label="ParetoBandit (rolling avg)")
 
 cheap_baseline = baselines["Always cheapest (Llama 8B)"]["reward"]
 exp_baseline = baselines["Always expensive (Sonnet 4)"]["reward"]
@@ -680,7 +680,7 @@ for cat in categories:
 # ──────────────────────────────────────────────────────────────────────
 #
 # In production, models change constantly — a new GPT drops, a cheaper
-# Llama variant appears, or you fine-tune a specialist.  BanditGPT
+# Llama variant appears, or you fine-tune a specialist.  ParetoBandit
 # handles this without retraining: register_model() adds the newcomer
 # to a *running* router and bootstraps it from existing knowledge.
 #

@@ -10,7 +10,7 @@ import copy
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt.router import DisjointLinUCBPolicy, safe_inv
+from pareto_bandit.router import DisjointLinUCBPolicy, safe_inv
 
 class TestSnapshotSwapCorrectness:
     """
@@ -19,7 +19,7 @@ class TestSnapshotSwapCorrectness:
 
     def test_numerical_stability_check(self):
         """Verify that _check_numerical_stability detects ill-conditioned inverse."""
-        from bandit_gpt.router import RouterConfig
+        from pareto_bandit.router import RouterConfig
         dim = 20
         policy = DisjointLinUCBPolicy(
             ["model_a"],

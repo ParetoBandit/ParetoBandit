@@ -88,7 +88,7 @@ def prompt_id_from_text(text: str) -> str:
 
 # LMArena uses short names like "gpt-4o-2024-08-06".  We keep them close to
 # their canonical form with a ``provider/`` prefix for consistency with the
-# rest of the banditGPT codebase.
+# rest of the paretobandit codebase.
 
 _MODEL_CANON: Dict[str, str] = {
     # OpenAI
@@ -407,7 +407,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     default_output = str(
-        PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"
+        PROJECT_ROOT / "src" / "pareto_bandit" / "data" / "offline_dataset"
         / "lmarena_battles_en.jsonl"
     )
     parser.add_argument(

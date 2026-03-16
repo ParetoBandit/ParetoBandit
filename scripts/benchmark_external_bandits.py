@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from bandit_gpt import BanditRouter, FeatureService
+from pareto_bandit import BanditRouter, FeatureService
 
 
 def synthetic_registry() -> dict[str, dict[str, Any]]:
@@ -73,7 +73,7 @@ class Metrics:
     notes: str = ""
 
 
-class BanditGPTAdapter:
+class ParetoBanditAdapter:
     def __init__(self, arms: list[str], dim: int):
         self.arms = arms
         self.router = BanditRouter.create(
@@ -223,7 +223,7 @@ def write_markdown(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Benchmark BanditGPT against external routers.")
+    parser = argparse.ArgumentParser(description="Benchmark ParetoBandit against external routers.")
     parser.add_argument("--rounds", type=int, default=3000)
     parser.add_argument("--warmup-rounds", type=int, default=300)
     parser.add_argument("--dimension", type=int, default=33)
@@ -263,7 +263,7 @@ def main() -> int:
             row[arm] = float(np.clip(noisy, 0.0, 1.0))
         rewards.append(row)
 
-    adapters: list[tuple[str, Any]] = [("banditgpt", BanditGPTAdapter(arms, dim))]
+    adapters: list[tuple[str, Any]] = [("paretobandit", ParetoBanditAdapter(arms, dim))]
     unavailable: dict[str, str] = {}
 
     for name, cls in [
@@ -293,8 +293,8 @@ def main() -> int:
         )
 
     by_name = {m.backend: m for m in metrics}
-    bandit = by_name["banditgpt"]
-    external = [m for m in metrics if m.backend != "banditgpt"]
+    bandit = by_name["paretobandit"]
+    external = [m for m in metrics if m.backend != "paretobandit"]
 
     criterion_pass: bool | None
     if not external:

@@ -7,7 +7,7 @@ import time
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from bandit_gpt.router import BanditRouter
+from pareto_bandit.router import BanditRouter
 
 def test_concurrent_updates_and_reads():
     """
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # Actually BanditRouter.process_feedback requires a request_id.
     # Let's use router.bandit.update directly to keep it simple.
     
-    from bandit_gpt.router import BanditRouter
+    from pareto_bandit.router import BanditRouter
     router = BanditRouter.create()
     model_id = "meta-llama/llama-3.1-8b-instruct"
     dim = router.bandit.dim

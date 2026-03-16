@@ -318,7 +318,7 @@ class V4RewardGenerator:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
         payload = {
             "model": model_id,
@@ -367,7 +367,7 @@ class V4RewardGenerator:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
 
         effective_prompt = (

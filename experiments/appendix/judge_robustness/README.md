@@ -30,7 +30,7 @@ the most consensus-compatible single judge.
 
 ### 3. The paper's claims are relative, not absolute
 
-All method comparisons (BanditGPT vs baselines) are conducted within a
+All method comparisons (ParetoBandit vs baselines) are conducted within a
 single judge. Judge choice cannot flip the relative ordering of methods;
 it only affects effect-size magnitude.
 

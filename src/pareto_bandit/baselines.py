@@ -14,7 +14,7 @@ existing ablation suite (Random, EMA, ε-greedy, LinUCB, Corralling):
    Algorithmic family: Representation learning bandits (tests PILOT's hypothesis)
    Key difference: Adds a trainable d_proj × d_raw projection matrix that adapts
    to the bandit reward signal via online gradient updates. Tests whether
-   learned features improve routing quality within the banditGPT framework.
+   learned features improve routing quality within the paretobandit framework.
 
 3. **CostThresholdRouter** — Difficulty-threshold heuristic
    Algorithmic family: Heuristic / rule-based routing
@@ -36,7 +36,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 try:
-    from bandit_gpt.utils import safe_inv
+    from pareto_bandit.utils import safe_inv
 except ImportError:
     from .utils import safe_inv
 

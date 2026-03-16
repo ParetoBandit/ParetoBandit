@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class MultiProviderClient:
     """Dispatch ``complete()`` calls to the right provider client based on model ID.
 
-    Model IDs in banditGPT use the ``provider/model-name`` convention
+    Model IDs in paretobandit use the ``provider/model-name`` convention
     (e.g. ``openai/gpt-4o``, ``anthropic/claude-3.5-sonnet``).
     ``MultiProviderClient`` extracts the provider prefix and forwards the
     call to the ``LLMClient`` registered for that prefix.
@@ -19,7 +19,7 @@ class MultiProviderClient:
 
     Example::
 
-        from bandit_gpt import (
+        from pareto_bandit import (
             MultiProviderClient, OpenAIClient, AnthropicClient, OllamaClient,
         )
 

@@ -25,7 +25,7 @@ Usage
 ::
 
     python scripts/precompute_embeddings.py
-    python scripts/precompute_embeddings.py --pca src/bandit_gpt/data/artifacts/pca_32.joblib \\
+    python scripts/precompute_embeddings.py --pca src/pareto_bandit/data/artifacts/pca_32.joblib \\
                                              --output data_collection/embeddings/embeddings_pca32.npz
 
 Outputs
@@ -59,7 +59,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 import sys
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,

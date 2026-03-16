@@ -3,8 +3,8 @@ import pytest
 import numpy as np
 from pathlib import Path
 from unittest.mock import MagicMock
-from src.bandit_gpt.utils.experiment import ExperimentBurnIn
-from src.bandit_gpt.router import BanditRouter
+from src.pareto_bandit.utils.experiment import ExperimentBurnIn
+from src.pareto_bandit.router import BanditRouter
 
 
 @pytest.fixture

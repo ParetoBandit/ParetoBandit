@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import numpy as np
 import pytest
 
-from bandit_gpt import BanditRouter
-from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit import BanditRouter
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 
 
 # ======================================================================

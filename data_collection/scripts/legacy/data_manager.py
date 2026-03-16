@@ -1,5 +1,5 @@
 """
-Data Management for BanditGPT Evaluation Pipeline
+Data Management for ParetoBandit Evaluation Pipeline
 
 This module provides classes for:
 1. Clustering prompts using sentence transformers
@@ -15,7 +15,7 @@ from collections import defaultdict, Counter
 from typing import List, Dict, Tuple, Optional
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import MiniBatchKMeans
-from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER
+from pareto_bandit.config import DEFAULT_SENTENCE_TRANSFORMER
 
 
 class PromptClusterer:

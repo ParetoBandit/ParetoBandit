@@ -14,7 +14,7 @@ class OpenAIClient:
         except ImportError as exc:
             raise ImportError(
                 "The openai package is required for OpenAIClient. "
-                "Install it with:  pip install banditgpt[openai]"
+                "Install it with:  pip install paretobandit[openai]"
             ) from exc
 
         self._client = OpenAI(api_key=api_key, base_url=base_url)

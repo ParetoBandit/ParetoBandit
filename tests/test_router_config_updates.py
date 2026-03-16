@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from pathlib import Path
-from bandit_gpt.router import BanditRouter, ExplorationRate
+from pareto_bandit.router import BanditRouter, ExplorationRate
 
 
 class TestRouterConfigurationUpdates(unittest.TestCase):

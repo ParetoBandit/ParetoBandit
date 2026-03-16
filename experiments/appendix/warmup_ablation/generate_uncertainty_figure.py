@@ -48,7 +48,7 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = _load()
 
-    warmup = data["conditions"]["BanditGPT (warmup)"]
+    warmup = data["conditions"]["ParetoBandit (warmup)"]
     tabula = data["conditions"]["Tabula Rasa"]
 
     w_curves = warmup["uncertainty_curves"]

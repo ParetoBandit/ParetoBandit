@@ -48,7 +48,7 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 from datasets import load_dataset
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     ARTIFACTS_DIR
 )

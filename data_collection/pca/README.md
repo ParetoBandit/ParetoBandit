@@ -10,7 +10,7 @@
 PCA-25 is mathematically identical to PCA-32 with components 26-32 discarded.
 The v2 experiments and the shipped pip package both use PCA-25 as the default.
 
-The runtime copy of `pca_25.joblib` lives at `src/bandit_gpt/data/artifacts/pca_25.joblib`
+The runtime copy of `pca_25.joblib` lives at `src/pareto_bandit/data/artifacts/pca_25.joblib`
 and is loaded by `FeatureService` via `DEFAULT_PCA_PATH`.
 
 ## Reproduction Pipeline
@@ -35,11 +35,11 @@ python data_collection/pca/train_pca_from_routellm.py --n-components 25 32
 - Loads `lmarena_battles_en.jsonl`
 - Excludes experimental prompts (dev/holdout splits) for strict disjointness (~46K remain)
 - Embeds with `all-MiniLM-L6-v2` (384D)
-- Fits PCA and saves artifacts to `src/bandit_gpt/data/artifacts/`
+- Fits PCA and saves artifacts to `src/pareto_bandit/data/artifacts/`
 
 ## Encoder
 
 All PCA artifacts are fitted on embeddings from `all-MiniLM-L6-v2`
-(the default `DEFAULT_SENTENCE_TRANSFORMER` in `bandit_gpt.config`).
+(the default `DEFAULT_SENTENCE_TRANSFORMER` in `pareto_bandit.config`).
 Using a different encoder requires retraining PCA via
-`bandit_gpt.calibration.train_pca()`.
+`pareto_bandit.calibration.train_pca()`.

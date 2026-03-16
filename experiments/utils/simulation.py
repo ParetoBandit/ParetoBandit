@@ -1,4 +1,4 @@
-"""Shared simulation primitives for BanditGPT experiments.
+"""Shared simulation primitives for ParetoBandit experiments.
 
 Provides the canonical data-loading, cost-normalization, and plotting
 constants used across multiple experiment scripts (01_figure, 03_figure,
@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from bandit_gpt.config import K3_MODELS_CONFIG_PATH
+from pareto_bandit.config import K3_MODELS_CONFIG_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +188,7 @@ def compute_normalized_costs(
 ) -> Dict[str, float]:
     """Compute per-model normalized costs from registry pricing.
 
-    Uses :func:`bandit_gpt.costs.log_normalize_cost` — the same canonical
+    Uses :func:`pareto_bandit.costs.log_normalize_cost` — the same canonical
     normalization as ``BanditRouter._calculate_absolute_penalty`` — so that
     a given ``cost_penalty`` value has identical semantics across all
     methods.
@@ -204,8 +204,8 @@ def compute_normalized_costs(
     Returns:
         ``{model_id: normalized_cost}`` in [0, 1].
     """
-    from bandit_gpt.costs import log_normalize_cost
-    from bandit_gpt.router import RouterConfig
+    from pareto_bandit.costs import log_normalize_cost
+    from pareto_bandit.router import RouterConfig
 
     cfg = RouterConfig()
     norm: Dict[str, float] = {}

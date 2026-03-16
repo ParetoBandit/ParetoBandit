@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt.storage import SqliteContextStore
+from pareto_bandit.storage import SqliteContextStore
 
 
 class TestSqliteContextStorePaths(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestSqliteContextStorePaths(unittest.TestCase):
     def test_dev_mode_detection(self):
         """Test that dev mode is correctly detected and uses repo data/ directory."""
         # Mock the package_dir check to simulate dev environment
-        with patch('bandit_gpt.storage.Path') as mock_path:
+        with patch('pareto_bandit.storage.Path') as mock_path:
             # Setup mock to indicate dev mode (has .git)
             mock_package_dir = Path(__file__).parent.parent
             mock_path.return_value.parent.parent.parent = mock_package_dir
@@ -62,9 +62,9 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             self.assertIn("data", str(result))
     
     def test_library_mode_uses_user_directory(self):
-        """Test that library mode correctly extracts filename and uses ~/.bandit_gpt/."""
+        """Test that library mode correctly extracts filename and uses ~/.pareto_bandit/."""
         # Test the path resolution logic directly without complex mocking
-        # When no dev indicators exist, should use ~/.bandit_gpt/
+        # When no dev indicators exist, should use ~/.pareto_bandit/
         
         # Create a temporary directory to simulate site-packages (no dev files)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -75,7 +75,7 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             original_file = Path(__file__)
             
             # The key test: when given "data/router_context.db" in library mode,
-            # it should extract just "router_context.db" and use ~/.bandit_gpt/
+            # it should extract just "router_context.db" and use ~/.pareto_bandit/
             
             # We can test this by checking the logic:
             # In library mode, it extracts .name from the path
@@ -84,12 +84,12 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             
             self.assertEqual(expected_filename, "router_context.db")
             
-            # The resolved path should be ~/.bandit_gpt/router_context.db
-            expected_user_path = Path.home() / ".bandit_gpt" / "router_context.db"
+            # The resolved path should be ~/.pareto_bandit/router_context.db
+            expected_user_path = Path.home() / ".pareto_bandit" / "router_context.db"
             
             # Test that home directory path construction works
             self.assertTrue(str(expected_user_path).startswith(str(Path.home())))
-            self.assertIn(".bandit_gpt", str(expected_user_path))
+            self.assertIn(".pareto_bandit", str(expected_user_path))
     
     def test_relative_path_creates_parent_dirs(self):
         """Test that parent directories are created automatically on first use."""
@@ -114,9 +114,9 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             self.assertTrue(Path(store.db_path).exists())
     
     def test_user_directory_database_accessible(self):
-        """Test that ~/.bandit_gpt/router_context.db is writable and functional."""
+        """Test that ~/.pareto_bandit/router_context.db is writable and functional."""
         # Create a store that will use user directory
-        user_db_path = Path.home() / ".bandit_gpt" / "test_router_context.db"
+        user_db_path = Path.home() / ".pareto_bandit" / "test_router_context.db"
         
         try:
             store = SqliteContextStore(db_path=str(user_db_path))
@@ -160,8 +160,8 @@ class TestSqliteContextStorePaths(unittest.TestCase):
         
         # In dev mode, should point to repo's data/ directory
         self.assertTrue(
-            "data" in store.db_path or ".bandit_gpt" in store.db_path,
-            f"Expected data/ or .bandit_gpt in path, got: {store.db_path}"
+            "data" in store.db_path or ".pareto_bandit" in store.db_path,
+            f"Expected data/ or .pareto_bandit in path, got: {store.db_path}"
         )
 
 

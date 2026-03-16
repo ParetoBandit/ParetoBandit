@@ -1,26 +1,26 @@
-# BanditGPT Dependencies
+# ParetoBandit Dependencies
 # ======================
 #
-# For pip-installable usage, prefer:  pip install banditgpt
-# Optional extras:                    pip install banditgpt[full]
+# For pip-installable usage, prefer:  pip install paretobandit
+# Optional extras:                    pip install paretobandit[full]
 #
 # This file lists ALL dependencies (core + optional) for development
 # convenience.  Core dependencies match pyproject.toml [project.dependencies].
 
-# Core (installed automatically by `pip install banditgpt`)
+# Core (installed automatically by `pip install paretobandit`)
 numpy>=1.24.0
 torch>=2.0.0
 sentence-transformers>=2.2.0
 transformers>=4.30.0
 pandas>=2.0.0
 
-# Optional: LLM provider adapters (`pip install banditgpt[full]`)
+# Optional: LLM provider adapters (`pip install paretobandit[full]`)
 openai>=1.0.0              # OpenAI, OpenRouter, DeepSeek, Grok, Together, etc.
 anthropic>=0.20.0          # Anthropic (Claude)
 google-genai>=1.0.0        # Google Gemini
 ollama>=0.1.0              # Local Ollama
 python-dotenv>=1.0.0       # .env file loading
 
-# Optional: Experiment reproduction (`pip install banditgpt[experiments]`)
+# Optional: Experiment reproduction (`pip install paretobandit[experiments]`)
 matplotlib>=3.7.0
 datasets>=2.14.0

@@ -4,7 +4,7 @@
   "seed": 42,
   "results": [
     {
-      "name": "BanditGPT (d=26)",
+      "name": "ParetoBandit (d=26)",
       "dimension": 26,
       "route_p50_us": 21.667,
       "route_p95_us": 25.544050000000006,
@@ -18,7 +18,7 @@
       "rounds_measured": 4500
     },
     {
-      "name": "BanditGPT (d=385)",
+      "name": "ParetoBandit (d=385)",
       "dimension": 385,
       "route_p50_us": 152.792,
       "route_p95_us": 214.42325000000002,

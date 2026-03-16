@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-from bandit_gpt.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
+from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
 
 logging.basicConfig(
     level=logging.INFO,

@@ -22507,7 +22507,7 @@
         ]
       }
     ],
-    "BanditGPT (\u03b3=0.995)": [
+    "ParetoBandit (\u03b3=0.995)": [
       {
         "step": 0,
         "phase": "normal",
@@ -22702,7 +22702,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 50,
@@ -22898,7 +22898,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 100,
@@ -23094,7 +23094,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 150,
@@ -23290,7 +23290,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 200,
@@ -23486,7 +23486,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 250,
@@ -23682,7 +23682,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 300,
@@ -23878,7 +23878,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 350,
@@ -24074,7 +24074,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 400,
@@ -24270,7 +24270,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 450,
@@ -24466,7 +24466,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 500,
@@ -24662,7 +24662,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 550,
@@ -24858,7 +24858,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 600,
@@ -25054,7 +25054,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 650,
@@ -25250,7 +25250,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 700,
@@ -25446,7 +25446,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 750,
@@ -25642,7 +25642,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 800,
@@ -25838,7 +25838,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 850,
@@ -26034,7 +26034,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 893,
@@ -26230,7 +26230,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 900,
@@ -26426,7 +26426,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 950,
@@ -26622,7 +26622,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1000,
@@ -26818,7 +26818,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1050,
@@ -27014,7 +27014,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1100,
@@ -27210,7 +27210,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1150,
@@ -27406,7 +27406,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1200,
@@ -27602,7 +27602,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1250,
@@ -27798,7 +27798,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1300,
@@ -27994,7 +27994,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1350,
@@ -28190,7 +28190,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1400,
@@ -28386,7 +28386,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1450,
@@ -28582,7 +28582,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1500,
@@ -28778,7 +28778,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1550,
@@ -28974,7 +28974,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1600,
@@ -29170,7 +29170,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1650,
@@ -29366,7 +29366,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1700,
@@ -29562,7 +29562,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1750,
@@ -29758,7 +29758,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)"
+        "label": "ParetoBandit (\u03b3=0.995)"
       },
       {
         "step": 1785,
@@ -29954,7 +29954,7 @@
           ]
         },
         "n_seeds": 40,
-        "label": "BanditGPT (\u03b3=0.995)",
+        "label": "ParetoBandit (\u03b3=0.995)",
         "per_seed_regret": [
           115.63611023269114,
           114.1374904721891,

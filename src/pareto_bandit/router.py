@@ -38,7 +38,7 @@ except ImportError:
     SentenceTransformer = None  # type: ignore[misc,assignment]
 
 try:
-    from bandit_gpt.cluster_detector import ClusterDetector
+    from pareto_bandit.cluster_detector import ClusterDetector
 except ImportError:
     ClusterDetector = None  # Optional feature
 
@@ -49,9 +49,9 @@ except ImportError:
 
 # ---------------------------------------------------------------------------
 # Canonical modules — re-exported here for backward compatibility so that
-# ``from bandit_gpt.router import X`` continues to work for all consumers.
+# ``from pareto_bandit.router import X`` continues to work for all consumers.
 # ---------------------------------------------------------------------------
-from bandit_gpt.policy import (  # noqa: F401 — re-exported
+from pareto_bandit.policy import (  # noqa: F401 — re-exported
     DisjointLinUCBPolicy,
     BanditState,
     calibrate_priors,
@@ -67,7 +67,7 @@ from bandit_gpt.policy import (  # noqa: F401 — re-exported
     _SM_DENOMINATOR_THRESHOLD,
     _OUTPUT_COST_MULTIPLIER,
 )
-from bandit_gpt.types import (  # noqa: F401 — re-exported
+from pareto_bandit.types import (  # noqa: F401 — re-exported
     RouterConfig,
     RegistrationConfig,
     ExplorationRate,
@@ -76,15 +76,15 @@ from bandit_gpt.types import (  # noqa: F401 — re-exported
     SpeedProfile,
 )
 
-from bandit_gpt.storage import ContextStore, EphemeralContextStore, SqliteContextStore
-from bandit_gpt.utils import sigmoid, safe_inv, get_heuristic_prior
+from pareto_bandit.storage import ContextStore, EphemeralContextStore, SqliteContextStore
+from pareto_bandit.utils import sigmoid, safe_inv, get_heuristic_prior
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Exception Classes (canonical definitions in bandit_gpt.exceptions)
+# Exception Classes (canonical definitions in pareto_bandit.exceptions)
 # ---------------------------------------------------------------------------
-from bandit_gpt.exceptions import (  # noqa: F401 — re-exported for backward compat
+from pareto_bandit.exceptions import (  # noqa: F401 — re-exported for backward compat
     MissingCostError,
     NoEligibleModelsError,
     NoModelScoredError,
@@ -122,9 +122,9 @@ def estimate_tokens_rough(text: str) -> int:
     return int(max(0, round(len(str(text).split()) * 1.3)))
 
 # ---------------------------------------------------------------------------
-# Model Family Inference (canonical definitions in bandit_gpt.family)
+# Model Family Inference (canonical definitions in pareto_bandit.family)
 # ---------------------------------------------------------------------------
-from bandit_gpt.family import (  # noqa: F401 — re-exported for backward compat
+from pareto_bandit.family import (  # noqa: F401 — re-exported for backward compat
     infer_model_family,
     tetrachoric_corr,
     compute_correlation_families,
@@ -1009,9 +1009,9 @@ class BanditRouter:
     def _generate_synthetic_data(self, n: int = 1000) -> List[str]:
         """Generate synthetic prompts for PCA calibration.
 
-        Delegates to :func:`bandit_gpt.utils.synthetic.generate_synthetic_prompts`.
+        Delegates to :func:`pareto_bandit.utils.synthetic.generate_synthetic_prompts`.
         """
-        from bandit_gpt.utils.synthetic import generate_synthetic_prompts
+        from pareto_bandit.utils.synthetic import generate_synthetic_prompts
 
         return generate_synthetic_prompts(n)
     
@@ -1336,7 +1336,7 @@ class BanditRouter:
         Parameters:
             prompt: The prompt text (also used for routing features).
             client: Any object satisfying the ``LLMClient`` protocol
-                    (see ``bandit_gpt.providers``).
+                    (see ``pareto_bandit.providers``).
             messages: Chat messages to send.  Defaults to a single user
                       message containing *prompt* (when *prompt* is a string).
             max_tokens: Passed to ``client.complete()``.
@@ -1712,7 +1712,7 @@ class BanditRouter:
     def _calculate_absolute_penalty(self, cost_per_1k: float) -> float:
         """Stable 0.0-1.0 cost penalty via logarithmic market anchors.
 
-        Delegates to :func:`bandit_gpt.costs.log_normalize_cost` — the
+        Delegates to :func:`pareto_bandit.costs.log_normalize_cost` — the
         canonical implementation shared with offline evaluation baselines.
         Anchors are read from ``self.config`` (single source of truth).
 
@@ -1722,7 +1722,7 @@ class BanditRouter:
         Returns:
             Penalty in [0.0, 1.0].
         """
-        from bandit_gpt.costs import log_normalize_cost
+        from pareto_bandit.costs import log_normalize_cost
 
         return log_normalize_cost(
             cost_per_1k,

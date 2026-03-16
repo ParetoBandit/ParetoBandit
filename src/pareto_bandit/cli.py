@@ -7,13 +7,13 @@ from .router import BanditRouter
 
 def _get_version() -> str:
     try:
-        return _pkg_version("banditgpt")
+        return _pkg_version("paretobandit")
     except PackageNotFoundError:
         return "0.1.0"
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BanditGPT: Adaptive LLM Router CLI")
+    parser = argparse.ArgumentParser(description="ParetoBandit: Adaptive LLM Router CLI")
     parser.add_argument("--version", action="store_true", help="Show version")
     parser.add_argument("prompt", nargs="?", help="Prompt to route")
     parser.add_argument("--max-cost", type=float, help="Maximum cost constraint")
@@ -23,11 +23,11 @@ def main():
     args = parser.parse_args()
     
     if args.version:
-        print(f"BanditGPT v{_get_version()}")
+        print(f"ParetoBandit v{_get_version()}")
         return
 
     if args.download_models:
-        print("Initializing BanditGPT models...")
+        print("Initializing ParetoBandit models...")
         try:
             from .feature_service import FeatureService
             print("Downloading sentence transformer model (this may take a while)...")

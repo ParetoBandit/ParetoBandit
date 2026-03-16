@@ -114,17 +114,17 @@ data/router_state*.npz
 # Large model files (download separately or use Git LFS)
 data/quality_predictor/*.pt
 data/quality_predictor/*.bin
-banditgpt/data/quality_predictor/*.pt
-banditgpt/data/quality_predictor/*.bin
+paretobandit/data/quality_predictor/*.pt
+paretobandit/data/quality_predictor/*.bin
 
 # Warmup logs (regeneratable)
 data/warmup/*.jsonl
 data/warmup/*.json
-banditgpt/data/warmup/
+paretobandit/data/warmup/
 
 # Dense run logs (in-progress, regeneratable)
 data/priors/archetype_grid_dense_run.jsonl
-banditgpt/data/priors/archetype_grid_dense_run.jsonl
+paretobandit/data/priors/archetype_grid_dense_run.jsonl
 
 # Large PyTorch models
 *.pt
@@ -149,20 +149,20 @@ helpsteer_gemini_*.jsonl
 **/*.pdf
 
 # Large reward data files (>10MB)
-banditgpt/data/*_rewards*.jsonl
-banditgpt/data/lmsys_all_prompts*.jsonl
-banditgpt/data/helpsteer*.jsonl
+paretobandit/data/*_rewards*.jsonl
+paretobandit/data/lmsys_all_prompts*.jsonl
+paretobandit/data/helpsteer*.jsonl
 
 # Keep small essential files
-!banditgpt/data/test_prompts.jsonl
-!banditgpt/data/train_prompts.jsonl
-!banditgpt/data/train_prompts_sampled_1k.jsonl
-!banditgpt/data/golden_prompts.jsonl
+!paretobandit/data/test_prompts.jsonl
+!paretobandit/data/train_prompts.jsonl
+!paretobandit/data/train_prompts_sampled_1k.jsonl
+!paretobandit/data/golden_prompts.jsonl
 # Large log files
 run_log*.txt
 # Large data files
-src/bandit_gpt/data/*_rewards*.jsonl
-src/bandit_gpt/data/helpsteer*.jsonl
+src/pareto_bandit/data/*_rewards*.jsonl
+src/pareto_bandit/data/helpsteer*.jsonl
 
 # Large database files
 router_context.db
@@ -170,21 +170,21 @@ router_context.db-shm
 router_context.db-wal
 
 # Large offline dataset files
-src/bandit_gpt/data/offline_dataset/*.jsonl
+src/pareto_bandit/data/offline_dataset/*.jsonl
 
 # Keep split-specific reward files (essential for experiments)
-!src/bandit_gpt/data/offline_dataset/dev_rewards.jsonl.gz
-!src/bandit_gpt/data/offline_dataset/holdout_rewards.jsonl.gz
+!src/pareto_bandit/data/offline_dataset/dev_rewards.jsonl.gz
+!src/pareto_bandit/data/offline_dataset/holdout_rewards.jsonl.gz
 
 # Root data directory (artifacts & state)
 data/
 
 # Ship essential pip-package artifacts (PCA + warmup priors)
-!src/bandit_gpt/data/
-!src/bandit_gpt/data/artifacts/
-!src/bandit_gpt/data/artifacts/pca_25.joblib
-!src/bandit_gpt/data/artifacts/priors_k3_25comp.joblib
-!src/bandit_gpt/data/README.md
+!src/pareto_bandit/data/
+!src/pareto_bandit/data/artifacts/
+!src/pareto_bandit/data/artifacts/pca_25.joblib
+!src/pareto_bandit/data/artifacts/priors_k3_25comp.joblib
+!src/pareto_bandit/data/README.md
 
 # Large archive files (too big for GitHub, keep local only)
 data_collection/embeddings/archive/lmsys_pca_training_embeddings.npz

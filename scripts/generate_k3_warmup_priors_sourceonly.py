@@ -29,8 +29,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.calibration import generate_warmup_priors
-from bandit_gpt.config import (
+from pareto_bandit.calibration import generate_warmup_priors
+from pareto_bandit.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     K3_ARM_ORDER,

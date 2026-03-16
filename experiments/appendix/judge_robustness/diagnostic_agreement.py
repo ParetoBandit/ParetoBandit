@@ -22,7 +22,7 @@ from typing import Dict, List, Set, Tuple
 import numpy as np
 from scipy import stats
 
-from bandit_gpt.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
+from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
 
 SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
 SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"

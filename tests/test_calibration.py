@@ -18,9 +18,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt.calibration import train_pca, generate_warmup_priors
-from bandit_gpt.feature_service import FeatureService, DEFAULT_CONTEXT_MODEL
-from bandit_gpt.config import (
+from pareto_bandit.calibration import train_pca, generate_warmup_priors
+from pareto_bandit.feature_service import FeatureService, DEFAULT_CONTEXT_MODEL
+from pareto_bandit.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
 )
@@ -156,7 +156,7 @@ class TestFeatureServiceGuard:
 
 class TestRouterCreateGuard:
     def test_blocks_custom_encoder_without_warmup(self):
-        from bandit_gpt.router import BanditRouter
+        from pareto_bandit.router import BanditRouter
 
         with pytest.raises(ValueError, match="Custom encoder"):
             BanditRouter.create(
@@ -167,7 +167,7 @@ class TestRouterCreateGuard:
         """priors='none' is an explicit opt-out from warmup, so it should
         not trigger the guard even with a custom encoder.  The FeatureService
         guard still requires pca_path, so we inject a precomputed service."""
-        from bandit_gpt.router import BanditRouter
+        from pareto_bandit.router import BanditRouter
 
         fs = FeatureService.for_precomputed(dimension=16)
         router = BanditRouter.create(

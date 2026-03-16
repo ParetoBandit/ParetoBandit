@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Appendix: Cold-Start vs Warmup Prior Regret.
 
-Compares BanditGPT with warmup priors against a tabula-rasa cold start
+Compares ParetoBandit with warmup priors against a tabula-rasa cold start
 on the K=3 portfolio under stationary conditions.  Demonstrates that
 warmup priors substantially reduce early regret and improve sample
 efficiency — the router begins with informed beliefs rather than
@@ -10,7 +10,7 @@ blindly exploring all arms.
 Three conditions share the same prompt stream (val split, n=1,785),
 seeds, and hyperparameters; only the prior initialization differs:
 
-  1. **BanditGPT (warmup)** — offline priors from training set
+  1. **ParetoBandit (warmup)** — offline priors from training set
   2. **Tabula Rasa** — cold start (A=λI, b=0)
   3. **Random** — uniform random arm selection (floor baseline)
 
@@ -34,15 +34,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
+    BEST_K3_HPARAMS,
+    BEST_K3_TABULA_RASA_HPARAMS,
     K3_ARM_ORDER,
     K3_ARM_SHORT,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.storage import EphemeralContextStore
 from utils.simulation import SplitData, build_model_registry, load_split
 
 logging.basicConfig(
@@ -50,7 +52,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 
@@ -66,9 +68,14 @@ SEED_OFFSET: int = 9000
 RESULTS_DIR = Path(__file__).parent / "results"
 
 CHECKPOINT_INTERVAL: int = 25
-PRIOR_N_EFFECTIVE: float = 5000.0
-ALPHA: float = 1.0
-FORGETTING_FACTOR: float = 1.0
+
+WARMUP_ALPHA: float = BEST_K3_HPARAMS["alpha"]
+WARMUP_N_EFF: float = BEST_K3_HPARAMS["prior_n_effective"]
+WARMUP_GAMMA: float = BEST_K3_HPARAMS["forgetting_factor"]
+
+TABULA_ALPHA: float = BEST_K3_TABULA_RASA_HPARAMS["alpha"]
+TABULA_N_EFF: float = BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"]
+TABULA_GAMMA: float = BEST_K3_TABULA_RASA_HPARAMS["forgetting_factor"]
 
 EARLY_STEP: int = 200
 """Step at which to report Regret@200 for the early-learning comparison."""
@@ -166,6 +173,9 @@ def _create_router(
     feature_dim: int,
     *,
     warmup: bool = True,
+    alpha: float = WARMUP_ALPHA,
+    prior_n_effective: float = WARMUP_N_EFF,
+    forgetting_factor: float = WARMUP_GAMMA,
 ) -> BanditRouter:
     """Build a K=3 router with optional warmup priors.
 
@@ -178,6 +188,12 @@ def _create_router(
     warmup : bool
         If True, load warmup priors from ``K3_WARMUP_PRIORS_PATH``.
         If False, cold start (``A=λI, b=0``).
+    alpha : float
+        Exploration coefficient.
+    prior_n_effective : float
+        Number of pseudo-observations for warmup priors.
+    forgetting_factor : float
+        Geometric decay factor.
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
@@ -187,11 +203,11 @@ def _create_router(
         context_store=store,
         priors="warmup" if warmup else "none",
         warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
-        prior_n_effective=PRIOR_N_EFFECTIVE,
-        alpha=ALPHA,
+        prior_n_effective=prior_n_effective,
+        alpha=alpha,
         use_corralling=False,
         cost_penalty=0.0,
-        forgetting_factor=FORGETTING_FACTOR,
+        forgetting_factor=forgetting_factor,
         policy="disjoint",
         adaptive_gamma=False,
         budget_pacer=None,
@@ -212,6 +228,9 @@ def _run_trial(
     seed: int,
     warmup: bool = True,
     is_random: bool = False,
+    alpha: float = WARMUP_ALPHA,
+    prior_n_effective: float = WARMUP_N_EFF,
+    forgetting_factor: float = WARMUP_GAMMA,
 ) -> SeedResult:
     """Run one seed for one condition.
 
@@ -231,6 +250,12 @@ def _run_trial(
         Load warmup priors (True) or cold start (False).
     is_random : bool
         If True, select arms uniformly at random (no router).
+    alpha : float
+        Exploration coefficient.
+    prior_n_effective : float
+        Number of pseudo-observations for warmup priors.
+    forgetting_factor : float
+        Geometric decay factor.
 
     Returns
     -------
@@ -242,7 +267,13 @@ def _run_trial(
 
     router: Optional[BanditRouter] = None
     if not is_random:
-        router = _create_router(registry, feature_dim, warmup=warmup)
+        router = _create_router(
+            registry, feature_dim,
+            warmup=warmup,
+            alpha=alpha,
+            prior_n_effective=prior_n_effective,
+            forgetting_factor=forgetting_factor,
+        )
 
     result = SeedResult(condition=condition_label, seed=seed)
 
@@ -455,9 +486,30 @@ def main() -> None:
     registry = build_model_registry(ARM_ORDER)
 
     conditions = [
-        {"label": "BanditGPT (warmup)", "warmup": True, "is_random": False},
-        {"label": "Tabula Rasa", "warmup": False, "is_random": False},
-        {"label": "Random", "warmup": False, "is_random": True},
+        {
+            "label": "ParetoBandit (warmup)",
+            "warmup": True,
+            "is_random": False,
+            "alpha": WARMUP_ALPHA,
+            "prior_n_effective": WARMUP_N_EFF,
+            "forgetting_factor": WARMUP_GAMMA,
+        },
+        {
+            "label": "Tabula Rasa",
+            "warmup": False,
+            "is_random": False,
+            "alpha": TABULA_ALPHA,
+            "prior_n_effective": TABULA_N_EFF,
+            "forgetting_factor": TABULA_GAMMA,
+        },
+        {
+            "label": "Random",
+            "warmup": False,
+            "is_random": True,
+            "alpha": TABULA_ALPHA,
+            "prior_n_effective": TABULA_N_EFF,
+            "forgetting_factor": TABULA_GAMMA,
+        },
     ]
 
     all_results: Dict[str, Dict[str, Any]] = {}
@@ -477,6 +529,9 @@ def main() -> None:
                 seed=seed,
                 warmup=cond["warmup"],
                 is_random=cond["is_random"],
+                alpha=cond["alpha"],
+                prior_n_effective=cond["prior_n_effective"],
+                forgetting_factor=cond["forgetting_factor"],
             )
             seed_results.append(sr)
             if (s + 1) % 5 == 0:
@@ -510,9 +565,16 @@ def main() -> None:
         "arm_short": ARM_SHORT,
         "early_step": EARLY_STEP,
         "hparams": {
-            "alpha": ALPHA,
-            "prior_n_effective": PRIOR_N_EFFECTIVE,
-            "forgetting_factor": FORGETTING_FACTOR,
+            "warmup": {
+                "alpha": WARMUP_ALPHA,
+                "prior_n_effective": WARMUP_N_EFF,
+                "forgetting_factor": WARMUP_GAMMA,
+            },
+            "tabula_rasa": {
+                "alpha": TABULA_ALPHA,
+                "prior_n_effective": TABULA_N_EFF,
+                "forgetting_factor": TABULA_GAMMA,
+            },
             "policy": "disjoint",
         },
         "conditions": all_results,

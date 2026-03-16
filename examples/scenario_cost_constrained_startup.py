@@ -30,7 +30,7 @@ Expected learning dynamics:
       exploration waste.
 
 Run:
-    pip install banditgpt matplotlib
+    pip install paretobandit matplotlib
     python examples/scenario_cost_constrained_startup.py
 """
 
@@ -43,7 +43,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 # ──────────────────────────────────────────────────────────────────────
 # Portfolio — realistic SaaS support stack
@@ -366,7 +366,7 @@ window = max(30, N_PROMPTS // 12)
 rewards_arr = np.array([h["reward"] for h in history])
 rolling = np.convolve(rewards_arr, np.ones(window) / window, mode="valid")
 ax.plot(range(window, window + len(rolling)), rolling,
-        color="steelblue", linewidth=2, label="BanditGPT")
+        color="steelblue", linewidth=2, label="ParetoBandit")
 
 always_cheap = np.mean([d["rewards"][MODEL_IDS[0]] for d in dataset])
 ax.axhline(always_cheap, color="gray", ls="--", alpha=0.6,

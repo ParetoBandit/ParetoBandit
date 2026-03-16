@@ -47,7 +47,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     K4_MODELS_PATH,
     TRAIN_DATA_PATH,
     VAL_DATA_PATH,

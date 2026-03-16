@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 import numpy as np
-from bandit_gpt.router import DisjointLinUCBPolicy
+from pareto_bandit.router import DisjointLinUCBPolicy
 
 
 def test_regularization_floor_tracking():

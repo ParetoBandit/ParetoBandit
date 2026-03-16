@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import numpy as np
 import pytest
 
-from bandit_gpt import BanditRouter, FeatureService, RouterConfig
+from pareto_bandit import BanditRouter, FeatureService, RouterConfig
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +459,7 @@ class TestTextFeatures:
     """Verify the optional regex-based text features."""
 
     def test_module_level_extract(self):
-        from bandit_gpt.feature_service import extract_text_features, N_TEXT_FEATURES
+        from pareto_bandit.feature_service import extract_text_features, N_TEXT_FEATURES
 
         vec = extract_text_features("If you must solve this, then ensure the answer is exact.")
         assert vec.shape == (N_TEXT_FEATURES,)
@@ -467,7 +467,7 @@ class TestTextFeatures:
 
     def test_z_score_centering(self):
         """A 'typical' prompt should produce z-scores near zero."""
-        from bandit_gpt.feature_service import extract_text_features
+        from pareto_bandit.feature_service import extract_text_features
 
         vec = extract_text_features("What is the capital of France?")
         assert np.all(np.abs(vec) < 2.5), "Typical prompt should not have extreme z-scores"
@@ -483,7 +483,7 @@ class TestTextFeatures:
         assert vec.shape == (dim + 1,)
 
     def test_text_features_increase_dimension(self):
-        from bandit_gpt.feature_service import N_TEXT_FEATURES
+        from pareto_bandit.feature_service import N_TEXT_FEATURES
 
         dim = 32
         fs = FeatureService(
@@ -511,7 +511,7 @@ class TestTextFeatures:
         np.testing.assert_allclose(v_off[:dim], v_on[:dim], atol=1e-12)
 
     def test_feature_names_include_text(self):
-        from bandit_gpt.feature_service import TEXT_FEATURE_NAMES, N_TEXT_FEATURES
+        from pareto_bandit.feature_service import TEXT_FEATURE_NAMES, N_TEXT_FEATURES
 
         dim = 16
         fs = FeatureService(
@@ -525,7 +525,7 @@ class TestTextFeatures:
         assert names[dim:dim + N_TEXT_FEATURES] == TEXT_FEATURE_NAMES
 
     def test_batch_matches_single(self):
-        from bandit_gpt.feature_service import N_TEXT_FEATURES
+        from pareto_bandit.feature_service import N_TEXT_FEATURES
 
         dim = 16
         enc = _make_deterministic_encoder(dim)
@@ -545,7 +545,7 @@ class TestTextFeatures:
         assert fs.dimension == 16
 
     def test_whitening_scales_shape(self):
-        from bandit_gpt.feature_service import N_TEXT_FEATURES
+        from pareto_bandit.feature_service import N_TEXT_FEATURES
 
         dim = 32
         fs = FeatureService(
@@ -578,7 +578,7 @@ class TestTextFeatures:
 
         for mid in registry:
             A = router.bandit.A[mid]
-            from bandit_gpt.feature_service import N_TEXT_FEATURES
+            from pareto_bandit.feature_service import N_TEXT_FEATURES
             expected_dim = dim + N_TEXT_FEATURES + 1
             assert A.shape == (expected_dim, expected_dim)
             assert not np.any(np.isnan(A))

@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-from bandit_gpt.router import BanditRouter, RouterConfig
+from pareto_bandit.router import BanditRouter, RouterConfig
 
 
 # ---------------------------------------------------------------------------

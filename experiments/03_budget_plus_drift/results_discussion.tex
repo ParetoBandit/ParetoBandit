@@ -93,12 +93,12 @@ routing sophistication, each using warmup priors:
     a grid search over $\lambda_s$ candidates on the validation
     split with Phase~2 pricing selects the value that minimises
     $|\overline{c} - B|$.  This baseline directly isolates
-    \emph{continuous online tracking} (BanditGPT) from
+    \emph{continuous online tracking} (ParetoBandit) from
     \emph{stepwise offline recalibration}, and is the strongest
     static-penalty baseline in our comparison.
     It answers the question: ``if we re-tuned the cost weight
     whenever prices change, would that be enough?''
-  \item \textbf{BanditGPT (Pacer + $\gamma{=}0.995$):}
+  \item \textbf{ParetoBandit (Pacer + $\gamma{=}0.995$):}
     Warmup priors with jointly-tuned forgetting and the
     primal-dual BudgetPacer targeting the dollar budget directly.
     This is the only condition with \emph{closed-loop} cost
@@ -106,10 +106,10 @@ routing sophistication, each using warmup priors:
 \end{enumerate}
 
 \noindent
-An \textbf{unconstrained BanditGPT} baseline (same $\gamma{=}0.995$,
+An \textbf{unconstrained ParetoBandit} baseline (same $\gamma{=}0.995$,
 same priors, no budget pacer, $\lambda_s{=}0$) is included in
 every panel of Figure~\ref{fig:exp03_adaptation}.
-Because it shares the forgetting factor with BanditGPT, any gap
+Because it shares the forgetting factor with ParetoBandit, any gap
 between a constrained curve and this baseline is attributable solely
 to budget enforcement---not to differences in the learning dynamics.
 This clean ablation answers two questions:
@@ -161,17 +161,17 @@ targeting}:
   & Fixed Policy     & \bdFixedTightPhaseOneCost & $\bdFixedTightPhaseOneRatio$ \\
   & Naive Bandit     & \bdNaiveTightPhaseOneCost & $\bdNaiveTightPhaseOneRatio$ \\
   & Recalibrated     & \bdRecalTightPhaseOneCost & $\bdRecalTightPhaseOneRatio$ \\
-  & \textbf{BanditGPT} & \textbf{\bdBanditGPTTightPhaseOneCost} & $\mathbf{\bdBanditGPTTightPhaseOneRatio}$ \\[3pt]
+  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditTightPhaseOneCost} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ \\[3pt]
 \multirow{4}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
   & Fixed Policy     & \bdFixedModPhaseOneCost & $\bdFixedModPhaseOneRatio$ \\
   & Naive Bandit     & \bdNaiveModPhaseOneCost & $\bdNaiveModPhaseOneRatio$ \\
   & Recalibrated     & \bdRecalModPhaseOneCost & $\bdRecalModPhaseOneRatio$ \\
-  & \textbf{BanditGPT} & \textbf{\bdBanditGPTModPhaseOneCost} & $\mathbf{\bdBanditGPTModPhaseOneRatio}$ \\[3pt]
+  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditModPhaseOneCost} & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ \\[3pt]
 \multirow{4}{*}{Loose ($\$1.9 \times 10^{-3}$)}
   & Fixed Policy     & \bdFixedLoosePhaseOneCost & $\bdFixedLoosePhaseOneRatio$ \\
   & Naive Bandit     & \bdNaiveLoosePhaseOneCost & $\bdNaiveLoosePhaseOneRatio$ \\
   & Recalibrated     & \bdRecalLoosePhaseOneCost & $\bdRecalLoosePhaseOneRatio$ \\
-  & \textbf{BanditGPT} & \textbf{\bdBanditGPTLoosePhaseOneCost} & $\mathbf{\bdBanditGPTLoosePhaseOneRatio}$ \\
+  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditLoosePhaseOneCost} & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -212,7 +212,7 @@ Three failure modes emerge:
 \end{itemize}
 
 \noindent
-\textbf{BanditGPT is the only condition that reliably hits the
+\textbf{ParetoBandit is the only condition that reliably hits the
 budget target} ($0.98$--$1.00\times$).  The BudgetPacer's
 primal-dual mechanism adjusts $\lambda_t$ continuously based on
 observed costs, providing a closed-loop budget controller that
@@ -291,10 +291,10 @@ with a mixed Gemini/Mistral policy since both are competitive on
 quality for different prompt types.
 
 \paragraph{Quality cost decomposition.}
-The unconstrained baseline shares BanditGPT's $\gamma{=}0.995$ but
+The unconstrained baseline shares ParetoBandit's $\gamma{=}0.995$ but
 removes the budget pacer, isolating the pacer's quality impact.
 In Phase~2, the unconstrained baseline achieves reward $0.922$,
-while BanditGPT at moderate and loose budgets reaches $0.921$---a
+while ParetoBandit at moderate and loose budgets reaches $0.921$---a
 gap of only $0.1$--$0.2\%$.
 The pacer thus imposes \emph{negligible quality cost} when the
 constraint is slack; at tight budget the cost is still only
@@ -304,7 +304,7 @@ quality-optimal mix to enforce the budget.
 %
 By contrast, the $\gamma{=}1.0$ baselines (Naive Bandit,
 Recalibrated) reach Phase~2 rewards of $0.932$--$0.933$, roughly
-$1\%$ higher than BanditGPT, because infinite memory converges more
+$1\%$ higher than ParetoBandit, because infinite memory converges more
 tightly to the greedy optimum over the ${\sim}900$-step evaluation
 window.
 This ${\sim}1\%$ gap is the cost of non-stationarity robustness:
@@ -315,7 +315,7 @@ The $\epsilon$-constraint procedure
 (Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.995$ because
 it trades a marginal stationary-quality loss for substantially
 faster adaptation, and the present experiment validates that
-tradeoff end-to-end: BanditGPT's Phase~2 reward lift
+tradeoff end-to-end: ParetoBandit's Phase~2 reward lift
 ($\Delta{=}+0.017$ to $+0.067$) confirms that the forgetting
 factor enables the router to capitalise on the new cost landscape
 rather than remaining anchored to stale Phase~1 statistics.
@@ -338,7 +338,7 @@ Unconstr.\ & ---     & \$1.00e-2 & \$3.16e-4 & \$5.18e-3 & --- \\
 \end{center}
 
 \noindent
-BanditGPT achieves Phase~1 costs within 3\% of the target at all
+ParetoBandit achieves Phase~1 costs within 3\% of the target at all
 budget levels.  After the price drop, moderate and loose costs
 decline well below target (the pacer constrains from above, never
 inflates), while tight costs remain within 2\% of target---the
@@ -350,7 +350,7 @@ provides genuine cost control.
 \paragraph{Reward lift after price drop.}
 We test whether the pacer exploits the price drop by measuring
 $\Delta_\mathrm{reward} = \bar{r}_\mathrm{Phase\,2} -
-\bar{r}_\mathrm{Phase\,1}$ within BanditGPT (a paired
+\bar{r}_\mathrm{Phase\,1}$ within ParetoBandit (a paired
 comparison; each budget level serves as its own control).
 
 \begin{center}
@@ -402,12 +402,12 @@ cost-efficient frontier of the portfolio and exploits it fully.
 (Table~\ref{tab:budget_compliance}).}
 Table~\ref{tab:budget_compliance} summarises cost/target ratios
 for all conditions across both phases.
-BanditGPT is the only condition that reliably tracks the budget
+ParetoBandit is the only condition that reliably tracks the budget
 target in Phase~1 ($0.98$--$1.00\times$).
 
 After the Phase~2 price drop, the tight constraint remains
 \emph{binding}: all baselines overshoot by $11$--$13\%$, while
-BanditGPT stays within $2\%$ of target.
+ParetoBandit stays within $2\%$ of target.
 At moderate and loose budgets the price drop makes the constraint
 \emph{non-binding}---post-drop costs fall well below the target
 for \emph{every} condition, confirming that the underspend is a
@@ -423,7 +423,7 @@ of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
 all methods' costs below target, regardless of algorithm.
-BanditGPT is the only condition that reliably meets the target in
+ParetoBandit is the only condition that reliably meets the target in
 Phase~1 and, where the constraint remains binding (tight), in
 Phase~2.}
 \label{tab:budget_compliance}
@@ -437,17 +437,17 @@ Phase~2.}
   & Fixed Policy        & $0.24\times$ & $1.13\times$ \\
   & Naive Bandit        & $0.69\times$ & $1.13\times$ \\
   & Recalibrated        & $0.69\times$ & $1.13\times$ \\
-  & \textbf{BanditGPT}  & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
+  & \textbf{ParetoBandit}  & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
 \multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
   & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
   & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
   & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\
-  & \textbf{BanditGPT}  & $\mathbf{1.00\times}$ & $0.51\times^{\dagger}$ \\[3pt]
+  & \textbf{ParetoBandit}  & $\mathbf{1.00\times}$ & $0.51\times^{\dagger}$ \\[3pt]
 \multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}
   & Fixed Policy        & $2.62\times$ & $0.14\times^{\dagger}$ \\
   & Naive Bandit        & $2.88\times$ & $0.14\times^{\dagger}$ \\
   & Recalibrated        & $2.88\times$ & $0.18\times^{\dagger}$ \\
-  & \textbf{BanditGPT}  & $\mathbf{0.98\times}$ & $0.18\times^{\dagger}$ \\
+  & \textbf{ParetoBandit}  & $\mathbf{0.98\times}$ & $0.18\times^{\dagger}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -470,10 +470,10 @@ recalibration---cannot substitute for principled budget pacing}:
     inherits the Naive Bandit's Phase~1 non-compliance, and its
     one-shot recalibration cannot track intra-phase spending
     dynamics.
-    This baseline directly addresses whether BanditGPT's advantage
+    This baseline directly addresses whether ParetoBandit's advantage
     comes from continuous online tracking or merely from reacting
     to price changes---the answer is the former.
-  \item \textbf{BanditGPT} is the only condition that achieves
+  \item \textbf{ParetoBandit} is the only condition that achieves
     precise budget compliance ($0.98$--$1.02\times$ target across
     both phases) while automatically exploiting the Gemini price
     drop to improve quality

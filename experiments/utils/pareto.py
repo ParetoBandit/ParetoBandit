@@ -1,5 +1,5 @@
 """
-Pareto frontier analysis utilities for BanditGPT experiments.
+Pareto frontier analysis utilities for ParetoBandit experiments.
 
 Provides shared functions for computing Pareto hulls, AUC metrics,
 interpolation along frontiers, and bootstrap confidence intervals
@@ -404,7 +404,7 @@ def bootstrap_pareto_auc_difference(
 
     Args:
         bg_pp_rewards: Per-prompt holdout rewards for each dev-optimal
-            BanditGPT setting (list of 1-D arrays, length n_holdout).
+            ParetoBandit setting (list of 1-D arrays, length n_holdout).
         bg_pp_costs: Per-prompt holdout costs (same structure).
         bl_pp_rewards: Per-prompt holdout rewards for each dev-optimal
             baseline setting.

@@ -14,7 +14,7 @@ class GeminiClient:
         except ImportError as exc:
             raise ImportError(
                 "The google-genai package is required for GeminiClient. "
-                "Install it with:  pip install banditgpt[gemini]"
+                "Install it with:  pip install paretobandit[gemini]"
             ) from exc
 
         self._client = genai.Client(api_key=api_key)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end live test for bandit_gpt.
+End-to-end live test for pareto_bandit.
 
 Demonstrates the full feedback loop with real LLM APIs:
     route prompt → call model → judge response → update router
@@ -9,7 +9,7 @@ Supports multiple providers via --provider flag:
     openrouter (default), openai, anthropic, gemini, ollama
 
 Requires:
-    pip install banditgpt[full]          # or a single provider extra
+    pip install paretobandit[full]          # or a single provider extra
 
 Usage:
     python scripts/test_e2e_live.py --provider openrouter --api-key sk-or-...
@@ -133,7 +133,7 @@ def resolve_api_key(cli_key: str | None, provider: str) -> str | None:
 
 def build_client(provider: str, api_key: str | None):
     """Instantiate the appropriate LLMClient adapter for *provider*."""
-    from bandit_gpt.providers import (
+    from pareto_bandit.providers import (
         OpenRouterClient, OpenAIClient, AnthropicClient,
         GeminiClient, OllamaClient,
     )
@@ -194,7 +194,7 @@ def judge_response(client, judge_model: str, prompt: str, response: str) -> tupl
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="bandit_gpt live E2E test")
+    parser = argparse.ArgumentParser(description="pareto_bandit live E2E test")
     parser.add_argument("--provider", type=str, default="openrouter",
                         choices=list(_ENV_KEY_MAP),
                         help="LLM provider (default: openrouter)")
@@ -210,15 +210,15 @@ def main() -> None:
     client = build_client(args.provider, api_key)
 
     # Load the real model registry shipped with the package
-    from bandit_gpt import BanditRouter
-    config_path = Path(__file__).resolve().parent.parent / "src" / "bandit_gpt" / "config" / "models.json"
+    from pareto_bandit import BanditRouter
+    config_path = Path(__file__).resolve().parent.parent / "src" / "pareto_bandit" / "config" / "models.json"
     with open(config_path) as f:
         models_data = json.load(f)
     registry = {m["model_id"]: m for m in models_data["models"]}
     model_names = sorted(registry.keys())
 
     print("=" * 70)
-    print("  bandit_gpt  end-to-end live test")
+    print("  pareto_bandit  end-to-end live test")
     print("=" * 70)
     print(f"\n  Models:  {', '.join(m.split('/')[-1] for m in model_names)}")
     print(f"  Judge:   {args.judge}")

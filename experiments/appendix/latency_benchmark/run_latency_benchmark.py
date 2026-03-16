@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Appendix: Routing Latency Microbenchmark.
 
-Measures wall-clock latency of BanditGPT's route() and update() operations
+Measures wall-clock latency of ParetoBandit's route() and update() operations
 across four configurations that isolate the impact of (a) PCA dimensionality
 reduction and (b) Sherman-Morrison incremental updates.
 
 Configurations
 --------------
-1. **BanditGPT (d=26)**  — Production setting: PCA-25 + bias, Sherman-Morrison.
-2. **BanditGPT (d=385)** — Raw 384-D embeddings + bias, Sherman-Morrison.
+1. **ParetoBandit (d=26)**  — Production setting: PCA-25 + bias, Sherman-Morrison.
+2. **ParetoBandit (d=385)** — Raw 384-D embeddings + bias, Sherman-Morrison.
 3. **Naive Inversion (d=26)** — Full np.linalg.inv after every update.
 4. **Naive Inversion (d=385)** — Full np.linalg.inv at raw dimension.
 
@@ -36,15 +36,15 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt import BanditRouter
-from bandit_gpt.feature_service import FeatureService
+from pareto_bandit import BanditRouter
+from pareto_bandit.feature_service import FeatureService
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -106,7 +106,7 @@ def _make_rewards(n: int, seed: int = 42) -> np.ndarray:
 class NaiveLinUCBRouter:
     """LinUCB with full O(d^3) matrix inversion on every update.
 
-    Implements the same scoring as BanditGPT but recomputes
+    Implements the same scoring as ParetoBandit but recomputes
     ``np.linalg.inv(A_a)`` after every observation rather than
     maintaining an incremental Sherman-Morrison inverse.
     """
@@ -168,14 +168,14 @@ def _percentile_us(values_ns: List[int], q: float) -> float:
     return float(np.percentile(np.asarray(values_ns, dtype=np.float64), q) / 1e3)
 
 
-def benchmark_banditgpt(
+def benchmark_paretobandit(
     dim: int,
     rounds: int,
     warmup: int,
     contexts: np.ndarray,
     rewards: np.ndarray,
 ) -> LatencyResult:
-    """Benchmark BanditGPT (Sherman-Morrison) at a given dimension."""
+    """Benchmark ParetoBandit (Sherman-Morrison) at a given dimension."""
     registry = _synthetic_registry()
     fs = FeatureService.for_precomputed(dim)
     router = BanditRouter.create(
@@ -203,7 +203,7 @@ def benchmark_banditgpt(
     measured = rounds - warmup
     wall_s = sum(total_ns) / 1e9
     return LatencyResult(
-        name=f"BanditGPT (d={dim})",
+        name=f"ParetoBandit (d={dim})",
         dimension=dim,
         route_p50_us=_percentile_us(route_ns, 50),
         route_p95_us=_percentile_us(route_ns, 95),
@@ -268,7 +268,7 @@ def benchmark_naive(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Latency microbenchmark for BanditGPT routing operations.",
+        description="Latency microbenchmark for ParetoBandit routing operations.",
     )
     parser.add_argument("--rounds", type=int, default=5000)
     parser.add_argument("--warmup", type=int, default=500)
@@ -279,7 +279,7 @@ def main() -> None:
     DIM_RAW = 385   # 384-D raw embedding + bias
 
     logger.info("=" * 70)
-    logger.info("Latency Microbenchmark: BanditGPT Routing Operations")
+    logger.info("Latency Microbenchmark: ParetoBandit Routing Operations")
     logger.info("=" * 70)
     logger.info(f"  Rounds: {args.rounds}  |  Warmup: {args.warmup}  |  Seed: {args.seed}")
     logger.info(f"  Dimensions: PCA={DIM_PCA}, Raw={DIM_RAW}")
@@ -292,8 +292,8 @@ def main() -> None:
     results: List[LatencyResult] = []
 
     configs = [
-        ("BanditGPT (d=26)", benchmark_banditgpt, DIM_PCA, ctx_pca),
-        ("BanditGPT (d=385)", benchmark_banditgpt, DIM_RAW, ctx_raw),
+        ("ParetoBandit (d=26)", benchmark_paretobandit, DIM_PCA, ctx_pca),
+        ("ParetoBandit (d=385)", benchmark_paretobandit, DIM_RAW, ctx_raw),
         ("Naive Inv. (d=26)", benchmark_naive, DIM_PCA, ctx_pca),
         ("Naive Inv. (d=385)", benchmark_naive, DIM_RAW, ctx_raw),
     ]

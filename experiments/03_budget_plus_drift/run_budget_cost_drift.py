@@ -48,9 +48,9 @@ levels of routing sophistication:
   3. **Recalibrated Bandit** — Same as Naive Bandit, but at the Phase 2
      boundary the static cost penalty is re-tuned offline using the
      validation split with Phase 2 pricing.  This isolates the value
-     of continuous online tracking (BanditGPT) vs. stepwise offline
+     of continuous online tracking (ParetoBandit) vs. stepwise offline
      recalibration.
-  4. **BanditGPT** — Warmup priors + geometric forgetting (γ=0.995) +
+  4. **ParetoBandit** — Warmup priors + geometric forgetting (γ=0.995) +
      primal-dual BudgetPacer.  The full system.
 
 Plus one unconstrained baseline (cp=0, no pacer) for quality ceiling.
@@ -76,8 +76,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
-from bandit_gpt.config import (
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     DEFAULT_PACER_EMA_ALPHA,
     DEFAULT_PACER_LAMBDA_MAX,
@@ -91,9 +91,9 @@ from bandit_gpt.config import (
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.storage import EphemeralContextStore
 from utils.simulation import SplitData, build_model_registry
 
 logging.basicConfig(
@@ -101,7 +101,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -576,7 +576,7 @@ def _build_conditions(
     """Build four conditions for a given budget target.
 
     The conditions represent increasing routing sophistication:
-    Fixed Policy → Naive Bandit → Recalibrated Bandit → BanditGPT.
+    Fixed Policy → Naive Bandit → Recalibrated Bandit → ParetoBandit.
 
     Parameters
     ----------
@@ -623,7 +623,7 @@ def _build_conditions(
             "phase2_cost_penalty": recalibrated_phase2_cp,
         },
         {
-            "label": f"BanditGPT ({budget_label})",
+            "label": f"ParetoBandit ({budget_label})",
             "budget_target": budget_target,
             "cost_penalty": 0.0,
             "warmup": True,

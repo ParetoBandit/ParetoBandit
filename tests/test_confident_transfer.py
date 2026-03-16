@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import numpy as np
-from bandit_gpt.router import BanditRouter
+from pareto_bandit.router import BanditRouter
 
 
 def test_new_model_gets_fresh_precision():

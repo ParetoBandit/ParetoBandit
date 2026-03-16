@@ -33,10 +33,10 @@ CB_ORANGE = "#E69F00"
 CB_GRAY = "#999999"
 
 CONDITION_STYLES: Dict[str, Dict[str, Any]] = {
-    "BanditGPT (warmup)": {
+    "ParetoBandit (warmup)": {
         "color": CB_BLUE,
         "linestyle": "-",
-        "label": "BanditGPT (warmup)",
+        "label": "ParetoBandit (warmup)",
     },
     "Tabula Rasa": {
         "color": CB_ORANGE,
@@ -50,7 +50,7 @@ CONDITION_STYLES: Dict[str, Dict[str, Any]] = {
     },
 }
 
-PLOT_ORDER = ["BanditGPT (warmup)", "Tabula Rasa", "Random"]
+PLOT_ORDER = ["ParetoBandit (warmup)", "Tabula Rasa", "Random"]
 
 
 def main() -> None:

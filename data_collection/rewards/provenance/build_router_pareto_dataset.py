@@ -62,7 +62,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     CANONICAL_PROMPTS_PATH,
     DATA_COLLECTION_DIR,
     K3_MODELS_PATH,
@@ -152,7 +152,7 @@ class CostAwareRewardGenerator(CoTRewardGenerator):
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+            "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
         }
         payload = {
             "model": model_id,

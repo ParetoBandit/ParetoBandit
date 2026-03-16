@@ -38,7 +38,7 @@ from typing import Any, Dict, List, Tuple, TypedDict
 
 import numpy as np
 
-from bandit_gpt.utils import sigmoid, safe_inv
+from pareto_bandit.utils import sigmoid, safe_inv
 
 logger = logging.getLogger(__name__)
 
@@ -1169,7 +1169,7 @@ class SlidingWindowLinUCBPolicy:
 
     The class exposes the same public interface as
     :class:`DisjointLinUCBPolicy` so it can be used as a drop-in
-    replacement in :class:`~bandit_gpt.router.BanditRouter`.
+    replacement in :class:`~pareto_bandit.router.BanditRouter`.
 
     Parameters
     ----------

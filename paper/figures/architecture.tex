@@ -106,6 +106,6 @@
 
 \end{tikzpicture}
 }
-\caption{BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt{BudgetPacer} dynamically applies a dual cost penalty ($\lambda_t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma$), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda_{t+1}$) via an EMA smoother.}
+\caption{ParetoBandit System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt{BudgetPacer} dynamically applies a dual cost penalty ($\lambda_t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma$), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda_{t+1}$) via an EMA smoother.}
 \label{fig:architecture}
 \end{figure*}

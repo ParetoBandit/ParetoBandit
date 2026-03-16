@@ -10,7 +10,7 @@
 The main-text experiments (Sections~\ref{sec:reward_shift}
 and~\ref{sec:budget_drift}) compare four routing strategies of
 increasing sophistication: Fixed Policy, Naive Bandit, SW-UCB,
-and BanditGPT.
+and ParetoBandit.
 Here we report the full $\gamma$ sensitivity analysis that informed
 the choice of $\gamma{=}0.995$ and justify removing the
 intermediate ablation conditions from the main figures.
@@ -82,7 +82,7 @@ Three of the four main-text conditions map to rows in this table:
   \item \textbf{Naive Bandit ($\gamma{=}1.0$)} $=$ Warmup +
     $\gamma{=}1.0$ row ($172.1$ in this table; $153.2$ in the
     main text with 40~seeds).
-  \item \textbf{BanditGPT ($\gamma{=}0.995$)} $=$ Warmup +
+  \item \textbf{ParetoBandit ($\gamma{=}0.995$)} $=$ Warmup +
     $\gamma{=}0.995$ row ($135.5$ here; $114.6$ with 40~seeds).
 \end{itemize}
 

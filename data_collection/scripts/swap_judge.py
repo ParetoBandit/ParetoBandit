@@ -49,7 +49,7 @@ from tqdm import tqdm
 _ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
-from bandit_gpt.config import REWARDS_PATH  # noqa: E402
+from pareto_bandit.config import REWARDS_PATH  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +144,7 @@ def _call_judge(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+        "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
     }
     user_content = f"PROMPT: {prompt}\n\nRESPONSE: {response}"
     payload = {

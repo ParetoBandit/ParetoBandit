@@ -7,8 +7,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 import pytest
 import numpy as np
 import json
-from bandit_gpt import BanditRouter, ExplorationRate, RouterConfig
-from bandit_gpt.router import MissingCostError, NoEligibleModelsError
+from pareto_bandit import BanditRouter, ExplorationRate, RouterConfig
+from pareto_bandit.router import MissingCostError, NoEligibleModelsError
 
 @pytest.fixture
 def sample_registry():

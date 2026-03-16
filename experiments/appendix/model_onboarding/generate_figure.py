@@ -6,7 +6,7 @@ publication-ready 1×3 panel figure:
 
   **(a)** Flash adoption trajectory across budget tiers.
   **(b)** Full arm composition for the moderate-budget condition.
-  **(c)** Running average cost: BanditGPT vs. Fixed Policy.
+  **(c)** Running average cost: ParetoBandit vs. Fixed Policy.
 
 Usage:
     python experiments/appendix/model_onboarding/generate_figure.py
@@ -95,7 +95,7 @@ def _panel_flash_adoption(
     traces = data["checkpoint_traces"]
 
     for blabel in BUDGET_ORDER:
-        key = f"banditgpt_transfer_{blabel}"
+        key = f"paretobandit_transfer_{blabel}"
         if key not in traces:
             continue
         trace = traces[key]
@@ -163,7 +163,7 @@ def _panel_arm_composition(
     budget_label: str = "moderate",
 ) -> None:
     """All four arms' windowed mix for one budget tier."""
-    key = f"banditgpt_transfer_{budget_label}"
+    key = f"paretobandit_transfer_{budget_label}"
     trace = data["checkpoint_traces"][key]
     arms = list(ARM_SHORT.keys())
 
@@ -221,13 +221,13 @@ def _panel_cost_compliance(
     data: Dict[str, Any],
     phase_boundary: int,
 ) -> None:
-    """Running average cost for BanditGPT (all budgets) vs Fixed Policy."""
+    """Running average cost for ParetoBandit (all budgets) vs Fixed Policy."""
     traces = data["checkpoint_traces"]
     budget_targets = data["budget_targets"]
 
-    # BanditGPT traces
+    # ParetoBandit traces
     for blabel in ["tight", "moderate", "loose"]:
-        key = f"banditgpt_transfer_{blabel}"
+        key = f"paretobandit_transfer_{blabel}"
         if key not in traces:
             continue
         trace = traces[key]
@@ -237,7 +237,7 @@ def _panel_cost_compliance(
 
         ax.plot(
             steps, costs,
-            color=color, linewidth=2.2, label=f"BanditGPT ({blabel})",
+            color=color, linewidth=2.2, label=f"ParetoBandit ({blabel})",
             zorder=4,
         )
 

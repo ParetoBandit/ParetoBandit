@@ -41,7 +41,7 @@ Expected dynamics:
       within ~100 prompts and shifts traffic accordingly.
 
 Run:
-    pip install banditgpt matplotlib
+    pip install paretobandit matplotlib
     python examples/scenario_quality_critical_enterprise.py
 """
 
@@ -54,7 +54,7 @@ from typing import Dict, List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 # ──────────────────────────────────────────────────────────────────────
 # Portfolio — enterprise legal stack
@@ -391,7 +391,7 @@ window = max(30, N_PROMPTS // 15)
 rewards_arr = np.array([h["reward"] for h in history])
 rolling = np.convolve(rewards_arr, np.ones(window) / window, mode="valid")
 ax.plot(range(window, window + len(rolling)), rolling,
-        color="steelblue", linewidth=2, label="BanditGPT")
+        color="steelblue", linewidth=2, label="ParetoBandit")
 ax.axvline(ONBOARD_STEP, color="green", ls="--", alpha=0.7,
            label=f"Newcomer onboarded (step {ONBOARD_STEP})")
 ax.set_xlabel("Prompts Routed")

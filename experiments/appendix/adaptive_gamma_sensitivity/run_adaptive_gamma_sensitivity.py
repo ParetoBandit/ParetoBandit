@@ -46,7 +46,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     DEFAULT_NONSTAT_COST_PENALTY,
     K3_ARM_ORDER,
@@ -55,9 +55,9 @@ from bandit_gpt.config import (
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import BanditRouter
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter
+from pareto_bandit.storage import EphemeralContextStore
 from utils.simulation import (
     SplitData,
     apply_reward_swap,
@@ -70,7 +70,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
+for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_bandit.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================

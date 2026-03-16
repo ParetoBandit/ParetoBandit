@@ -3,7 +3,7 @@
 Train PCA Model from LMSYS Chatbot Arena Data
 
 Trains an unsupervised PCA projection on prompts drawn from the same
-distribution used throughout the BanditGPT pipeline (LMSYS Chatbot Arena).
+distribution used throughout the ParetoBandit pipeline (LMSYS Chatbot Arena).
 
 Pipeline
 --------
@@ -36,7 +36,7 @@ import numpy as np
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     LMSYS_BATTLES_PATH,

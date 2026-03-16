@@ -1,6 +1,6 @@
-# BanditGPT Test Suite
+# ParetoBandit Test Suite
 
-Comprehensive unit and integration tests for the BanditGPT router.
+Comprehensive unit and integration tests for the ParetoBandit router.
 
 ## Running Tests
 
@@ -11,7 +11,7 @@ Comprehensive unit and integration tests for the BanditGPT router.
 python -m pytest tests/ -v
 
 # Run with coverage report
-python -m pytest tests/ --cov=banditgpt --cov-report=html
+python -m pytest tests/ --cov=paretobandit --cov-report=html
 ```
 
 ### Run Specific Test Files
@@ -169,7 +169,7 @@ Temporary directory for test files (auto-cleaned).
 
 ```python
 import pytest
-from banditgpt.core import BanditRouter
+from paretobandit.core import BanditRouter
 
 class TestNewFeature:
     """Tests for new feature."""
@@ -200,7 +200,7 @@ class TestNewFeature:
 
 ```bash
 # Ensure you're in the project root
-cd /path/to/banditgpt
+cd /path/to/paretobandit
 pip install -e .
 ```
 
@@ -214,7 +214,7 @@ python -m pytest tests/test_optimization_profiles.py -v
 ### Coverage Report
 
 ```bash
-python -m pytest tests/ --cov=banditgpt --cov-report=html
+python -m pytest tests/ --cov=paretobandit --cov-report=html
 open htmlcov/index.html
 ```
 

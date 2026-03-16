@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 import pytest
 import numpy as np
 from collections import defaultdict
-from bandit_gpt.router import (
+from pareto_bandit.router import (
     DisjointLinUCBPolicy,
     BanditRouter,
     RouterConfig,

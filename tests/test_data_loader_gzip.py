@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from bandit_gpt.config import (
+from pareto_bandit.config import (
     K3_ARM_ORDER,
     TRAIN_DATA_PATH,
     VAL_DATA_PATH,

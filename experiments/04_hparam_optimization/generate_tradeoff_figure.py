@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the epsilon-constraint tradeoff figure (BanditGPT only).
+"""Generate the epsilon-constraint tradeoff figure (ParetoBandit only).
 
 Reads ``results/hparam_sweep_results.json`` and produces:
   - ``results/epsilon_tradeoff.{pdf,png}``
 
 Single-panel scatter of (Budget-Paced AUC, Phase-2 Regret) for every
-BanditGPT configuration, coloured by gamma.  The epsilon-feasible
+ParetoBandit configuration, coloured by gamma.  The epsilon-feasible
 region is shaded, and the epsilon-constraint winner and AUC-only
 winner are highlighted with annotations.
 
@@ -52,9 +52,9 @@ def _build_merged(
     stat_results: List[Dict[str, Any]],
     nonstat_results: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """Merge stationary AUC and non-stationary regret for BanditGPT."""
-    var_stat = [r for r in stat_results if r["variant"] == "banditgpt"]
-    var_ns = [r for r in nonstat_results if r["variant"] == "banditgpt"]
+    """Merge stationary AUC and non-stationary regret for ParetoBandit."""
+    var_stat = [r for r in stat_results if r["variant"] == "paretobandit"]
+    var_ns = [r for r in nonstat_results if r["variant"] == "paretobandit"]
 
     merged: List[Dict[str, Any]] = []
     for s in var_stat:
@@ -81,8 +81,8 @@ def main() -> None:
     data = _load_data()
     stat_results = data["val_budget_paced"]
     ns_results = data["val_nonstationary"]
-    best = data["best_per_variant"]["banditgpt"]
-    auc_best = data["auc_only_best"]["banditgpt"]
+    best = data["best_per_variant"]["paretobandit"]
+    auc_best = data["auc_only_best"]["paretobandit"]
 
     merged = _build_merged(stat_results, ns_results)
     best_auc = max(m["auc"] for m in merged)

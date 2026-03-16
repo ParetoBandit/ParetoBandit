@@ -17,7 +17,7 @@ Three embedding paths are supported (in order of priority):
 
 3. **SentenceTransformer encoder** (default) — ``FeatureService()``
    Requires the ``sentence-transformers`` package
-   (``pip install banditgpt[embeddings]``).
+   (``pip install paretobandit[embeddings]``).
 
 **Optional text features** — ``FeatureService(use_text_features=True)``
 appends three z-score normalized, regex-based features (logical operator
@@ -245,7 +245,7 @@ class FeatureService:
         Three paths are available (see module docstring for details):
 
         1. **Default SentenceTransformer** — leave *custom_encoder* as ``None``.
-           Requires ``pip install banditgpt[embeddings]``.
+           Requires ``pip install paretobandit[embeddings]``.
         2. **Custom encoder callable** — pass any function that maps
            ``str → np.ndarray`` (1-D float vector).  The library handles PCA
            and bias-term appending.  ``embedding_dim`` is required so the
@@ -316,7 +316,7 @@ class FeatureService:
             raise ValueError(
                 f"Custom encoder '{encoder_model}' requires a PCA artifact "
                 f"trained with the same model.  Generate one with:\n\n"
-                f"    from bandit_gpt.calibration import train_pca\n"
+                f"    from pareto_bandit.calibration import train_pca\n"
                 f"    pca = train_pca(prompts, encoder_model='{encoder_model}', "
                 f"output_path='my_pca.joblib')\n\n"
                 f"Then pass pca_path='my_pca.joblib' to FeatureService."
@@ -500,7 +500,7 @@ class FeatureService:
                 raise ImportError(
                     "sentence-transformers is required for the default embedding "
                     "pipeline but is not installed.  Install it with:\n\n"
-                    "    pip install banditgpt[embeddings]\n\n"
+                    "    pip install paretobandit[embeddings]\n\n"
                     "Alternatively, pass a custom_encoder callable or use "
                     "FeatureService.for_precomputed() to avoid this dependency."
                 ) from exc

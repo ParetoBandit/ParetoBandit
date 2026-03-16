@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 import numpy as np
 import pytest
-from bandit_gpt import BanditRouter
+from pareto_bandit import BanditRouter
 
 
 def test_register_model_uses_uniform_prior():

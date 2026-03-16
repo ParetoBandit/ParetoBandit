@@ -2,7 +2,7 @@
 """
 Generate warmup priors for K-model portfolios.
 
-Thin CLI wrapper around ``bandit_gpt.calibration.generate_warmup_priors``,
+Thin CLI wrapper around ``pareto_bandit.calibration.generate_warmup_priors``,
 which is the single canonical prior-generation implementation.  This
 ensures that priors are always built in the same **whitened PCA** coordinate
 system used by production (``embed_prompt``) and experiments
@@ -16,7 +16,7 @@ from the prior-training portion.  Holdout is loaded for leakage checks.
 
     python scripts/generate_multimodel_warmup_priors.py \\
         --model-config data_collection/config/models_k3.json \\
-        --pca src/bandit_gpt/data/artifacts/pca_32.joblib
+        --pca src/pareto_bandit/data/artifacts/pca_32.joblib
 
 **Canonical splits (``--no-split``)**:  Uses a pre-split training file
 (e.g. ``k4_train_rewards.jsonl.gz``) in its entirety.  No internal
@@ -27,7 +27,7 @@ disjointness between train / cal / holdout.
         --model-config data_collection/config/models_k3.json \\
         --data-path data_collection/rewards/k4_train_rewards.jsonl.gz \\
         --no-split \\
-        --pca src/bandit_gpt/data/artifacts/pca_32.joblib \\
+        --pca src/pareto_bandit/data/artifacts/pca_32.joblib \\
         --output-priors data_collection/warmup_priors/priors_warmup_k3_32comp.joblib
 """
 
@@ -48,9 +48,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.calibration import generate_warmup_priors
-from bandit_gpt.rewards import extract_reward
-from bandit_gpt.config import (
+from pareto_bandit.calibration import generate_warmup_priors
+from pareto_bandit.rewards import extract_reward
+from pareto_bandit.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     DEV_DATA_PATH_ALL_MODELS,
@@ -326,7 +326,7 @@ def main() -> None:
 
     else:
         # ── Legacy three-way-split mode ───────────────────────────────
-        from bandit_gpt.utils.experiment import ExperimentBurnIn
+        from pareto_bandit.utils.experiment import ExperimentBurnIn
 
         source_path = data_path or DEV_DATA_PATH_ALL_MODELS
 

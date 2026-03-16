@@ -30,9 +30,9 @@ import numpy as np
 import pytest
 from sklearn.decomposition import PCA
 
-from bandit_gpt.config import DEFAULT_PCA_PATH
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import (
+from pareto_bandit.config import DEFAULT_PCA_PATH
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import (
     BanditRouter,
     DisjointLinUCBPolicy,
     MissingCostError,
@@ -338,7 +338,7 @@ class TestWarmupPriorsWhiteningConversion:
                       pca_whitened=True)
 
         import logging
-        with caplog.at_level(logging.INFO, logger="bandit_gpt.router"):
+        with caplog.at_level(logging.INFO, logger="pareto_bandit.router"):
             router = BanditRouter.create(
                 model_registry=registry,
                 priors=str(tmp_path / "p.joblib"),
@@ -427,7 +427,7 @@ class TestShippedWarmupPriorsMetadata:
 class TestCalibrationWhitening:
 
     def test_generate_warmup_priors_adds_whitening_metadata(self) -> None:
-        from bandit_gpt.calibration import generate_warmup_priors
+        from pareto_bandit.calibration import generate_warmup_priors
         from unittest.mock import patch
 
         rng = np.random.default_rng(0)
@@ -459,7 +459,7 @@ class TestCalibrationWhitening:
         assert len(state["pca_explained_variance"]) == 4
 
     def test_generate_warmup_priors_no_whitening_flag(self) -> None:
-        from bandit_gpt.calibration import generate_warmup_priors
+        from pareto_bandit.calibration import generate_warmup_priors
         from unittest.mock import patch
 
         rng = np.random.default_rng(0)

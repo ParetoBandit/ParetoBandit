@@ -187,6 +187,17 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
     add_pacer_commands(cs, results, budget_targets)
     add_derived_commands(cs, results, budget_targets)
 
+    dt = data.get("dominance_test")
+    if dt is not None:
+        p = dt["p_value"]
+        if p >= 1e-10:
+            cs.raw("DominancePValue", f"{p:.1e}")
+        else:
+            cs.raw("DominancePValue", r"< 10^{-10}")
+        cs.num("PacerAUCMean", dt["pacer_auc_mean"], digits=4)
+        cs.num("StaticAUCMean", dt["static_auc_mean"], digits=4)
+        cs.num("AUCDiffMean", dt["auc_diff_mean"], digits=4)
+
     return cs
 
 

@@ -107,7 +107,7 @@ Each response is scored on three axes:
 
 The composite reward is the weighted sum, producing a continuous value in [0, 1].
 For the primary dataset, scoring uses DeepSeek-R1 as a single judge (highest
-discriminative signal among tested judges). See `src/bandit_gpt/rewards.py` for
+discriminative signal among tested judges). See `src/pareto_bandit/rewards.py` for
 the extraction logic.
 
 ## Generating New Rewards
@@ -127,4 +127,4 @@ python data_collection/scripts/rejudge_cot.py \
 
 ## Config Integration
 
-All paths are centralized in `src/bandit_gpt/config/__init__.py`.
+All paths are centralized in `src/pareto_bandit/config/__init__.py`.

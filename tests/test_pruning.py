@@ -16,7 +16,7 @@ from pathlib import Path
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
-from bandit_gpt.router import DisjointLinUCBPolicy, RouterConfig
+from pareto_bandit.router import DisjointLinUCBPolicy, RouterConfig
 
 
 def test_stability_check_triggers():

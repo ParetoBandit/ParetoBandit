@@ -60,7 +60,7 @@ def main() -> None:
     data = _load()
     phase_boundary = data["phase1_n"]
 
-    key = f"banditgpt_transfer_{BUDGET_LABEL}"
+    key = f"paretobandit_transfer_{BUDGET_LABEL}"
     trace = data["checkpoint_traces"][key]
 
     steps = [c["step"] for c in trace]

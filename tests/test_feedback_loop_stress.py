@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pytest
 
-from bandit_gpt import BanditRouter, RouterConfig
-from bandit_gpt.storage import EphemeralContextStore
+from pareto_bandit import BanditRouter, RouterConfig
+from pareto_bandit.storage import EphemeralContextStore
 from tests.stress_utils import (
     DEFAULT_DIMENSION,
     make_context,

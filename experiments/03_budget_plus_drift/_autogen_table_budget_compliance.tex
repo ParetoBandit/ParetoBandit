@@ -6,7 +6,7 @@ of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
 all methods' costs below target, regardless of algorithm.
-BanditGPT is the only condition that reliably meets the target in
+ParetoBandit is the only condition that reliably meets the target in
 Phase~1 and, where the constraint remains binding (tight), in
 Phase~2.}
 \label{tab:budget_compliance}
@@ -19,15 +19,15 @@ Phase~2.}
 \multirow{4}{*}{Tight ($\$2.3{\times}10^{-4}$)}  & Fixed Policy        & $0.24\times$ & $1.13\times$ \\
   & Naive Bandit        & $0.69\times$ & $1.13\times$ \\
   & Recalibrated        & $0.69\times$ & $1.13\times$ \\
-  & \textbf{BanditGPT}        & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
+  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
 \multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
   & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
   & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\
-  & \textbf{BanditGPT}        & $\mathbf{1.00\times}$ & $\mathbf{0.51\times}^{\dagger}$ \\[3pt]
+  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.51\times}^{\dagger}$ \\[3pt]
 \multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy        & $2.62\times$ & $0.14\times^{\dagger}$ \\
   & Naive Bandit        & $2.88\times$ & $0.14\times^{\dagger}$ \\
   & Recalibrated        & $2.88\times$ & $0.18\times^{\dagger}$ \\
-  & \textbf{BanditGPT}        & $\mathbf{0.98\times}$ & $\mathbf{0.18\times}^{\dagger}$ \\[3pt]
+  & \textbf{ParetoBandit}        & $\mathbf{0.98\times}$ & $\mathbf{0.18\times}^{\dagger}$ \\[3pt]
 \bottomrule
 \end{tabular}
 \end{table}

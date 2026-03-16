@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate alpha-sweep figure comparing BanditGPT vs Tabula Rasa.
+"""Generate alpha-sweep figure comparing ParetoBandit vs Tabula Rasa.
 
 Reads ``results/hparam_sweep_results.json`` and produces:
   - ``results/hparam_sweep_alpha.{pdf,png}``
@@ -24,7 +24,7 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config import BEST_K3_HPARAMS, BEST_K3_TABULA_RASA_HPARAMS
+from pareto_bandit.config import BEST_K3_HPARAMS, BEST_K3_TABULA_RASA_HPARAMS
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
@@ -32,7 +32,7 @@ CB_BLUE = "#0072B2"
 CB_ORANGE = "#E69F00"
 
 VARIANT_STYLE: Dict[str, Dict] = {
-    "banditgpt": {"color": CB_BLUE, "label": "BanditGPT (warmup)"},
+    "paretobandit": {"color": CB_BLUE, "label": "ParetoBandit (warmup)"},
     "tabula_rasa": {"color": CB_ORANGE, "label": "Tabula Rasa (cold start)"},
 }
 
@@ -47,7 +47,7 @@ def main() -> None:
     val_results = data["val_budget_paced_full"]
 
     BEST_NEFF: Dict[str, float] = {
-        "banditgpt": BEST_K3_HPARAMS["prior_n_effective"],
+        "paretobandit": BEST_K3_HPARAMS["prior_n_effective"],
         "tabula_rasa": BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"],
     }
     PLOT_GAMMA = 1.0
@@ -95,7 +95,7 @@ def main() -> None:
     ax.set_xlabel(r"$\alpha$ (exploration parameter)", fontsize=11)
     ax.set_ylabel("Val Pareto AUC (per-seed, 10 seeds)", fontsize=11)
     pca_d = BEST_K3_HPARAMS["pca_components"]
-    neff_w = int(BEST_NEFF["banditgpt"])
+    neff_w = int(BEST_NEFF["paretobandit"])
     neff_c = int(BEST_NEFF["tabula_rasa"])
     ax.set_title(
         rf"Alpha Sweep — K=3, PCA-{pca_d}, $\gamma$={PLOT_GAMMA}, "

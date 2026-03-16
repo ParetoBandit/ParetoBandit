@@ -19,8 +19,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bandit_gpt.feature_service import FeatureService
-from bandit_gpt.router import BanditRouter
+from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter
 
 
 class TestSelfHealingPCA:

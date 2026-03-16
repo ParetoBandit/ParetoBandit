@@ -3,7 +3,7 @@ import json
 from flask import Flask, request, jsonify
 from pathlib import Path
 
-from bandit_gpt.router import BanditRouter
+from pareto_bandit.router import BanditRouter
 
 app = Flask(__name__)
 
@@ -30,7 +30,7 @@ def _get_client():
     global llm_client
     if llm_client is not None:
         return llm_client
-    from bandit_gpt.providers import (
+    from pareto_bandit.providers import (
         OpenRouterClient, OpenAIClient, AnthropicClient,
         GeminiClient, OllamaClient,
     )

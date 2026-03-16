@@ -246,7 +246,7 @@ def judge_single(
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
+        "HTTP-Referer": "https://github.com/paretobandit/llm-jury",
     }
     payload: Dict[str, Any] = {
         "model": judge_model,

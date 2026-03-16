@@ -1,12 +1,12 @@
 \section{Discussion and Production Implications}
 \label{sec:discussion}
 
-BanditGPT bridges the gap between theoretical contextual bandit algorithms and the practical realities of deploying multi-LLM routers in production environments. We highlight several key implications for engineering teams and address current limitations.
+ParetoBandit bridges the gap between theoretical contextual bandit algorithms and the practical realities of deploying multi-LLM routers in production environments. We highlight several key implications for engineering teams and address current limitations.
 
 \subsection{Practical Impact}
 
 \paragraph{Interpretable Interface and SLA Compliance.} 
-The standard approach to cost-aware routing uses a static penalty $\lambda$, which requires translating a dimensionless weight into a dollar outcome via offline simulation. This mapping breaks whenever the portfolio changes. BanditGPT's Primal-Dual \texttt{BudgetPacer} accepts a dollar-denominated target (e.g., $B = \$0.002$/request) directly. This target is portable across portfolios because the normalized dual update ($\bar{c}_t / B$) adapts the penalty $\lambda_t$ to the realized cost scale automatically. 
+The standard approach to cost-aware routing uses a static penalty $\lambda$, which requires translating a dimensionless weight into a dollar outcome via offline simulation. This mapping breaks whenever the portfolio changes. ParetoBandit's Primal-Dual \texttt{BudgetPacer} accepts a dollar-denominated target (e.g., $B = \$0.002$/request) directly. This target is portable across portfolios because the normalized dual update ($\bar{c}_t / B$) adapts the penalty $\lambda_t$ to the realized cost scale automatically. 
 
 Furthermore, the pacer's precise budget utilization ($0.97\times$ to $1.02\times$) allows it to underpin strict Service Level Agreements (SLAs) for cost (e.g., ``average spend will not exceed $1.10 \times B$ over any rolling window''). Static penalties offer no such guarantee, as realized costs fluctuate arbitrarily if prompt distributions drift.
 
@@ -14,29 +14,29 @@ Furthermore, the pacer's precise budget utilization ($0.97\times$ to $1.02\times
 In a deployment where model pricing changes frequently (as is common with frontier APIs), a static penalty becomes stale, requiring costly offline retraining to discover the new optimal $\lambda$. The \texttt{BudgetPacer} automatically detects price drops via its online cost EMA and dynamically reallocates freed budget to higher-quality models. This autonomous optimization eliminates the need for manual intervention, maximizing application quality while strictly obeying financial constraints.
 
 \paragraph{Operational Value beyond Static Penalties.}
-Any cost-aware router reduces spend by shifting traffic to cheaper models; the relevant question is what BanditGPT delivers \emph{beyond} a well-tuned static penalty.  Three differentiators emerge from the experiments.
+Any cost-aware router reduces spend by shifting traffic to cheaper models; the relevant question is what ParetoBandit delivers \emph{beyond} a well-tuned static penalty.  Three differentiators emerge from the experiments.
 %
 \emph{Budget precision.}
-Across six budget--phase conditions (Table~\ref{tab:budget_compliance}), static baselines deviate from target by $\bdFixedTightPhaseOneRatio$--$\bdNaiveLoosePhaseOneRatio$; BanditGPT holds within $\bdBanditGPTLoosePhaseOneUtil$--$\bdBanditGPTTightPhaseOneRatio$.
+Across six budget--phase conditions (Table~\ref{tab:budget_compliance}), static baselines deviate from target by $\bdFixedTightPhaseOneRatio$--$\bdNaiveLoosePhaseOneRatio$; ParetoBandit holds within $\bdParetoBanditLoosePhaseOneUtil$--$\bdParetoBanditTightPhaseOneRatio$.
 At a deployment routing 100{,}000~requests/day, the Fixed Policy's $\bdFixedLoosePhaseOneRatio$ overshoot at the loose budget ($B{=}\$0.0019$/req) translates to over~\$300/day in SLA-violating overruns; its $\bdFixedTightPhaseOneRatio$ under-spend at the tight budget wastes quality headroom that could have improved user experience.
 %
 \emph{Autonomous adaptation.}
-When Gemini-2.5-Pro's price dropped mid-cycle, BanditGPT detected the shift and re-routed $\bdBanditGPTTightGeminiPhaseTwo\%$ of traffic to the newly cost-effective frontier model within hundreds of requests, delivering a $+\bdBanditGPTTightRewardLift$ quality lift at the tight budget---an improvement that static systems can replicate only through an offline recalibration cycle.
+When Gemini-2.5-Pro's price dropped mid-cycle, ParetoBandit detected the shift and re-routed $\bdParetoBanditTightGeminiPhaseTwo\%$ of traffic to the newly cost-effective frontier model within hundreds of requests, delivering a $+\bdParetoBanditTightRewardLift$ quality lift at the tight budget---an improvement that static systems can replicate only through an offline recalibration cycle.
 %
 \emph{Pareto efficiency at tight budgets.}
-At a budget target of \$0.00008/req, BanditGPT achieves reward $\bpPacerSecondRewardSE$ while the nearest static point ($\lambda_s{=}1.0$) spends $\bpStaticOneCostRatio\times$ more for only $\bpStaticOneRewardSE$---the adaptive $\lambda_t$ creates a \emph{spend-when-valuable, save-when-cheap} policy that a fixed penalty structurally cannot implement.
+At a budget target of \$0.00008/req, ParetoBandit achieves reward $\bpPacerSecondRewardSE$ while the nearest static point ($\lambda_s{=}1.0$) spends $\bpStaticOneCostRatio\times$ more for only $\bpStaticOneRewardSE$---the adaptive $\lambda_t$ creates a \emph{spend-when-valuable, save-when-cheap} policy that a fixed penalty structurally cannot implement.
 
 \paragraph{Portfolio and Encoder Portability.}
 The experiments in this paper evaluate a fixed configuration (MiniLM-L6 encoder, $K{=}3$ portfolio, shipped warmup priors), but production teams operate diverse model portfolios that evolve over time---models are added when new APIs launch, removed when deprecated, and swapped when pricing changes.
 A router that is hard-wired to a fixed encoder or model set forces a full retrain whenever the portfolio changes, negating the benefit of online adaptation.
 
-BanditGPT decouples each component of the pipeline so that every part can be replaced independently:
+ParetoBandit decouples each component of the pipeline so that every part can be replaced independently:
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Encoder:} Teams with domain-specific embeddings (e.g., code, biomedical, multilingual) can supply any \texttt{Callable[[str], np.ndarray]} as a custom encoder, or pass pre-computed vectors directly, without depending on \texttt{sentence-transformers}.
   \item \textbf{PCA and warmup priors:} A two-function calibration API (\texttt{train\_pca}, \texttt{generate\_warmup\_priors}) produces compatible artifacts for any encoder--portfolio combination from a labelled reward dataset.  This lets a team onboard a new portfolio in minutes rather than days---encode representative prompts, collect reward labels, and generate priors---without modifying the routing algorithm.
   \item \textbf{Model portfolio:} Models can be added or removed at runtime via \texttt{register\_model()} and \texttt{remove\_model()} without restarting the service.  New arms start from the isotropic prior ($A{=}\lambda I$, $b{=}0$) and begin learning immediately; removed arms are garbage-collected from the bandit state.  Appendix~\ref{appendix:model_onboarding} validates this capability empirically: Gemini-2.5-Flash is onboarded mid-trajectory with \emph{zero} warmup priors, yet LinUCB's exploration bonus discovers and sustains adoption within ${\sim}370$ steps across all 80 trials, while the BudgetPacer maintains cost compliance throughout the portfolio expansion.
 \end{itemize}
-This portability matters because the most common deployment failure mode for adaptive routers is not algorithmic---it is operational friction: the effort required to adapt the system when the model landscape changes.  By making every artifact regenerable and every component swappable, BanditGPT ensures that the routing algorithm remains the stable core while the surrounding model ecosystem evolves freely.
+This portability matters because the most common deployment failure mode for adaptive routers is not algorithmic---it is operational friction: the effort required to adapt the system when the model landscape changes.  By making every artifact regenerable and every component swappable, ParetoBandit ensures that the routing algorithm remains the stable core while the surrounding model ecosystem evolves freely.
 
 \subsection{Limitations and Deployment Considerations}
 
@@ -72,7 +72,7 @@ In customer-facing deployments where a dedicated LLM judge is too costly or too 
   \item \textbf{Implicit behavioural composites.}  Many applications already log signals that correlate with response quality: whether the user copied the output, the time spent reading it, follow-up question rate, code acceptance or edit distance, task completion flags, or retry/regeneration rate.  Individually each signal is noisy and near-binary, but combining $m$ such indicators into a normalised composite $r_t = \frac{1}{m}\sum_i s_i \in [0,1]$ yields a continuous reward whose variance decreases as $1/m$.  This approach requires no explicit rating UI and is compatible with high-volume, low-touch applications.
   \item \textbf{Windowed binary aggregation.}  If only binary feedback is available, the per-arm success proportion over a rolling window (e.g., last 200 observations per arm) approximates a continuous expected reward.  However, this strategy requires substantially more traffic per arm before inter-model gaps become statistically detectable, making it viable only for high-volume deployments.
 \end{enumerate}
-BanditGPT's reward interface accepts any scalar $r_t \in [0,1]$, so all four strategies---and hybrid combinations---are drop-in compatible without modifying the routing algorithm.
+ParetoBandit's reward interface accepts any scalar $r_t \in [0,1]$, so all four strategies---and hybrid combinations---are drop-in compatible without modifying the routing algorithm.
 
 \paragraph{Delayed Feedback and State Persistence.}
 Our experiments assume immediate feedback, but three common production scenarios create a gap between routing and reward observation.
@@ -85,7 +85,7 @@ The context vector must therefore be persisted at route time and retrieved by re
 Without such persistence, a process restart (deployment, crash, autoscaling event) also discards all learned state, forcing the router to cold-start from priors and re-learn from scratch.
 Existing bandit-based routers~\cite{panda2025pilot,wang2025barp,li2025llmbandit} maintain state only in process memory, making them incompatible with all three scenarios above.
 
-BanditGPT addresses this with a pluggable \texttt{ContextStore} abstraction backed by two built-in implementations:
+ParetoBandit addresses this with a pluggable \texttt{ContextStore} abstraction backed by two built-in implementations:
 \begin{itemize}[nosep,leftmargin=*]
   \item \texttt{EphemeralContextStore}: A bounded in-memory deque for low-latency deployments where evaluation is synchronous (e.g., automated metrics computed inline).
   \item \texttt{SqliteContextStore}: A disk-persisted store using WAL-mode SQLite with TTL-based expiration, supporting millions of entries, concurrent reads/writes ($>$10K writes/sec), and week-scale retention for RLHF workflows---with zero external dependencies.
@@ -100,7 +100,7 @@ Contextual bandits require a feature vector $x_t$ for every prompt. Generating t
 LinUCB assumes that the expected reward is a linear function of the context: $\mathbb{E}[r_t \mid x_t, a] = \theta_a^\top x_t$.
 This is a strong modelling assumption.
 LLM reward functions are likely nonlinear in prompt semantics---prompt difficulty, model-specific failure modes, and interaction effects between semantic dimensions do not naturally compose linearly in embedding space.
-BanditGPT partially mitigates this through two mechanisms: (i)~the disjoint formulation gives each arm its own $\theta_a$, which is strictly more expressive than a single shared linear model, and (ii)~the PCA-whitened embedding pipeline (Section~\ref{sec:setup}) projects prompts into the subspace where the leading principal components concentrate the routing-relevant signal, improving the linear approximation in practice.
+ParetoBandit partially mitigates this through two mechanisms: (i)~the disjoint formulation gives each arm its own $\theta_a$, which is strictly more expressive than a single shared linear model, and (ii)~the PCA-whitened embedding pipeline (Section~\ref{sec:setup}) projects prompts into the subspace where the leading principal components concentrate the routing-relevant signal, improving the linear approximation in practice.
 Empirically, this combination is sufficient to produce consistent Pareto gains across all experiments in this paper.
 
 Nevertheless, richer reward surfaces could potentially be captured by \emph{neural contextual bandits}.
@@ -118,7 +118,7 @@ Adopting either approach for LLM routing is appealing in principle but introduce
 Investigating whether the empirical gains from nonlinear reward models justify these engineering costs---and designing forgetting and warm-start mechanisms that work without closed-form sufficient statistics---is a compelling direction for future work.
 
 \paragraph{Cross-Model Parameter Sharing.}
-BanditGPT uses disjoint LinUCB: each arm maintains fully independent sufficient statistics ($A_a$, $b_a$), so observations from one model contribute nothing to the quality estimates of another.
+ParetoBandit uses disjoint LinUCB: each arm maintains fully independent sufficient statistics ($A_a$, $b_a$), so observations from one model contribute nothing to the quality estimates of another.
 This independence is conservative---it avoids negative transfer between dissimilar models---but it also means that the router cannot exploit the behavioural similarities that LLMs frequently exhibit.
 Models from different providers that are trained on overlapping data, fine-tuned with similar RLHF procedures, or positioned at the same price tier often share quality patterns: they tend to succeed on the same prompt types (straightforward instruction-following, factual retrieval) and struggle on the same failure modes (adversarial prompts, multi-step reasoning under ambiguity).
 
@@ -139,16 +139,16 @@ Investigating this tradeoff---particularly under the budget and non-stationarity
 
 \section{Conclusion}
 
-We introduced BanditGPT, an open-source framework for budget-constrained, non-stationary LLM routing.  By framing the problem as a Primal-Dual Contextual Bandit with Knapsacks and integrating geometric forgetting, we provide a robust solution to the dynamic challenges of production deployments.  Our system demonstrates precise budget compliance ($0.97$--$1.02\times$ target), eliminates the need for manual hyperparameter tuning of static cost penalties, and autonomously adapts to silent model updates and mid-cycle price drops.
+We introduced ParetoBandit, an open-source framework for budget-constrained, non-stationary LLM routing.  By framing the problem as a Primal-Dual Contextual Bandit with Knapsacks and integrating geometric forgetting, we provide a robust solution to the dynamic challenges of production deployments.  Our system demonstrates precise budget compliance ($0.97$--$1.02\times$ target), eliminates the need for manual hyperparameter tuning of static cost penalties, and autonomously adapts to silent model updates and mid-cycle price drops.
 
 \paragraph{Quantified operational impact.}
-The experiments in this paper yield four concrete, verifiable claims that distinguish BanditGPT from static routing approaches:
+The experiments in this paper yield four concrete, verifiable claims that distinguish ParetoBandit from static routing approaches:
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \emph{Budget compliance.}  Across all tested budget regimes and phases, BanditGPT maintains spend within $2\%$ of the dollar target ($\bdBanditGPTLoosePhaseOneUtil$--$\bdBanditGPTTightPhaseOneRatio$).  Static penalties deviate by up to $\bdNaiveLoosePhaseOneRatio$, translating---at scale---to either SLA-violating overruns or wasted quality headroom.  This precision enables dollar-denominated SLAs (e.g., ``average spend~$\leq 1.05{\times}B$ over any rolling window'') that static penalties structurally cannot guarantee.
-  \item \emph{Autonomous adaptation.}  Under a mid-cycle price drop, BanditGPT re-routes $\bdBanditGPTTightGeminiPhaseTwo\%$ of traffic to the newly cost-effective frontier model within hundreds of requests, capturing a $+\bdBanditGPTTightRewardLift$ quality lift without manual intervention.  Static systems require an offline recalibration cycle---retraining, grid search, redeployment---to exploit the same opportunity.
-  \item \emph{Deployment reliability.}  BanditGPT's cross-seed variance ($\sigma{=}\rsBanditGPTStd$) is $\rsSWUCBVarFactor\times$ lower than the best non-stationary baseline (SW-UCB), ensuring that every deployment adapts consistently rather than relying on favourable random initialisation.
+  \item \emph{Budget compliance.}  Across all tested budget regimes and phases, ParetoBandit maintains spend within $2\%$ of the dollar target ($\bdParetoBanditLoosePhaseOneUtil$--$\bdParetoBanditTightPhaseOneRatio$).  Static penalties deviate by up to $\bdNaiveLoosePhaseOneRatio$, translating---at scale---to either SLA-violating overruns or wasted quality headroom.  This precision enables dollar-denominated SLAs (e.g., ``average spend~$\leq 1.05{\times}B$ over any rolling window'') that static penalties structurally cannot guarantee.
+  \item \emph{Autonomous adaptation.}  Under a mid-cycle price drop, ParetoBandit re-routes $\bdParetoBanditTightGeminiPhaseTwo\%$ of traffic to the newly cost-effective frontier model within hundreds of requests, capturing a $+\bdParetoBanditTightRewardLift$ quality lift without manual intervention.  Static systems require an offline recalibration cycle---retraining, grid search, redeployment---to exploit the same opportunity.
+  \item \emph{Deployment reliability.}  ParetoBandit's cross-seed variance ($\sigma{=}\rsParetoBanditStd$) is $\rsSWUCBVarFactor\times$ lower than the best non-stationary baseline (SW-UCB), ensuring that every deployment adapts consistently rather than relying on favourable random initialisation.
   \item \emph{Cold-start model onboarding.}  A single \texttt{register\_model()} call---with no offline evaluation or warmup priors---suffices to integrate a new model into a budget-constrained router.  Across 80 trials (Section~\ref{sec:model_onboarding_preview}; Appendix~\ref{appendix:model_onboarding}), LinUCB's exploration bonus discovers and sustains adoption of the cold-started arm within ${\sim}370$ steps, displacing the economically rational incumbent, while the BudgetPacer maintains compliance without reconfiguration.
 \end{enumerate}
-These claims are derived from offline simulation and should be validated through online A/B testing before being projected to specific dollar savings at production scale.  Nevertheless, the magnitude of the compliance and adaptation gaps---$162\%$ budget overshoot for static baselines versus ${\leq}2\%$ for BanditGPT---provides strong evidence that the operational benefits transfer to real deployments.
+These claims are derived from offline simulation and should be validated through online A/B testing before being projected to specific dollar savings at production scale.  Nevertheless, the magnitude of the compliance and adaptation gaps---$162\%$ budget overshoot for static baselines versus ${\leq}2\%$ for ParetoBandit---provides strong evidence that the operational benefits transfer to real deployments.
 
 Beyond the algorithmic contributions, the library provides the production scaffolding that enterprise deployment demands---pluggable encoders and PCA artifacts for domain-specific embeddings, persistent context stores for delayed human feedback, atomic checkpointing for crash recovery, and a single-call \texttt{register\_model()} API that onboards new models at runtime from a cold start without offline evaluation or budget reconfiguration.  We release the full codebase, experiment scripts, and pre-trained artifacts to enable both immediate enterprise deployment and reproducible research on non-stationary LLM routing.

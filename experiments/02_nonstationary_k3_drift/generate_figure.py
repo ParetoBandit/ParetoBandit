@@ -9,9 +9,9 @@ The primary figure shows cumulative regret for four conditions:
   1. **Fixed Policy (offline)** — frozen warmup priors, no online learning.
   2. **Naive Bandit (γ=1.0)** — online LinUCB, infinite memory.
   3. **SW-UCB (W=200)** — Sliding-Window LinUCB, no priors.
-  4. **BanditGPT (γ=0.995)** — warmup priors + geometric forgetting.
+  4. **ParetoBandit (γ=0.995)** — warmup priors + geometric forgetting.
 
-A secondary figure shows BanditGPT's arm selection dynamics.
+A secondary figure shows ParetoBandit's arm selection dynamics.
 
 Usage:
     python -m experiments.02_nonstationary_k3_drift.generate_figure
@@ -33,7 +33,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.config import BEST_K3_HPARAMS
+from pareto_bandit.config import BEST_K3_HPARAMS
 from utils.bootstrap import bootstrap_ci_series
 
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -42,7 +42,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 # Visual encoding — maximally distinct for 4 conditions
 # ======================================================================
 
-BANDITGPT_LABEL: str = f"BanditGPT (\u03b3={BEST_K3_HPARAMS['forgetting_factor']})"
+BANDITGPT_LABEL: str = f"ParetoBandit (\u03b3={BEST_K3_HPARAMS['forgetting_factor']})"
 
 CONDITION_ORDER: List[str] = [
     "Fixed Policy (offline)",
@@ -199,12 +199,12 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
 
 
 # ======================================================================
-# Figure: Arm Fraction Dynamics (BanditGPT only)
+# Figure: Arm Fraction Dynamics (ParetoBandit only)
 # ======================================================================
 
 
 def plot_arm_fractions(data: Dict[str, Any]) -> plt.Figure:
-    """Per-arm selection fractions for BanditGPT, showing routing adaptation.
+    """Per-arm selection fractions for ParetoBandit, showing routing adaptation.
 
     Parameters
     ----------
@@ -218,7 +218,7 @@ def plot_arm_fractions(data: Dict[str, Any]) -> plt.Figure:
     Raises
     ------
     ValueError
-        If no BanditGPT condition is found in the results.
+        If no ParetoBandit condition is found in the results.
     """
     conditions = data["conditions"]
     arm_short_names = list(data["arm_short"].values())
@@ -269,7 +269,7 @@ def plot_arm_fractions(data: Dict[str, Any]) -> plt.Figure:
     ax.set_xlabel("Training Step", fontsize=13)
     ax.set_ylabel("Arm Selection Fraction", fontsize=13)
     ax.set_title(
-        "Model Selection Dynamics Under Reward Swap (BanditGPT, 95% bootstrap CI)",
+        "Model Selection Dynamics Under Reward Swap (ParetoBandit, 95% bootstrap CI)",
         fontsize=14, fontweight="bold", pad=12,
     )
     ax.set_ylim(0, 1)

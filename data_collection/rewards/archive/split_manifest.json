@@ -3,7 +3,7 @@
   "train_frac": 0.7,
   "val_frac": 0.15,
   "test_frac": 0.15,
-  "source_file": "/Users/annette/repostitories/banditGPT/data_collection/pareto_dataset/pareto_classified.jsonl",
+  "source_file": "/Users/annette/repostitories/paretobandit/data_collection/pareto_dataset/pareto_classified.jsonl",
   "pca_artifact": "pca_15.joblib",
   "encoder": "all-MiniLM-L6-v2",
   "plasticity": 0.1,
