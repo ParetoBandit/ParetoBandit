@@ -48,6 +48,21 @@ $120\times$ throughput improvement over the naive baseline at raw dimension.}
 \label{fig:latency_benchmark}
 \end{figure}
 
+\paragraph{Why BanditGPT's route is fast but its update is slower than naive.}
+The most striking pattern in Table~\ref{tab:latency} is that BanditGPT's \emph{update} is slower than the naive baseline (17\,$\mu$s vs.\ 4\,$\mu$s at $d{=}26$), yet its \emph{route} is $2.3\times$ faster---and at $d{=}385$ the route gap widens to $30\times$.
+This is an intentional architectural trade-off: BanditGPT \emph{amortizes} the cost of maintaining the matrix inverse into the update path so the latency-critical route path is minimal.
+
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Naive baseline.}  Update performs only the $O(d^2)$ outer-product addition $A_a \mathrel{+}= x_t x_t^\top$ (4\,$\mu$s at $d{=}26$).
+    Route must then recompute $A_a^{-1}$ from scratch via $O(d^3)$ inversion for each of $K$ arms before computing the UCB score.
+    At $d{=}385$ this costs $4.6$\,ms per route call.
+  \item \textbf{BanditGPT.}  Update pays a higher constant: the $O(d^2)$ Sherman-Morrison rank-1 correction on $A_a^{-1}$ (Eq.~\ref{eq:sherman_morrison}), plus a cached $\hat{\theta}_a = A_a^{-1} b_a$ refresh.
+    Route then needs only one $O(d)$ dot product ($\hat{\theta}_a^\top x_t$) and one $O(d^2)$ quadratic form ($x_t^\top A_a^{-1} x_t$) per arm---no inversion at all.
+\end{itemize}
+
+\noindent
+Because routing sits on the user-facing critical path while updates can be processed asynchronously (Section~\ref{sec:discussion}), this trade-off is strongly favorable: it shifts work from the latency-sensitive path to the throughput-tolerant path.
+
 \paragraph{Key findings.}
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Production overhead is negligible.}
@@ -75,5 +90,10 @@ $120\times$ throughput improvement over the naive baseline at raw dimension.}
   \item \textbf{Combined improvement: $120\times$.}
     The full production stack (PCA\,+\,Sherman-Morrison at $d{=}26$)
     achieves $120\times$ higher throughput than the naive baseline
-    at raw embedding dimension ($24{,}347$ vs.\ $202$\,req/s).
+    at raw embedding dimension ($24{,}347$ vs.\ $202$\,req/s),
+    driven by three mutually reinforcing design choices:
+    PCA reduces the matrix size ($O(d^2)$ scaling),
+    Sherman-Morrison eliminates per-route inversion ($O(d^2)$ vs.\ $O(d^3)$),
+    and cached $\hat{\theta}_a$ reduces the expected-reward computation
+    to a single $O(d)$ dot product per arm.
 \end{enumerate}

@@ -30,8 +30,24 @@ For workloads with highly asymmetric token ratios (e.g., retrieval-augmented gen
 In practice, this does not affect our experimental conclusions for three reasons: (i)~the Pareto frontiers are evaluated using \emph{exact per-request costs} from the offline dataset, not the router's blended estimate; (ii)~the log-scale normalization preserves the cost \emph{ranking} of models across any reasonable token ratio; and (iii)~the bandit's learned quality model is independent of the cost penalty---$\tilde{c}_a$ biases arm selection but does not distort the reward posterior.
 A production deployment serving heterogeneous workloads (e.g., both summarization and RAG) could benefit from passing the expected token ratio at routing time; the open-source release already accepts \texttt{input\_tokens}/\texttt{output\_tokens} parameters and uses them for post-hoc cost logging.
 
-\paragraph{Delayed Feedback (RLHF).}
-BanditGPT assumes immediate feedback (i.e., the reward $r_t$ is observed immediately after routing $x_t$). In production, feedback such as user thumbs-up/down or delayed human-in-the-loop annotations may arrive hours or days later. The system architecture must decouple the routing decision from the LinUCB update, maintaining a persistent log of context vectors that can be asynchronously updated when feedback arrives. The open-source release includes a \texttt{SqliteContextStore} to facilitate this delayed RLHF workflow.
+\paragraph{Delayed Feedback and State Persistence.}
+Our experiments assume immediate feedback, but three common production scenarios create a gap between routing and reward observation.
+First, \emph{automated judge evaluation} (as used in this paper) is itself an LLM call that adds latency and cost; production systems typically batch these evaluations asynchronously rather than blocking the response path.
+Second, \emph{human feedback} (thumbs-up/down, post-edit acceptance, task-completion signals) is inherently delayed---users do not rate responses immediately, and downstream quality signals such as conversion or error rates may take hours or days to materialize.
+Third, in microservice architectures the \emph{routing service and feedback-ingestion service may be separate processes} or even separate machines, so the context vector $x_t$ used at route time is no longer in memory when the reward $r_t$ arrives.
+
+LinUCB's update rule requires the \emph{exact} context vector that was used at selection time; re-encoding the prompt is not reliable because the embedding model version, PCA artifact, or whitening scales may have changed between routing and feedback ingestion.
+The context vector must therefore be persisted at route time and retrieved by request ID when feedback arrives.
+Without such persistence, a process restart (deployment, crash, autoscaling event) also discards all learned state, forcing the router to cold-start from priors and re-learn from scratch.
+Existing bandit-based routers~\cite{panda2025pilot,wang2025barp,li2025llmbandit} maintain state only in process memory, making them incompatible with all three scenarios above.
+
+BanditGPT addresses this with a pluggable \texttt{ContextStore} abstraction backed by two built-in implementations:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \texttt{EphemeralContextStore}: A bounded in-memory deque for low-latency deployments where evaluation is synchronous (e.g., automated metrics computed inline).
+  \item \texttt{SqliteContextStore}: A disk-persisted store using WAL-mode SQLite with TTL-based expiration, supporting millions of entries, concurrent reads/writes ($>$10K writes/sec), and week-scale retention for RLHF workflows---with zero external dependencies.
+\end{itemize}
+A separate \texttt{CheckpointManager} periodically snapshots the learned bandit state ($A_a$, $A_a^{-1}$, $b_a$, $\lambda_t$) via atomic writes, enabling crash recovery with automatic registry-drift handling when the model portfolio changes between restarts.
+The storage layer is extensible: implementing the \texttt{ContextStore} interface for Redis or S3 requires overriding three methods without modifying router logic.
 
 \paragraph{Embedding Generation Costs.}
 Contextual bandits require a feature vector $x_t$ for every prompt. Generating this vector using a dense embedding model (e.g., SentenceTransformers) incurs a small latency and compute cost. While negligible compared to the inference cost of frontier LLMs, this overhead must be factored into the overall budget $B$ for ultra-low-cost, high-throughput deployments. Utilizing smaller, faster embedding models or distilling features directly from the prompt text are practical mitigations.
