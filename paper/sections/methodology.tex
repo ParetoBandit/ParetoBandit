@@ -1,7 +1,16 @@
 \section{Methodology: The BanditGPT System}
 \label{sec:methodology}
 
-We present the architecture of BanditGPT, an open-source contextual bandit routing framework. This section details the end-to-end routing pipeline, our Primal-Dual budget pacing mechanism, and the geometric forgetting approach for non-stationary environments.
+We present the architecture of BanditGPT, an open-source contextual bandit routing framework.  At its core, LLM routing is an \emph{exploration--exploitation problem}: the router must balance selecting models it already knows to be good (exploitation) against trying uncertain or newly added models that might be better (exploration).  Maximising long-term expected reward requires getting this tradeoff right---and in production the tradeoff is complicated by two additional forces: \emph{budget constraints} that limit how much exploration the router can afford, and \emph{non-stationarity} that forces continuous re-exploration as model quality and pricing change.
+
+BanditGPT exposes a small set of interpretable hyperparameters, each governing a distinct facet of this tradeoff:
+\begin{itemize}[nosep,leftmargin=*]
+  \item $\alpha$ (exploration rate): how aggressively the router tries uncertain models versus exploiting known-good ones (Section~\ref{sec:budget_pacing}).
+  \item $n_\mathit{eff}$ (prior strength): how strongly the router trusts its offline priors versus new online evidence---controlling how quickly exploration begins (Section~\ref{sec:setup}).
+  \item $\gamma$ (forgetting factor): how quickly the router discounts stale evidence, determining when it \emph{re-explores} arms whose quality may have changed (Section~\ref{sec:forgetting}).
+  \item $B$ (budget target): a dollar constraint that bounds the cost of exploration, forcing the router to explore efficiently within its financial envelope (Section~\ref{sec:budget_pacing}).
+\end{itemize}
+Every experiment in this paper examines how these knobs interact under the realities of budget-constrained, non-stationary deployment: stationary budget pacing (Section~\ref{sec:exp1_budget_pacing}), reward drift (Section~\ref{sec:exp2_reward_shift}), cost drift (Section~\ref{sec:exp3_cost_drift}), joint hyperparameter selection (Section~\ref{sec:exp4_hparam_sweep}), and cold-start model onboarding (Section~\ref{sec:model_onboarding_preview}).
 
 \subsection{System Architecture Overview}
 
@@ -25,7 +34,11 @@ At each step $t$, the router selects model $a_t$ by maximizing a budget-augmente
     \Bigr]
     \label{eq:budget_ucb}
 \end{equation}
-where $\mathcal{A}_t \subseteq \mathcal{A}$ is the set of models surviving a hard cost ceiling (detailed below), $\lambda_t$ is a Lagrange multiplier updated after observing the realized cost $c_t$, and $\tilde{c}_a \in [0,1]$ is the log-normalized unit cost defined as
+The first term, $\hat\theta_a^\top x_t$, is the router's current best estimate of the expected reward for model~$a$ on prompt~$x_t$ (\emph{exploitation}).  The second term, $\alpha \sqrt{x_t^\top A_a^{-1} x_t}$, is a confidence bonus proportional to the router's \emph{uncertainty} about that estimate: models that have been selected rarely, or on dissimilar prompts, have larger bonuses, encouraging the router to try them (\emph{exploration}).
+The exploration rate $\alpha > 0$ directly controls this tradeoff: higher values widen the confidence interval, driving the router to explore uncertain arms more aggressively at the cost of short-term reward; lower values concentrate traffic on the current best arm.
+The cost penalty terms ($\lambda_s\tilde{c}_a + \lambda_t\tilde{c}_a$) reduce the effective score of expensive models, constraining exploration to arms the budget can sustain---a mechanism that becomes critical when an uninformed, newly onboarded model also happens to be expensive (Section~\ref{sec:model_onboarding_preview}).
+
+Here $\mathcal{A}_t \subseteq \mathcal{A}$ is the set of models surviving a hard cost ceiling (detailed below), $\lambda_t$ is a Lagrange multiplier updated after observing the realized cost $c_t$, and $\tilde{c}_a \in [0,1]$ is the log-normalized unit cost defined as
 \begin{equation}
     \tilde{c}_a = \frac{\log c_a - \log c_{\min}}{\log c_{\max} - \log c_{\min}},
     \label{eq:cost_norm}
