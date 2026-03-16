@@ -16,6 +16,18 @@ In a deployment where model pricing changes frequently (as is common with fronti
 \paragraph{Cost Savings at Scale.}
 Consider a deployment routing 100,000 requests per day. Moving from an unconstrained policy (\$0.0094/req, quality $0.921$) to the pacer at $B{=}\$0.0019$/req saves \$760/day (over \$277,000/year) while maintaining quality of $0.908$---a 1.4\% quality reduction for an 81\% cost reduction.
 
+\paragraph{Portfolio and Encoder Portability.}
+The experiments in this paper evaluate a fixed configuration (MiniLM-L6 encoder, $K{=}3$ portfolio, shipped warmup priors), but production teams operate diverse model portfolios that evolve over time---models are added when new APIs launch, removed when deprecated, and swapped when pricing changes.
+A router that is hard-wired to a fixed encoder or model set forces a full retrain whenever the portfolio changes, negating the benefit of online adaptation.
+
+BanditGPT decouples each component of the pipeline so that every part can be replaced independently:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Encoder:} Teams with domain-specific embeddings (e.g., code, biomedical, multilingual) can supply any \texttt{Callable[[str], np.ndarray]} as a custom encoder, or pass pre-computed vectors directly, without depending on \texttt{sentence-transformers}.
+  \item \textbf{PCA and warmup priors:} A two-function calibration API (\texttt{train\_pca}, \texttt{generate\_warmup\_priors}) produces compatible artifacts for any encoder--portfolio combination from a labelled reward dataset.  This lets a team onboard a new portfolio in minutes rather than days---encode representative prompts, collect reward labels, and generate priors---without modifying the routing algorithm.
+  \item \textbf{Model portfolio:} Models can be added or removed at runtime via \texttt{add\_model()} and \texttt{remove\_model()} without restarting the service.  New arms start from the isotropic prior and begin learning immediately; removed arms are garbage-collected from the bandit state.
+\end{itemize}
+This portability matters because the most common deployment failure mode for adaptive routers is not algorithmic---it is operational friction: the effort required to adapt the system when the model landscape changes.  By making every artifact regenerable and every component swappable, BanditGPT ensures that the routing algorithm remains the stable core while the surrounding model ecosystem evolves freely.
+
 \subsection{Limitations and Deployment Considerations}
 
 \paragraph{Warm-Start Dependence at Tight Budgets.}
