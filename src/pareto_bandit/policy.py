@@ -745,8 +745,8 @@ class DisjointLinUCBPolicy:
         empirical win fractions across *n_samples* draws.
 
         **Important:** These probabilities reflect the *quality-only* reward
-        model.  Cost and latency penalties applied by ``select_arm()`` are
-        **not** incorporated.  Use this for posterior calibration, monitoring,
+        model.  Cost penalties applied by ``select_arm()`` are **not**
+        incorporated.  Use this for posterior calibration, monitoring,
         and explainability — not as a substitute for the full utility-based
         selection rule.
 

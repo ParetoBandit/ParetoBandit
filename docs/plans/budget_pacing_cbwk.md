@@ -130,7 +130,6 @@ def select_model(self, context, total_steps=0, candidates=None,
     extra = extra_cost_penalties.get(model, 0.0) if extra_cost_penalties else 0.0
     score = (expected_reward + alpha * uncertainty) \
             - (self.cost_penalty * normalized_cost) \
-            - (self.latency_penalty * normalized_latency) \
             - extra
 ```
 

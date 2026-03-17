@@ -3,7 +3,7 @@ Production-grade contextual bandit router (Hot Path).
 
 Core Features:
 1. Warmup Priors: Initializes with learned preferences from 80k battles.
-2. Default Registry: Automatically loads 80+ models with cost/latency data.
+2. Default Registry: Automatically loads 80+ models with cost data.
 3. Constraints: Supports max_cost, max_latency, and quality floors.
 
 New Model Registration:
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import math
 import os
 import threading
 import time
@@ -175,7 +174,6 @@ class BanditRouter:
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
         cost_penalty: float = 0.3,  # λ_c for UCB cost penalty (paper Eq. 4)
-        latency_penalty: float = 0.0,  # λ_l for UCB latency penalty
         budget_pacer: "BudgetPacer | None" = None,
     ):
         """Initialize BanditRouter with separated feature extraction.
@@ -209,13 +207,6 @@ class BanditRouter:
                        - 0.0 = quality-only
                        - 0.3 = moderate cost awareness (default)
                        - 0.5+ = aggressive cost preference
-            latency_penalty: λ_l for UCB latency penalty. Mirrors cost_penalty
-                       but for latency. Each arm's score includes
-                       -λ_l·normalized_latency(model). Normalized to [0, 1]
-                       using the same log-scale market anchor approach as cost.
-                       - 0.0 = no latency preference (default, backward-compatible)
-                       - 0.1 = mild preference for faster models
-                       - 0.3 = moderate latency awareness
             budget_pacer: Optional :class:`BudgetPacer` instance for online
                        budget pacing (Primal-Dual CBwK).  When provided,
                        injects adaptive cost constraints (hard ceiling
@@ -226,7 +217,6 @@ class BanditRouter:
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
         self.cost_penalty = cost_penalty
-        self.latency_penalty = latency_penalty
         self.budget_pacer = budget_pacer
 
         if model_registry is None:
@@ -331,10 +321,6 @@ class BanditRouter:
         self._market_cost_floor = self.config.market_cost_floor
         self._market_cost_floor_log = np.log(self.config.market_cost_floor)
         self._market_cost_range = self.config.cost_range_log
-        
-        self._market_lat_floor = self.config.market_latency_floor
-        self._market_lat_floor_log = np.log(self.config.market_latency_floor)
-        self._market_lat_range = self.config.latency_range_log
 
     def _resolve_registry_costs(self) -> None:
         """Ensure every model in ``self.registry`` has a ``blended_cost_per_m``.
@@ -416,7 +402,6 @@ class BanditRouter:
         result.bandit = copy.deepcopy(self.bandit, memo)
         
         result.cost_penalty = self.cost_penalty
-        result.latency_penalty = self.latency_penalty
         
         # --- Logs and Counters (deepcopy: mutable collections) ---
         result.logs = copy.deepcopy(self.logs, memo)
@@ -436,9 +421,6 @@ class BanditRouter:
         result._market_cost_floor = self._market_cost_floor
         result._market_cost_floor_log = self._market_cost_floor_log
         result._market_cost_range = self._market_cost_range
-        result._market_lat_floor = self._market_lat_floor
-        result._market_lat_floor_log = self._market_lat_floor_log
-        result._market_lat_range = self._market_lat_range
         
         # --- Context Store (SHARE: DB connection, thread-safe) ---
         result.context_store = self.context_store
@@ -1195,7 +1177,7 @@ class BanditRouter:
         input_tokens: int | None = None,
         output_tokens: int = 600,
     ) -> Tuple[str, RoutingLog]:
-        """Route a prompt to the best model using LinUCB with cost/latency penalties.
+        """Route a prompt to the best model using LinUCB with cost penalties.
 
         Raises:
             NoEligibleModelsError: If no models pass the hard constraints.
@@ -1266,19 +1248,14 @@ class BanditRouter:
         # Estimate tokens for logging and cost_usd estimates.
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
 
-        # Pre-compute normalized cost/latency once per candidate to avoid
+        # Pre-compute normalized cost once per candidate to avoid
         # redundant registry lookups + log() calls across pacer and penalty paths.
         need_cost = self.cost_penalty > 0 or (
             self.budget_pacer is not None and self.budget_pacer.uses_soft
         )
-        need_latency = self.latency_penalty > 0
         norm_costs = (
             {m: self._get_normalized_cost(m) for m in filtered}
             if need_cost else {}
-        )
-        norm_latencies = (
-            {m: self._get_normalized_latency(m) for m in filtered}
-            if need_latency else {}
         )
 
         if self.budget_pacer is not None and self.budget_pacer.uses_soft:
@@ -1286,17 +1263,10 @@ class BanditRouter:
                 norm_costs
             )
 
-        # LinUCB selection with optional cost+latency penalty (paper Eq. 4)
+        # LinUCB selection with optional cost penalty (paper Eq. 4)
         cp = None
-        if self.cost_penalty > 0 or self.latency_penalty > 0:
-            cp = {}
-            for m in filtered:
-                p = 0.0
-                if self.cost_penalty > 0:
-                    p += self.cost_penalty * norm_costs[m]
-                if self.latency_penalty > 0:
-                    p += self.latency_penalty * norm_latencies[m]
-                cp[m] = p
+        if self.cost_penalty > 0:
+            cp = {m: self.cost_penalty * norm_costs[m] for m in filtered}
         if extra_cost_penalties is not None:
             cp = cp or {}
             for m, pen in extra_cost_penalties.items():
@@ -1441,10 +1411,10 @@ class BanditRouter:
         models.
 
         **Quality-only:** These probabilities reflect the learned reward
-        model and do **not** incorporate cost or latency penalties.  The
-        actual routing decision (``route()``) optimises a composite utility
-        ``UCB - λ_c·cost - λ_ℓ·latency``; this method answers the narrower
-        question "which model is most likely to produce the highest-quality
+        model and do **not** incorporate cost penalties.  The actual routing
+        decision (``route()``) optimises a composite utility
+        ``UCB - λ_c·cost``; this method answers the narrower question
+        "which model is most likely to produce the highest-quality
         response?" — useful for dashboards, explainability, and posterior
         calibration.
 
@@ -1752,39 +1722,6 @@ class BanditRouter:
             output_cost = default_cost * _OUTPUT_COST_MULTIPLIER
         avg_cost_per_1k = ((input_cost + output_cost) / 2.0) / 1000.0
         return self._calculate_absolute_penalty(avg_cost_per_1k)
-
-    def _calculate_absolute_latency_penalty(self, latency_s: float) -> float:
-        """
-        Calculate stable 0.0-1.0 latency penalty based on Fixed Market Anchors.
-
-        Uses the same logarithmic normalization as cost to ensure penalties
-        are absolute (not relative to currently loaded models).
-
-        Market Anchors:
-        - Floor: 0.05s  (streaming-first models, e.g. Flash, Haiku)
-        - Ceiling: 5.0s (slow batch inference or timeout threshold)
-        - Log range: ln(5.0) - ln(0.05) ≈ 4.61
-
-        Args:
-            latency_s: Estimated time-to-first-token in seconds.
-
-        Returns:
-            Penalty in range [0.0, 1.0].
-            - 0.0 = at or below market floor (fastest)
-            - 1.0 = at or above market ceiling (slowest)
-        """
-        safe_lat = max(latency_s, self._market_lat_floor)
-        log_lat = math.log(safe_lat)
-        penalty = (log_lat - self._market_lat_floor_log) / self._market_lat_range
-        return max(0.0, min(1.0, penalty))
-
-    def _get_normalized_latency(self, model_id: str) -> float:
-        """Compute normalized [0, 1] latency for a model from registry metadata."""
-        m_data = self.registry.get(model_id, {})
-        val = m_data.get("time_to_first_token_seconds")
-        if val is None or not isinstance(val, (int, float)) or val <= 0.0:
-            val = self.config.default_missing_latency
-        return self._calculate_absolute_latency_penalty(float(val))
 
     def _estimate_cost(self, model: str, in_tok: int, out_tok: int) -> float:
         """

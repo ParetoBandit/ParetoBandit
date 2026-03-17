@@ -70,10 +70,9 @@ class RouterConfig:
     **Scientific Validation (Appendix A):**
     Key hyperparameters validated via prior transfer theory and ablation:
 
-    1. **Market Anchors (cost/latency normalization)**:
+    1. **Market Anchors (cost normalization)**:
        - Derived from empirical market data (2024-2026)
        - Cost: $0.0001-$0.04/1k tokens (portfolio range)
-       - Latency: 0.05s-5.0s (instant to timeout threshold)
 
     2. **Probation Period (500 requests)**:
        - Derived from convergence analysis (95% confidence interval)
@@ -118,12 +117,6 @@ class RouterConfig:
     market_cost_ceiling: float = 0.04
     """$/1k tokens — slightly above most expensive."""
 
-    # Latency Normalization Anchors
-    market_latency_floor: float = 0.05
-    """Seconds — 50 ms (instant/cached responses)."""
-    market_latency_ceiling: float = 5.0
-    """Seconds — reasonable timeout threshold."""
-
     # ---------------------------------------------------------------------------
     # RESILIENCE DEFAULTS: Pessimistic Fallbacks (Fail-Operational Design)
     # ---------------------------------------------------------------------------
@@ -154,11 +147,6 @@ class RouterConfig:
     def cost_range_log(self) -> float:
         """Logarithmic range for cost normalization."""
         return math.log(self.market_cost_ceiling) - math.log(self.market_cost_floor)
-
-    @property
-    def latency_range_log(self) -> float:
-        """Logarithmic range for latency normalization."""
-        return math.log(self.market_latency_ceiling) - math.log(self.market_latency_floor)
 
 
 # ---------------------------------------------------------------------------
