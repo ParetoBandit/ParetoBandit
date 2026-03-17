@@ -1,0 +1,50 @@
+% Appendix: Cost Heuristic Validation
+
+\subsection{Cost Heuristic Validation (Figure~\ref{fig:cost_heuristic})}
+\label{sec:cost_heuristic_validation}
+
+The selection utility (Equation~\ref{eq:budget_ucb}) uses a static log-normalized cost
+$\tilde{c}_a$ derived from each model's blended per-token rate rather than the
+realised per-request cost.  We validate this design choice by testing two
+necessary conditions: (i)~$\tilde{c}_a$ preserves the \emph{true cost ranking}
+across prompts, and (ii)~within-model cost variance is small relative to
+inter-model gaps in $\tilde{c}$-space.
+
+\paragraph{K=3 portfolio (1,785 val prompts).}
+The heuristic ordering Llama-8B $<$ Mistral-Large $<$ Gemini-Pro matches the
+per-request cost ordering on 99.9\% of prompts.  All three
+pairwise comparisons hold at ${\geq}$99.9\%.
+In log-normalised $\tilde{c}$-space, the within-model standard deviation
+is 3--17\% of the total inter-model gap,
+confirming that prompt-level cost noise does not overwhelm the static
+heuristic signal.
+
+\paragraph{K=4 portfolio (1,785 val prompts, with Gemini-Flash).}
+Adding a fourth arm with similar pricing to an existing arm is a harder test.
+Gemini-Flash ($\tilde{c} = 0.441$) is placed between Mistral-Large
+($\tilde{c} = 0.384$) and Gemini-Pro ($\tilde{c} = 0.673$).
+The full ordering matches on 79.2\% of prompts; the closest
+pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on only 79.3\%
+of prompts, reflecting Flash's high cost variance (CV${}=1.55$) and the
+narrow inter-model gap ($\Delta\tilde{c} = 0.056$).
+
+\paragraph{Prompt-cost correlation.}
+Spearman correlations between prompt word count and per-request cost are weak
+($\rho = 0.10$--$0.26$), indicating that prompt features are poor predictors
+of model cost in this portfolio.  A contextual cost model would add complexity
+with minimal benefit.
+
+\paragraph{Cross-model cost correlation.}
+Per-request costs are moderately to strongly correlated across models
+($\rho = 0.56$--$0.72$), driven by shared output-length variation.
+This shared factor preserves relative ordering even when absolute costs vary
+widely (CV = 0.62--1.55).
+
+\paragraph{Takeaway.}  The static $\tilde{c}_a$ heuristic is empirically
+well-calibrated for portfolios where models span at least one order of
+magnitude in pricing.  For denser price clusters (e.g., Mistral-Large
+vs.\ Gemini-Flash, where the heuristic gap is only $\Delta\tilde{c} = 0.056$),
+the ranking holds for ${\sim}$79\% of prompts but inverts when Flash generates
+short responses.  The budget pacer's dual variable $\lambda_t$,
+which updates on \emph{actual} costs, compensates for these per-request
+deviations from the static estimate.

@@ -52,14 +52,47 @@ logger = logging.getLogger(__name__)
 
 FLASH_ID = "google/gemini-2.5-flash"
 FLASH_REWARDS_PATH = OFFLINE_DATASET_DIR / "flash_canonical" / "gemini_flash_v3.jsonl"
+FLASH_TOKEN_COUNTS_PATH = OFFLINE_DATASET_DIR / "flash_canonical" / "flash_token_counts.jsonl"
+
+
+def _load_actual_flash_costs() -> Dict[str, float]:
+    """Load actual per-request Flash costs from the token-count collection.
+
+    Returns:
+        ``{prompt: cost_usd}`` for prompts with actual token counts.
+        Empty dict if the token-counts file does not exist.
+    """
+    if not FLASH_TOKEN_COUNTS_PATH.exists():
+        return {}
+    costs: Dict[str, float] = {}
+    with open(FLASH_TOKEN_COUNTS_PATH) as f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+                if rec.get("ok") and rec.get("cost_usd") is not None:
+                    costs[rec["prompt"]] = rec["cost_usd"]
+            except (json.JSONDecodeError, KeyError):
+                continue
+    logger.info(
+        "Loaded %d actual Flash costs from %s",
+        len(costs), FLASH_TOKEN_COUNTS_PATH.name,
+    )
+    return costs
 
 
 def load_flash_rewards() -> Dict[str, Dict[str, Any]]:
     """Load flash rewards keyed by prompt text.
 
+    Costs are resolved with the following priority:
+    1. Actual per-request cost from ``flash_token_counts.jsonl``
+    2. Token-count-based cost from the reward record itself
+    3. Blended-rate heuristic fallback (logs a warning)
+
     Returns:
         ``{prompt: {"reward": float, "cost": float, ...}}``.
     """
+    actual_costs = _load_actual_flash_costs()
+
     with open(K4_MODELS_PATH) as f:
         models_cfg = json.load(f)
     flash_cfg = next(m for m in models_cfg["models"] if m["model_id"] == FLASH_ID)
@@ -67,6 +100,10 @@ def load_flash_rewards() -> Dict[str, Dict[str, Any]]:
     output_cost_per_m = flash_cfg["output_cost_per_m"]
 
     rewards: Dict[str, Dict[str, Any]] = {}
+    n_actual = 0
+    n_token_based = 0
+    n_fallback = 0
+
     with open(FLASH_REWARDS_PATH) as f:
         for line in f:
             try:
@@ -75,8 +112,13 @@ def load_flash_rewards() -> Dict[str, Dict[str, Any]]:
                     continue
                 prompt = rec["prompt"]
 
-                cost = rec.get("cost_usd")
-                if cost is None:
+                if prompt in actual_costs:
+                    cost = actual_costs[prompt]
+                    n_actual += 1
+                elif rec.get("cost_usd") is not None:
+                    cost = rec["cost_usd"]
+                    n_token_based += 1
+                else:
                     input_tokens = rec.get("input_tokens")
                     output_tokens = rec.get("output_tokens")
                     if input_tokens is not None and output_tokens is not None:
@@ -84,9 +126,11 @@ def load_flash_rewards() -> Dict[str, Dict[str, Any]]:
                             input_tokens * input_cost_per_m / 1e6
                             + output_tokens * output_cost_per_m / 1e6
                         )
+                        n_token_based += 1
                     else:
                         avg_cost_per_m = (input_cost_per_m + output_cost_per_m) / 2.0
                         cost = avg_cost_per_m / 1e6 * 500
+                        n_fallback += 1
 
                 rewards[prompt] = {
                     "reward": rec["raw_score"],
@@ -96,7 +140,16 @@ def load_flash_rewards() -> Dict[str, Dict[str, Any]]:
             except (json.JSONDecodeError, KeyError):
                 continue
 
-    logger.info("Loaded %d flash rewards from %s", len(rewards), FLASH_REWARDS_PATH.name)
+    logger.info(
+        "Loaded %d flash rewards (%d actual cost, %d token-based, %d fallback)",
+        len(rewards), n_actual, n_token_based, n_fallback,
+    )
+    if n_fallback > 0:
+        logger.warning(
+            "%d prompts used the blended-rate heuristic fallback. "
+            "Run collect_flash_token_counts.py to get actual costs.",
+            n_fallback,
+        )
     return rewards
 
 
