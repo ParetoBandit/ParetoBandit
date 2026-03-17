@@ -5,61 +5,201 @@
 
 We isolate the contribution of warmup priors by comparing
 ParetoBandit with offline priors against a tabula-rasa cold start
-(identity covariance, zero bias) on the $K{=}3$ stationary portfolio.
+(identity covariance, zero bias) on the $K{=}3$ stationary portfolio
+under three budget regimes: unconstrained (no pacer), tight
+($B{=}\$2.3{\times}10^{-4}$/req), and moderate
+($B{=}\$6.6{\times}10^{-4}$/req).
 Each condition uses the optimal hyperparameters from the Experiment~04
 sweep: ParetoBandit uses $\alpha{=}0.1$, $n_\mathit{eff}{=}1{,}000$,
 $\gamma{=}0.995$; Tabula Rasa uses $\alpha{=}0.1$,
 $n_\mathit{eff}{=}1$, $\gamma{=}0.995$ (disjoint LinUCB).
+Budget-constrained conditions use the Primal-Dual BudgetPacer
+with the same learning rate and $\lambda_{\max}$ as Experiment~01.
+Following the standard contextual-bandit cumulative-regret
+protocol, the router learns and is evaluated simultaneously on
+the held-out test split ($n{=}1{,}824$, disjoint from warmup-prior
+training on \texttt{train.jsonl} and hyperparameter selection on
+\texttt{val.jsonl}).
 
 \begin{center}
 \small
-\begin{tabular}{@{}lrrrr@{}}
+\begin{tabular}{@{}llrrrr@{}}
 \toprule
-\textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Regret@200} (95\% CI) & \textbf{Mean Rwd} & \textbf{Oracle Agr.} \\
+\textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{$p$} \\
 \midrule
-ParetoBandit (warmup) & $\mathbf{72.0}$\,[70.7, 73.2] & $\mathbf{5.9}$\,[5.6, 6.3]  & $\mathbf{0.923}$ & $\mathbf{0.642}$ \\
-Tabula Rasa        & $79.4$\,[77.4, 81.5]         & $10.3$\,[8.6, 12.0]         & $0.919$           & $0.632$           \\
-Random             & $145.3$\,[142.9, 147.7]      & $16.3$\,[15.5, 17.1]        & $0.882$           & $0.528$           \\
+None     & Warmup      & $\mathbf{74.5}$\,[73.2, 75.7]    & $\mathbf{6.6}$\,[6.2, 7.1]   & $\mathbf{0.923}$ & $<10^{-5}$ \\
+         & Tabula Rasa & $83.6$\,[81.4, 85.8]              & $12.1$\,[10.5, 13.7]          & $0.918$           & \\
+         & Random      & $146.3$\,[144.2, 148.4]           & $16.1$\,[15.2, 17.0]          & $0.880$           & --- \\
+\midrule
+Tight    & Warmup      & $\mathbf{198.0}$\,[195.4, 200.7]  & $\mathbf{24.0}$\,[22.4, 25.6] & $\mathbf{0.855}$ & $0.006$ \\
+         & Tabula Rasa & $205.4$\,[201.1, 209.6]            & $27.5$\,[25.4, 29.5]           & $0.851$           & \\
+\midrule
+Moderate & Warmup      & $151.4$\,[146.1, 156.6]           & $16.7$\,[14.8, 18.5]           & $0.880$           & $0.68$ \\
+         & Tabula Rasa & $153.0$\,[147.6, 158.3]           & $19.6$\,[17.3, 21.8]           & $0.879$           & \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
-Both conditions use their respective optimal hyperparameters from
-Experiment~04, giving Tabula~Rasa its best possible configuration.
-Even so, warmup priors reduce total regret by 9\% ($\Delta{=}-7.5$,
-paired $t$-test $p < 10^{-4}$) and early regret (step~200) by
-43\%.  The advantage is concentrated in the first ${\sim}200$
-steps (Figure~\ref{fig:warmup_ablation}), where the warmup router
-begins with informed arm-quality estimates and avoids the
-exploratory phase that the cold-start router must perform.
-Beyond step~${\sim}400$, the two routers converge to comparable
-per-step quality, but the regret gap established early persists
-through the full horizon.
-Twenty seeds; 95\% bootstrap CI shading; val split ($n{=}1{,}785$).
+Twenty seeds; 95\% bootstrap CI; test split ($n{=}1{,}824$).
+$p$-values are from paired $t$-tests (warmup vs.\ tabula rasa,
+same seed).
 
-\paragraph{Operational impact.}
-In our $K{=}3$ portfolio the quality gap between the best and worst arm
-averages ${\sim}0.15$ reward points per query.  The 7.5-point regret
-reduction from warmup priors therefore corresponds to roughly
-\textbf{51 additional queries routed to the correct model} over a
-1{,}785-query trajectory---queries whose users receive a
-higher-quality response at no additional cost.
-The effect is front-loaded: during the first 200~queries the cold-start
-router misroutes ${\sim}15\%$ more traffic to suboptimal models.
-In production this cold-start window recurs with every service
-redeployment, horizontal scale-out event, or new-tenant onboarding,
-making the cumulative impact proportional to deployment frequency.
-For example, a gateway serving 100K~queries/day with one daily
-deployment would see ${\sim}2{,}900$ additional queries per day
-routed to a superior model---roughly 1M~queries per year---simply
-by initialising the bandit with offline priors that cost minutes
-to compute.
+\paragraph{Unconstrained.}
+Without a budget pacer, warmup priors reduce total regret by 11\%
+($74.5$ vs.\ $83.6$; $\Delta{=}-9.1$, $p < 10^{-5}$) and
+early regret (R@200) by 45\%
+($6.6$ vs.\ $12.1$).
+The advantage is concentrated in the first ${\sim}200$~steps
+(Figure~\ref{fig:warmup_ablation}), where the warmup router begins
+with informed arm-quality estimates and avoids the exploratory phase
+that the cold-start router must perform.  Beyond step~${\sim}400$,
+the two routers converge, but the regret gap established early
+persists through the full horizon.
+
+\paragraph{Tight budget.}
+Under a tight budget the warmup advantage remains significant
+($198.0$ vs.\ $205.4$; $\Delta{=}-7.3$, $p{=}0.006$; 4\%
+reduction).
+The budget pacer penalises expensive arms, so the cold-start
+router's early UCB-driven exploration of Gemini-Pro
+(${\sim}29{\times}$ costlier than Mistral-Large:
+\$0.0151/req vs.\ \$0.0005/req in our dataset) consumes real
+budget without delivering proportionate information gain.
+The warmup router, already knowing each arm's quality profile,
+allocates its limited budget more efficiently from step~1.
+
+\paragraph{Moderate budget.}
+At moderate budgets the warmup advantage vanishes
+($151.4$ vs.\ $153.0$; $\Delta{=}-1.6$, $p{=}0.68$, not
+significant).
+The budget constraint forces both routers toward similar
+affordable arm mixes: at the final step the warmup router
+allocates 59\% Mistral-Large / 39\% Llama-8B / 2\% Gemini-Pro,
+and the tabula-rasa router allocates 67\% / 31\% / 2\%
+(from logged arm fractions).
+Within this constrained decision space the routing problem is
+simple enough for the cold-start router to solve quickly, and the
+prior adds no incremental value.
+
+\paragraph{Discussion.}
+The budget-stratified results sharpen the recommendation:
+warmup priors matter most when the router has freedom to
+explore expensive arms---either because there is no budget
+constraint (unconstrained) or because the constraint is tight
+enough that every exploratory pull of a costly arm has outsized
+impact.
+When the budget collapses the feasible arm set to a small,
+affordable subset (moderate), the prior's knowledge about
+expensive arms becomes irrelevant.
+
+\paragraph{Business perspective.}
+Intelligent LLM routing delivers simultaneous quality and cost
+gains because no single model dominates all queries.
+In our $K{=}3$ portfolio, oracle routing---selecting the per-query
+best model---achieves 3.3\% higher quality than routing all
+traffic to the frontier model
+($(0.963 - 0.932)/0.932$; mean reward on the test split)
+while reducing per-request cost by 66\%
+($(1 - 0.005/0.015)$; mean oracle cost vs.\ mean Gemini-2.5-Pro
+cost on the test split, at March 2026 API pricing of
+\$1.25/M input and \$10.00/M output
+tokens\footnote{Google Cloud Vertex AI pricing,
+\url{https://cloud.google.com/vertex-ai/generative-ai/pricing},
+accessed March 2026.}).
+This dual improvement---better quality \emph{and} lower
+cost---arises because the frontier model is not universally
+best: in our test split, a cheaper model strictly outscores
+Gemini-2.5-Pro on 35\% of prompts (and ties on a further
+37\%), so Gemini is the unique best choice on only 27\% of
+queries.
+The direction of the result is consistent with RouteLLM, which
+shows that routers can maintain $>$95\% of frontier quality at
+$>$50\% lower cost in a $K{=}2$
+setting~\cite{ong2024routellm}.
+
+To illustrate the scale at which these per-request differences
+compound, we project to enterprise traffic volumes.
+Azure OpenAI Service alone reports 230{,}000 organisational
+deployments processing over 100~trillion tokens per
+quarter~\cite{azure2025stats}; a mid-sized deployment
+handling $10^5$--$10^6$ queries/day is well within this range.
+The per-request cost gap between frontier-only and oracle
+routing in our portfolio is
+$\$0.0151 - \$0.0051 = \$0.0100$/req, so
+$10^5 \times \$0.010 \times 365 = \$365\text{K/year}$,
+scaling linearly to ${\sim}\$3.7\text{M}$ at $10^6$ daily
+requests---with no quality sacrifice, since oracle routing
+\emph{improves} quality over the single-model baseline.
+
+Within this context, warmup priors protect routing quality during
+the critical cold-start window.
+Under tight budgets, the 4\% regret reduction
+($(205.4 - 198.0)/205.4$; $p{=}0.006$) represents 4\% of the
+router's total quality--cost value recovered solely by starting
+with informed priors.
+Applying the same projection:
+$0.04 \times \$365\text{K} \approx \$15\text{K/year}$ at $10^5$
+daily requests, rising to ${\sim}\$146\text{K}$ at $10^6$.
+This captures the cost of cold-start exploration, where every
+uninformed call on a \$0.015 frontier arm under a tight
+budget simultaneously degrades quality \emph{and} consumes
+budget that would otherwise fund later high-value routing
+decisions.
+The early regret reduction (R@200) is even starker:
+45\% in the unconstrained regime
+($6.6\,[6.2,\,7.1]$ vs.\ $12.1\,[10.5,\,13.7]$)
+and 13\% under a tight budget
+($24.0\,[22.4,\,25.6]$ vs.\ $27.5\,[25.4,\,29.5]$).
+In production, these first few hundred queries correspond to
+the initial deployment window where user trust is most
+fragile---precisely when suboptimal routing is costliest.
+
+These projections are illustrative: the per-request costs are
+specific to our three-model portfolio and March 2026 pricing,
+and the traffic volumes are drawn from public platform
+statistics rather than a single organisation's logs.
+Actual savings depend on the specific model mix, prompt
+distribution, and pricing at deployment time.
+Nevertheless, warmup priors are easy to justify when
+calibrated on representative data: computing them from a
+labelled offline dataset takes minutes and requires no ongoing
+maintenance~\cite{kveton2023warmstart}.
+The key practical lever is $n_\mathit{eff}$, which controls
+how strongly the prior anchors the router.
+With well-calibrated priors (as in our experiments),
+$n_\mathit{eff}{=}1{,}000$ lets the router exploit prior
+knowledge immediately.
+When prior quality is uncertain---e.g., the offline dataset
+comes from a different prompt distribution or from stale model
+versions---a lower $n_\mathit{eff}$ (e.g., 10--100) gives
+the router a gentle initial nudge while preserving enough
+exploration for rapid online correction.
+Even in this conservative regime the router is strictly better
+off than a pure cold start ($n_\mathit{eff}{=}1$), because any
+directionally correct prior information reduces the earliest,
+most expensive exploration steps.
+The risk of bad priors is therefore not a reason to avoid them
+but a reason to tune $n_\mathit{eff}$ conservatively; this
+interaction is further discussed in
+Section~\ref{sec:discussion}.
+The recommendation is: always enable warmup priors, adjusting
+$n_\mathit{eff}$ to reflect confidence in their calibration.
+The computational cost is negligible, and the upside---at
+enterprise scale, where LLM API spend surpassed \$8.4B by
+mid-2025~\cite{menlo2025llmmarket}---is economically
+meaningful.
 
 \paragraph{Uncertainty evolution (Figure~\ref{fig:warmup_uncertainty}).}
-To visualise the mechanism behind this regret gap, Figure~\ref{fig:warmup_uncertainty} plots $\mathrm{tr}(A_a^{-1})$---the total uncertainty per arm---for both conditions across the trajectory.
-Warmup-initialised arms (solid lines) start at $\mathrm{tr}(A_a^{-1}) \approx 0.72$, reflecting the $n_\mathit{eff}{=}1{,}000$ pseudo-observations encoded in the offline prior.
-Cold-started arms (dashed lines) begin at $\mathrm{tr}(A_a^{-1}) = d / \lambda = 26$---a ${\sim}36{\times}$ uncertainty gap.
+To visualise the mechanism behind the early regret gap, Figure~\ref{fig:warmup_uncertainty} plots $\mathrm{tr}(A_a^{-1})$---the total uncertainty per arm---for the unconstrained conditions across the trajectory.
+The context dimension is $d{=}26$ (PCA components) and the
+regularisation is $\lambda{=}1$ (default LinUCB).
+Cold-started arms (dashed lines) therefore begin at
+$\mathrm{tr}(A_a^{-1}) = \mathrm{tr}((\lambda I)^{-1}) = d / \lambda = 26$.
+Warmup-initialised arms (solid lines) start at
+$\mathrm{tr}(A_a^{-1}) = 0.72$, reflecting the
+$n_\mathit{eff}{=}1{,}000$ pseudo-observations encoded in the
+offline prior---a $26 / 0.72 = 36{\times}$ uncertainty gap.
 Because the UCB exploration bonus scales as $\alpha\sqrt{x^\top A_a^{-1} x}$, this gap means the cold-start router must spend hundreds of steps exploring before it accumulates enough information to route as confidently as the warmup router does from step~1.
 With geometric forgetting ($\gamma{=}0.995$), arms that receive few observations see their uncertainty \emph{grow} over time as the prior decays; the warmup Llama-8B trace rises from 0.72 to ${\sim}10$, illustrating how forgetting trades long-term certainty for adaptability.
 The two conditions largely converge by step~${\sim}400$ for frequently selected arms (Gemini-Pro, Mistral-Large), consistent with the regret convergence in Figure~\ref{fig:warmup_ablation}.

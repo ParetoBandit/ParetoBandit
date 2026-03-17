@@ -53,8 +53,11 @@
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.pdf}
-\caption{Cumulative regret: warmup priors vs.\ cold start vs.\ random baseline (K=3 stationary, 20 seeds, 95\% bootstrap CI).  Both bandit conditions use their respective Experiment~04 optimal hyperparameters.  Warmup priors reduce total regret by 9\% and early regret (step~200) by 43\%.}
+\includegraphics[width=\linewidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.pdf}
+\caption{Cumulative regret: warmup priors vs.\ cold start across three budget regimes (K=3 stationary, 20 seeds, 95\% bootstrap CI, held-out test split).
+  Left: unconstrained---warmup reduces regret by 11\% ($p < 10^{-5}$), concentrated in the first ${\sim}200$ steps.
+  Centre: tight budget---the advantage persists ($\Delta{=}-7.3$, $p{=}0.006$) because uninformed UCB exploration wastes scarce budget on expensive arms.
+  Right: moderate budget---the gap vanishes ($p{=}0.68$) as the budget constraint collapses the feasible arm set, making the prior's knowledge irrelevant.}
 \label{fig:warmup_ablation}
 \end{figure}
 

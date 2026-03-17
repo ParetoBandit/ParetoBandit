@@ -13,6 +13,8 @@
 \newlabel{sec:intro}{{1}{1}{Introduction}{section.1}{}}
 \citation{panda2025pilot,wang2025barp,li2025llmbandit,qian2025xrouter}
 \citation{ong2024routellm,wang2025barp}
+\citation{panda2025pilot}
+\citation{agrawal2014bandits}
 \citation{chen2023frugalgpt}
 \citation{ong2024routellm}
 \citation{feng2025graphrouter}
@@ -22,166 +24,246 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Static and Supervised Routers}{2}{subsection.2.1}\protected@file@percent }
 \citation{panda2025pilot}
 \citation{li2010contextual}
+\citation{kveton2023warmstart}
+\citation{pan2024cbli}
 \citation{wang2025barp}
 \citation{li2025llmbandit}
 \citation{qian2025xrouter}
 \citation{bae2026learning}
+\citation{agrawal2014bandits}
 \citation{ong2024routellm}
 \citation{wang2025barp}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Adaptive and Bandit-Based Routers}{3}{subsection.2.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Positioning ParetoBandit}{3}{subsection.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}Problem Formulation}{3}{section.3}\protected@file@percent }
-\newlabel{sec:problem}{{3}{3}{Problem Formulation}{section.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Contextual Bandit Routing}{3}{subsection.3.1}\protected@file@percent }
+\citation{agrawal2014bandits}
 \citation{agrawal2014bandits}
 \citation{ong2024routellm}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Problem Formulation}{4}{section.3}\protected@file@percent }
+\newlabel{sec:problem}{{3}{4}{Problem Formulation}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Contextual Bandit Routing}{4}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}The Budget Constraint}{4}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Rate constraint vs.\ cumulative knapsack.}{4}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Non-Stationarity}{4}{subsection.3.3}\protected@file@percent }
 \citation{thompson2026timeline}
 \citation{agrawal2014bandits}
 \citation{li2010contextual}
-\citation{li2010contextual}
-\citation{li2010contextual}
-\citation{li2010contextual}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}The Budget Constraint}{4}{subsection.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Non-Stationarity}{4}{subsection.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Reward Drift (Quality Shifts)}{4}{section*.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Cost Drift (Price Drops)}{4}{section*.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}Methodology: The ParetoBandit System}{4}{section.4}\protected@file@percent }
-\newlabel{sec:methodology}{{4}{4}{Methodology: The ParetoBandit System}{section.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}System Architecture Overview}{4}{subsection.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Primal-Dual Budget Pacing}{4}{subsection.4.2}\protected@file@percent }
-\newlabel{sec:budget_pacing}{{4.2}{4}{Primal-Dual Budget Pacing}{subsection.4.2}{}}
-\newlabel{eq:budget_ucb}{{3}{4}{Primal-Dual Budget Pacing}{equation.3}{}}
-\newlabel{eq:cost_norm}{{4}{4}{Primal-Dual Budget Pacing}{equation.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Dual-Variable Dynamics and EMA Smoothing.}{4}{section*.6}\protected@file@percent }
-\newlabel{eq:cost_ema}{{5}{4}{Dual-Variable Dynamics and EMA Smoothing}{equation.5}{}}
-\newlabel{eq:dual_update}{{6}{4}{Dual-Variable Dynamics and EMA Smoothing}{equation.6}{}}
+\citation{gama2014survey,chen2023chatgptdrift}
+\citation{wang2025barp}
 \citation{garivier2011switching}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces ParetoBandit System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt  {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother.}}{5}{figure.caption.5}\protected@file@percent }
+\citation{kveton2023warmstart}
+\@writefile{toc}{\contentsline {paragraph}{Reward Drift (Quality Shifts)}{5}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cost Drift (Price Drops)}{5}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Methodology: The ParetoBandit System}{5}{section.4}\protected@file@percent }
+\newlabel{sec:methodology}{{4}{5}{Methodology: The ParetoBandit System}{section.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Design rationale.}{5}{section*.6}\protected@file@percent }
+\citation{agrawal2014bandits}
+\citation{li2010contextual}
+\citation{li2010contextual}
+\citation{li2010contextual}
+\citation{li2010contextual}
+\citation{gama2014survey}
+\citation{chen2023chatgptdrift,chen2025silent}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}System Architecture Overview}{6}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Primal-Dual Budget Pacing}{6}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:budget_pacing}{{4.2}{6}{Primal-Dual Budget Pacing}{subsection.4.2}{}}
+\newlabel{eq:budget_ucb}{{3}{6}{Primal-Dual Budget Pacing}{equation.3}{}}
+\newlabel{eq:cost_norm}{{4}{6}{Primal-Dual Budget Pacing}{equation.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Dual-Variable Dynamics and EMA Smoothing.}{6}{section*.8}\protected@file@percent }
+\newlabel{eq:cost_ema}{{5}{6}{Dual-Variable Dynamics and EMA Smoothing}{equation.5}{}}
+\newlabel{eq:dual_update}{{6}{6}{Dual-Variable Dynamics and EMA Smoothing}{equation.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Two-Layer Enforcement (Adaptive Mode).}{6}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Non-Stationary Adaptation via Geometric Forgetting}{6}{subsection.4.3}\protected@file@percent }
+\newlabel{sec:forgetting}{{4.3}{6}{Non-Stationary Adaptation via Geometric Forgetting}{subsection.4.3}{}}
+\citation{garivier2011switching}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces ParetoBandit System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt  {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother.}}{7}{figure.caption.7}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:architecture}{{1}{5}{ParetoBandit System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother}{figure.caption.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{Two-Layer Enforcement (Adaptive Mode).}{5}{section*.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Non-Stationary Adaptation via Geometric Forgetting}{5}{subsection.4.3}\protected@file@percent }
-\newlabel{sec:forgetting}{{4.3}{5}{Non-Stationary Adaptation via Geometric Forgetting}{subsection.4.3}{}}
-\newlabel{eq:forget_A}{{7}{5}{Non-Stationary Adaptation via Geometric Forgetting}{equation.7}{}}
-\newlabel{eq:forget_b}{{8}{5}{Non-Stationary Adaptation via Geometric Forgetting}{equation.8}{}}
+\newlabel{fig:architecture}{{1}{7}{ParetoBandit System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother}{figure.caption.7}{}}
+\newlabel{eq:forget_A}{{7}{7}{Non-Stationary Adaptation via Geometric Forgetting}{equation.7}{}}
+\newlabel{eq:forget_b}{{8}{7}{Non-Stationary Adaptation via Geometric Forgetting}{equation.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Computational Efficiency}{7}{subsection.4.4}\protected@file@percent }
+\newlabel{sec:efficiency}{{4.4}{7}{Computational Efficiency}{subsection.4.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{$O(d^2)$ updates via Sherman-Morrison.}{7}{section*.10}\protected@file@percent }
+\newlabel{eq:sherman_morrison}{{9}{7}{$O(d^2)$ updates via Sherman-Morrison}{equation.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{$O(Kd)$ arm selection.}{7}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Constant-time geometric decay.}{7}{section*.12}\protected@file@percent }
 \citation{zheng2023judging}
 \citation{deepseekai2025deepseekr1}
 \citation{lattimore2020bandit}
 \citation{verga2024poll,zhao2025care}
 \citation{lattimore2020bandit}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Computational Efficiency}{6}{subsection.4.4}\protected@file@percent }
-\newlabel{sec:efficiency}{{4.4}{6}{Computational Efficiency}{subsection.4.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{$O(d^2)$ updates via Sherman-Morrison.}{6}{section*.8}\protected@file@percent }
-\newlabel{eq:sherman_morrison}{{9}{6}{$O(d^2)$ updates via Sherman-Morrison}{equation.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{$O(Kd)$ arm selection.}{6}{section*.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Constant-time geometric decay.}{6}{section*.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Empirical validation.}{6}{section*.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{6}{section.5}\protected@file@percent }
-\newlabel{sec:setup}{{5}{6}{Experimental Setup}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets and Ground Truth}{6}{subsection.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Quality evaluation.}{6}{section*.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Data splits.}{6}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Context representation.}{6}{section*.15}\protected@file@percent }
+\citation{ong2024routellm}
+\citation{chen2024routerdc}
+\citation{feng2025graphrouter}
+\citation{panda2025pilot}
+\citation{wang2025mixllm}
+\citation{bhatti2026proteus}
+\citation{reimers2019sentence}
+\@writefile{toc}{\contentsline {paragraph}{Empirical validation.}{8}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{8}{section.5}\protected@file@percent }
+\newlabel{sec:setup}{{5}{8}{Experimental Setup}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets and Ground Truth}{8}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Quality evaluation.}{8}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Data splits.}{8}{section*.15}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Dataset splits and model portfolio ($K{=}3$). All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1. The $500\times $ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff.}}{8}{table.caption.16}\protected@file@percent }
+\newlabel{tab:dataset}{{1}{8}{Dataset splits and model portfolio ($K{=}3$). All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1. The $500\times $ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff}{table.caption.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{Context representation.}{8}{section*.17}\protected@file@percent }
 \citation{panda2025pilot,wang2025barp,li2025llmbandit}
 \citation{garivier2011switching}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Dataset splits and model portfolio ($K{=}3$). All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1. The $500\times $ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff.}}{7}{table.caption.14}\protected@file@percent }
-\newlabel{tab:dataset}{{1}{7}{Dataset splits and model portfolio ($K{=}3$). All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1. The $500\times $ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff}{table.caption.14}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Environment Construction}{7}{subsection.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{7}{subsection.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Metrics}{7}{subsection.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{7}{section.6}\protected@file@percent }
-\newlabel{sec:results}{{6}{7}{Results}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Stationary Budget Pacing}{7}{subsection.6.1}\protected@file@percent }
-\newlabel{sec:exp1_budget_pacing}{{6.1}{7}{Stationary Budget Pacing}{subsection.6.1}{}}
+\citation{kveton2023warmstart}
+\citation{chen2023chatgptdrift,thompson2026timeline}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Environment Construction}{9}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{9}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Metrics}{9}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{9}{section.6}\protected@file@percent }
+\newlabel{sec:results}{{6}{9}{Results}{section.6}{}}
 \citation{panda2025pilot}
 \citation{wang2025barp}
 \citation{garivier2011switching}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Summary of main results. \textit  {Panel\nonbreakingspace (a):} cumulative regret decomposed by phase under reward drift (Exp.\nonbreakingspace 2; 40\nonbreakingspace seeds, $\lambda _s{=}0.20$). \textit  {Panel\nonbreakingspace (b):} Phase\nonbreakingspace 1 budget utilisation under cost drift (Exp.\nonbreakingspace 3; 50\nonbreakingspace seeds). Utilisation\nonbreakingspace $=$\nonbreakingspace realised cost\nonbreakingspace /\nonbreakingspace target\nonbreakingspace $B$; values near $1.0\times $ indicate precise budget control. All six pairwise differences in\nonbreakingspace (a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$).}}{8}{table.caption.16}\protected@file@percent }
-\newlabel{tab:main_results}{{2}{8}{Summary of main results. \textit {Panel~(a):} cumulative regret decomposed by phase under reward drift (Exp.~2; 40~seeds, $\lambda _s{=}0.20$). \textit {Panel~(b):} Phase~1 budget utilisation under cost drift (Exp.~3; 50~seeds). Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times $ indicate precise budget control. All six pairwise differences in~(a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$)}{table.caption.16}{}}
-\@writefile{toc}{\contentsline {paragraph}{Pareto frontier.}{8}{section*.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{8}{section*.19}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The Pareto frontier under stationary conditions. ParetoBandit with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning.}}{8}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:pareto}{{2}{8}{The Pareto frontier under stationary conditions. ParetoBandit with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning}{figure.caption.18}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions.}}{8}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:model_mix}{{3}{8}{Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions}{figure.caption.20}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Adapting to Model Quality Shifts}{8}{subsection.6.2}\protected@file@percent }
-\newlabel{sec:exp2_reward_shift}{{6.2}{8}{Adapting to Model Quality Shifts}{subsection.6.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{Why these baselines.}{8}{section*.21}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Cumulative regret under reward drift (4\nonbreakingspace conditions, 40\nonbreakingspace seeds, 95\% bootstrap CI). ParetoBandit ($\gamma {=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase\nonbreakingspace 1 cost) with geometric forgetting (fast Phase\nonbreakingspace 2 adaptation). SW-UCB adapts fastest post-shift but pays a large cold-start tax.}}{9}{figure.caption.22}\protected@file@percent }
-\newlabel{fig:cumulative_regret}{{4}{9}{Cumulative regret under reward drift (4~conditions, 40~seeds, 95\% bootstrap CI). ParetoBandit ($\gamma {=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase~1 cost) with geometric forgetting (fast Phase~2 adaptation). SW-UCB adapts fastest post-shift but pays a large cold-start tax}{figure.caption.22}{}}
-\@writefile{toc}{\contentsline {paragraph}{Deployment reliability.}{9}{section*.23}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{9}{subsection.6.3}\protected@file@percent }
-\newlabel{sec:exp3_cost_drift}{{6.3}{9}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{9}{section*.24}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{9}{section*.25}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Budget compliance under cost drift (Experiment\nonbreakingspace 3, 50\nonbreakingspace seeds). Each cell shows realised average cost as a multiple of the budget target ($1.00\times $ = perfect). \textbf  {Bold} marks values within $5\%$ of $1.00\times $. $\dagger $\nonbreakingspace Phase\nonbreakingspace 2 constraint non-binding: the price drop reduces all methods' costs below target, regardless of algorithm. ParetoBandit is the only condition that reliably meets the target in Phase\nonbreakingspace 1 and, where the constraint remains binding (tight), in Phase\nonbreakingspace 2.}}{10}{table.caption.28}\protected@file@percent }
-\newlabel{tab:budget_compliance}{{3}{10}{Budget compliance under cost drift (Experiment~3, 50~seeds). Each cell shows realised average cost as a multiple of the budget target ($1.00\times $ = perfect). \textbf {Bold} marks values within $5\%$ of $1.00\times $. $\dagger $~Phase~2 constraint non-binding: the price drop reduces all methods' costs below target, regardless of algorithm. ParetoBandit is the only condition that reliably meets the target in Phase~1 and, where the constraint remains binding (tight), in Phase~2}{table.caption.28}{}}
-\@writefile{toc}{\contentsline {paragraph}{Quality cost of the pacer.}{10}{section*.26}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Tight budgets: binding constraints as a feature.}{10}{section*.29}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hyperparameter Selection via Epsilon-Constraint}{10}{subsection.6.4}\protected@file@percent }
-\newlabel{sec:exp4_hparam_sweep}{{6.4}{10}{Hyperparameter Selection via Epsilon-Constraint}{subsection.6.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Two objectives.}{10}{section*.30}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Selection rule.}{10}{section*.31}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Result.}{10}{section*.32}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces ParetoBandit dual-variable dynamics under a mid-stream Gemini price drop (step\nonbreakingspace 912; 50\nonbreakingspace seeds, 95\% bootstrap CI). \textbf  {(a)}\nonbreakingspace The dual variable $\lambda _t$ reveals qualitatively distinct responses: at tight budget, $\lambda _t$ \emph  {rises} because costs still exceed the target (binding constraint); at moderate/loose budgets, $\lambda _t$ decays to zero as post-drop costs fall well below target (slack constraint). \textbf  {(b)}\nonbreakingspace Gemini selection fraction mirrors the dual signal---tight budget drives $86\%$ Gemini adoption via cost-penalty concentration; moderate/loose converge toward the unconstrained baseline (dash-dot). \textbf  {(c)}\nonbreakingspace Running average cost per request; dotted lines mark budget targets. All three regimes exhibit the correct Lagrangian response. Quantitative compliance comparisons with baselines are in Table\nonbreakingspace \ref {tab:budget_compliance}.}}{11}{figure.caption.27}\protected@file@percent }
-\newlabel{fig:adaptation_dynamics}{{5}{11}{ParetoBandit dual-variable dynamics under a mid-stream Gemini price drop (step~912; 50~seeds, 95\% bootstrap CI). \textbf {(a)}~The dual variable $\lambda _t$ reveals qualitatively distinct responses: at tight budget, $\lambda _t$ \emph {rises} because costs still exceed the target (binding constraint); at moderate/loose budgets, $\lambda _t$ decays to zero as post-drop costs fall well below target (slack constraint). \textbf {(b)}~Gemini selection fraction mirrors the dual signal---tight budget drives $86\%$ Gemini adoption via cost-penalty concentration; moderate/loose converge toward the unconstrained baseline (dash-dot). \textbf {(c)}~Running average cost per request; dotted lines mark budget targets. All three regimes exhibit the correct Lagrangian response. Quantitative compliance comparisons with baselines are in Table~\ref {tab:budget_compliance}}{figure.caption.27}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Efficiency--adaptability tradeoff for ParetoBandit ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit  {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $99.75\% of best AUC); 98 of 144 configurations pass. The black star is the $\epsilon $-constraint winner; the red \textbf  {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret.}}{11}{figure.caption.33}\protected@file@percent }
-\newlabel{fig:epsilon_tradeoff}{{6}{11}{Efficiency--adaptability tradeoff for ParetoBandit ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $99.75\% of best AUC); 98 of 144 configurations pass. The black star is the $\epsilon $-constraint winner; the red \textbf {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret}{figure.caption.33}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Cold-Start Model Onboarding}{11}{subsection.6.5}\protected@file@percent }
-\newlabel{sec:model_onboarding_preview}{{6.5}{11}{Cold-Start Model Onboarding}{subsection.6.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{11}{section.7}\protected@file@percent }
-\newlabel{sec:discussion}{{7}{11}{Discussion and Production Implications}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{11}{subsection.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{11}{section*.34}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{12}{section*.35}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Operational Value beyond Static Penalties.}{12}{section*.36}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Portfolio and Encoder Portability.}{12}{section*.37}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{12}{subsection.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Warm-Start Dependence at Tight Budgets.}{12}{section*.38}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Static Unit-Cost Normalization.}{12}{section*.39}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Obtaining Discriminative Rewards in Practice.}{12}{section*.40}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Summary of main results. \textit  {Panel\nonbreakingspace (a):} cumulative regret decomposed by phase under reward drift (Exp.\nonbreakingspace 2; 40\nonbreakingspace seeds, $\lambda _s{=}0.20$). \textit  {Panel\nonbreakingspace (b):} Phase\nonbreakingspace 1 budget utilisation under cost drift (Exp.\nonbreakingspace 3; 50\nonbreakingspace seeds). Utilisation\nonbreakingspace $=$\nonbreakingspace realised cost\nonbreakingspace /\nonbreakingspace target\nonbreakingspace $B$; values near $1.0\times $ indicate precise budget control. All six pairwise differences in\nonbreakingspace (a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$).}}{10}{table.caption.18}\protected@file@percent }
+\newlabel{tab:main_results}{{2}{10}{Summary of main results. \textit {Panel~(a):} cumulative regret decomposed by phase under reward drift (Exp.~2; 40~seeds, $\lambda _s{=}0.20$). \textit {Panel~(b):} Phase~1 budget utilisation under cost drift (Exp.~3; 50~seeds). Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times $ indicate precise budget control. All six pairwise differences in~(a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$)}{table.caption.18}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Stationary Budget Pacing}{10}{subsection.6.1}\protected@file@percent }
+\newlabel{sec:exp1_budget_pacing}{{6.1}{10}{Stationary Budget Pacing}{subsection.6.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Pareto frontier.}{10}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{10}{section*.21}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The Pareto frontier under stationary conditions. ParetoBandit with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning.}}{10}{figure.caption.20}\protected@file@percent }
+\newlabel{fig:pareto}{{2}{10}{The Pareto frontier under stationary conditions. ParetoBandit with BudgetPacer perfectly traces the theoretical optimal curve achieved by offline $\lambda $-tuning}{figure.caption.20}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions.}}{10}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:model_mix}{{3}{10}{Model allocation mix under a strict stationary budget. The BudgetPacer stabilizes rapidly to optimal proportions}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Adapting to Model Quality Shifts}{10}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:exp2_reward_shift}{{6.2}{10}{Adapting to Model Quality Shifts}{subsection.6.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Why these baselines.}{10}{section*.23}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Cumulative regret under reward drift (4\nonbreakingspace conditions, 40\nonbreakingspace seeds, 95\% bootstrap CI). ParetoBandit ($\gamma {=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase\nonbreakingspace 1 cost) with geometric forgetting (fast Phase\nonbreakingspace 2 adaptation). SW-UCB adapts fastest post-shift but pays a large cold-start tax.}}{11}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:cumulative_regret}{{4}{11}{Cumulative regret under reward drift (4~conditions, 40~seeds, 95\% bootstrap CI). ParetoBandit ($\gamma {=}0.995$) achieves the lowest total regret by combining warmup priors (low Phase~1 cost) with geometric forgetting (fast Phase~2 adaptation). SW-UCB adapts fastest post-shift but pays a large cold-start tax}{figure.caption.24}{}}
+\@writefile{toc}{\contentsline {paragraph}{Deployment reliability.}{11}{section*.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{11}{subsection.6.3}\protected@file@percent }
+\newlabel{sec:exp3_cost_drift}{{6.3}{11}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{11}{section*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{11}{section*.27}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Budget compliance under cost drift (Experiment\nonbreakingspace 3, 50\nonbreakingspace seeds). Each cell shows realised average cost as a multiple of the budget target ($1.00\times $ = perfect). \textbf  {Bold} marks values within $5\%$ of $1.00\times $. $\dagger $\nonbreakingspace Phase\nonbreakingspace 2 constraint non-binding: the price drop reduces all methods' costs below target, regardless of algorithm. ParetoBandit is the only condition that reliably meets the target in Phase\nonbreakingspace 1 and, where the constraint remains binding (tight), in Phase\nonbreakingspace 2.}}{12}{table.caption.30}\protected@file@percent }
+\newlabel{tab:budget_compliance}{{3}{12}{Budget compliance under cost drift (Experiment~3, 50~seeds). Each cell shows realised average cost as a multiple of the budget target ($1.00\times $ = perfect). \textbf {Bold} marks values within $5\%$ of $1.00\times $. $\dagger $~Phase~2 constraint non-binding: the price drop reduces all methods' costs below target, regardless of algorithm. ParetoBandit is the only condition that reliably meets the target in Phase~1 and, where the constraint remains binding (tight), in Phase~2}{table.caption.30}{}}
+\@writefile{toc}{\contentsline {paragraph}{Quality cost of the pacer.}{12}{section*.28}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Tight budgets: binding constraints as a feature.}{12}{section*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hyperparameter Selection via Epsilon-Constraint}{12}{subsection.6.4}\protected@file@percent }
+\newlabel{sec:exp4_hparam_sweep}{{6.4}{12}{Hyperparameter Selection via Epsilon-Constraint}{subsection.6.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Two objectives.}{12}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection rule.}{12}{section*.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Result.}{12}{section*.34}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces ParetoBandit dual-variable dynamics under a mid-stream Gemini price drop (step\nonbreakingspace 912; 50\nonbreakingspace seeds, 95\% bootstrap CI). \textbf  {(a)}\nonbreakingspace The dual variable $\lambda _t$ reveals qualitatively distinct responses: at tight budget, $\lambda _t$ \emph  {rises} because costs still exceed the target (binding constraint); at moderate/loose budgets, $\lambda _t$ decays to zero as post-drop costs fall well below target (slack constraint). \textbf  {(b)}\nonbreakingspace Gemini selection fraction mirrors the dual signal---tight budget drives $86\%$ Gemini adoption via cost-penalty concentration; moderate/loose converge toward the unconstrained baseline (dash-dot). \textbf  {(c)}\nonbreakingspace Running average cost per request; dotted lines mark budget targets. All three regimes exhibit the correct Lagrangian response. Quantitative compliance comparisons with baselines are in Table\nonbreakingspace \ref {tab:budget_compliance}.}}{13}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:adaptation_dynamics}{{5}{13}{ParetoBandit dual-variable dynamics under a mid-stream Gemini price drop (step~912; 50~seeds, 95\% bootstrap CI). \textbf {(a)}~The dual variable $\lambda _t$ reveals qualitatively distinct responses: at tight budget, $\lambda _t$ \emph {rises} because costs still exceed the target (binding constraint); at moderate/loose budgets, $\lambda _t$ decays to zero as post-drop costs fall well below target (slack constraint). \textbf {(b)}~Gemini selection fraction mirrors the dual signal---tight budget drives $86\%$ Gemini adoption via cost-penalty concentration; moderate/loose converge toward the unconstrained baseline (dash-dot). \textbf {(c)}~Running average cost per request; dotted lines mark budget targets. All three regimes exhibit the correct Lagrangian response. Quantitative compliance comparisons with baselines are in Table~\ref {tab:budget_compliance}}{figure.caption.29}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Efficiency--adaptability tradeoff for ParetoBandit ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit  {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $99.75\% of best AUC); 98 of 144 configurations pass. The black star is the $\epsilon $-constraint winner; the red \textbf  {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret.}}{13}{figure.caption.35}\protected@file@percent }
+\newlabel{fig:epsilon_tradeoff}{{6}{13}{Efficiency--adaptability tradeoff for ParetoBandit ($K{=}3$, PCA-25). Each point is one ($\alpha $, $n_\mathit {eff}$, $\gamma $) configuration; colour encodes $\gamma $. The green band marks the $\epsilon $-feasible region ($\geq $99.75\% of best AUC); 98 of 144 configurations pass. The black star is the $\epsilon $-constraint winner; the red \textbf {X} is the AUC-only winner ($\gamma {=}1.0$), which suffers the highest Phase-2 regret}{figure.caption.35}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Cold-Start Model Onboarding}{13}{subsection.6.5}\protected@file@percent }
+\newlabel{sec:model_onboarding_preview}{{6.5}{13}{Cold-Start Model Onboarding}{subsection.6.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{No historical labeled data required.}{13}{section*.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{14}{section.7}\protected@file@percent }
+\newlabel{sec:discussion}{{7}{14}{Discussion and Production Implications}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{14}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{14}{section*.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{14}{section*.38}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Operational Value beyond Static Penalties.}{14}{section*.39}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Portfolio and Encoder Portability.}{14}{section*.40}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{14}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Warm-Start Dependence at Tight Budgets.}{14}{section*.41}\protected@file@percent }
+\citation{panda2025pilot}
+\citation{chen2025budgetpacing}
 \citation{ong2024routellm}
 \citation{wang2025barp}
 \citation{li2026llmrouterbench}
 \citation{wang2025mixllm}
 \citation{bhatti2026proteus}
+\@writefile{toc}{\contentsline {paragraph}{Static Unit-Cost Normalization.}{15}{section*.42}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Rate-Constraint Tradeoffs and Budget Sizing.}{15}{section*.43}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Eliminating the Rolling-Horizon Dependency.}{15}{section*.44}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Obtaining Discriminative Rewards in Practice.}{15}{section*.45}\protected@file@percent }
 \citation{panda2025pilot,wang2025barp,li2025llmbandit}
-\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback and State Persistence.}{13}{section*.41}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{13}{section*.42}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{13}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback and State Persistence.}{16}{section*.46}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{16}{section*.47}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Linearity of the Reward Model.}{16}{section*.48}\protected@file@percent }
+\citation{zhou2020neural}
+\citation{zhang2021neural}
+\citation{li2010contextual}
+\@writefile{toc}{\contentsline {paragraph}{Cross-Model Parameter Sharing.}{17}{section*.49}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{17}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Quantified operational impact.}{17}{section*.50}\protected@file@percent }
 \bibstyle{ACM-Reference-Format}
 \bibdata{references}
 \bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
 \bibcite{ailem2024benchmarkrobustness}{{2}{2024}{{Ailem et~al\mbox  {.}}}{{}}}
-\bibcite{chen2023frugalgpt}{{3}{2023a}{{Chen et~al\mbox  {.}}}{{}}}
-\bibcite{chen2023chatgptdrift}{{4}{2023b}{{Chen et~al\mbox  {.}}}{{}}}
-\bibcite{chen2024routerdc}{{5}{2024}{{Chen et~al\mbox  {.}}}{{}}}
-\bibcite{feng2025graphrouter}{{6}{2025}{{Feng et~al\mbox  {.}}}{{}}}
-\bibcite{garivier2011switching}{{7}{2011}{{Garivier and Moulines}}{{}}}
-\bibcite{li2010contextual}{{8}{2010}{{Li et~al\mbox  {.}}}{{}}}
-\bibcite{li2025llmbandit}{{9}{2025}{{Li}}{{}}}
-\bibcite{ma2024prompt}{{10}{2024}{{Ma et~al\mbox  {.}}}{{}}}
-\bibcite{ong2024routellm}{{11}{2025}{{Ong et~al\mbox  {.}}}{{}}}
-\bibcite{panda2025pilot}{{12}{2025}{{Panda et~al\mbox  {.}}}{{}}}
-\bibcite{qian2025xrouter}{{13}{2025}{{Qian et~al\mbox  {.}}}{{}}}
-\bibcite{thompson2026timeline}{{14}{2026}{{Thompson}}{{}}}
-\bibcite{wang2025barp}{{15}{2025}{{Wang et~al\mbox  {.}}}{{}}}
-\bibcite{zheng2023judging}{{16}{2023}{{Zheng et~al\mbox  {.}}}{{}}}
-\@writefile{toc}{\contentsline {paragraph}{Quantified operational impact.}{14}{section*.43}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{References}{14}{section*.45}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {A}Supplementary Experiments}{14}{appendix.A}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Routing Latency Microbenchmark (Table\nonbreakingspace \ref {tab:latency}, Figure\nonbreakingspace \ref {fig:latency_benchmark})}{14}{subsection.A.1}\protected@file@percent }
-\newlabel{sec:latency_benchmark}{{A.1}{14}{Routing Latency Microbenchmark (Table~\ref {tab:latency}, Figure~\ref {fig:latency_benchmark})}{subsection.A.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{Why ParetoBandit's route is fast but its update is slower than naive.}{14}{section*.48}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Per-request routing latency ($\mu $s) and throughput. ParetoBandit's production configuration (top row) adds $<$\,39\,$\mu $s per request---negligible relative to LLM inference times of 100--2,000\,ms.}}{15}{table.caption.46}\protected@file@percent }
-\newlabel{tab:latency}{{4}{15}{Per-request routing latency ($\mu $s) and throughput. ParetoBandit's production configuration (top row) adds $<$\,39\,$\mu $s per request---negligible relative to LLM inference times of 100--2,000\,ms}{table.caption.46}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Per-request latency (left, log scale) and throughput (right, log scale) for four router configurations. The combined effect of PCA reduction ($385 \to 26$ dimensions) and Sherman-Morrison caching yields a $120\times $ throughput improvement over the naive baseline at raw dimension.}}{15}{figure.caption.47}\protected@file@percent }
-\newlabel{fig:latency_benchmark}{{7}{15}{Per-request latency (left, log scale) and throughput (right, log scale) for four router configurations. The combined effect of PCA reduction ($385 \to 26$ dimensions) and Sherman-Morrison caching yields a $120\times $ throughput improvement over the naive baseline at raw dimension}{figure.caption.47}{}}
-\@writefile{toc}{\contentsline {paragraph}{Key findings.}{15}{section*.49}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Model Onboarding Under Budget Constraints}{15}{subsection.A.2}\protected@file@percent }
-\newlabel{appendix:model_onboarding}{{A.2}{15}{Model Onboarding Under Budget Constraints}{subsection.A.2}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.2.1}Why Care?}{15}{subsubsection.A.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.2.2}Experimental Design}{15}{subsubsection.A.2.2}\protected@file@percent }
+\bibcite{bhatti2026proteus}{{3}{2026}{{Bhatti et~al\mbox  {.}}}{{}}}
+\bibcite{chen2023frugalgpt}{{4}{2023a}{{Chen et~al\mbox  {.}}}{{}}}
+\bibcite{chen2023chatgptdrift}{{5}{2023b}{{Chen et~al\mbox  {.}}}{{}}}
+\bibcite{chen2024routerdc}{{6}{2024}{{Chen et~al\mbox  {.}}}{{}}}
+\bibcite{chen2025budgetpacing}{{7}{2025}{{Chen}}{{}}}
+\bibcite{chen2025silent}{{8}{2025}{{Chen and Lee}}{{}}}
+\bibcite{deepseekai2025deepseekr1}{{9}{2025}{{DeepSeek-AI}}{{}}}
+\bibcite{feng2025graphrouter}{{10}{2025}{{Feng et~al\mbox  {.}}}{{}}}
+\bibcite{gama2014survey}{{11}{2014}{{Gama et~al\mbox  {.}}}{{}}}
+\bibcite{garivier2011switching}{{12}{2011}{{Garivier and Moulines}}{{}}}
+\bibcite{kveton2023warmstart}{{13}{2023}{{Kveton et~al\mbox  {.}}}{{}}}
+\bibcite{lattimore2020bandit}{{14}{2020}{{Lattimore and Szepesv{\'a}ri}}{{}}}
+\bibcite{li2026llmrouterbench}{{15}{2026}{{Li et~al\mbox  {.}}}{{}}}
+\bibcite{li2010contextual}{{16}{2010}{{Li et~al\mbox  {.}}}{{}}}
+\bibcite{li2025llmbandit}{{17}{2025}{{Li}}{{}}}
+\bibcite{ma2024prompt}{{18}{2024}{{Ma et~al\mbox  {.}}}{{}}}
+\bibcite{menlo2025llmmarket}{{19}{2025}{{Menlo Ventures}}{{}}}
+\bibcite{azure2025stats}{{20}{2025}{{Microsoft}}{{}}}
+\bibcite{ong2024routellm}{{21}{2025}{{Ong et~al\mbox  {.}}}{{}}}
+\bibcite{pan2024cbli}{{22}{2024}{{Pan et~al\mbox  {.}}}{{}}}
+\bibcite{panda2025pilot}{{23}{2025}{{Panda et~al\mbox  {.}}}{{}}}
+\bibcite{qian2025xrouter}{{24}{2025}{{Qian et~al\mbox  {.}}}{{}}}
+\bibcite{reimers2019sentence}{{25}{2019}{{Reimers and Gurevych}}{{}}}
+\bibcite{thompson2026timeline}{{26}{2026}{{Thompson}}{{}}}
+\bibcite{verga2024poll}{{27}{2024}{{Verga et~al\mbox  {.}}}{{}}}
+\bibcite{wang2025barp}{{28}{2025b}{{Wang et~al\mbox  {.}}}{{}}}
+\bibcite{wang2025mixllm}{{29}{2025a}{{Wang et~al\mbox  {.}}}{{}}}
+\bibcite{zhang2021neural}{{30}{2021}{{Zhang et~al\mbox  {.}}}{{}}}
+\bibcite{zhao2025care}{{31}{2025}{{Zhao et~al\mbox  {.}}}{{}}}
+\bibcite{zheng2023judging}{{32}{2023}{{Zheng et~al\mbox  {.}}}{{}}}
+\bibcite{zhou2020neural}{{33}{2020}{{Zhou et~al\mbox  {.}}}{{}}}
+\@writefile{toc}{\contentsline {section}{References}{18}{section*.52}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {A}Supplementary Experiments}{18}{appendix.A}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Routing Latency Microbenchmark (Table\nonbreakingspace \ref {tab:latency}, Figure\nonbreakingspace \ref {fig:latency_benchmark})}{18}{subsection.A.1}\protected@file@percent }
+\newlabel{sec:latency_benchmark}{{A.1}{18}{Routing Latency Microbenchmark (Table~\ref {tab:latency}, Figure~\ref {fig:latency_benchmark})}{subsection.A.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Per-request routing latency ($\mu $s) and throughput. ParetoBandit's production configuration (top row) adds $<$\,39\,$\mu $s per request---negligible relative to LLM inference times of 100--2,000\,ms.}}{19}{table.caption.53}\protected@file@percent }
+\newlabel{tab:latency}{{4}{19}{Per-request routing latency ($\mu $s) and throughput. ParetoBandit's production configuration (top row) adds $<$\,39\,$\mu $s per request---negligible relative to LLM inference times of 100--2,000\,ms}{table.caption.53}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Per-request latency (left, log scale) and throughput (right, log scale) for four router configurations. The combined effect of PCA reduction ($385 \to 26$ dimensions) and Sherman-Morrison caching yields a $120\times $ throughput improvement over the naive baseline at raw dimension.}}{19}{figure.caption.54}\protected@file@percent }
+\newlabel{fig:latency_benchmark}{{7}{19}{Per-request latency (left, log scale) and throughput (right, log scale) for four router configurations. The combined effect of PCA reduction ($385 \to 26$ dimensions) and Sherman-Morrison caching yields a $120\times $ throughput improvement over the naive baseline at raw dimension}{figure.caption.54}{}}
+\@writefile{toc}{\contentsline {paragraph}{Why ParetoBandit's route is fast but its update is slower than naive.}{19}{section*.55}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Key findings.}{19}{section*.56}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Cold-Start vs Warmup Priors (Figure\nonbreakingspace \ref {fig:warmup_ablation})}{19}{subsection.A.2}\protected@file@percent }
+\newlabel{sec:warmup_ablation}{{A.2}{19}{Cold-Start vs Warmup Priors (Figure~\ref {fig:warmup_ablation})}{subsection.A.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Unconstrained.}{19}{section*.57}\protected@file@percent }
+\citation{ong2024routellm}
+\citation{azure2025stats}
+\citation{kveton2023warmstart}
+\citation{menlo2025llmmarket}
+\@writefile{toc}{\contentsline {paragraph}{Tight budget.}{20}{section*.58}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Moderate budget.}{20}{section*.59}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Discussion.}{20}{section*.60}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Business perspective.}{20}{section*.61}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Uncertainty evolution (Figure\nonbreakingspace \ref {fig:warmup_uncertainty}).}{20}{section*.62}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Cumulative regret: warmup priors vs.\ cold start across three budget regimes (K=3 stationary, 20 seeds, 95\% bootstrap CI, held-out test split). Left: unconstrained---warmup reduces regret by 11\% ($p < 10^{-5}$), concentrated in the first ${\sim }200$ steps. Centre: tight budget---the advantage persists ($\Delta {=}-7.3$, $p{=}0.006$) because uninformed UCB exploration wastes scarce budget on expensive arms. Right: moderate budget---the gap vanishes ($p{=}0.68$) as the budget constraint collapses the feasible arm set, making the prior's knowledge irrelevant.}}{21}{figure.caption.63}\protected@file@percent }
+\newlabel{fig:warmup_ablation}{{8}{21}{Cumulative regret: warmup priors vs.\ cold start across three budget regimes (K=3 stationary, 20 seeds, 95\% bootstrap CI, held-out test split). Left: unconstrained---warmup reduces regret by 11\% ($p < 10^{-5}$), concentrated in the first ${\sim }200$ steps. Centre: tight budget---the advantage persists ($\Delta {=}-7.3$, $p{=}0.006$) because uninformed UCB exploration wastes scarce budget on expensive arms. Right: moderate budget---the gap vanishes ($p{=}0.68$) as the budget constraint collapses the feasible arm set, making the prior's knowledge irrelevant}{figure.caption.63}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Uncertainty evolution for warmup vs.\ cold-start conditions (K=3 stationary, 20 seeds, 95\% bootstrap CI). $\mathrm  {tr}(A_a^{-1})$ measures total per-arm uncertainty; higher values yield larger UCB exploration bonuses. Solid lines: warmup-initialised arms start at $\mathrm  {tr}(A_a^{-1}) \approx 0.72$, reflecting the $n_\mathit  {eff}{=}1{,}000$ pseudo-observations encoded in the prior. Dashed lines: cold-started arms begin at $\mathrm  {tr}(A_a^{-1}) = d/\lambda = 26$---a ${\sim }36{\times }$ uncertainty gap that forces hundreds of exploratory selections before the router can make informed decisions. With geometric forgetting ($\gamma {=}0.995$), arms selected infrequently see rising uncertainty as the prior decays. Frequently selected arms converge by step\nonbreakingspace ${\sim }400$, consistent with the regret convergence in Figure\nonbreakingspace \ref {fig:warmup_ablation}.}}{21}{figure.caption.64}\protected@file@percent }
+\newlabel{fig:warmup_uncertainty}{{9}{21}{Uncertainty evolution for warmup vs.\ cold-start conditions (K=3 stationary, 20 seeds, 95\% bootstrap CI). $\mathrm {tr}(A_a^{-1})$ measures total per-arm uncertainty; higher values yield larger UCB exploration bonuses. Solid lines: warmup-initialised arms start at $\mathrm {tr}(A_a^{-1}) \approx 0.72$, reflecting the $n_\mathit {eff}{=}1{,}000$ pseudo-observations encoded in the prior. Dashed lines: cold-started arms begin at $\mathrm {tr}(A_a^{-1}) = d/\lambda = 26$---a ${\sim }36{\times }$ uncertainty gap that forces hundreds of exploratory selections before the router can make informed decisions. With geometric forgetting ($\gamma {=}0.995$), arms selected infrequently see rising uncertainty as the prior decays. Frequently selected arms converge by step~${\sim }400$, consistent with the regret convergence in Figure~\ref {fig:warmup_ablation}}{figure.caption.64}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.3}Model Onboarding Under Budget Constraints}{21}{subsection.A.3}\protected@file@percent }
+\newlabel{appendix:model_onboarding}{{A.3}{21}{Model Onboarding Under Budget Constraints}{subsection.A.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.3.1}Why Care?}{21}{subsubsection.A.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.3.2}Experimental Design}{21}{subsubsection.A.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.3.3}Results (Figure\nonbreakingspace \ref {fig:model_onboarding})}{21}{subsubsection.A.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Flash is discovered in every seed.}{22}{section*.65}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Budget determines adoption speed, not whether adoption occurs.}{22}{section*.66}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Flash displaces the right arm.}{22}{section*.67}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The BudgetPacer requires no reconfiguration.}{22}{section*.68}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Fixed Policy: budget-oblivious baseline.}{22}{section*.69}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.3.4}Practical Implications}{22}{subsubsection.A.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{One API call, zero downtime.}{22}{section*.70}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Budget-quality Pareto improvement.}{22}{section*.71}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Tight budgets require deliberate exploration.}{22}{section*.72}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.3.5}Uncertainty Evolution: Warm-Start vs.\ Cold-Start (Figure\nonbreakingspace \ref {fig:uncertainty_evolution})}{22}{subsubsection.A.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.4}Cost Heuristic Validation (Figure\nonbreakingspace \ref {fig:cost_heuristic})}{22}{subsection.A.4}\protected@file@percent }
+\newlabel{sec:cost_heuristic_validation}{{A.4}{22}{Cost Heuristic Validation (Figure~\ref {fig:cost_heuristic})}{subsection.A.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{K=3 portfolio (1,785 val prompts).}{22}{section*.75}\protected@file@percent }
 \newlabel{tocindent-1}{0pt}
 \newlabel{tocindent0}{0pt}
 \newlabel{tocindent1}{6.25499pt}
@@ -189,17 +271,15 @@
 \newlabel{tocindent3}{19.89899pt}
 \newlabel{tocindent4}{19.89899pt}
 \newlabel{tocindent5}{0pt}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.2.3}Results (Figure\nonbreakingspace \ref {fig:model_onboarding})}{16}{subsubsection.A.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Flash is discovered in every seed.}{16}{section*.50}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Budget determines adoption speed, not whether adoption occurs.}{16}{section*.51}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Flash displaces the right arm.}{16}{section*.52}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{The BudgetPacer requires no reconfiguration.}{16}{section*.53}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Fixed Policy: budget-oblivious baseline.}{16}{section*.54}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces \let \reserved@d =\bgroup \def \par }}{16}{figure.caption.58}\protected@file@percent }
-\newlabel{fig:model_onboarding}{{8}{16}{\input {../experiments/appendix/model_onboarding/figure_caption.tex}}{figure.caption.58}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {A.2.4}Practical Implications}{16}{subsubsection.A.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{One API call, zero downtime.}{16}{section*.55}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Budget-quality Pareto improvement.}{16}{section*.56}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Tight budgets require deliberate exploration.}{16}{section*.57}\protected@file@percent }
-\newlabel{TotPages}{{16}{16}{}{page.16}{}}
-\gdef \@abspage@last{16}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces \let \reserved@d =\bgroup \def \par }}{23}{figure.caption.73}\protected@file@percent }
+\newlabel{fig:model_onboarding}{{10}{23}{\input {../experiments/appendix/model_onboarding/figure_caption.tex}}{figure.caption.73}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Uncertainty evolution during model onboarding (moderate budget, 20 seeds, 95\% bootstrap CI). $\mathrm  {tr}(A_a^{-1})$ measures total uncertainty per arm: higher values indicate less information and larger exploration bonuses. Warm-started arms (Llama-8B, Mistral-Large) maintain low, stable uncertainty (${\sim }0.6$--$2$) throughout both phases. Cold-started Flash appears at the Phase\nonbreakingspace 2 boundary with $\mathrm  {tr}(A_a^{-1}) = d/\lambda = 26$ (the isotropic prior $A = \lambda I$) and converges to the incumbents' level within ${\sim }300$ steps as LinUCB's exploration bonus drives traffic to it. Gemini-Pro exhibits rising, oscillatory uncertainty because it is rarely selected under budget pressure---geometric forgetting erases its accumulated information faster than new observations replenish it, illustrating the forgetting--budget pacer feedback loop described in Section\nonbreakingspace \ref {sec:methodology}.}}{23}{figure.caption.74}\protected@file@percent }
+\newlabel{fig:uncertainty_evolution}{{11}{23}{Uncertainty evolution during model onboarding (moderate budget, 20 seeds, 95\% bootstrap CI). $\mathrm {tr}(A_a^{-1})$ measures total uncertainty per arm: higher values indicate less information and larger exploration bonuses. Warm-started arms (Llama-8B, Mistral-Large) maintain low, stable uncertainty (${\sim }0.6$--$2$) throughout both phases. Cold-started Flash appears at the Phase~2 boundary with $\mathrm {tr}(A_a^{-1}) = d/\lambda = 26$ (the isotropic prior $A = \lambda I$) and converges to the incumbents' level within ${\sim }300$ steps as LinUCB's exploration bonus drives traffic to it. Gemini-Pro exhibits rising, oscillatory uncertainty because it is rarely selected under budget pressure---geometric forgetting erases its accumulated information faster than new observations replenish it, illustrating the forgetting--budget pacer feedback loop described in Section~\ref {sec:methodology}}{figure.caption.74}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Cost heuristic validation. Left: violin plots of actual per-request costs (log scale) for each model, ordered by the static heuristic $\tilde  {c}_a$. Right: fraction of prompts where each pairwise cost ordering matches the heuristic ranking. Top row: $K{=}3$ portfolio; bottom row: $K{=}4$ with Gemini-Flash added.}}{23}{figure.caption.80}\protected@file@percent }
+\newlabel{fig:cost_heuristic}{{12}{23}{Cost heuristic validation. Left: violin plots of actual per-request costs (log scale) for each model, ordered by the static heuristic $\tilde {c}_a$. Right: fraction of prompts where each pairwise cost ordering matches the heuristic ranking. Top row: $K{=}3$ portfolio; bottom row: $K{=}4$ with Gemini-Flash added}{figure.caption.80}{}}
+\@writefile{toc}{\contentsline {paragraph}{K=4 portfolio (1,785 val prompts, with Gemini-Flash).}{23}{section*.76}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Prompt-cost correlation.}{23}{section*.77}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cross-model cost correlation.}{23}{section*.78}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Takeaway.}{23}{section*.79}\protected@file@percent }
+\newlabel{TotPages}{{23}{23}{}{page.23}{}}
+\gdef \@abspage@last{23}

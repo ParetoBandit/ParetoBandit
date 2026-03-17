@@ -17,6 +17,8 @@ Warning--empty publisher in agrawal2014bandits
 Warning--empty address in agrawal2014bandits
 Warning--no number and no volume in ailem2024benchmarkrobustness
 Warning--page numbers missing in both pages and numpages fields in ailem2024benchmarkrobustness
+Warning--no number and no volume in bhatti2026proteus
+Warning--page numbers missing in both pages and numpages fields in bhatti2026proteus
 Warning--empty publisher in chen2023frugalgpt
 Warning--empty address in chen2023frugalgpt
 Warning--page numbers missing in both pages and numpages fields in chen2023frugalgpt
@@ -25,11 +27,20 @@ Warning--page numbers missing in both pages and numpages fields in chen2023chatg
 Warning--empty publisher in chen2024routerdc
 Warning--empty address in chen2024routerdc
 Warning--page numbers missing in both pages and numpages fields in chen2024routerdc
+Warning--no number and no volume in chen2025budgetpacing
+Warning--page numbers missing in both pages and numpages fields in chen2025budgetpacing
+Warning--no number and no volume in chen2025silent
+Warning--page numbers missing in both pages and numpages fields in chen2025silent
+Warning--no number and no volume in deepseekai2025deepseekr1
+Warning--page numbers missing in both pages and numpages fields in deepseekai2025deepseekr1
 Warning--empty publisher in feng2025graphrouter
 Warning--empty address in feng2025graphrouter
 Warning--page numbers missing in both pages and numpages fields in feng2025graphrouter
 Warning--empty publisher in garivier2011switching
 Warning--empty address in garivier2011switching
+Warning--empty address in lattimore2020bandit
+Warning--no number and no volume in li2026llmrouterbench
+Warning--page numbers missing in both pages and numpages fields in li2026llmrouterbench
 Warning--empty publisher in li2010contextual
 Warning--empty address in li2010contextual
 Warning--no number and no volume in li2025llmbandit
@@ -40,54 +51,69 @@ Warning--page numbers missing in both pages and numpages fields in ma2024prompt
 Warning--empty publisher in ong2024routellm
 Warning--empty address in ong2024routellm
 Warning--page numbers missing in both pages and numpages fields in ong2024routellm
+Warning--empty publisher in pan2024cbli
+Warning--empty address in pan2024cbli
 Warning--empty publisher in panda2025pilot
 Warning--empty address in panda2025pilot
 Warning--page numbers missing in both pages and numpages fields in panda2025pilot
 Warning--no number and no volume in qian2025xrouter
 Warning--page numbers missing in both pages and numpages fields in qian2025xrouter
+Warning--empty publisher in reimers2019sentence
+Warning--empty address in reimers2019sentence
+Warning--no number and no volume in verga2024poll
+Warning--page numbers missing in both pages and numpages fields in verga2024poll
 Warning--no number and no volume in wang2025barp
 Warning--page numbers missing in both pages and numpages fields in wang2025barp
+Warning--empty publisher in wang2025mixllm
+Warning--empty address in wang2025mixllm
+Warning--empty publisher in zhang2021neural
+Warning--empty address in zhang2021neural
+Warning--page numbers missing in both pages and numpages fields in zhang2021neural
+Warning--empty publisher in zhao2025care
+Warning--empty address in zhao2025care
+Warning--page numbers missing in both pages and numpages fields in zhao2025care
 Warning--no number and no volume in zheng2023judging
 Warning--page numbers missing in both pages and numpages fields in zheng2023judging
-You've used 16 entries,
+Warning--empty address in zhou2020neural
+You've used 33 entries,
             6056 wiz_defined-function locations,
-            1559 strings with 21467 characters,
-and the built_in function-call counts, 17906 in all, are:
-= -- 2088
-> -- 731
+            1638 strings with 25199 characters,
+and the built_in function-call counts, 36945 in all, are:
+= -- 4461
+> -- 1449
 < -- 0
-+ -- 252
-- -- 249
-* -- 1341
-:= -- 1788
-add.period$ -- 76
-call.type$ -- 16
-change.case$ -- 138
-chr.to.int$ -- 15
-cite$ -- 52
-duplicate$ -- 1566
-empty$ -- 1114
-format.name$ -- 304
-if$ -- 4333
-int.to.chr$ -- 3
++ -- 499
+- -- 502
+* -- 2720
+:= -- 3684
+add.period$ -- 162
+call.type$ -- 33
+change.case$ -- 277
+chr.to.int$ -- 31
+cite$ -- 95
+duplicate$ -- 3216
+empty$ -- 2283
+format.name$ -- 608
+if$ -- 8978
+int.to.chr$ -- 4
 int.to.str$ -- 1
-missing$ -- 69
-newline$ -- 162
-num.names$ -- 111
-pop$ -- 781
+missing$ -- 133
+newline$ -- 296
+num.names$ -- 229
+pop$ -- 1510
 preamble$ -- 1
-purify$ -- 264
+purify$ -- 537
 quote$ -- 0
-skip$ -- 529
+skip$ -- 1105
 stack$ -- 0
-substring$ -- 997
-swap$ -- 97
+substring$ -- 2254
+swap$ -- 234
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 393
-warning$ -- 36
-while$ -- 73
+type$ -- 773
+warning$ -- 62
+while$ -- 170
 width$ -- 0
-write$ -- 326
-(There were 37 warnings)
+write$ -- 638
+(There were 63 warnings)

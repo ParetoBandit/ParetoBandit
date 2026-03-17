@@ -34,13 +34,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     BEST_K3_TABULA_RASA_HPARAMS,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
+    HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_ARM_SHORT,
+    K3_BUDGET_LABELS,
+    K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
-    VAL_DATA_PATH,
 )
 from pareto_bandit.feature_service import FeatureService
 from pareto_bandit.router import BanditRouter
@@ -176,8 +181,9 @@ def _create_router(
     alpha: float = WARMUP_ALPHA,
     prior_n_effective: float = WARMUP_N_EFF,
     forgetting_factor: float = WARMUP_GAMMA,
+    budget_pacer: Optional[BudgetPacer] = None,
 ) -> BanditRouter:
-    """Build a K=3 router with optional warmup priors.
+    """Build a K=3 router with optional warmup priors and budget pacer.
 
     Parameters
     ----------
@@ -194,6 +200,8 @@ def _create_router(
         Number of pseudo-observations for warmup priors.
     forgetting_factor : float
         Geometric decay factor.
+    budget_pacer : BudgetPacer or None
+        If provided, enables primal-dual budget pacing.
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
@@ -210,7 +218,7 @@ def _create_router(
         forgetting_factor=forgetting_factor,
         policy="disjoint",
         adaptive_gamma=False,
-        budget_pacer=None,
+        budget_pacer=budget_pacer,
     )
 
 
@@ -231,15 +239,22 @@ def _run_trial(
     alpha: float = WARMUP_ALPHA,
     prior_n_effective: float = WARMUP_N_EFF,
     forgetting_factor: float = WARMUP_GAMMA,
+    budget_pacer: Optional[BudgetPacer] = None,
 ) -> SeedResult:
-    """Run one seed for one condition.
+    """Run one seed for one condition (cumulative-regret protocol).
+
+    The router learns and is evaluated simultaneously on the same split.
+    Cumulative regret is measured from step 1, capturing the full cost
+    of learning (including the cold-start transient).  This is the
+    standard contextual-bandit evaluation protocol.
 
     Parameters
     ----------
     condition_label : str
         Human-readable condition name.
     data : SplitData
-        Online learning data (val split).
+        Evaluation split (test.jsonl, held out from warmup-prior
+        fitting and hyperparameter selection).
     registry : dict
         Model registry.
     feature_dim : int
@@ -256,6 +271,8 @@ def _run_trial(
         Number of pseudo-observations for warmup priors.
     forgetting_factor : float
         Geometric decay factor.
+    budget_pacer : BudgetPacer or None
+        If provided, enables primal-dual budget pacing.
 
     Returns
     -------
@@ -265,6 +282,9 @@ def _run_trial(
     rng = np.random.default_rng(seed)
     order = rng.permutation(data.n)
 
+    if budget_pacer is not None:
+        budget_pacer.reset()
+
     router: Optional[BanditRouter] = None
     if not is_random:
         router = _create_router(
@@ -273,6 +293,7 @@ def _run_trial(
             alpha=alpha,
             prior_n_effective=prior_n_effective,
             forgetting_factor=forgetting_factor,
+            budget_pacer=budget_pacer,
         )
 
     result = SeedResult(condition=condition_label, seed=seed)
@@ -295,6 +316,7 @@ def _run_trial(
             emb = data.embeddings[orig_idx]
             model, log = router.route(emb)
             reward = float(data.rewards[model][orig_idx])
+            log.cost_usd = float(data.costs[model][orig_idx])
             router.process_feedback(log.request_id, reward=reward)
 
         gt_reward = float(data.rewards[model][orig_idx])
@@ -480,12 +502,16 @@ def main() -> None:
     fs = FeatureService()
     feature_dim = fs.dimension
 
-    val_data = load_split(VAL_DATA_PATH, fs, ARM_ORDER)
-    logger.info("  Val: %d prompts, K=%d arms", val_data.n, len(ARM_ORDER))
+    # Cumulative-regret protocol: learn and evaluate simultaneously on
+    # the held-out test split (disjoint from warmup-prior training on
+    # train.jsonl and hyperparameter selection on val.jsonl).
+    test_data = load_split(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
+    logger.info("  Test: %d prompts, K=%d arms", test_data.n, len(ARM_ORDER))
 
     registry = build_model_registry(ARM_ORDER)
 
-    conditions = [
+    # -- Unconstrained conditions --
+    conditions: List[Dict[str, Any]] = [
         {
             "label": "ParetoBandit (warmup)",
             "warmup": True,
@@ -493,6 +519,7 @@ def main() -> None:
             "alpha": WARMUP_ALPHA,
             "prior_n_effective": WARMUP_N_EFF,
             "forgetting_factor": WARMUP_GAMMA,
+            "budget_target": None,
         },
         {
             "label": "Tabula Rasa",
@@ -501,6 +528,7 @@ def main() -> None:
             "alpha": TABULA_ALPHA,
             "prior_n_effective": TABULA_N_EFF,
             "forgetting_factor": TABULA_GAMMA,
+            "budget_target": None,
         },
         {
             "label": "Random",
@@ -509,8 +537,30 @@ def main() -> None:
             "alpha": TABULA_ALPHA,
             "prior_n_effective": TABULA_N_EFF,
             "forgetting_factor": TABULA_GAMMA,
+            "budget_target": None,
         },
     ]
+
+    # -- Budget-constrained conditions (tight + moderate) --
+    for target, blabel in zip(K3_BUDGET_TARGETS[:2], K3_BUDGET_LABELS[:2]):
+        conditions.append({
+            "label": f"Warmup ({blabel} budget)",
+            "warmup": True,
+            "is_random": False,
+            "alpha": WARMUP_ALPHA,
+            "prior_n_effective": WARMUP_N_EFF,
+            "forgetting_factor": WARMUP_GAMMA,
+            "budget_target": target,
+        })
+        conditions.append({
+            "label": f"Tabula Rasa ({blabel} budget)",
+            "warmup": False,
+            "is_random": False,
+            "alpha": TABULA_ALPHA,
+            "prior_n_effective": TABULA_N_EFF,
+            "forgetting_factor": TABULA_GAMMA,
+            "budget_target": target,
+        })
 
     all_results: Dict[str, Dict[str, Any]] = {}
 
@@ -518,12 +568,21 @@ def main() -> None:
         label = cond["label"]
         logger.info("=== %s ===", label)
         seed_results: List[SeedResult] = []
+        budget_target: Optional[float] = cond["budget_target"]
 
         for s in range(N_SEEDS):
             seed = SEED_OFFSET + s
+            pacer: Optional[BudgetPacer] = None
+            if budget_target is not None:
+                pacer = BudgetPacer(
+                    target_avg_spend_usd=budget_target,
+                    mode=PacingMode.ADAPTIVE,
+                    lr=DEFAULT_PACER_LR,
+                    lambda_max=DEFAULT_PACER_LAMBDA_MAX,
+                )
             sr = _run_trial(
                 condition_label=label,
-                data=val_data,
+                data=test_data,
                 registry=registry,
                 feature_dim=feature_dim,
                 seed=seed,
@@ -532,6 +591,7 @@ def main() -> None:
                 alpha=cond["alpha"],
                 prior_n_effective=cond["prior_n_effective"],
                 forgetting_factor=cond["forgetting_factor"],
+                budget_pacer=pacer,
             )
             seed_results.append(sr)
             if (s + 1) % 5 == 0:
@@ -560,7 +620,8 @@ def main() -> None:
     output = {
         "experiment": "appendix_warmup_ablation",
         "n_seeds": N_SEEDS,
-        "n_prompts": val_data.n,
+        "n_prompts": test_data.n,
+        "split": "test",
         "arms": ARM_ORDER,
         "arm_short": ARM_SHORT,
         "early_step": EARLY_STEP,
@@ -576,6 +637,12 @@ def main() -> None:
                 "forgetting_factor": TABULA_GAMMA,
             },
             "policy": "disjoint",
+            "pacer_lr": DEFAULT_PACER_LR,
+            "pacer_lambda_max": DEFAULT_PACER_LAMBDA_MAX,
+        },
+        "budget_targets": {
+            label: target
+            for label, target in zip(K3_BUDGET_LABELS[:2], K3_BUDGET_TARGETS[:2])
         },
         "conditions": all_results,
     }

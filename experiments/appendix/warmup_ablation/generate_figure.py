@@ -2,7 +2,8 @@
 """Generate figure for Appendix: Cold-Start vs Warmup Prior Regret.
 
 Reads ``results/warmup_ablation_results.json`` and produces a
-single-panel cumulative regret figure (``warmup_ablation.pdf/.png``).
+three-panel cumulative regret figure (``warmup_ablation.pdf/.png``)
+showing unconstrained, tight-budget, and moderate-budget comparisons.
 
 Usage:
     python experiments/appendix/warmup_ablation/generate_figure.py
@@ -13,7 +14,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 import matplotlib
 
@@ -32,25 +33,53 @@ CB_BLUE = "#0072B2"
 CB_ORANGE = "#E69F00"
 CB_GRAY = "#999999"
 
-CONDITION_STYLES: Dict[str, Dict[str, Any]] = {
-    "ParetoBandit (warmup)": {
-        "color": CB_BLUE,
-        "linestyle": "-",
-        "label": "ParetoBandit (warmup)",
-    },
-    "Tabula Rasa": {
-        "color": CB_ORANGE,
-        "linestyle": "-",
-        "label": "Tabula Rasa (cold start)",
-    },
-    "Random": {
-        "color": CB_GRAY,
-        "linestyle": "--",
-        "label": "Random",
-    },
-}
+PANELS: List[Tuple[str, str, str, str]] = [
+    (
+        "ParetoBandit (warmup)",
+        "Tabula Rasa",
+        "Random",
+        "Unconstrained",
+    ),
+    (
+        "Warmup (tight budget)",
+        "Tabula Rasa (tight budget)",
+        "Random",
+        "Tight budget",
+    ),
+    (
+        "Warmup (moderate budget)",
+        "Tabula Rasa (moderate budget)",
+        "Random",
+        "Moderate budget",
+    ),
+]
 
-PLOT_ORDER = ["ParetoBandit (warmup)", "Tabula Rasa", "Random"]
+
+def _plot_condition(
+    ax: plt.Axes,
+    curves: List[Dict[str, Any]],
+    *,
+    color: str,
+    linestyle: str,
+    label: str,
+) -> None:
+    """Plot one condition's cumulative regret with bootstrap CI."""
+    steps = [c["step"] for c in curves]
+    mean_reg = [c["mean_cumulative_regret"] for c in curves]
+
+    if "per_seed_cumulative_regret" in curves[0]:
+        matrix = np.array([c["per_seed_cumulative_regret"] for c in curves])
+        ci_lo, ci_hi = bootstrap_ci_series(matrix)
+    else:
+        se_reg = [c["se_cumulative_regret"] for c in curves]
+        ci_lo = [m - s for m, s in zip(mean_reg, se_reg)]
+        ci_hi = [m + s for m, s in zip(mean_reg, se_reg)]
+
+    ax.plot(
+        steps, mean_reg,
+        color=color, linestyle=linestyle, linewidth=1.8, label=label,
+    )
+    ax.fill_between(steps, ci_lo, ci_hi, color=color, alpha=0.15)
 
 
 def main() -> None:
@@ -60,55 +89,31 @@ def main() -> None:
     conditions = data["conditions"]
     early_step = data["early_step"]
 
-    fig, ax = plt.subplots(1, 1, figsize=(7, 4.5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), sharey=False)
 
-    for cond_key in PLOT_ORDER:
-        cond = conditions[cond_key]
-        curves = cond["curves"]
-        style = CONDITION_STYLES[cond_key]
-
-        steps = [c["step"] for c in curves]
-        mean_reg = [c["mean_cumulative_regret"] for c in curves]
-
-        has_per_seed = "per_seed_cumulative_regret" in curves[0]
-        if has_per_seed:
-            matrix = np.array([c["per_seed_cumulative_regret"] for c in curves])
-            ci_lo, ci_hi = bootstrap_ci_series(matrix)
-        else:
-            se_reg = [c["se_cumulative_regret"] for c in curves]
-            ci_lo = [m - s for m, s in zip(mean_reg, se_reg)]
-            ci_hi = [m + s for m, s in zip(mean_reg, se_reg)]
-
-        ax.plot(
-            steps,
-            mean_reg,
-            color=style["color"],
-            linestyle=style["linestyle"],
-            linewidth=1.8,
-            label=style["label"],
+    for ax, (warmup_key, tabula_key, random_key, title) in zip(axes, PANELS):
+        _plot_condition(
+            ax, conditions[warmup_key]["curves"],
+            color=CB_BLUE, linestyle="-", label="Warmup",
         )
-        ax.fill_between(steps, ci_lo, ci_hi, color=style["color"], alpha=0.15)
+        _plot_condition(
+            ax, conditions[tabula_key]["curves"],
+            color=CB_ORANGE, linestyle="-", label="Tabula Rasa",
+        )
+        _plot_condition(
+            ax, conditions[random_key]["curves"],
+            color=CB_GRAY, linestyle="--", label="Random",
+        )
 
-    ax.axvline(
-        x=early_step,
-        color="black",
-        linestyle=":",
-        linewidth=0.8,
-        alpha=0.5,
-    )
-    ax.text(
-        early_step + 15,
-        ax.get_ylim()[1] * 0.55,
-        f"step {early_step}",
-        fontsize=8,
-        alpha=0.6,
-    )
+        ax.axvline(
+            x=early_step, color="black", linestyle=":", linewidth=0.8, alpha=0.5,
+        )
+        ax.set_xlabel("Step")
+        ax.set_title(title, fontsize=11)
+        ax.grid(True, alpha=0.3)
 
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Cumulative Regret")
-    ax.set_title("K=3 Stationary: Warmup Priors vs Cold Start")
-    ax.legend(fontsize=9, loc="upper left")
-    ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("Cumulative Regret")
+    axes[0].legend(fontsize=9, loc="upper left")
 
     fig.tight_layout()
     for ext in ("pdf", "png"):
