@@ -117,9 +117,9 @@ ParetoBandit is designed for any system that routes heterogeneous prompts across
 
 | Use Case | Why ParetoBandit Fits | Key Features Used |
 |----------|-------------------|-------------------|
-| **Customer support platforms** — Route millions of tickets where "reset my password" and "your API returns 500 on nested JSON" require very different models | Traffic mix shifts after product launches and seasonal spikes; hand-written heuristics break. Online learning adapts automatically, and the 65/35 easy-to-hard ratio means >60% of traffic routes to the cheapest model. | `max_cost`, `cost_penalty`, corralling |
+| **Customer support platforms** — Route millions of tickets where "reset my password" and "your API returns 500 on nested JSON" require very different models | Traffic mix shifts after product launches and seasonal spikes; hand-written heuristics break. Online learning adapts automatically, and the 65/35 easy-to-hard ratio means >60% of traffic routes to the cheapest model. | `max_cost`, `cost_penalty`, geometric forgetting |
 | **LLM API gateways** — Proxy services (LiteLLM, Portkey, Helicone-class) where each customer's traffic is different | One-size-fits-all routing leaves money on the table. Instantiate a router per customer, each learning its own optimal policy. New models are added to the fleet via `register_model()` without per-customer reconfiguration. | `MultiProviderClient`, `register_model()`, per-tenant instances |
-| **Coding assistant backends** — IDE plugins where autocomplete needs <200ms but complex refactoring needs frontier reasoning | The boundary between "easy" and "hard" is fuzzy and prompt-dependent. Hard latency constraints guarantee the SLA; the bandit learns which queries genuinely need a frontier model. New models drop monthly and integrate without re-tuning. | `max_latency`, `register_model()`, corralling |
+| **Coding assistant backends** — IDE plugins where autocomplete needs <200ms but complex refactoring needs frontier reasoning | The boundary between "easy" and "hard" is fuzzy and prompt-dependent. Hard latency constraints guarantee the SLA; the bandit learns which queries genuinely need a frontier model. New models drop monthly and integrate without re-tuning. | `max_latency`, `register_model()`, geometric forgetting |
 | **RAG-based enterprise search** — Internal chatbots where simple factual lookups and complex multi-hop reasoning coexist | Over-routing everything to GPT-4 wastes budget; under-routing complex queries produces hallucinations. The prompt embedding captures complexity, and cost penalty steers simple queries to cheap models. | `cost_penalty`, exploration presets |
 
 ### Secondary use cases
@@ -146,7 +146,7 @@ Each primary use case has a runnable example with a synthetic oracle, full learn
 | Scenario | Script | Features Demonstrated |
 |----------|--------|----------------------|
 | Cost-constrained SaaS startup | [`examples/scenario_cost_constrained_startup.py`](examples/scenario_cost_constrained_startup.py) | Hard budget ceiling, aggressive cost penalty, per-category cost analysis |
-| Latency-sensitive IDE plugin | [`examples/scenario_latency_sensitive_app.py`](examples/scenario_latency_sensitive_app.py) | TTFT constraint, corralling vs. no corralling under distribution shift |
+| Latency-sensitive IDE plugin | [`examples/scenario_latency_sensitive_app.py`](examples/scenario_latency_sensitive_app.py) | TTFT constraint, geometric forgetting under distribution shift |
 | Quality-critical enterprise + model onboarding | [`examples/scenario_quality_critical_enterprise.py`](examples/scenario_quality_critical_enterprise.py) | Quality-first routing, hot `register_model()`, newcomer adoption ramp |
 | General tutorial (5-model portfolio) | [`examples/hands_on_tutorial.py`](examples/hands_on_tutorial.py) | Full walkthrough: exploration, cost penalty, priors, model onboarding |
 
@@ -165,26 +165,21 @@ Imagine 80 slot machines in a casino, each with unknown and different payout rat
 
 ParetoBandit treats each LLM as a slot machine. But unlike a regular bandit, it uses **context** — the content of your prompt — to predict which model will perform best *for this specific request*. A coding prompt gets routed differently than a creative writing prompt, even if both could technically go to any model.
 
-### The 3-Stage Routing Funnel
+### The 2-Stage Routing Pipeline
 
-Every routing decision passes through three stages:
+Every routing decision passes through two stages:
 
 ```
 Stage 1: HARD FILTERING
 ├── Remove models violating constraints (budget cap, latency SLA, quality floor)
-├── 80+ models → ~10-20 candidates
+├── Full portfolio → surviving candidates
 │
 Stage 2: CONTEXTUAL BANDIT SELECTION
 ├── For each candidate, score: quality estimate + exploration bonus - cost penalty
-├── Select the model with highest composite score
-│
-Stage 3: CASCADE DECISION (optional)
-├── cascade_rate λ controls verification frequency
-├── λ=0: pure single-shot (default)
-└── λ>0: verify a fraction of predictions via fallback model
+└── Select the model with highest composite score
 ```
 
-**Stage 1** enforces business constraints. **Stage 2** makes the intelligent routing decision. **Stage 3** optionally adds a verification layer for high-stakes deployments.
+**Stage 1** enforces business constraints. **Stage 2** makes the intelligent routing decision.
 
 **Business knobs** control each stage:
 
@@ -193,14 +188,12 @@ Stage 3: CASCADE DECISION (optional)
 | `min_quality` | Quality floor — masks models below benchmark threshold | `min_quality=70` blocks models scoring < 70% |
 | `max_cost` | Budget cap — masks models exceeding cost limit | `max_cost=1.00` enforces ≤ $1/1k tokens |
 | `max_latency` | Speed limit — masks models slower than SLA | `max_latency=2.0` requires < 2s response |
-| `cascade_rate` | Verification frequency (λ) | `cascade_rate=0.3` verifies 30% of predictions |
 
 ```python
-model, log, mode = router.route(
+model, log = router.route(
     "Solve this calculus integral",
     min_quality=70,
     max_cost=1.00,
-    cascade_rate=0.3,
 )
 ```
 
@@ -234,14 +227,12 @@ This takes microseconds. No retraining, no gradient descent, no GPU required.
 
 Cold-starting a bandit requires hundreds of interactions before it routes well. ParetoBandit ships with **warm-start priors** — a < 1 MB covariance matrix distilled from 80,000 RouteLLM battle outcomes — that encode which model tends to win for which prompt types. The router starts intelligent on Day 1 and adapts to your specific traffic from there.
 
-### Safety via Corralling
+### Robustness to Prior Mismatch
 
-What if the warm-start priors are wrong for your deployment? ParetoBandit hedges via **Corralling**, a meta-learning algorithm that maintains two experts:
+What if the warm-start priors are wrong for your deployment? ParetoBandit hedges via two mechanisms:
 
-- A **Warmup Expert** initialized with offline priors
-- A **Tabula Rasa Expert** that learns from scratch
-
-The meta-learner tracks which expert is performing better and shifts weight accordingly. This provides insurance: when priors are accurate, the system exploits them with modest overhead. When priors are misleading, Corralling detects the mismatch and shifts to the cold-start expert, bounding worst-case regret.
+- **Tunable prior strength** (`n_eff`): Controls how many pseudo-observations the offline priors contribute. A conservative `n_eff` lets online evidence override potentially stale priors within a few hundred requests.
+- **Geometric forgetting** (`gamma`): Exponentially discounts stale observations, giving recent evidence a half-life of ~200 steps. If a model degrades or the prior was inaccurate, the router adapts within hundreds of requests rather than remaining anchored by thousands of stale data points.
 
 ---
 
@@ -276,7 +267,7 @@ router = BanditRouter.create(exploration="safe")
 
 ### Prior Initialization Modes
 
-ParetoBandit supports three initialization strategies, each with different trade-offs:
+ParetoBandit supports two initialization strategies, each with different trade-offs:
 
 | Mode | What It Provides | File Required | Best For |
 |------|-----------------|---------------|----------|
@@ -565,44 +556,17 @@ print(f"Contexts: {stats['total_contexts']}, Size: {stats['db_size_mb']} MB")
 
 ---
 
-## Hybrid Router (Bandit-Guided Cascade)
-
-For deployments requiring verification of routing decisions:
-
-```python
-from pareto_bandit import HybridRouter
-
-hybrid = HybridRouter.create(
-    model_registry=registry,
-    fallback_model="openai/gpt-4o",
-    cascade_rate=0.5,
-)
-
-result = hybrid.route_with_cascade(
-    prompt="Write SQL to get all active users",
-    generate_fn=lambda m, p: call_llm(m, p),
-    verify_fn=lambda r: validate_sql(r),
-)
-# result['mode']: "single_shot" (fast) or "cascade" (verified)
-```
-
-Unlike FrugalGPT's cascade (which tries models sequentially, O(N) latency), the Hybrid Router uses O(1) bandit selection over the full portfolio and cascades only when uncertain.
-
----
-
 ## Limitations
 
 We report these limitations honestly to help practitioners make informed decisions:
 
 1. **Two-model evaluation scope.** The primary Pareto comparison uses Mixtral and GPT-4-Turbo (to match RouteLLM's evaluation). With only two models, the exploration bonus is symmetric and contributes minimally. Larger portfolios (K ≥ 3) should benefit more from contextual exploration, but quantitative results will differ.
 
-2. **Corralling has overhead.** The meta-learner trades peak performance for safety. When priors are accurate, a single-expert warmup strategy outperforms Corralling. The insurance is justified only when prior quality is uncertain.
+2. **Semantic transfer does not work.** We investigated bootstrapping new models from semantically similar existing models and found no statistically significant improvement over cold-start initialization (p > 0.07 across all configurations). Cold-start model integration remains an open problem.
 
-3. **Semantic transfer does not work.** We investigated bootstrapping new models from semantically similar existing models and found no statistically significant improvement over cold-start initialization (p > 0.07 across all configurations). Cold-start model integration remains an open problem.
+3. **Linear reward assumption.** LinUCB assumes reward is linear in the feature vector. While the PCA features capture meaningful signal (ρ = -0.370, p < 0.0001), highly nonlinear preference structures may require different architectures.
 
-4. **Linear reward assumption.** LinUCB assumes reward is linear in the feature vector. While the PCA features capture meaningful signal (ρ = -0.370, p < 0.0001), highly nonlinear preference structures may require different architectures.
-
-5. **Stationary experts.** Each expert bandit assumes stationary rewards. Non-stationarity is handled only at the meta-level via Corralling. Gradual reward drift within a single expert requires meta-level reweighting, not expert-level adaptation.
+4. **Warm-start prior dependency.** At tight budgets, expensive arms receive very few online observations, so quality estimates rely heavily on the warmup prior. If the prior is poorly calibrated for a newly added model, a tight budget could delay adoption. The tunable prior strength (`n_eff`) mitigates this but does not eliminate it.
 
 6. **Prior quality dependency.** The warm-start advantage depends on similarity between offline training distribution and deployment traffic. For domains very different from LMSYS Arena conversations, the warmup prior's value diminishes (though the router will still learn from online data).
 
@@ -687,7 +651,7 @@ This repository accompanies *"Density-Based Warm-Start for Adaptive LLM Routing"
 |-------------------|--------|
 | Does prompt structure predict model preference? | Yes — ρ = −0.370, p < 0.0001, exceeding all 100 random projections |
 | Does online learning surpass static routing? | Yes at moderate-to-high budgets — 70.0% gap closure to oracle (vs. 46.2% for RouteLLM) after ~200 label-free prompts. At low budgets, RouteLLM's pre-trained discrimination is competitive. |
-| Does Corralling provide safety under prior mismatch? | Yes — bounded worst-case regret (32% lower than warmup-only), 95% catastrophic failure detection at K=5 |
+| Does geometric forgetting enable non-stationary adaptation? | Yes — autonomous re-routing under reward drift and cost drift, with cross-seed variance 3× lower than best non-stationary baseline |
 | Does semantic transfer help cold-start new models? | No — null result across all configurations (p > 0.07). Reported transparently. |
 
 ### Reproducing Experiments
@@ -752,7 +716,7 @@ Priors are loaded with `allow_pickle=False` and use fixed-width arrays for secur
 ```
 paretobandit/
 ├── src/pareto_bandit/          # Core library
-│   ├── router.py            # BanditRouter, LinUCB, Corralling (~4700 lines)
+│   ├── router.py            # BanditRouter, LinUCB, BudgetPacer
 │   ├── providers/           # LLMClient protocol + provider adapters
 │   ├── storage.py           # SQLite context persistence
 │   ├── feature_service.py   # Prompt embedding + PCA
@@ -805,20 +769,18 @@ See [`tests/test_lock_contention.py`](tests/test_lock_contention.py) for concurr
 
 Without scaling (raw N=20,000), each real observation contributes only 0.005% — the router becomes "deaf" to new data. With N=1,000 scaling, the ratio is 0.1% — stable yet adaptive.
 
-### Corralling: Formal Properties
+### Geometric Forgetting: Formal Properties
 
-The meta-learner uses importance-weighted loss estimates for unbiased expert evaluation:
+At each step, before incorporating the new observation, the sufficient statistics for the selected arm are exponentially discounted:
 
 ```
-ℓ̂(t,e) = (1 - r_t) / p_t(e)    if e was selected
-         = 0                      otherwise
+A_a ← γ · A_a + x · xᵀ
+b_a ← γ · b_a + r · x
 ```
 
-Expert weights update via exponential descent: w(t+1,e) ∝ exp(−η Σ ℓ̂(s,e)).
+The forgetting factor γ ∈ (0, 1] gives observations an effective half-life of ln(2) / (1 − γ) steps. With the default γ = 0.995, this creates a memory horizon of ~200 steps: recent evidence dominates, allowing the router to track reward drift, while historical observations (including warmup priors) are geometrically discounted rather than erased.
 
-A mixing floor γ=0.05 prevents expert death: p(i,t) = (1−γ)·w(i,t)/Σw + γ/K. This guarantees every expert retains at least 2.5% selection probability, enabling recovery if the optimal expert changes.
-
-In production, the implementation updates only the selected expert (O(1) instead of O(K)), trading theoretical regret guarantees for strict latency SLAs (< 20ms overhead).
+Crucially, forgetting interacts with the cached inverse: discounting A by γ is equivalent to scaling A⁻¹ by 1/γ, a scalar division that keeps the per-update cost at O(d²) without a full matrix rebuild.
 
 ---
 
