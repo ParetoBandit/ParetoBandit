@@ -15,7 +15,7 @@ Every experiment in this paper examines how these knobs interact under the reali
 \paragraph{Design rationale.}
 No single existing algorithm simultaneously learns reward surfaces from bandit feedback, enforces a long-run budget constraint, and adapts to non-stationarity.
 ParetoBandit's architecture is therefore an evolution that composes four foundational results, each addressing one facet of the problem.
-The architectural cornerstone is the Contextual Bandit with Knapsacks (CBwK) framework of Agrawal and Devanur~\cite{agrawal2014bandits}, whose Lagrangian relaxation decomposes the constrained routing problem into a sequence of \emph{unconstrained} contextual bandit subproblems, coupled only through a dual variable $\lambda_t$ that encodes budget pressure.
+The architectural cornerstone is the Primal-Dual Lagrangian relaxation of Agrawal and Devanur~\cite{agrawal2014bandits}, whose decomposition of a constrained bandit into unconstrained subproblems coupled through a dual variable $\lambda_t$ that encodes budget pressure.
 This composability is what makes the design modular: the inner reward learner and the outer budget mechanism evolve independently, and the choice of inner algorithm is a free design parameter.
 
 For the inner learner we adopt LinUCB~\cite{li2010contextual}, which models expected reward as a linear function of the context and maintains closed-form sufficient statistics ($A_a$, $b_a$) per arm.
@@ -32,7 +32,7 @@ Crucially, LinUCB's sufficient-statistic representation is what makes these exte
 
 While each ingredient is well-established individually, their composition introduces interactions that no single foundational paper analyses.
 Geometric forgetting shrinks $A_a$ toward singularity over time, which inflates LinUCB's confidence bonus, which increases the probability of selecting expensive arms, which in turn drives up $\lambda_t$---a feedback loop between the forgetting mechanism and the budget pacer that must be jointly calibrated.
-The EMA smoothing in the dual update (Eq.~\ref{eq:cost_ema}) addresses a further practical challenge---the $500{\times}$ cost variance across LLM tiers---that the theoretical CBwK analysis does not consider.
+The EMA smoothing in the dual update (Eq.~\ref{eq:cost_ema}) addresses a further practical challenge---the $500{\times}$ cost variance across LLM tiers---that the original finite-horizon analysis does not consider.
 The hyperparameter sweep in Section~\ref{sec:exp4_hparam_sweep} exists precisely to resolve these cross-component interactions under the contending demands of stability and agility.
 
 \subsection{System Architecture Overview}
@@ -46,7 +46,7 @@ After the query completes and is evaluated (either synchronously by an automated
 \subsection{Primal-Dual Budget Pacing}
 \label{sec:budget_pacing}
 
-To enforce strict, dynamically adjusting budget constraints without manual offline tuning of a static penalty weight $\lambda_s$, ParetoBandit implements a Primal-Dual Contextual Bandit with Knapsacks (CBwK) formulation~\cite{agrawal2014bandits} via the \texttt{BudgetPacer}.
+To enforce strict, dynamically adjusting budget constraints without manual offline tuning of a static penalty weight $\lambda_s$, ParetoBandit employs the \texttt{BudgetPacer}, an online Primal-Dual Lagrangian relaxation inspired by Agrawal and Devanur~\cite{agrawal2014bandits} but adapted from a cumulative knapsack constraint to a per-request rate constraint suitable for open-ended production streams (Section~\ref{sec:problem}).
 
 At each step $t$, the router selects model $a_t$ by maximizing a budget-augmented utility function:
 \begin{equation}

@@ -49,8 +49,24 @@ Future work could investigate targeted exploration strategies (e.g., small $\eps
 \paragraph{Static Unit-Cost Normalization.}
 The normalized cost $\tilde{c}_a$ in Equation~\ref{eq:budget_ucb} and the hard ceiling filter both use a static blended rate $(\text{input\_cost} + \text{output\_cost})/2$ rather than weighting by the actual input/output token counts of each request.
 For workloads with highly asymmetric token ratios (e.g., retrieval-augmented generation with $\gg$10$\times$ more input than output tokens), a token-weighted cost would give a more precise per-request estimate.
-In practice, this does not affect our experimental conclusions for three reasons: (i)~the Pareto frontiers are evaluated using \emph{exact per-request costs} from the offline dataset, not the router's blended estimate; (ii)~the log-scale normalization preserves the cost \emph{ranking} of models across any reasonable token ratio; and (iii)~the bandit's learned quality model is independent of the cost penalty---$\tilde{c}_a$ biases arm selection but does not distort the reward posterior.
+In practice, this does not affect our experimental conclusions for three reasons: (i)~the Pareto frontiers are evaluated using \emph{exact per-request costs} from the offline dataset, not the router's blended estimate; (ii)~the log-scale normalization preserves the cost \emph{ranking} of models across any reasonable token ratio---empirical validation on 1,785 prompts confirms the heuristic ordering matches true per-request cost ordering on 99.9\% of prompts for $K{=}3$ (Appendix~\ref{sec:cost_heuristic_validation}, Figure~\ref{fig:cost_heuristic}); and (iii)~the bandit's learned quality model is independent of the cost penalty---$\tilde{c}_a$ biases arm selection but does not distort the reward posterior.
 A production deployment serving heterogeneous workloads (e.g., both summarization and RAG) could benefit from passing the expected token ratio at routing time; the open-source release already accepts \texttt{input\_tokens}/\texttt{output\_tokens} parameters and uses them for post-hoc cost logging.
+
+\paragraph{Rate-Constraint Tradeoffs and Budget Sizing.}
+Because the budget constraint is a rate target enforced via an EMA-smoothed dual variable rather than a cumulative knapsack, the system reacts to sustained cost changes with a lag determined by the EMA half-life (${\sim}14$ observations at $\alpha_{\mathrm{ema}}{=}0.05$) and the dual step size ($\eta{=}0.05$).
+A sudden, sustained shift toward expensive-model usage---e.g., a burst of hard prompts that all require frontier calls---can temporarily push realized average spend above the target $B$ until $\lambda_t$ corrects.
+In practice, the ADAPTIVE mode's hard ceiling acts as a circuit breaker, bounding worst-case per-request cost even before $\lambda_t$ adjusts.
+
+This transient overshoot should be weighed against the failure mode of the alternative.
+A finite-horizon knapsack (e.g., PILOT's approach~\cite{panda2025pilot}) provides a hard cumulative guarantee: total spend never exceeds $B_{\mathrm{total}}$.
+However, if request volume exceeds the anticipated horizon $T$, the knapsack exhausts its budget early, forcing the system to either refuse service or fall back to the cheapest model for the entire remaining tail of the horizon---degrading quality for potentially thousands of requests at precisely the moment demand is highest.
+The rate constraint has no such cliff: it absorbs volume variability gracefully, self-correcting within a bounded number of requests regardless of total traffic volume.
+
+We recommend setting the budget target $B$ at a per-request rate where each routed response is individually profitable---i.e., the business value derived from each response exceeds $B$.
+Under this operating regime, transient overshoot during a traffic spike remains within the margin of profitability: the operator may temporarily spend slightly above $B$ per request, but every request is still net-positive.
+The dual variable corrects within tens of requests, and the spike itself represents increased business volume---a net positive outcome.
+By contrast, a knapsack under the same spike exhausts its budget and degrades service precisely when demand is highest---the worst possible time to lose quality.
+This makes the rate-constraint formulation strictly preferable for open-ended production deployments where traffic volume is variable and unpredictable.
 
 \paragraph{Obtaining Discriminative Rewards in Practice.}
 Our experiments use an automated LLM judge that produces continuous, multi-dimensional scores---an ideal signal for $K{\geq}3$ routing, where the bandit must distinguish models whose average quality differs by only a few percentage points (e.g., $0.908$ vs.\ $0.921$ in our portfolio).
@@ -139,7 +155,7 @@ Investigating this tradeoff---particularly under the budget and non-stationarity
 
 \section{Conclusion}
 
-We introduced ParetoBandit, an open-source framework for budget-constrained, non-stationary LLM routing.  By framing the problem as a Primal-Dual Contextual Bandit with Knapsacks and integrating geometric forgetting, we provide a robust solution to the dynamic challenges of production deployments.  Our system demonstrates precise budget compliance ($0.97$--$1.02\times$ target), eliminates the need for manual hyperparameter tuning of static cost penalties, and autonomously adapts to silent model updates and mid-cycle price drops.
+We introduced ParetoBandit, an open-source framework for budget-constrained, non-stationary LLM routing.  By enforcing budget constraints through an online Primal-Dual Lagrangian relaxation and integrating geometric forgetting, we provide a robust solution to the dynamic challenges of production deployments.  Our system demonstrates precise budget compliance ($0.97$--$1.02\times$ target), eliminates the need for manual hyperparameter tuning of static cost penalties, and autonomously adapts to silent model updates and mid-cycle price drops.
 
 \paragraph{Quantified operational impact.}
 The experiments in this paper yield four concrete, verifiable claims that distinguish ParetoBandit from static routing approaches:

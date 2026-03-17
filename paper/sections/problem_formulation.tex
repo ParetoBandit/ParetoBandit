@@ -26,11 +26,21 @@ In words: the router aims to make the best model choice on every request so that
 
 In production, each model $a \in \mathcal{A}$ incurs a known, deterministic inference cost $c_a(x_t)$ (typically priced per input and output token). Because the models in a portfolio often span orders of magnitude in price---from open-weights models costing fractions of a cent to frontier APIs costing several cents per request---the router must strictly manage aggregate spend. 
 
-We formulate this as a \emph{Contextual Bandit with Knapsacks} (CBwK)~\cite{agrawal2014bandits} problem. The system is given a target average budget $B$ (e.g., ``average \$0.005 per req''). The policy $\pi$ must maximize cumulative reward subject to the constraint that the long-run average cost does not exceed $B$:
+We enforce this constraint via an online Primal-Dual Lagrangian relaxation, adapting the dual-variable mechanism of Agrawal and Devanur~\cite{agrawal2014bandits} from a finite-horizon cumulative knapsack to a \emph{rate constraint} suited for open-ended deployment. The system is given a target average budget $B$ (e.g., ``average \$0.005 per req''). The policy $\pi$ must maximize cumulative reward subject to the constraint that the long-run average cost does not exceed $B$:
 \begin{equation}
     \limsup_{T \to \infty} \frac{1}{T} \sum_{t=1}^T c_{\pi(x_t)}(x_t) \leq B
 \end{equation}
 In plain terms: averaged over many requests, the cost per request must stay at or below the target $B$.  The router may occasionally splurge on an expensive frontier model, but must offset that with cheaper choices elsewhere so the running average never exceeds the budget.
+
+\paragraph{Rate constraint vs.\ cumulative knapsack.}
+The classical Contextual Bandit with Knapsacks (CBwK) formulation~\cite{agrawal2014bandits} assumes a cumulative budget $\sum_{t=1}^T c_t \leq B_{\mathrm{total}}$ over a known, finite horizon $T$, with dual updates that account for the remaining budget fraction.
+Production LLM routing is fundamentally open-ended: request volume is unknown and variable, and the operator's natural specification is a cost \emph{rate} (dollars per request), not a finite pool.
+Our formulation inherits the Primal-Dual decomposition---splitting the constrained routing problem into unconstrained bandit subproblems coupled through a dual variable $\lambda_t$---but the dual update targets the running average cost rather than a depleting budget, making the system horizon-free: it self-regulates at any traffic volume without requiring $T$ as input.
+The finite-horizon sublinear regret guarantees of the original CBwK analysis do not directly apply to this rate-constraint setting; we validate convergence and budget compliance empirically (Sections~\ref{sec:results}--\ref{sec:discussion}).
+This design choice carries a tradeoff.
+Because the rate constraint tracks an EMA-smoothed average rather than a cumulative total, a sustained shift toward expensive requests can temporarily push realized spend above $B$ until the dual variable corrects---a lag bounded by the EMA half-life (${\sim}14$ observations at $\alpha_{\mathrm{ema}}{=}0.05$).
+Conversely, a finite-horizon knapsack that underestimates $T$ exhausts its budget early, forcing service degradation for the entire remaining tail of the horizon.
+We argue in Section~\ref{sec:discussion} that the rate constraint's bounded transient overshoot is strictly preferable to the knapsack's catastrophic quality cliff under traffic variability.
 
 The standard approach to this constraint in the routing literature is to scalarize the reward using a fixed penalty weight $\lambda > 0$, optimizing a penalized utility $u_{a,t} = r_{a,t} - \lambda c_a(x_t)$~\cite{ong2024routellm}. However, selecting $\lambda$ requires extensive offline simulation on historical data to find the weight that happens to yield an average cost of $B$. If the distribution of prompts shifts, or if the portfolio changes, the realized cost will drift away from $B$, requiring manual recalibration.
 

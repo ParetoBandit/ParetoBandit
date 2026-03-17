@@ -18,7 +18,7 @@
 
 \begin{document}
 
-\title{Budget-Constrained Non-Stationary LLM Routing via Primal-Dual Contextual Bandits}
+\title{ParetoBandit: Autonomous Budget Pacing for Non-Stationary LLM Routing}
 
 \input{sections/abstract.tex}
 
@@ -88,6 +88,18 @@
   Cold-started Flash appears at the Phase~2 boundary with $\mathrm{tr}(A_a^{-1}) = d/\lambda = 26$ (the isotropic prior $A = \lambda I$) and converges to the incumbents' level within ${\sim}300$ steps as LinUCB's exploration bonus drives traffic to it.
   Gemini-Pro exhibits rising, oscillatory uncertainty because it is rarely selected under budget pressure---geometric forgetting erases its accumulated information faster than new observations replenish it, illustrating the forgetting--budget pacer feedback loop described in Section~\ref{sec:methodology}.}
 \label{fig:uncertainty_evolution}
+\end{figure}
+
+\input{../experiments/appendix/cost_heuristic_validation/results_discussion.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../experiments/appendix/cost_heuristic_validation/results/cost_heuristic_validation.pdf}
+\caption{Cost heuristic validation.
+  Left: violin plots of actual per-request costs (log scale) for each model, ordered by the static heuristic $\tilde{c}_a$.
+  Right: fraction of prompts where each pairwise cost ordering matches the heuristic ranking.
+  Top row: $K{=}3$ portfolio; bottom row: $K{=}4$ with Gemini-Flash added.}
+\label{fig:cost_heuristic}
 \end{figure}
 
 \end{document}
