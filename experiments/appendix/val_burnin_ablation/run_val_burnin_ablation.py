@@ -11,19 +11,31 @@ test (1,824 prompts, reported metrics).  A reviewer may reasonably ask
 how much of the test-time quality originates from the val burn-in versus
 the warmup priors themselves.
 
-This experiment answers that question through two complementary views:
+This experiment answers that question across three budget regimes:
+
+**Unconstrained** — Full burn-in fraction sweep (0/25/50/75/100%) with
+warmup priors, plus Tabula Rasa baselines (0%/100%), giving a 2×2
+factorial (priors × burn-in).
+
+**Tight + Moderate budgets** — 2×2 factorial (priors × burn-in at
+0%/100%) with the Primal-Dual BudgetPacer active, verifying that the
+burn-in findings hold under the budget constraints that are the paper's
+main contribution.  To decouple pacer calibration from reward-model
+burn-in, the pacer is pre-calibrated on the full val set (routing with
+the initial policy, observing costs, but NOT updating the bandit) before
+the trial begins.  All burn-in fractions thus start with an identically
+calibrated lambda_t; any remaining difference is attributable solely to
+reward-model learning.
+
+For each budget regime, two complementary views are produced:
 
 **View 1 — Burn-in fraction sweep.**
-Six conditions share the same warmup priors and test split; only the
-amount of val burn-in varies (0%, 25%, 50%, 75%, 100%).  A Tabula Rasa
-baseline (no priors, no burn-in) anchors the floor.  Cumulative regret
-on test is the primary metric.
+Conditions share the same priors and test split; only burn-in varies.
+Cumulative regret on test is the primary metric.
 
 **View 2 — Combined trajectory.**
-The val and test splits are concatenated into a single 3,609-step
-stream.  Cumulative regret is reported from step 1, giving the "no free
-lunch" perspective where all learning costs are visible.  A vertical
-line marks the val→test boundary.
+Val and test splits are concatenated into a single stream.  Cumulative
+regret is reported from step 1, giving the "no free lunch" perspective.
 
 Usage:
     python experiments/appendix/val_burnin_ablation/run_val_burnin_ablation.py
@@ -46,12 +58,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     BEST_K3_TABULA_RASA_HPARAMS,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_ARM_SHORT,
+    K3_BUDGET_LABELS,
+    K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
@@ -121,6 +138,7 @@ class StepRecord:
     model: str
     reward: float
     oracle_reward: float
+    cost_usd: float
     phase: str
 
     @property
@@ -178,6 +196,11 @@ class SeedResult:
             curve.append(cum)
         return curve
 
+    def mean_cost(self, phase: Optional[str] = None) -> float:
+        """Mean cost per step, optionally filtered by phase."""
+        relevant = [s for s in self.steps if phase is None or s.phase == phase]
+        return float(np.mean([s.cost_usd for s in relevant])) if relevant else 0.0
+
 
 # ======================================================================
 # Router Factory
@@ -192,8 +215,9 @@ def _create_router(
     alpha: float = WARMUP_ALPHA,
     prior_n_effective: float = WARMUP_N_EFF,
     forgetting_factor: float = WARMUP_GAMMA,
+    budget_pacer: Optional[BudgetPacer] = None,
 ) -> BanditRouter:
-    """Build a K=3 router with optional warmup priors.
+    """Build a K=3 router with optional warmup priors and budget pacer.
 
     Parameters
     ----------
@@ -209,6 +233,8 @@ def _create_router(
         Number of pseudo-observations for warmup priors.
     forgetting_factor : float
         Geometric decay factor.
+    budget_pacer : BudgetPacer or None
+        If provided, enables primal-dual budget pacing.
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
@@ -225,6 +251,7 @@ def _create_router(
         forgetting_factor=forgetting_factor,
         policy="disjoint",
         adaptive_gamma=False,
+        budget_pacer=budget_pacer,
     )
 
 
@@ -246,6 +273,7 @@ def _run_burnin_trial(
     alpha: float = WARMUP_ALPHA,
     prior_n_effective: float = WARMUP_N_EFF,
     forgetting_factor: float = WARMUP_GAMMA,
+    budget_pacer: Optional[BudgetPacer] = None,
 ) -> SeedResult:
     """Run one seed with a specified fraction of val as burn-in.
 
@@ -273,6 +301,8 @@ def _run_burnin_trial(
         Prior strength.
     forgetting_factor : float
         Geometric decay factor.
+    budget_pacer : BudgetPacer or None
+        If provided, enables primal-dual budget pacing.
 
     Returns
     -------
@@ -285,6 +315,49 @@ def _run_burnin_trial(
 
     n_burnin = int(round(burnin_fraction * val_data.n))
 
+    if budget_pacer is not None:
+        budget_pacer.reset()
+
+    # -- Pacer pre-calibration (budget-constrained conditions only) --
+    # Route through the FULL val set using the initial policy (priors or
+    # identity) and feed costs to the pacer, but do NOT update the bandit.
+    # This decouples pacer warm-up from reward-model burn-in so that all
+    # burn-in fractions start the trial with an identically calibrated
+    # lambda_t.  Without this, 0% burn-in would begin test with a cold
+    # pacer (lambda_t=0, cost_ema=target), confounding pacer calibration
+    # with reward learning.
+    if budget_pacer is not None:
+        calib_router = _create_router(
+            registry,
+            feature_dim,
+            warmup=warmup,
+            alpha=alpha,
+            prior_n_effective=prior_n_effective,
+            forgetting_factor=forgetting_factor,
+            budget_pacer=budget_pacer,
+        )
+        for t_idx in range(val_data.n):
+            orig_idx = val_order[t_idx]
+            emb = val_data.embeddings[orig_idx]
+            model, _log = calib_router.route(emb)
+            cost = float(val_data.costs[model][orig_idx])
+            budget_pacer.observe(cost)
+
+        # Snapshot the calibrated pacer state — every burn-in fraction
+        # will begin from this identical checkpoint.
+        _pacer_snapshot = (
+            budget_pacer.lambda_t,
+            budget_pacer.cost_ema,
+            budget_pacer.n_observations,
+        )
+        del calib_router
+
+        # Restore snapshot so the trial starts from a clean, identical
+        # pacer state regardless of what happens during burn-in.
+        budget_pacer.lambda_t = _pacer_snapshot[0]
+        budget_pacer.cost_ema = _pacer_snapshot[1]
+        budget_pacer.n_observations = _pacer_snapshot[2]
+
     router = _create_router(
         registry,
         feature_dim,
@@ -292,6 +365,7 @@ def _run_burnin_trial(
         alpha=alpha,
         prior_n_effective=prior_n_effective,
         forgetting_factor=forgetting_factor,
+        budget_pacer=budget_pacer,
     )
 
     result = SeedResult(condition=condition_label, seed=seed)
@@ -303,7 +377,8 @@ def _run_burnin_trial(
         emb = val_data.embeddings[orig_idx]
         model, log = router.route(emb)
         reward = float(val_data.rewards[model][orig_idx])
-        log.cost_usd = float(val_data.costs[model][orig_idx])
+        cost_usd = float(val_data.costs[model][orig_idx])
+        log.cost_usd = cost_usd
         router.process_feedback(log.request_id, reward=reward)
 
         oracle_reward = max(
@@ -316,6 +391,7 @@ def _run_burnin_trial(
                 model=model,
                 reward=reward,
                 oracle_reward=oracle_reward,
+                cost_usd=cost_usd,
                 phase="val",
             )
         )
@@ -326,7 +402,8 @@ def _run_burnin_trial(
         emb = test_data.embeddings[orig_idx]
         model, log = router.route(emb)
         reward = float(test_data.rewards[model][orig_idx])
-        log.cost_usd = float(test_data.costs[model][orig_idx])
+        cost_usd = float(test_data.costs[model][orig_idx])
+        log.cost_usd = cost_usd
         router.process_feedback(log.request_id, reward=reward)
 
         oracle_reward = max(
@@ -339,6 +416,7 @@ def _run_burnin_trial(
                 model=model,
                 reward=reward,
                 oracle_reward=oracle_reward,
+                cost_usd=cost_usd,
                 phase="test",
             )
         )
@@ -429,8 +507,9 @@ def _aggregate_test_metrics(
     per_seed_test_regret_early = [
         c[min(EARLY_STEP, len(c)) - 1] if c else 0.0 for c in test_regret_curves
     ]
+    per_seed_test_cost = [sr.mean_cost("test") for sr in seed_results]
 
-    return {
+    result: Dict[str, Any] = {
         "curves": curves,
         "test_regret": {
             "mean": float(np.mean(per_seed_test_regret)),
@@ -452,11 +531,18 @@ def _aggregate_test_metrics(
             "std": float(np.std(per_seed_test_regret_early)),
             "se": float(np.std(per_seed_test_regret_early) / np.sqrt(n_seeds)),
         },
+        "test_mean_cost_usd": {
+            "mean": float(np.mean(per_seed_test_cost)),
+            "std": float(np.std(per_seed_test_cost)),
+            "se": float(np.std(per_seed_test_cost) / np.sqrt(n_seeds)),
+        },
         "per_seed_test_regret": per_seed_test_regret,
         "per_seed_test_reward": per_seed_test_reward,
         "per_seed_oracle_agreement": per_seed_test_agree,
         f"per_seed_test_regret_at_{EARLY_STEP}": per_seed_test_regret_early,
+        "per_seed_test_cost": per_seed_test_cost,
     }
+    return result
 
 
 def _aggregate_combined_trajectory(
@@ -544,18 +630,88 @@ def main() -> None:
     )
 
     # ==================================================================
-    # View 1: Burn-in fraction sweep (warmup conditions)
+    # Build condition list: budget regimes × prior type × burn-in level
+    # ==================================================================
+    # Budget regimes: None (unconstrained) + tight + moderate
+    budget_regimes: List[Dict[str, Any]] = [
+        {"target": None, "label": "unconstrained"},
+    ]
+    for target, blabel in zip(K3_BUDGET_TARGETS[:2], K3_BUDGET_LABELS[:2]):
+        budget_regimes.append({"target": target, "label": blabel})
+
+    # For unconstrained: full burn-in sweep (0/25/50/75/100%) + tabula rasa 0%/100%
+    # For budget-constrained: 0%/100% burn-in × warmup/tabula rasa (2×2 factorial)
+    condition_specs: List[Dict[str, Any]] = []
+
+    for regime in budget_regimes:
+        budget_target = regime["target"]
+        budget_label = regime["label"]
+        if budget_target is None:
+            for frac in BURNIN_FRACTIONS:
+                condition_specs.append({
+                    "label": f"Warmup ({int(frac * 100)}% burn-in)",
+                    "burnin_fraction": frac,
+                    "warmup": True,
+                    "alpha": WARMUP_ALPHA,
+                    "prior_n_effective": WARMUP_N_EFF,
+                    "forgetting_factor": WARMUP_GAMMA,
+                    "budget_target": None,
+                    "budget_label": budget_label,
+                })
+            for frac in [0.0, 1.0]:
+                frac_tag = "no burn-in" if frac == 0.0 else "100% burn-in"
+                condition_specs.append({
+                    "label": f"Tabula Rasa ({frac_tag})",
+                    "burnin_fraction": frac,
+                    "warmup": False,
+                    "alpha": TABULA_ALPHA,
+                    "prior_n_effective": TABULA_N_EFF,
+                    "forgetting_factor": TABULA_GAMMA,
+                    "budget_target": None,
+                    "budget_label": budget_label,
+                })
+        else:
+            for warmup, w_label, alpha, n_eff, gamma in [
+                (True, "Warmup", WARMUP_ALPHA, WARMUP_N_EFF, WARMUP_GAMMA),
+                (False, "Tabula Rasa", TABULA_ALPHA, TABULA_N_EFF, TABULA_GAMMA),
+            ]:
+                for frac in [0.0, 1.0]:
+                    frac_tag = "0%" if frac == 0.0 else "100%"
+                    condition_specs.append({
+                        "label": f"{w_label} ({frac_tag} burn-in, {budget_label})",
+                        "burnin_fraction": frac,
+                        "warmup": warmup,
+                        "alpha": alpha,
+                        "prior_n_effective": n_eff,
+                        "forgetting_factor": gamma,
+                        "budget_target": budget_target,
+                        "budget_label": budget_label,
+                    })
+
+    # ==================================================================
+    # Run all conditions
     # ==================================================================
     conditions: Dict[str, Dict[str, Any]] = {}
 
-    for frac in BURNIN_FRACTIONS:
+    for spec in condition_specs:
+        label = spec["label"]
+        frac = spec["burnin_fraction"]
         n_burnin = int(round(frac * val_data.n))
-        label = f"Warmup ({int(frac * 100)}% burn-in)"
+        budget_target: Optional[float] = spec["budget_target"]
+
         logger.info("=== %s (n_burnin=%d) ===", label, n_burnin)
         seed_results: List[SeedResult] = []
 
         for s in range(N_SEEDS):
             seed = SEED_OFFSET + s
+            pacer: Optional[BudgetPacer] = None
+            if budget_target is not None:
+                pacer = BudgetPacer(
+                    target_avg_spend_usd=budget_target,
+                    mode=PacingMode.ADAPTIVE,
+                    lr=DEFAULT_PACER_LR,
+                    lambda_max=DEFAULT_PACER_LAMBDA_MAX,
+                )
             sr = _run_burnin_trial(
                 condition_label=label,
                 val_data=val_data,
@@ -564,10 +720,11 @@ def main() -> None:
                 feature_dim=feature_dim,
                 seed=seed,
                 burnin_fraction=frac,
-                warmup=True,
-                alpha=WARMUP_ALPHA,
-                prior_n_effective=WARMUP_N_EFF,
-                forgetting_factor=WARMUP_GAMMA,
+                warmup=spec["warmup"],
+                alpha=spec["alpha"],
+                prior_n_effective=spec["prior_n_effective"],
+                forgetting_factor=spec["forgetting_factor"],
+                budget_pacer=pacer,
             )
             seed_results.append(sr)
             if (s + 1) % 5 == 0:
@@ -578,23 +735,37 @@ def main() -> None:
                 )
 
         test_agg = _aggregate_test_metrics(seed_results, test_data.n)
-
         combined_agg = _aggregate_combined_trajectory(
             seed_results, n_burnin, test_data.n,
         )
+
+        budget_compliance: Optional[Dict[str, float]] = None
+        if budget_target is not None and budget_target > 0:
+            per_seed_cost = test_agg["per_seed_test_cost"]
+            per_seed_ratio = [c / budget_target for c in per_seed_cost]
+            budget_compliance = {
+                "mean_cost_usd": float(np.mean(per_seed_cost)),
+                "mean_cost_target_ratio": float(np.mean(per_seed_ratio)),
+                "std_cost_target_ratio": float(np.std(per_seed_ratio)),
+                "max_cost_target_ratio": float(np.max(per_seed_ratio)),
+                "budget_target_usd": budget_target,
+            }
 
         conditions[label] = {
             "label": label,
             "burnin_fraction": frac,
             "n_burnin": n_burnin,
-            "warmup": True,
+            "warmup": spec["warmup"],
+            "budget_target": budget_target,
+            "budget_label": spec["budget_label"],
             "hparams": {
-                "alpha": WARMUP_ALPHA,
-                "prior_n_effective": WARMUP_N_EFF,
-                "forgetting_factor": WARMUP_GAMMA,
+                "alpha": spec["alpha"],
+                "prior_n_effective": spec["prior_n_effective"],
+                "forgetting_factor": spec["forgetting_factor"],
             },
             "test_metrics": test_agg,
             "combined_trajectory": combined_agg,
+            "budget_compliance": budget_compliance,
         }
 
         logger.info(
@@ -608,99 +779,48 @@ def main() -> None:
         )
 
     # ==================================================================
-    # Tabula Rasa baselines (complete the 2×2 factorial)
+    # Pairwise tests: within each budget regime, compare vs 100% ref
     # ==================================================================
-    tabula_conditions: List[Dict[str, Any]] = [
-        {
-            "label": "Tabula Rasa (no burn-in)",
-            "burnin_fraction": 0.0,
-        },
-        {
-            "label": "Tabula Rasa (100% burn-in)",
-            "burnin_fraction": 1.0,
-        },
-    ]
-
-    for tc in tabula_conditions:
-        label = tc["label"]
-        frac = tc["burnin_fraction"]
-        n_burnin = int(round(frac * val_data.n))
-        logger.info("=== %s (n_burnin=%d) ===", label, n_burnin)
-        seed_results = []
-        for s in range(N_SEEDS):
-            seed = SEED_OFFSET + s
-            sr = _run_burnin_trial(
-                condition_label=label,
-                val_data=val_data,
-                test_data=test_data,
-                registry=registry,
-                feature_dim=feature_dim,
-                seed=seed,
-                burnin_fraction=frac,
-                warmup=False,
-                alpha=TABULA_ALPHA,
-                prior_n_effective=TABULA_N_EFF,
-                forgetting_factor=TABULA_GAMMA,
-            )
-            seed_results.append(sr)
-
-        test_agg = _aggregate_test_metrics(seed_results, test_data.n)
-        combined_agg = _aggregate_combined_trajectory(
-            seed_results, n_burnin, test_data.n,
-        )
-
-        conditions[label] = {
-            "label": label,
-            "burnin_fraction": frac,
-            "n_burnin": n_burnin,
-            "warmup": False,
-            "hparams": {
-                "alpha": TABULA_ALPHA,
-                "prior_n_effective": TABULA_N_EFF,
-                "forgetting_factor": TABULA_GAMMA,
-            },
-            "test_metrics": test_agg,
-            "combined_trajectory": combined_agg,
-        }
-        logger.info(
-            "  FINAL: test_regret=%.1f±%.1f  test_reward=%.4f",
-            test_agg["test_regret"]["mean"],
-            test_agg["test_regret"]["se"],
-            test_agg["test_reward"]["mean"],
-        )
-
-    # ==================================================================
-    # Pairwise tests: each burn-in level vs the full (100%) condition
-    # ==================================================================
-    full_label = "Warmup (100% burn-in)"
-    full_regrets = conditions[full_label]["test_metrics"]["per_seed_test_regret"]
-
     statistical_tests: Dict[str, Dict[str, Any]] = {}
-    for cond_label, cond_data in conditions.items():
-        if cond_label == full_label:
+
+    for regime in budget_regimes:
+        budget_label = regime["label"]
+        if regime["target"] is None:
+            ref_label = "Warmup (100% burn-in)"
+        else:
+            ref_label = f"Warmup (100% burn-in, {budget_label})"
+
+        if ref_label not in conditions:
             continue
-        other_regrets = cond_data["test_metrics"]["per_seed_test_regret"]
-        test_result = _paired_test(other_regrets, full_regrets)
-        diff_regret = float(
-            np.mean(other_regrets) - np.mean(full_regrets)
-        )
-        statistical_tests[cond_label] = {
-            "vs": full_label,
-            "delta_regret": diff_regret,
-            "delta_pct": (
-                100.0 * diff_regret / np.mean(full_regrets)
-                if np.mean(full_regrets) > 0
-                else 0.0
-            ),
-            **test_result,
-        }
-        logger.info(
-            "  %s vs %s: Δregret=%+.1f (%+.1f%%)  p=%.4f",
-            cond_label, full_label,
-            diff_regret,
-            statistical_tests[cond_label]["delta_pct"],
-            test_result["p_value"],
-        )
+        ref_regrets = conditions[ref_label]["test_metrics"]["per_seed_test_regret"]
+
+        for cond_label, cond_data in conditions.items():
+            if cond_label == ref_label:
+                continue
+            if cond_data["budget_label"] != budget_label:
+                continue
+            other_regrets = cond_data["test_metrics"]["per_seed_test_regret"]
+            test_result = _paired_test(other_regrets, ref_regrets)
+            diff_regret = float(
+                np.mean(other_regrets) - np.mean(ref_regrets)
+            )
+            statistical_tests[cond_label] = {
+                "vs": ref_label,
+                "delta_regret": diff_regret,
+                "delta_pct": (
+                    100.0 * diff_regret / np.mean(ref_regrets)
+                    if np.mean(ref_regrets) > 0
+                    else 0.0
+                ),
+                **test_result,
+            }
+            logger.info(
+                "  %s vs %s: Δregret=%+.1f (%+.1f%%)  p=%.4f",
+                cond_label, ref_label,
+                diff_regret,
+                statistical_tests[cond_label]["delta_pct"],
+                test_result["p_value"],
+            )
 
     # ==================================================================
     # Save
@@ -720,6 +840,9 @@ def main() -> None:
         "arm_short": ARM_SHORT,
         "early_step": EARLY_STEP,
         "burnin_fractions": BURNIN_FRACTIONS,
+        "budget_regimes": {
+            r["label"]: r["target"] for r in budget_regimes
+        },
         "forgetting_analysis": {
             "gamma": WARMUP_GAMMA,
             "effective_memory_steps": effective_memory,
@@ -744,6 +867,15 @@ def main() -> None:
                 "forgetting_factor": TABULA_GAMMA,
             },
             "policy": "disjoint",
+            "pacer_lr": DEFAULT_PACER_LR,
+            "pacer_lambda_max": DEFAULT_PACER_LAMBDA_MAX,
+            "pacer_pre_calibration": (
+                "For budget-constrained conditions the pacer is "
+                "pre-calibrated on the full val set (routing with "
+                "the initial policy, costs observed, bandit NOT "
+                "updated).  All burn-in fractions start from an "
+                "identical lambda_t snapshot."
+            ),
         },
         "conditions": conditions,
         "statistical_tests": statistical_tests,
@@ -755,38 +887,65 @@ def main() -> None:
     logger.info("Results written to %s", out_path)
 
     # ==================================================================
-    # Summary table
+    # Summary table (grouped by budget regime)
     # ==================================================================
-    hdr_w = 100
+    hdr_w = 115
     print("\n" + "=" * hdr_w)
     print("VAL BURN-IN ABLATION — Summary")
     print("=" * hdr_w)
-    print(
-        f"  {'Condition':<30s}  {'Burn-in':>7s}  "
-        f"{'Test Regret':>12s}  {'R@200':>10s}  "
-        f"{'Reward':>8s}  {'Agree':>6s}  {'Δ%':>7s}  {'p':>8s}"
-    )
-    print(f"  {'-' * 30}  {'-' * 7}  {'-' * 12}  {'-' * 10}  "
-          f"{'-' * 8}  {'-' * 6}  {'-' * 7}  {'-' * 8}")
 
-    for cond_label, cond_data in conditions.items():
-        tm = cond_data["test_metrics"]
-        n_bi = cond_data["n_burnin"]
-        delta_str = "—"
-        p_str = "—"
-        if cond_label in statistical_tests:
-            st = statistical_tests[cond_label]
-            delta_str = f"{st['delta_pct']:+.1f}%"
-            p_str = f"{st['p_value']:.2e}" if st["p_value"] < 0.01 else f"{st['p_value']:.3f}"
-        print(
-            f"  {cond_label:<30s}  {n_bi:>7d}  "
-            f"{tm['test_regret']['mean']:>8.1f}±{tm['test_regret']['se']:<4.1f}"
-            f"{tm[f'test_regret_at_{EARLY_STEP}']['mean']:>7.1f}±{tm[f'test_regret_at_{EARLY_STEP}']['se']:<4.1f}"
-            f"{tm['test_reward']['mean']:>8.4f}  "
-            f"{tm['oracle_agreement']['mean']:>6.3f}  "
-            f"{delta_str:>7s}  {p_str:>8s}"
+    for regime in budget_regimes:
+        budget_label = regime["label"]
+        budget_target = regime["target"]
+        show_cost = budget_target is not None
+        print(f"\n  --- {budget_label.upper()} ---")
+        header = (
+            f"  {'Condition':<45s}  {'Burn-in':>7s}  "
+            f"{'Test Regret':>12s}  {'R@200':>10s}  "
+            f"{'Reward':>8s}  {'Δ%':>7s}  {'p':>8s}"
         )
-    print("=" * hdr_w)
+        if show_cost:
+            header += f"  {'Cost/Target':>12s}"
+        print(header)
+        sep = (
+            f"  {'-' * 45}  {'-' * 7}  {'-' * 12}  {'-' * 10}  "
+            f"{'-' * 8}  {'-' * 7}  {'-' * 8}"
+        )
+        if show_cost:
+            sep += f"  {'-' * 12}"
+        print(sep)
+
+        for cond_label, cond_data in conditions.items():
+            if cond_data["budget_label"] != budget_label:
+                continue
+            tm = cond_data["test_metrics"]
+            n_bi = cond_data["n_burnin"]
+            delta_str = "—"
+            p_str = "—"
+            if cond_label in statistical_tests:
+                st = statistical_tests[cond_label]
+                delta_str = f"{st['delta_pct']:+.1f}%"
+                p_str = (
+                    f"{st['p_value']:.2e}"
+                    if st["p_value"] < 0.01
+                    else f"{st['p_value']:.3f}"
+                )
+            row = (
+                f"  {cond_label:<45s}  {n_bi:>7d}  "
+                f"{tm['test_regret']['mean']:>8.1f}±"
+                f"{tm['test_regret']['se']:<4.1f}"
+                f"{tm[f'test_regret_at_{EARLY_STEP}']['mean']:>7.1f}±"
+                f"{tm[f'test_regret_at_{EARLY_STEP}']['se']:<4.1f}"
+                f"{tm['test_reward']['mean']:>8.4f}  "
+                f"{delta_str:>7s}  {p_str:>8s}"
+            )
+            if show_cost:
+                mean_cost = tm["test_mean_cost_usd"]["mean"]
+                ratio = mean_cost / budget_target if budget_target > 0 else 0.0
+                row += f"  {ratio:>10.2%}"
+            print(row)
+
+    print("\n" + "=" * hdr_w)
 
     elapsed = time.time() - t0
     logger.info("Done in %.1f s", elapsed)

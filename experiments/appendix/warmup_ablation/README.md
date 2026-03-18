@@ -39,4 +39,6 @@ python experiments/appendix/warmup_ablation/generate_uncertainty_figure.py
 - Warmup priors reduce total regret by 11% unconstrained (p < 10⁻⁵) and 4% under tight budget (p = 0.006)
 - Early regret (R@200) reduction is 45% unconstrained and 13% under tight budget
 - At enterprise scale (100K–1M queries/day), the 4% tight-budget improvement translates to $15K–$147K in annualised routing efficiency
-- Warmup priors are a zero-cost gain: computing them from offline data takes minutes with no ongoing maintenance
+- With well-calibrated priors, warmup is a near-zero-cost deployment latency gain: computing priors from offline data takes minutes with no ongoing maintenance
+- The warmup benefit is transient by design: geometric forgetting (γ=0.995) replaces priors with online evidence within ~200 effective-memory steps; after sufficient online learning, warmup and tabula rasa converge (see val_burnin_ablation)
+- **Caveat**: these gains assume the prior is directionally correct. Systematically wrong priors (inverted model rankings) cause harm that scales with `n_eff`. See [prior mismatch analysis](../prior_mismatch/README.md) for a sensitivity study across five prior-quality levels

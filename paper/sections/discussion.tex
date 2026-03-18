@@ -40,11 +40,20 @@ This portability matters because the most common deployment failure mode for ada
 
 \subsection{Limitations and Deployment Considerations}
 
-\paragraph{Warm-Start Dependence at Tight Budgets.}
-At tight budgets, the router selects expensive arms rarely during Phase~1 ($<1\%$ Gemini at $B{=}\$2.3{\times}10^{-4}$), so the bandit's quality estimate for those arms relies almost entirely on the warmup prior rather than online observations.
-In our experiments this is not limiting---the warm prior is sufficiently accurate and the primal-dual mechanism rapidly redirects traffic once the price drops (Section~\ref{sec:results})---but the dependence on prior quality is stronger than at moderate or loose budgets.
-If the warmup prior were poorly calibrated for a newly added model (e.g., no historical data), a tight budget could delay adoption even after a price drop.
-Future work could investigate targeted exploration strategies (e.g., small $\epsilon$-greedy budget reserves) that periodically evaluate under-explored arms to maintain calibrated quality estimates independent of the prior.
+\paragraph{Warmup Priors: Transient Benefit, Not Persistent Advantage.}
+The burn-in ablation (Appendix~\ref{appendix:val_burnin_ablation}) reveals that warmup priors are a \emph{deployment latency optimisation}, not a persistent quality advantage.
+With geometric forgetting ($\gamma{=}0.995$), the prior's contribution decays to $<1\%$ within ${\sim}1{,}000$ steps; after sufficient online learning, the router converges to the same steady-state regardless of initialisation ($74.0$ vs.\ $74.4$ test regret, $p{=}0.55$).
+The priors' measurable value is concentrated in the cold-start transient: without priors, a Tabula Rasa start incurs $+12.2\%$ higher test regret ($p < 10^{-5}$), driven almost entirely by the first ${\sim}200$ steps where the UCB exploration bonus dominates uninformed routing.
+This means the case for warmup priors scales with deployment sensitivity to early-stage regret---applications serving thousands of requests in the first minutes of deployment benefit substantially; systems that can tolerate a learning phase may forgo priors entirely.
+
+Under budget constraints, the BudgetPacer partially compensates for the absence of priors by constraining the cost of uninformed exploration.
+The ablation decouples pacer calibration from reward-model burn-in (all conditions start with an identically pre-calibrated $\lambda_t$; see Appendix~\ref{appendix:val_burnin_ablation}), and after this decoupling the tight-budget cold-start penalty shrinks to $+2.6\%$ ($p{=}0.019$)---marginal after multiple-testing correction---compared with $+12.2\%$ in the unconstrained case.
+At moderate budgets, the gap disappears entirely ($p{=}0.29$): the budget constraint collapses the feasible arm set, limiting the damage of uninformed exploration even without priors.
+Cost compliance is consistent across all conditions ($97.6\%$--$100.0\%$ of target), confirming that the BudgetPacer maintains closed-loop cost control regardless of initialisation.
+In operational terms, teams deploying under budget constraints can rely on the pacer itself as a partial cold-start safety net; warmup priors remain valuable primarily for unconstrained or latency-sensitive deployments.
+
+Appendix~\ref{appendix:prior_mismatch} shows that the dependence on priors is safe when priors are directionally correct (even domain-mismatched priors trained on a single benchmark reduce regret), but systematically inverted priors cause harm that scales with $n_\mathit{eff}$---up to $+13\%$ regret at $n_\mathit{eff}{=}1{,}000$ ($p < 10^{-6}$).
+A conservative $n_\mathit{eff}$ (10--100) limits worst-case exposure; future work could additionally investigate targeted exploration strategies (e.g., small $\epsilon$-greedy budget reserves) that periodically evaluate under-explored arms to maintain calibrated quality estimates independent of the prior.
 
 \paragraph{Static Unit-Cost Normalization.}
 The normalized cost $\tilde{c}_a$ in Equation~\ref{eq:budget_ucb} and the hard ceiling filter both use a static blended rate $(\text{input\_cost} + \text{output\_cost})/2$ rather than weighting by the actual input/output token counts of each request.

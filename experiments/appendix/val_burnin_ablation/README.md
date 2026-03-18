@@ -52,14 +52,18 @@ This interaction is a feature, not a bug — it reveals that the burn-in
   disjoint LinUCB
 - **Hyperparameters (tabula rasa)**: alpha=0.10, n_eff=1, gamma=0.995,
   disjoint LinUCB
-- **Conditions** (7 total):
-  - Warmup (0% burn-in) — priors only, evaluate directly on test
-  - Warmup (25% burn-in) — 446 val steps, then test
-  - Warmup (50% burn-in) — 893 val steps, then test
-  - Warmup (75% burn-in) — 1,339 val steps, then test
-  - Warmup (100% burn-in) — full val (1,785 steps), then test
-  - Tabula Rasa (no burn-in) — cold start, no priors, evaluate on test
-  - Tabula Rasa (100% burn-in) — cold start + full val, then test
+- **Budget regimes**: Unconstrained, Tight ($2.34e-4 $/req), Moderate
+  ($6.62e-4 $/req) — BudgetPacer active for constrained regimes
+- **Pacer pre-calibration**: For budget-constrained conditions, the
+  BudgetPacer is pre-calibrated on the full val set (routing with the
+  initial policy, costs observed, bandit NOT updated). All burn-in
+  fractions thus start from an identical λ_t snapshot, decoupling
+  pacer calibration from reward-model burn-in.
+- **Conditions**:
+  - *Unconstrained* (7 conditions): Warmup at 0/25/50/75/100% burn-in
+    + Tabula Rasa at 0%/100%
+  - *Tight + Moderate* (4 conditions each): 2×2 factorial — {Warmup,
+    Tabula Rasa} × {0%, 100% burn-in} with BudgetPacer
 
 ## Run
 
@@ -73,21 +77,40 @@ python experiments/appendix/val_burnin_ablation/generate_figure.py
 | File | Description |
 |------|-------------|
 | `results/val_burnin_ablation_results.json` | Full per-seed metrics and curves |
-| `results/val_burnin_test_regret.pdf` | Test-split cumulative regret (full + zoom) |
+| `results/val_burnin_test_regret.pdf` | Test-split cumulative regret (unconstrained, full + zoom) |
 | `results/val_burnin_combined.pdf` | Combined val+test trajectory + aligned test comparison |
-| `results/val_burnin_summary.pdf` | 2×2 factorial bar chart (priors × burn-in) |
+| `results/val_burnin_summary.pdf` | 2×2 factorial bar chart (unconstrained) |
+| `results/val_burnin_budget_summary.pdf` | Budget-stratified 2×2 factorial (all regimes) |
 
-## Expected Findings
+## Key Results
 
-- **Warmup priors alone (0% burn-in) should outperform Tabula Rasa**,
-  confirming the priors carry genuine value independent of burn-in.
-- **Test regret should decrease monotonically** as burn-in fraction
-  increases, with diminishing marginal returns.
-- **After 100% burn-in, warmup ≈ tabula rasa** on test, because
-  forgetting has erased the priors — both conditions operate on the
-  same ~200 steps of recent online evidence.
-- **The largest gain should come from the first 25–50% of burn-in**,
-  reflecting the bandit's rapid online calibration on top of priors.
-- **The combined trajectory view should show** that the full-burn-in
-  condition shifts regret from the test phase to the val phase,
-  not that it avoids it entirely.
+**The burn-in finding holds across all budget regimes:**
+
+| Budget | Warmup 0% | Warmup 100% | Δ% | p |
+|--------|-----------|-------------|-----|---|
+| None | 74.0±0.5 | 74.4±0.8 | -0.6% | 0.55 |
+| Tight | 198.2±1.0 | 199.9±1.3 | -0.8% | 0.37 |
+| Moderate | 150.8±3.0 | 149.4±1.9 | +0.9% | 0.70 |
+
+**Cold-start penalty (Tabula Rasa 0% vs Warmup 100%):**
+
+| Budget | Tabula Rasa 0% | Warmup 100% | Δ% | p |
+|--------|----------------|-------------|-----|---|
+| None | 83.5±0.8 | 74.4±0.8 | +12.2% | <10⁻⁵ |
+| Tight | 205.1±2.1 | 199.9±1.3 | +2.6% | 0.019 |
+| Moderate | 152.2±3.0 | 149.4±1.9 | +1.9% | 0.29 |
+
+**Convergence after burn-in (Tabula Rasa 100% vs Warmup 100%):**
+
+| Budget | Tabula Rasa 100% | Warmup 100% | Δ% | p |
+|--------|------------------|-------------|-----|---|
+| None | 73.9±0.7 | 74.4±0.8 | -0.8% | 0.67 |
+| Tight | 197.2±1.1 | 199.9±1.3 | -1.3% | 0.11 |
+| Moderate | 144.4±2.1 | 149.4±1.9 | -3.4% | 0.28 |
+
+**Budget compliance (Cost / Target ratio):**
+
+| Budget | Warmup 0% | Warmup 100% | TR 0% | TR 100% |
+|--------|-----------|-------------|-------|---------|
+| Tight | 100.0% | 100.0% | 98.8% | 99.9% |
+| Moderate | 99.4% | 99.4% | 97.6% | 99.3% |

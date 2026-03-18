@@ -1,14 +1,18 @@
 % Appendix: Validation Burn-In Ablation
 
-\subsection{Validation Burn-In Ablation (Figure~\ref{fig:val_burnin_ablation})}
+\subsection{Validation Burn-In Ablation (Figures~\ref{fig:val_burnin_ablation}--\ref{fig:val_burnin_budget})}
 \label{appendix:val_burnin_ablation}
 
 The paper's standard evaluation protocol runs the bandit through the
 validation split ($n{=}1{,}785$) before evaluating on the held-out
 test split ($n{=}1{,}824$).  To verify that this burn-in does not
 artificially inflate test-set performance, we ablate the amount of
-validation data used for online learning before test evaluation.
+validation data used for online learning before test evaluation
+\emph{across three budget regimes}: unconstrained, tight
+($B{=}\$2.3{\times}10^{-4}$/req), and moderate
+($B{=}\$6.6{\times}10^{-4}$/req).
 
+\paragraph{Unconstrained regime.}
 Five warmup conditions share identical priors (from train) and the
 same hyperparameters ($\alpha{=}0.1$, $n_\mathit{eff}{=}1{,}000$,
 $\gamma{=}0.995$); only the fraction of val used for burn-in varies
@@ -19,7 +23,7 @@ conditions are evaluated on the same held-out test split across 20
 random seeds with paired Wilcoxon signed-rank tests against the 100\%
 burn-in reference.
 
-\paragraph{Key findings.}
+\paragraph{Key findings (unconstrained).}
 No warmup burn-in level differs significantly from the 100\% baseline
 on test regret (Table~\ref{tab:val_burnin}).  The 0\% condition---warmup
 priors with \emph{no} online learning before test---achieves $74.0$
@@ -33,18 +37,92 @@ With $\gamma{=}0.995$, effective memory is ${\sim}200$ steps.  After
 1{,}785 val steps, warmup priors are decayed by $\gamma^{1785} \approx
 1.3{\times}10^{-5}$---effectively erased.  This explains why the
 warmup and tabula-rasa conditions converge after 100\% burn-in ($74.4$
-vs.\ $74.7$; $p{=}0.65$): both operate on the same ${\sim}200$ recent
+vs.\ $73.9$; $p{=}0.67$): both operate on the same ${\sim}200$ recent
 online observations, and the original priors contribute nothing.
 
-\paragraph{Prior value confirmed.}
-The only statistically significant gap is between tabula rasa with
-\emph{no} burn-in ($82.4$) and all warmup conditions ($74.0$--$76.0$;
-$p < 10^{-5}$), a $+10.7\%$ regret penalty.  Warmup priors thus
-provide genuine cold-start value independent of the burn-in protocol.
+\paragraph{Prior value: a deployment latency optimisation.}
+The only statistically significant gap in the unconstrained regime is
+between tabula rasa with \emph{no} burn-in ($83.5$) and all warmup
+conditions ($74.0$--$76.0$; $p < 10^{-5}$), a $+12.2\%$ regret
+penalty concentrated in the first ${\sim}200$ steps (R@200: $11.6$
+vs.\ $5.9$).  Once sufficient online evidence accumulates---either
+through val burn-in or directly on the test stream---tabula rasa
+converges to the same steady-state (tabula rasa 100\% burn-in: $73.9$,
+$p{=}0.67$ vs.\ warmup 100\%).
+
+\paragraph{Budget-constrained regimes (Table~\ref{tab:val_burnin_budget}).}
+To verify that these findings generalise to the budget-paced conditions
+that are the paper's main contribution, we repeat the $2{\times}2$
+factorial (priors~$\times$~burn-in at 0\%/100\%) under the Primal-Dual
+BudgetPacer at tight and moderate targets.
+To isolate the effect of reward-model learning from pacer calibration,
+the BudgetPacer is \emph{pre-calibrated} on the full validation set:
+all prompts are routed under the initial policy (priors or identity) and
+the resulting costs are fed to the pacer, but the bandit is
+\emph{not} updated.  All burn-in fractions therefore start the trial
+with an identically calibrated $\lambda_t$; any remaining difference is
+attributable solely to reward learning.%
+\footnote{The oracle in this ablation is the quality-only oracle
+$\max_a r_a$ (i.e., it ignores cost).  This inflates absolute regret
+relative to the cost-adjusted oracle used in the main paper but does not
+affect relative comparisons between conditions, which is the ablation's
+purpose.}
+The pattern is consistent across all regimes:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \emph{Burn-in does not inflate.}  Within each budget regime,
+    Warmup~0\% vs.\ Warmup~100\% is non-significant
+    (tight: $198.2$ vs.\ $199.9$, $p{=}0.37$;
+     moderate: $150.8$ vs.\ $149.4$, $p{=}0.70$).
+  \item \emph{Priors matter at cold start (tight budgets).}
+    Tabula Rasa with no burn-in has marginally higher regret at tight
+    budgets ($205.1$ vs.\ $199.9$, $\Delta{=}{+}2.6\%$,
+    $p{=}0.019$)---note this does not survive Bonferroni correction
+    across the three within-regime tests.
+    Prior to pacer pre-calibration this gap was larger
+    ($\Delta{=}{+}6.0\%$, $p < 10^{-3}$), confirming that the original
+    confound between cold-pacer and cold-bandit inflated the apparent
+    harm of missing priors.
+  \item \emph{Convergence after burn-in.}  With 100\% burn-in, warmup
+    and tabula rasa converge at every budget level
+    (tight: $199.9$ vs.\ $197.2$, $p{=}0.11$;
+     moderate: $149.4$ vs.\ $144.4$, $p{=}0.28$),
+    confirming that geometric forgetting erases the prior regardless of
+    budget pressure.
+  \item \emph{Moderate budgets collapse the gap.}  At moderate budgets,
+    even tabula rasa without burn-in is non-significant vs.\ warmup
+    ($152.2$ vs.\ $149.4$, $p{=}0.29$): the budget constraint
+    collapses the feasible arm set, reducing the harm of uninformed
+    exploration.
+  \item \emph{Budget compliance is consistent.}  Cost/target ratios
+    range from $97.6\%$ to $100.0\%$ across all conditions, confirming
+    that the BudgetPacer achieves comparable spending regardless of
+    burn-in level or prior initialisation.
+\end{itemize}
+
+\paragraph{Implication.}
+Warmup priors are best understood as a \emph{deployment latency
+optimisation}: they eliminate the cold-start transient where uninformed
+exploration dominates, halving early regret (R@200: $5.9$ vs.\ $11.6$
+unconstrained; $23.1$ vs.\ $27.6$ at tight budget).
+Their contribution is transient by design---geometric forgetting
+replaces offline estimates with online evidence within ${\sim}200$
+effective-memory steps---so the router's steady-state quality is
+determined by the online learner and budget pacer, not the
+initialisation.
+This holds \emph{regardless of budget regime}:
+the BudgetPacer's adaptive $\lambda_t$ provides the same closed-loop
+cost control whether the router starts from informed priors or from
+scratch.
+The case for warmup priors thus scales with the deployment's sensitivity
+to early-stage regret: applications routing thousands of requests in
+the first minutes benefit substantially; systems that can tolerate a
+brief learning phase may forgo priors entirely and rely on the online
+learner alone.
 
 \begin{table}[t]
 \centering
-\caption{Validation burn-in ablation (20~seeds, held-out test split).
+\caption{Validation burn-in ablation---unconstrained regime (20~seeds,
+held-out test split).
 $\Delta$ is relative to the 100\% burn-in reference.  No warmup
 condition differs significantly from the reference; the only
 significant gap is tabula rasa without burn-in.}
@@ -60,8 +138,37 @@ Warmup & 50\%  & 75.1\,$\pm$\,0.8 & 7.9  & $+0.9$\% & 0.50 \\
 Warmup & 75\%  & 75.1\,$\pm$\,0.6 & 7.9  & $+1.0$\% & 0.52 \\
 Warmup & 100\% & 74.4\,$\pm$\,0.8 & 7.7  & ---       & --- \\
 \midrule
-Tabula Rasa & 0\%   & 82.4\,$\pm$\,0.9 & 10.7 & $+10.7$\% & $< 10^{-5}$ \\
-Tabula Rasa & 100\% & 74.7\,$\pm$\,0.6 & 7.9  & $+0.4$\%  & 0.65 \\
+Tabula Rasa & 0\%   & 83.5\,$\pm$\,0.8 & 11.6 & $+12.2$\% & $< 10^{-5}$ \\
+Tabula Rasa & 100\% & 73.9\,$\pm$\,0.7 & 8.2  & $-0.8$\%  & 0.67 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Validation burn-in ablation---budget-constrained regimes
+(20~seeds, held-out test split, BudgetPacer active, pacer pre-calibrated).
+$\Delta$ is relative to the Warmup~100\% reference within each regime.
+\emph{Cost/T} is the mean cost per request as a fraction of the budget
+target (1.00~=~at target).
+The burn-in finding holds under budget pressure: within each regime,
+Warmup~0\% is non-significant vs.\ Warmup~100\%, and cost compliance is
+consistent across conditions.}
+\label{tab:val_burnin_budget}
+\small
+\begin{tabular}{@{}lllrrrrl@{}}
+\toprule
+\textbf{Budget} & \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & \textbf{Cost/T} & $\boldsymbol{\Delta}$ & $\boldsymbol{p}$ \\
+\midrule
+Tight    & Warmup      & 0\%   & 198.2\,$\pm$\,1.0 & 23.1 & 1.00 & $-0.8$\%  & 0.37 \\
+         & Warmup      & 100\% & 199.9\,$\pm$\,1.3 & 23.0 & 1.00 & ---        & --- \\
+         & Tabula Rasa & 0\%   & 205.1\,$\pm$\,2.1 & 27.6 & 0.99 & $+2.6$\%  & 0.019 \\
+         & Tabula Rasa & 100\% & 197.2\,$\pm$\,1.1 & 21.6 & 1.00 & $-1.3$\%  & 0.11 \\
+\midrule
+Moderate & Warmup      & 0\%   & 150.8\,$\pm$\,3.0 & 18.3 & 0.99 & $+0.9$\%  & 0.70 \\
+         & Warmup      & 100\% & 149.4\,$\pm$\,1.9 & 16.5 & 0.99 & ---        & --- \\
+         & Tabula Rasa & 0\%   & 152.2\,$\pm$\,3.0 & 20.8 & 0.98 & $+1.9$\%  & 0.29 \\
+         & Tabula Rasa & 100\% & 144.4\,$\pm$\,2.1 & 16.0 & 0.99 & $-3.4$\%  & 0.28 \\
 \bottomrule
 \end{tabular}
 \end{table}

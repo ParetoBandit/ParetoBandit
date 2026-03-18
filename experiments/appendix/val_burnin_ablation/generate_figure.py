@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Generate figures for Appendix: Validation Burn-In Ablation.
 
-Reads ``results/val_burnin_ablation_results.json`` and produces two
-figures:
+Reads ``results/val_burnin_ablation_results.json`` and produces figures:
 
-1. **val_burnin_test_regret.pdf/.png** — Cumulative regret on the
-   held-out test split under varying burn-in fractions (0–100% of val).
-   Two panels: (a) full test trajectory, (b) zoom on first 400 steps.
+1. **val_burnin_test_regret** — Cumulative regret on the held-out test
+   split under varying burn-in fractions (unconstrained).
 
-2. **val_burnin_combined.pdf/.png** — Combined val+test cumulative
-   regret for the 0% and 100% burn-in conditions, with a vertical line
-   marking the val→test boundary.  This is the "no free lunch" view
-   where all learning costs are visible.
+2. **val_burnin_combined** — Combined val+test cumulative regret
+   ("no free lunch" view with all learning costs visible).
+
+3. **val_burnin_summary** — 2×2 factorial bar chart (unconstrained).
+
+4. **val_burnin_budget_summary** — Budget-stratified 2×2 factorial bar
+   chart showing that the burn-in finding holds under tight and moderate
+   budget constraints.
 
 Usage:
     python experiments/appendix/val_burnin_ablation/generate_figure.py
@@ -357,6 +359,182 @@ def _figure_summary_bar(data: Dict[str, Any]) -> None:
     print(f"Saved val_burnin_summary.pdf/.png to {RESULTS_DIR}")
 
 
+def _figure_budget_summary(data: Dict[str, Any]) -> None:
+    """Figure 4: Budget-stratified 2×2 factorial with cost compliance.
+
+    Two panels:
+      (a) Total test regret across budget regimes.
+      (b) Cost compliance (mean cost / target) for budget-constrained
+          regimes, confirming that spend is consistent across conditions.
+    """
+    from utils.bootstrap import bootstrap_ci
+
+    conditions = data["conditions"]
+    budget_regimes = data.get("budget_regimes", {"unconstrained": None})
+
+    regime_labels: List[str] = []
+    group_specs: List[Dict[str, str]] = []
+    regime_targets: List[float | None] = []
+
+    for regime_name, target in budget_regimes.items():
+        regime_labels.append(regime_name.capitalize())
+        regime_targets.append(target)
+        if regime_name == "unconstrained":
+            group_specs.append({
+                "w0": "Warmup (0% burn-in)",
+                "w100": "Warmup (100% burn-in)",
+                "t0": "Tabula Rasa (no burn-in)",
+                "t100": "Tabula Rasa (100% burn-in)",
+            })
+        else:
+            group_specs.append({
+                "w0": f"Warmup (0% burn-in, {regime_name})",
+                "w100": f"Warmup (100% burn-in, {regime_name})",
+                "t0": f"Tabula Rasa (0% burn-in, {regime_name})",
+                "t100": f"Tabula Rasa (100% burn-in, {regime_name})",
+            })
+
+    bar_defs = [
+        ("w0", "Warmup, 0% burn-in", CB_BLUE, 0.85),
+        ("w100", "Warmup, 100% burn-in", CB_TEAL, 0.85),
+        ("t0", "Tabula Rasa, 0% burn-in", CB_ORANGE, 0.85),
+        ("t100", "Tabula Rasa, 100% burn-in", CB_GRAY, 0.85),
+    ]
+
+    n_regimes = len(regime_labels)
+    n_bars = len(bar_defs)
+
+    # Check if we have any budget-constrained regimes for panel (b)
+    constrained_idxs = [
+        i for i, t in enumerate(regime_targets) if t is not None
+    ]
+    has_compliance = len(constrained_idxs) > 0
+
+    if has_compliance:
+        fig, (ax_reg, ax_cost) = plt.subplots(
+            1, 2, figsize=(max(14, 4 * n_regimes), 5.5),
+        )
+    else:
+        fig, ax_reg = plt.subplots(
+            1, 1, figsize=(max(9, 3 * n_regimes), 5.5),
+        )
+        ax_cost = None
+
+    # -- Panel (a): Regret bars --
+    x = np.arange(n_regimes)
+    bar_width = 0.18
+    offsets = np.arange(n_bars) - (n_bars - 1) / 2
+
+    for i, (key, label, color, alpha) in enumerate(bar_defs):
+        means: List[float] = []
+        errs_lo: List[float] = []
+        errs_hi: List[float] = []
+
+        for g in group_specs:
+            cond_key = g[key]
+            if cond_key not in conditions:
+                means.append(0.0)
+                errs_lo.append(0.0)
+                errs_hi.append(0.0)
+                continue
+            tm = conditions[cond_key]["test_metrics"]
+            regrets = tm["per_seed_test_regret"]
+            lo, hi = bootstrap_ci(np.array(regrets))
+            m = tm["test_regret"]["mean"]
+            means.append(m)
+            errs_lo.append(m - lo)
+            errs_hi.append(hi - m)
+
+        pos = x + offsets[i] * bar_width
+        bars = ax_reg.bar(
+            pos, means, bar_width,
+            color=color, alpha=alpha, edgecolor="white", label=label,
+        )
+        ax_reg.errorbar(
+            pos, means,
+            yerr=[errs_lo, errs_hi],
+            fmt="none", ecolor="black", capsize=3, linewidth=1.0,
+        )
+        for bar, m in zip(bars, means):
+            if m > 0:
+                ax_reg.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.8,
+                    f"{m:.1f}", ha="center", va="bottom", fontsize=7.5,
+                )
+
+    ax_reg.set_xticks(x)
+    ax_reg.set_xticklabels(regime_labels, fontsize=11)
+    ax_reg.set_xlabel("Budget Regime", fontsize=11)
+    ax_reg.set_ylabel("Total Test Regret", fontsize=11)
+    panel_lbl = "(a) " if has_compliance else ""
+    ax_reg.set_title(
+        f"{panel_lbl}Val burn-in effect across budget regimes\n"
+        "(2×2 factorial: priors × burn-in; 95% bootstrap CI)",
+        fontsize=11, fontweight="bold",
+    )
+    ax_reg.legend(fontsize=8.5, loc="upper left", ncol=2)
+    ax_reg.grid(axis="y", alpha=0.3)
+
+    # -- Panel (b): Cost compliance --
+    if has_compliance and ax_cost is not None:
+        c_labels = [regime_labels[i] for i in constrained_idxs]
+        c_specs = [group_specs[i] for i in constrained_idxs]
+        c_targets = [regime_targets[i] for i in constrained_idxs]
+        n_c = len(c_labels)
+        xc = np.arange(n_c)
+
+        for i, (key, label, color, alpha) in enumerate(bar_defs):
+            ratios: List[float] = []
+            for gi, g in enumerate(c_specs):
+                cond_key = g[key]
+                if cond_key not in conditions:
+                    ratios.append(0.0)
+                    continue
+                bc = conditions[cond_key].get("budget_compliance")
+                if bc is not None:
+                    ratios.append(bc["mean_cost_target_ratio"])
+                else:
+                    tm = conditions[cond_key]["test_metrics"]
+                    mean_cost = tm["test_mean_cost_usd"]["mean"]
+                    tgt = c_targets[gi] if c_targets[gi] else 1.0
+                    ratios.append(mean_cost / tgt)
+
+            pos = xc + offsets[i] * bar_width
+            ax_cost.bar(
+                pos, ratios, bar_width,
+                color=color, alpha=alpha, edgecolor="white", label=label,
+            )
+            for p, r in zip(pos, ratios):
+                if r > 0:
+                    ax_cost.text(
+                        p, r + 0.01, f"{r:.2f}",
+                        ha="center", va="bottom", fontsize=7.5,
+                    )
+
+        ax_cost.axhline(y=1.0, color="black", linestyle="--", linewidth=1, alpha=0.6)
+        ax_cost.set_xticks(xc)
+        ax_cost.set_xticklabels(c_labels, fontsize=11)
+        ax_cost.set_xlabel("Budget Regime", fontsize=11)
+        ax_cost.set_ylabel("Mean Cost / Target", fontsize=11)
+        ax_cost.set_title(
+            "(b) Budget compliance\n"
+            "(1.0 = exactly at target; <1.0 = under budget)",
+            fontsize=11, fontweight="bold",
+        )
+        ax_cost.legend(fontsize=8.5, loc="upper right", ncol=2)
+        ax_cost.grid(axis="y", alpha=0.3)
+
+    fig.tight_layout()
+    for ext in ("pdf", "png"):
+        fig.savefig(
+            RESULTS_DIR / f"val_burnin_budget_summary.{ext}",
+            dpi=200, bbox_inches="tight",
+        )
+    plt.close(fig)
+    print(f"Saved val_burnin_budget_summary.pdf/.png to {RESULTS_DIR}")
+
+
 def main() -> None:
     results_path = RESULTS_DIR / "val_burnin_ablation_results.json"
     with open(results_path) as f:
@@ -365,6 +543,9 @@ def main() -> None:
     _figure_test_regret(data)
     _figure_combined_trajectory(data)
     _figure_summary_bar(data)
+
+    if "budget_regimes" in data and len(data["budget_regimes"]) > 1:
+        _figure_budget_summary(data)
 
 
 if __name__ == "__main__":

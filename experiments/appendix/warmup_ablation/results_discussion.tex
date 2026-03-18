@@ -93,6 +93,23 @@ When the budget collapses the feasible arm set to a small,
 affordable subset (moderate), the prior's knowledge about
 expensive arms becomes irrelevant.
 
+Importantly, the warmup benefit is \emph{transient by design}.
+The convergence beyond step~${\sim}400$ visible in
+Figure~\ref{fig:warmup_ablation} is a direct consequence of
+geometric forgetting ($\gamma{=}0.995$): after ${\sim}200$
+effective-memory steps, online evidence dominates and the
+initialisation is irrelevant.
+Appendix~\ref{appendix:val_burnin_ablation} confirms this
+quantitatively: after a full validation burn-in
+($1{,}785$ steps), warmup and tabula-rasa conditions achieve
+identical test regret ($74.4$ vs.\ $74.7$, $p{=}0.65$) because
+the prior has decayed by $\gamma^{1785} \approx 10^{-4}$.
+Warmup priors are therefore best understood as a
+\emph{deployment latency optimisation}---they eliminate the
+cold-start transient where uninformed exploration dominates,
+but the router's steady-state quality is determined by online
+learning alone.
+
 \paragraph{Business perspective.}
 Intelligent LLM routing delivers simultaneous quality and cost
 gains because no single model dominates all queries.
@@ -133,7 +150,7 @@ requests---with no quality sacrifice, since oracle routing
 \emph{improves} quality over the single-model baseline.
 
 Within this context, warmup priors protect routing quality during
-the critical cold-start window.
+the critical---but transient---cold-start window.
 Under tight budgets, the 4\% regret reduction
 ($(205.4 - 198.0)/205.4$; $p{=}0.006$) represents 4\% of the
 router's total quality--cost value recovered solely by starting
@@ -175,19 +192,37 @@ comes from a different prompt distribution or from stale model
 versions---a lower $n_\mathit{eff}$ (e.g., 10--100) gives
 the router a gentle initial nudge while preserving enough
 exploration for rapid online correction.
-Even in this conservative regime the router is strictly better
-off than a pure cold start ($n_\mathit{eff}{=}1$), because any
-directionally correct prior information reduces the earliest,
-most expensive exploration steps.
-The risk of bad priors is therefore not a reason to avoid them
-but a reason to tune $n_\mathit{eff}$ conservatively; this
-interaction is further discussed in
-Section~\ref{sec:discussion}.
-The recommendation is: always enable warmup priors, adjusting
-$n_\mathit{eff}$ to reflect confidence in their calibration.
-The computational cost is negligible, and the upside---at
-enterprise scale, where LLM API spend surpassed \$8.4B by
-mid-2025~\cite{menlo2025llmmarket}---is economically
+A dedicated prior-mismatch sensitivity analysis
+(Appendix~\ref{appendix:prior_mismatch}) quantifies these
+trade-offs across five quality levels---from well-calibrated
+through domain-restricted to actively inverted priors.
+The results show that \emph{directionally correct} priors
+(including domain-mismatched priors trained exclusively on MMLU
+or GSM8K prompts) consistently reduce regret relative to a cold
+start at every $n_\mathit{eff}$ tested ($p < 0.05$ for
+$n_\mathit{eff} \geq 100$), confirming that partial domain
+coverage does not harm the router.
+However, \emph{systematically wrong} priors---where the best
+and worst models are inverted---cause measurable harm that
+\emph{scales with} $n_\mathit{eff}$: at $n_\mathit{eff}{=}10$
+the damage is statistically non-significant ($p{=}0.055$),
+but at $n_\mathit{eff}{=}1{,}000$ regret increases by 13\%
+over cold start ($p < 10^{-6}$).
+The practical recommendation is therefore conditional:
+enable warmup priors whenever the prior is known to be
+directionally correct (i.e., the model-quality ranking it
+encodes is not systematically inverted), setting
+$n_\mathit{eff}$ to reflect confidence in calibration
+quality---high when the offline data closely matches deployment
+traffic, low otherwise.
+If prior quality is entirely unknown, a conservative
+$n_\mathit{eff}$ (10--100) limits worst-case exposure while
+still offering early-regret reduction on any non-adversarial
+prior (Appendix~\ref{appendix:prior_mismatch},
+Figure~\ref{fig:prior_mismatch_heatmap}).
+The computational cost of warmup priors is negligible, and the
+upside---at enterprise scale, where LLM API spend surpassed
+\$8.4B by mid-2025~\cite{menlo2025llmmarket}---is economically
 meaningful.
 
 \paragraph{Uncertainty evolution (Figure~\ref{fig:warmup_uncertainty}).}
