@@ -73,6 +73,40 @@
 \label{fig:warmup_uncertainty}
 \end{figure}
 
+\input{../experiments/appendix/val_burnin_ablation/results_discussion.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_test_regret.pdf}
+\caption{Validation burn-in ablation (K=3 stationary, 20 seeds, 95\% bootstrap CI, held-out test split).
+  Left: cumulative regret on test under varying burn-in fractions (0--100\% of val).
+  All warmup conditions are statistically indistinguishable ($p > 0.2$);
+  the only significant gap is tabula rasa without burn-in ($+10.7\%$, $p < 10^{-5}$).
+  Right: zoom on the first 400 test steps---0\% burn-in (priors only) has the lowest early regret because priors are fully intact.}
+\label{fig:val_burnin_ablation}
+\end{figure}
+
+\input{../experiments/appendix/prior_mismatch/results_discussion.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
+\caption{Total regret across prior quality levels and $n_\mathit{eff}$ values (K=3 stationary, 20 seeds, held-out test split).
+  The dashed line marks the Tabula Rasa baseline (81.7).
+  Directionally correct priors (Well-calibrated through GSM8K-only) reduce regret at every $n_\mathit{eff}$;
+  only the Inverted prior---where model rankings are systematically swapped---causes harm, and the damage scales with $n_\mathit{eff}$.}
+\label{fig:prior_mismatch_heatmap}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_regret.png}
+\caption{Cumulative regret curves for selected prior-quality conditions at $n_\mathit{eff}{=}1{,}000$ (K=3 stationary, 20 seeds, 95\% bootstrap CI).
+  Well-calibrated and domain-mismatched priors separate from Tabula Rasa within the first 200 steps and maintain the advantage throughout.
+  The Inverted prior accumulates excess regret early as the router confidently routes to the wrong model, requiring hundreds of steps to partially recover.}
+\label{fig:prior_mismatch_regret}
+\end{figure}
+
 \input{../experiments/appendix/model_onboarding/results_discussion.tex}
 
 \begin{figure}[t]

@@ -1,0 +1,67 @@
+% Appendix: Validation Burn-In Ablation
+
+\subsection{Validation Burn-In Ablation (Figure~\ref{fig:val_burnin_ablation})}
+\label{appendix:val_burnin_ablation}
+
+The paper's standard evaluation protocol runs the bandit through the
+validation split ($n{=}1{,}785$) before evaluating on the held-out
+test split ($n{=}1{,}824$).  To verify that this burn-in does not
+artificially inflate test-set performance, we ablate the amount of
+validation data used for online learning before test evaluation.
+
+Five warmup conditions share identical priors (from train) and the
+same hyperparameters ($\alpha{=}0.1$, $n_\mathit{eff}{=}1{,}000$,
+$\gamma{=}0.995$); only the fraction of val used for burn-in varies
+(0\%, 25\%, 50\%, 75\%, 100\%).  Two tabula-rasa baselines (0\% and
+100\% burn-in, $n_\mathit{eff}{=}1$) complete a $2{\times}2$
+factorial design crossing prior type with burn-in level.  All
+conditions are evaluated on the same held-out test split across 20
+random seeds with paired Wilcoxon signed-rank tests against the 100\%
+burn-in reference.
+
+\paragraph{Key findings.}
+No warmup burn-in level differs significantly from the 100\% baseline
+on test regret (Table~\ref{tab:val_burnin}).  The 0\% condition---warmup
+priors with \emph{no} online learning before test---achieves $74.0$
+cumulative regret, nominally \emph{lower} than the 100\% condition
+($74.4$; $\Delta{=}{-}0.6\%$, $p{=}0.55$).  Early regret
+(Regret@200) is lowest at 0\% burn-in ($5.9$ vs.\ $7.7$) because the
+priors are fully intact at the start of the test trajectory.
+
+\paragraph{Forgetting--burn-in interaction.}
+With $\gamma{=}0.995$, effective memory is ${\sim}200$ steps.  After
+1{,}785 val steps, warmup priors are decayed by $\gamma^{1785} \approx
+1.3{\times}10^{-5}$---effectively erased.  This explains why the
+warmup and tabula-rasa conditions converge after 100\% burn-in ($74.4$
+vs.\ $74.7$; $p{=}0.65$): both operate on the same ${\sim}200$ recent
+online observations, and the original priors contribute nothing.
+
+\paragraph{Prior value confirmed.}
+The only statistically significant gap is between tabula rasa with
+\emph{no} burn-in ($82.4$) and all warmup conditions ($74.0$--$76.0$;
+$p < 10^{-5}$), a $+10.7\%$ regret penalty.  Warmup priors thus
+provide genuine cold-start value independent of the burn-in protocol.
+
+\begin{table}[t]
+\centering
+\caption{Validation burn-in ablation (20~seeds, held-out test split).
+$\Delta$ is relative to the 100\% burn-in reference.  No warmup
+condition differs significantly from the reference; the only
+significant gap is tabula rasa without burn-in.}
+\label{tab:val_burnin}
+\small
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+\textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & $\boldsymbol{\Delta}$ & $\boldsymbol{p}$ \\
+\midrule
+Warmup & 0\%   & 74.0\,$\pm$\,0.5 & 5.9  & $-0.6$\% & 0.55 \\
+Warmup & 25\%  & 76.0\,$\pm$\,0.7 & 8.6  & $+2.2$\% & 0.22 \\
+Warmup & 50\%  & 75.1\,$\pm$\,0.8 & 7.9  & $+0.9$\% & 0.50 \\
+Warmup & 75\%  & 75.1\,$\pm$\,0.6 & 7.9  & $+1.0$\% & 0.52 \\
+Warmup & 100\% & 74.4\,$\pm$\,0.8 & 7.7  & ---       & --- \\
+\midrule
+Tabula Rasa & 0\%   & 82.4\,$\pm$\,0.9 & 10.7 & $+10.7$\% & $< 10^{-5}$ \\
+Tabula Rasa & 100\% & 74.7\,$\pm$\,0.6 & 7.9  & $+0.4$\%  & 0.65 \\
+\bottomrule
+\end{tabular}
+\end{table}
