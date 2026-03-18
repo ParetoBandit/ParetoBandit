@@ -1,0 +1,108 @@
+% Appendix: Prior Mismatch Sensitivity Analysis
+
+\subsection{Prior Mismatch Sensitivity (Figures~\ref{fig:prior_mismatch_heatmap}--\ref{fig:prior_mismatch_regret})}
+\label{appendix:prior_mismatch}
+
+The warmup ablation (Section~\ref{sec:warmup_ablation}) demonstrated
+that well-calibrated priors reduce regret by 11\% under stationary
+conditions.  All experiments in this paper use priors trained on a
+representative training set drawn from the same distribution as the
+test traffic.  In practice, however, priors may be trained on stale
+data, a different prompt mix, or an outdated model portfolio.
+This experiment stress-tests warmup priors under progressively worse
+calibration to quantify the cost of bad priors and identify when
+tabula rasa is the safer choice.
+
+\paragraph{Design.}
+We construct five prior-quality levels forming a mismatch gradient:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Well-calibrated:} priors from the full training set
+    ($n{=}8{,}374$)---the shipped default.
+  \item \textbf{Random-1680:} a random subsample of 1,680 training
+    prompts, matching the GSM8K-only count while preserving the full
+    distribution.  This is a \emph{sample-size control}: any gap
+    between Random-1680 and Well-calibrated isolates covariance
+    estimation noise from domain effects.
+  \item \textbf{MMLU-only:} priors from the 1,855 MMLU prompts only.
+    The prior preserves the correct model ranking (Gemini~$>$~Mistral~$\gg$~Llama)
+    but with knowledge-domain-specific magnitudes.
+  \item \textbf{GSM8K-only:} priors from the 1,680 GSM8K (math) prompts only.
+    All models score ${\sim}0.95{+}$ on math, so the prior encodes
+    near-zero arm differentiation.
+  \item \textbf{Inverted:} priors from the full training set with
+    Llama and Gemini rewards swapped, so the prior believes the
+    cheapest model is best and vice versa.
+\end{enumerate}
+Each level is tested at three $n_\mathit{eff}$ values (10, 100, 1000)
+plus a single Tabula Rasa control ($n_\mathit{eff}{=}1$, no priors),
+yielding $5 \times 3 + 1 = 16$ conditions.
+All conditions share the Experiment~04 hyperparameters
+($\alpha{=}0.1$, $\gamma{=}0.995$, disjoint LinUCB), which were
+tuned for the well-calibrated case and \emph{not} re-optimised per
+condition---matching the production scenario where prior quality
+degrades after deployment without hyperparameter adjustment.
+Evaluation follows the same cumulative-regret protocol as the warmup
+ablation: held-out test split ($n{=}1{,}824$), 20 seeds
+(offset${=}9{,}000$, aligned for paired comparisons), unconstrained
+(no budget pacer).
+
+\paragraph{Results.}
+Figure~\ref{fig:prior_mismatch_heatmap} summarises total regret
+across the quality--strength grid; pairwise comparisons use two-sided
+paired $t$-tests (19~d.f.) against the Tabula Rasa baseline
+(total regret $81.7 \pm 4.2$).
+
+\emph{Directionally correct priors help at every strength.}
+Well-calibrated priors reduce total regret monotonically with
+$n_\mathit{eff}$: $-4.5\%$ at $n_\mathit{eff}{=}10$ ($p < 0.001$),
+$-4.6\%$ at $100$ ($p{=}0.004$), and $-8.8\%$ at $1{,}000$
+($p < 10^{-4}$).
+The sample-size control (Random-1680) performs comparably to
+Well-calibrated at every $n_\mathit{eff}$---confirming that the
+$n_\mathit{eff}$ scaling normalises prior strength and the benefit is
+not an artifact of having more training prompts.
+
+\emph{Domain-mismatched priors still beat cold start.}
+Both MMLU-only and GSM8K-only priors reduce regret relative to Tabula
+Rasa at $n_\mathit{eff} \geq 100$ ($p < 0.05$), despite being trained
+on single-domain data.  At $n_\mathit{eff}{=}10$ the improvements are
+directionally positive but not statistically significant ($p > 0.09$),
+reflecting the weak prior's limited initial influence.
+Crucially, no domain-mismatched prior \emph{increases} regret at any
+$n_\mathit{eff}$: partial knowledge is always at least as good as no
+knowledge.
+
+\emph{Inverted priors cause harm that scales with $n_\mathit{eff}$.}
+This is the only condition where priors hurt.  At $n_\mathit{eff}{=}10$,
+the damage is modest and non-significant ($+2.9\%$, $p{=}0.055$);
+at $n_\mathit{eff}{=}100$ it is significant ($+4.1\%$, $p{=}0.003$);
+and at $n_\mathit{eff}{=}1{,}000$ regret rises to $92.5$ ($+13.3\%$,
+$p < 10^{-6}$), substantially worse than cold start.
+The mechanism is clear: the inverted prior confidently routes traffic
+to the worst model, and high $n_\mathit{eff}$ forces the router to
+accumulate many online observations before overriding the prior.
+
+\paragraph{Practical implications.}
+The results establish that the prior-quality threshold for harm is
+high: priors must be \emph{actively wrong} (systematically inverting
+model rankings) before they degrade performance.  Domain mismatch,
+reduced sample size, and even near-zero arm differentiation
+(GSM8K-only) do not cross this threshold.
+For practitioners:
+\begin{itemize}[nosep,leftmargin=*]
+  \item When the prior is trained on representative data from the
+    deployment domain, use $n_\mathit{eff}{=}1{,}000$---this
+    captures the full 8.8\% regret reduction.
+  \item When the prior comes from a related but different domain
+    (e.g., a general-purpose prior applied to a specialised
+    deployment), $n_\mathit{eff}{=}100$ is a safe default that
+    still reduces regret by 3--4\%.
+  \item When prior quality is entirely unknown, set
+    $n_\mathit{eff}{=}10$.  This limits worst-case inverted-prior
+    damage to $<3\%$ (non-significant) while still providing a
+    directional nudge from any non-adversarial prior.
+  \item Tabula rasa ($n_\mathit{eff}{=}1$) is the appropriate
+    choice only when the prior is known or suspected to be
+    systematically inverted---a scenario that implies a fundamental
+    error in the offline reward pipeline.
+\end{itemize}

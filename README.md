@@ -229,10 +229,12 @@ Cold-starting a bandit requires hundreds of interactions before it routes well. 
 
 ### Robustness to Prior Mismatch
 
-What if the warm-start priors are wrong for your deployment? ParetoBandit hedges via two mechanisms:
+What if the warm-start priors are wrong for your deployment? Our [prior mismatch sensitivity analysis](experiments/appendix/prior_mismatch/README.md) tests five quality levels—from well-calibrated through domain-restricted (MMLU-only, GSM8K-only) to actively inverted—at three `n_eff` values. Key findings:
 
-- **Tunable prior strength** (`n_eff`): Controls how many pseudo-observations the offline priors contribute. A conservative `n_eff` lets online evidence override potentially stale priors within a few hundred requests.
-- **Geometric forgetting** (`gamma`): Exponentially discounts stale observations, giving recent evidence a half-life of ~200 steps. If a model degrades or the prior was inaccurate, the router adapts within hundreds of requests rather than remaining anchored by thousands of stale data points.
+- **Directionally correct priors always help.** Even priors trained on a single domain (e.g., only math prompts) reduce regret vs. cold start at every `n_eff` tested (p < 0.05 for `n_eff` ≥ 100). Partial domain coverage does not harm the router.
+- **Systematically inverted priors scale damage with `n_eff`.** Priors that swap the best and worst models cause +13% regret at `n_eff=1000` (p < 10⁻⁶), but only +3% at `n_eff=10` (p = 0.055, non-significant).
+- **Tunable prior strength** (`n_eff`): Controls how many pseudo-observations the offline priors contribute. Set high (1000) when the prior closely matches deployment traffic; set low (10–100) when prior quality is uncertain.
+- **Geometric forgetting** (`gamma`): Exponentially discounts stale observations, giving recent evidence a half-life of ~200 steps. If a model degrades or the prior was inaccurate, the router adapts within hundreds of requests.
 
 ---
 
@@ -568,7 +570,7 @@ We report these limitations honestly to help practitioners make informed decisio
 
 4. **Warm-start prior dependency.** At tight budgets, expensive arms receive very few online observations, so quality estimates rely heavily on the warmup prior. If the prior is poorly calibrated for a newly added model, a tight budget could delay adoption. The tunable prior strength (`n_eff`) mitigates this but does not eliminate it.
 
-6. **Prior quality dependency.** The warm-start advantage depends on similarity between offline training distribution and deployment traffic. For domains very different from LMSYS Arena conversations, the warmup prior's value diminishes (though the router will still learn from online data).
+6. **Prior quality dependency.** The warm-start advantage depends on the directional correctness of the offline prior. Domain-mismatched priors (e.g., trained only on MMLU or GSM8K prompts) still reduce regret relative to cold start, but *systematically inverted* priors (where the best and worst models are swapped) cause harm that scales with `n_eff`—up to 13% worse than cold start at `n_eff=1000` (p < 10⁻⁶). A conservative `n_eff` (10–100) limits worst-case exposure. See `experiments/appendix/prior_mismatch/` for the full sensitivity analysis.
 
 ---
 

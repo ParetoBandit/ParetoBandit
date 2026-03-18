@@ -7,8 +7,7 @@ of the budget target ($1.00\times$ = perfect).
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
 all methods' costs below target, regardless of algorithm.
 ParetoBandit is the only condition that reliably meets the target in
-Phase~1 and, where the constraint remains binding (tight), in
-Phase~2.}
+Phase~1 ($0.98$--$1.00\times$).}
 \label{tab:budget_compliance}
 \small
 \begin{tabular}{@{}llcc@{}}
@@ -16,10 +15,10 @@ Phase~2.}
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} \\
 \midrule
-\multirow{4}{*}{Tight ($\$2.3{\times}10^{-4}$)}  & Fixed Policy        & $0.24\times$ & $1.13\times$ \\
-  & Naive Bandit        & $0.69\times$ & $1.13\times$ \\
-  & Recalibrated        & $0.69\times$ & $1.13\times$ \\
-  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
+\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy        & $0.53\times$ & $0.88\times^{\dagger}$ \\
+  & Naive Bandit        & $1.28\times$ & $0.88\times^{\dagger}$ \\
+  & Recalibrated        & $1.28\times$ & $\mathbf{0.98\times}$ \\
+  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.95\times}$ \\[3pt]
 \multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
   & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
   & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\

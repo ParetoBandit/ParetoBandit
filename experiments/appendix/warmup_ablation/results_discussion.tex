@@ -7,7 +7,7 @@ We isolate the contribution of warmup priors by comparing
 ParetoBandit with offline priors against a tabula-rasa cold start
 (identity covariance, zero bias) on the $K{=}3$ stationary portfolio
 under three budget regimes: unconstrained (no pacer), tight
-($B{=}\$2.3{\times}10^{-4}$/req), and moderate
+($B{=}\$3.0{\times}10^{-4}$/req), and moderate
 ($B{=}\$6.6{\times}10^{-4}$/req).
 Each condition uses the optimal hyperparameters from the Experiment~04
 sweep: ParetoBandit uses $\alpha{=}0.1$, $n_\mathit{eff}{=}1{,}000$,
@@ -28,14 +28,14 @@ training on \texttt{train.jsonl} and hyperparameter selection on
 \textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{$p$} \\
 \midrule
 None     & Warmup      & $\mathbf{74.5}$\,[73.2, 75.7]    & $\mathbf{6.6}$\,[6.2, 7.1]   & $\mathbf{0.923}$ & $<10^{-5}$ \\
-         & Tabula Rasa & $83.6$\,[81.4, 85.8]              & $12.1$\,[10.5, 13.7]          & $0.918$           & \\
-         & Random      & $146.3$\,[144.2, 148.4]           & $16.1$\,[15.2, 17.0]          & $0.880$           & --- \\
+         & Tabula Rasa & $83.1$\,[81.4, 84.9]              & $12.5$\,[10.9, 14.1]          & $0.918$           & \\
+         & Random      & $146.3$\,[144.2, 148.5]           & $16.1$\,[15.2, 17.1]          & $0.883$           & --- \\
 \midrule
-Tight    & Warmup      & $\mathbf{198.0}$\,[195.4, 200.7]  & $\mathbf{24.0}$\,[22.4, 25.6] & $\mathbf{0.855}$ & $0.006$ \\
-         & Tabula Rasa & $205.4$\,[201.1, 209.6]            & $27.5$\,[25.4, 29.5]           & $0.851$           & \\
+Tight    & Warmup      & $\mathbf{170.8}$\,[167.9, 173.8]  & $\mathbf{21.8}$\,[20.0, 23.6] & $\mathbf{0.870}$ & $0.059$ \\
+         & Tabula Rasa & $179.9$\,[172.2, 187.6]            & $23.8$\,[21.7, 26.0]           & $0.865$           & \\
 \midrule
-Moderate & Warmup      & $151.4$\,[146.1, 156.6]           & $16.7$\,[14.8, 18.5]           & $0.880$           & $0.68$ \\
-         & Tabula Rasa & $153.0$\,[147.6, 158.3]           & $19.6$\,[17.3, 21.8]           & $0.879$           & \\
+Moderate & Warmup      & $151.4$\,[146.0, 156.8]           & $16.7$\,[14.8, 18.5]           & $0.880$           & $0.94$ \\
+         & Tabula Rasa & $151.7$\,[145.2, 158.2]           & $19.7$\,[17.3, 22.1]           & $0.880$           & \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -46,10 +46,10 @@ $p$-values are from paired $t$-tests (warmup vs.\ tabula rasa,
 same seed).
 
 \paragraph{Unconstrained.}
-Without a budget pacer, warmup priors reduce total regret by 11\%
-($74.5$ vs.\ $83.6$; $\Delta{=}-9.1$, $p < 10^{-5}$) and
-early regret (R@200) by 45\%
-($6.6$ vs.\ $12.1$).
+Without a budget pacer, warmup priors reduce total regret by 10\%
+($74.5$ vs.\ $83.1$; $\Delta{=}-8.7$, $p < 10^{-5}$) and
+early regret (R@200) by 47\%
+($6.6$ vs.\ $12.5$).
 The advantage is concentrated in the first ${\sim}200$~steps
 (Figure~\ref{fig:warmup_ablation}), where the warmup router begins
 with informed arm-quality estimates and avoids the exploratory phase
@@ -58,8 +58,8 @@ the two routers converge, but the regret gap established early
 persists through the full horizon.
 
 \paragraph{Tight budget.}
-Under a tight budget the warmup advantage remains significant
-($198.0$ vs.\ $205.4$; $\Delta{=}-7.3$, $p{=}0.006$; 4\%
+Under a tight budget the warmup advantage persists
+($170.8$ vs.\ $179.9$; $\Delta{=}-9.1$, $p{=}0.059$; 5\%
 reduction).
 The budget pacer penalises expensive arms, so the cold-start
 router's early UCB-driven exploration of Gemini-Pro
@@ -71,7 +71,7 @@ allocates its limited budget more efficiently from step~1.
 
 \paragraph{Moderate budget.}
 At moderate budgets the warmup advantage vanishes
-($151.4$ vs.\ $153.0$; $\Delta{=}-1.6$, $p{=}0.68$, not
+($151.4$ vs.\ $151.7$; $\Delta{=}-0.3$, $p{=}0.94$, not
 significant).
 The budget constraint forces both routers toward similar
 affordable arm mixes: at the final step the warmup router
@@ -85,10 +85,11 @@ prior adds no incremental value.
 \paragraph{Discussion.}
 The budget-stratified results sharpen the recommendation:
 warmup priors matter most when the router has freedom to
-explore expensive arms---either because there is no budget
-constraint (unconstrained) or because the constraint is tight
-enough that every exploratory pull of a costly arm has outsized
-impact.
+explore expensive arms (unconstrained, $p < 10^{-5}$); under
+tight budgets the effect persists ($p{=}0.059$), though the
+budget constraint attenuates the penalty of uninformed early
+exploration by limiting how much the cold-start router can
+spend on expensive arms.
 When the budget collapses the feasible arm set to a small,
 affordable subset (moderate), the prior's knowledge about
 expensive arms becomes irrelevant.
@@ -102,7 +103,7 @@ initialisation is irrelevant.
 Appendix~\ref{appendix:val_burnin_ablation} confirms this
 quantitatively: after a full validation burn-in
 ($1{,}785$ steps), warmup and tabula-rasa conditions achieve
-identical test regret ($74.4$ vs.\ $74.7$, $p{=}0.65$) because
+identical test regret ($74.4$ vs.\ $75.4$, $p{=}0.29$) because
 the prior has decayed by $\gamma^{1785} \approx 10^{-4}$.
 Warmup priors are therefore best understood as a
 \emph{deployment latency optimisation}---they eliminate the
@@ -151,23 +152,23 @@ requests---with no quality sacrifice, since oracle routing
 
 Within this context, warmup priors protect routing quality during
 the critical---but transient---cold-start window.
-Under tight budgets, the 4\% regret reduction
-($(205.4 - 198.0)/205.4$; $p{=}0.006$) represents 4\% of the
+Under tight budgets, the 5\% regret reduction
+($(179.9 - 170.8)/179.9$; $p{=}0.059$) represents 5\% of the
 router's total quality--cost value recovered solely by starting
 with informed priors.
 Applying the same projection:
-$0.04 \times \$365\text{K} \approx \$15\text{K/year}$ at $10^5$
-daily requests, rising to ${\sim}\$146\text{K}$ at $10^6$.
+$0.05 \times \$365\text{K} \approx \$18\text{K/year}$ at $10^5$
+daily requests, rising to ${\sim}\$183\text{K}$ at $10^6$.
 This captures the cost of cold-start exploration, where every
 uninformed call on a \$0.015 frontier arm under a tight
 budget simultaneously degrades quality \emph{and} consumes
 budget that would otherwise fund later high-value routing
 decisions.
 The early regret reduction (R@200) is even starker:
-45\% in the unconstrained regime
-($6.6\,[6.2,\,7.1]$ vs.\ $12.1\,[10.5,\,13.7]$)
-and 13\% under a tight budget
-($24.0\,[22.4,\,25.6]$ vs.\ $27.5\,[25.4,\,29.5]$).
+47\% in the unconstrained regime
+($6.6\,[6.2,\,7.1]$ vs.\ $12.5\,[10.9,\,14.1]$)
+and 8\% under a tight budget
+($21.8\,[20.0,\,23.6]$ vs.\ $23.8\,[21.7,\,26.0]$).
 In production, these first few hundred queries correspond to
 the initial deployment window where user trust is most
 fragile---precisely when suboptimal routing is costliest.

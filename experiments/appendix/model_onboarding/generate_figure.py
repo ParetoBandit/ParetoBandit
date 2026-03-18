@@ -59,7 +59,7 @@ BUDGET_COLORS: Dict[str, str] = {
 }
 
 BUDGET_NICE: Dict[str, str] = {
-    "tight": r"Tight ($B{=}\$2.3{\times}10^{-4}$)",
+    "tight": r"Tight ($B{=}\$3.0{\times}10^{-4}$)",
     "moderate": r"Moderate ($B{=}\$6.6{\times}10^{-4}$)",
     "loose": r"Loose ($B{=}\$1.9{\times}10^{-3}$)",
     "unconstrained": "Unconstrained",

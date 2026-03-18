@@ -134,7 +134,7 @@ BUDGET_TARGETS: List[float] = K3_BUDGET_TARGETS
 BUDGET_LABELS: List[str] = K3_BUDGET_LABELS
 
 MATCHED_STATIC_CPS: Dict[str, float] = {
-    "tight": 0.50,
+    "tight": 0.40,
     "moderate": 0.30,
     "loose": 0.10,
 }

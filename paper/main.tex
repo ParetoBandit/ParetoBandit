@@ -55,9 +55,9 @@
 \centering
 \includegraphics[width=\linewidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.pdf}
 \caption{Cumulative regret: warmup priors vs.\ cold start across three budget regimes (K=3 stationary, 20 seeds, 95\% bootstrap CI, held-out test split).
-  Left: unconstrained---warmup reduces regret by 11\% ($p < 10^{-5}$), concentrated in the first ${\sim}200$ steps.
-  Centre: tight budget---the advantage persists ($\Delta{=}-7.3$, $p{=}0.006$) because uninformed UCB exploration wastes scarce budget on expensive arms.
-  Right: moderate budget---the gap vanishes ($p{=}0.68$) as the budget constraint collapses the feasible arm set, making the prior's knowledge irrelevant.}
+  Left: unconstrained---warmup reduces regret by 10\% ($p < 10^{-5}$), concentrated in the first ${\sim}200$ steps.
+  Centre: tight budget---the advantage persists ($\Delta{=}-9.1$, $p{=}0.059$) as uninformed UCB exploration wastes scarce budget on expensive arms.
+  Right: moderate budget---the gap vanishes ($p{=}0.94$) as the budget constraint collapses the feasible arm set, making the prior's knowledge irrelevant.}
 \label{fig:warmup_ablation}
 \end{figure}
 
@@ -80,8 +80,8 @@
 \includegraphics[width=\linewidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_test_regret.pdf}
 \caption{Validation burn-in ablation---unconstrained (K=3 stationary, 20 seeds, 95\% bootstrap CI, held-out test split).
   Left: cumulative regret on test under varying burn-in fractions (0--100\% of val).
-  All warmup conditions are statistically indistinguishable ($p > 0.2$);
-  the only significant gap is tabula rasa without burn-in ($+12.2\%$, $p < 10^{-5}$).
+  All warmup conditions are statistically indistinguishable ($p > 0.15$);
+  the only significant gap is tabula rasa without burn-in ($+10.0\%$, $p < 10^{-5}$).
   Right: zoom on the first 400 test steps---0\% burn-in (priors only) has the lowest early regret because priors are fully intact.}
 \label{fig:val_burnin_ablation}
 \end{figure}
@@ -91,7 +91,7 @@
 \includegraphics[width=\linewidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_budget_summary.pdf}
 \caption{Validation burn-in ablation across budget regimes (20 seeds, 95\% bootstrap CI; pacer pre-calibrated, see Appendix~\ref{appendix:val_burnin_ablation}).
   Left: total test regret.  Within each regime, Warmup~0\% and Warmup~100\% are statistically indistinguishable, confirming that the burn-in finding holds under the BudgetPacer.
-  The cold-start penalty (Tabula Rasa~0\%) is marginal at tight budgets ($+2.6\%$, $p{=}0.019$, non-significant after Bonferroni correction) and absent at moderate budgets ($p{=}0.29$).
+  The cold-start penalty (Tabula Rasa~0\%) is significant at tight budgets ($+6.7\%$, $p{=}0.002$, survives Bonferroni correction) and present at moderate budgets ($+4.1\%$, $p{=}0.017$, non-significant after Bonferroni).
   Right: budget compliance (mean cost / target).  All conditions stay within $3\%$ of the budget target, confirming consistent pacer behaviour regardless of initialisation.}
 \label{fig:val_burnin_budget}
 \end{figure}

@@ -116,14 +116,14 @@ Two conditions are compared:
 Both methods trace a quality--cost Pareto curve on the test set.
 At the budget-constrained end (cost $< \$0.001$/req), the pacer
 achieves higher reward at lower cost:
-at the tightest pacer target (\$0.00008/req), the pacer
-reaches mean reward $0.813 \pm 0.0005$, while the nearest static
-point ($\lambda_s{=}1.0$ at \$0.00038/req---$4.6\times$ higher
+at the second-tightest pacer target (\$0.000083/req), the pacer
+reaches mean reward $0.813 \pm 0.0004$, while the nearest static
+point ($\lambda_s{=}1.0$ at \$0.00037/req---$4.5\times$ higher
 spend) achieves only $0.804 \pm 0.0003$: a $+0.9$\,pp quality
 advantage at less than a quarter of the cost.
 At moderate budgets (\$0.0007/req), the pacer achieves
-$0.883 \pm 0.0015$ reward vs.\ the nearest static point
-($\lambda_s{=}0.5$: $0.846 \pm 0.0012$ at \$0.0011).
+$0.884 \pm 0.001$ reward vs.\ the nearest static point
+($\lambda_s{=}0.5$: $0.849 \pm 0.001$ at \$0.0011).
 The pacer dominates primarily because its adaptive $\lambda_t$
 creates an implicit \emph{spend-when-valuable, save-when-cheap} policy:
 when easy prompts allow cheap routing, $\lambda_t$ decreases,
@@ -134,10 +134,10 @@ this temporal budget allocation.
 
 At the unconstrained end (cost $> \$0.005$), the static baseline
 matches the pacer:
-$\lambda_s{=}0$ achieves the quality ceiling ($0.922$) because it
+$\lambda_s{=}0$ achieves the quality ceiling ($0.921$) because it
 imposes zero cost constraint.
 The pacer at its loosest target ($B{=}\$0.015$) reaches $0.922$
-at \$0.0094---the dual variable correctly decays to zero and the
+at \$0.0096---the dual variable correctly decays to zero and the
 pacer gracefully becomes a no-op.
 
 \paragraph{Budget compliance (Table~\ref{tab:budget_compliance}).}
@@ -145,8 +145,8 @@ The pacer's primary claim is that it \emph{hits the target}.
 For the five tightest targets, budget utilisation ranges from
 $0.97\times$ to $1.02\times$---effectively perfect compliance.
 The loosest target ($B{=}\$0.015$) shows
-under-utilisation ($0.63\times$) because the
-unconstrained router's natural spend (\$0.0097/req) is already below
+under-utilisation ($0.64\times$) because the
+unconstrained router's natural spend (\$0.0094/req) is already below
 this target; the dual variable correctly decays to
 $\lambda_t \approx 0$ rather than artificially inflating cost.
 This asymmetry is by design: the pacer constrains spend
@@ -231,11 +231,11 @@ is structural and holds independent of any particular dataset.
 
   \item \textbf{Cost at scale.}
     Consider a deployment routing 100{,}000 requests/day.
-    Moving from the unconstrained policy (\$0.0097/req, quality~0.922)
+    Moving from the unconstrained policy (\$0.0094/req, quality~0.921)
     to the pacer at $B{=}\$0.0019$/req saves
-    $(\$0.0097 - \$0.0018) \times 100{,}000 = \$790$/day
-    (\textbf{\$288{,}000/year})
-    while maintaining quality~$0.908 \pm 0.0007$---a 1.5\% quality
+    $(\$0.0094 - \$0.0018) \times 100{,}000 = \$760$/day
+    (\textbf{\$278{,}000/year})
+    while maintaining quality~$0.908 \pm 0.0009$---a 1.4\% quality
     reduction for an 81\% cost reduction.
 
   \item \textbf{Budget compliance as an SLA.}

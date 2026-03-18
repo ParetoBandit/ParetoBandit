@@ -9,7 +9,7 @@ test split ($n{=}1{,}824$).  To verify that this burn-in does not
 artificially inflate test-set performance, we ablate the amount of
 validation data used for online learning before test evaluation
 \emph{across three budget regimes}: unconstrained, tight
-($B{=}\$2.3{\times}10^{-4}$/req), and moderate
+($B{=}\$3.0{\times}10^{-4}$/req), and moderate
 ($B{=}\$6.6{\times}10^{-4}$/req).
 
 \paragraph{Unconstrained regime.}
@@ -28,7 +28,7 @@ No warmup burn-in level differs significantly from the 100\% baseline
 on test regret (Table~\ref{tab:val_burnin}).  The 0\% condition---warmup
 priors with \emph{no} online learning before test---achieves $74.0$
 cumulative regret, nominally \emph{lower} than the 100\% condition
-($74.4$; $\Delta{=}{-}0.6\%$, $p{=}0.55$).  Early regret
+($74.4$; $\Delta{=}{-}0.6\%$, $p{=}0.64$).  Early regret
 (Regret@200) is lowest at 0\% burn-in ($5.9$ vs.\ $7.7$) because the
 priors are fully intact at the start of the test trajectory.
 
@@ -37,18 +37,18 @@ With $\gamma{=}0.995$, effective memory is ${\sim}200$ steps.  After
 1{,}785 val steps, warmup priors are decayed by $\gamma^{1785} \approx
 1.3{\times}10^{-5}$---effectively erased.  This explains why the
 warmup and tabula-rasa conditions converge after 100\% burn-in ($74.4$
-vs.\ $73.9$; $p{=}0.67$): both operate on the same ${\sim}200$ recent
+vs.\ $75.4$; $p{=}0.29$): both operate on the same ${\sim}200$ recent
 online observations, and the original priors contribute nothing.
 
 \paragraph{Prior value: a deployment latency optimisation.}
 The only statistically significant gap in the unconstrained regime is
-between tabula rasa with \emph{no} burn-in ($83.5$) and all warmup
-conditions ($74.0$--$76.0$; $p < 10^{-5}$), a $+12.2\%$ regret
-penalty concentrated in the first ${\sim}200$ steps (R@200: $11.6$
+between tabula rasa with \emph{no} burn-in ($81.8$) and all warmup
+conditions ($74.0$--$76.0$; $p < 10^{-5}$), a $+10.0\%$ regret
+penalty concentrated in the first ${\sim}200$ steps (R@200: $10.1$
 vs.\ $5.9$).  Once sufficient online evidence accumulates---either
 through val burn-in or directly on the test stream---tabula rasa
-converges to the same steady-state (tabula rasa 100\% burn-in: $73.9$,
-$p{=}0.67$ vs.\ warmup 100\%).
+converges to the same steady-state (tabula rasa 100\% burn-in: $75.4$,
+$p{=}0.29$ vs.\ warmup 100\%).
 
 \paragraph{Budget-constrained regimes (Table~\ref{tab:val_burnin_budget}).}
 To verify that these findings generalise to the budget-paced conditions
@@ -71,30 +71,31 @@ The pattern is consistent across all regimes:
 \begin{itemize}[nosep,leftmargin=*]
   \item \emph{Burn-in does not inflate.}  Within each budget regime,
     Warmup~0\% vs.\ Warmup~100\% is non-significant
-    (tight: $198.2$ vs.\ $199.9$, $p{=}0.37$;
-     moderate: $150.8$ vs.\ $149.4$, $p{=}0.70$).
+    (tight: $175.2$ vs.\ $172.1$, $p{=}0.40$;
+     moderate: $150.8$ vs.\ $149.4$, $p{=}0.74$).
   \item \emph{Priors matter at cold start (tight budgets).}
-    Tabula Rasa with no burn-in has marginally higher regret at tight
-    budgets ($205.1$ vs.\ $199.9$, $\Delta{=}{+}2.6\%$,
-    $p{=}0.019$)---note this does not survive Bonferroni correction
-    across the three within-regime tests.
+    Tabula Rasa with no burn-in has significantly higher regret at tight
+    budgets ($183.6$ vs.\ $172.1$, $\Delta{=}{+}6.7\%$,
+    $p{=}0.002$), which survives Bonferroni correction
+    across the three within-regime tests ($p_{\mathrm{adj}}{=}0.006$).
     Prior to pacer pre-calibration this gap was larger
     ($\Delta{=}{+}6.0\%$, $p < 10^{-3}$), confirming that the original
     confound between cold-pacer and cold-bandit inflated the apparent
     harm of missing priors.
   \item \emph{Convergence after burn-in.}  With 100\% burn-in, warmup
     and tabula rasa converge at every budget level
-    (tight: $199.9$ vs.\ $197.2$, $p{=}0.11$;
-     moderate: $149.4$ vs.\ $144.4$, $p{=}0.28$),
+    (tight: $172.1$ vs.\ $171.2$, $p{=}0.78$;
+     moderate: $149.4$ vs.\ $149.5$, $p{=}0.98$),
     confirming that geometric forgetting erases the prior regardless of
     budget pressure.
-  \item \emph{Moderate budgets collapse the gap.}  At moderate budgets,
-    even tabula rasa without burn-in is non-significant vs.\ warmup
-    ($152.2$ vs.\ $149.4$, $p{=}0.29$): the budget constraint
-    collapses the feasible arm set, reducing the harm of uninformed
-    exploration.
+  \item \emph{Moderate budgets reduce but do not eliminate the gap.}
+    At moderate budgets, tabula rasa without burn-in shows a smaller
+    penalty ($155.6$ vs.\ $149.4$, $\Delta{=}{+}4.1\%$, $p{=}0.017$),
+    which does not survive Bonferroni correction ($p_{\mathrm{adj}}{=}0.051$).
+    The budget constraint narrows the feasible arm set, reducing---but
+    not fully eliminating---the harm of uninformed exploration.
   \item \emph{Budget compliance is consistent.}  Cost/target ratios
-    range from $97.6\%$ to $100.0\%$ across all conditions, confirming
+    range from $97.0\%$ to $100.0\%$ across all conditions, confirming
     that the BudgetPacer achieves comparable spending regardless of
     burn-in level or prior initialisation.
 \end{itemize}
@@ -102,8 +103,8 @@ The pattern is consistent across all regimes:
 \paragraph{Implication.}
 Warmup priors are best understood as a \emph{deployment latency
 optimisation}: they eliminate the cold-start transient where uninformed
-exploration dominates, halving early regret (R@200: $5.9$ vs.\ $11.6$
-unconstrained; $23.1$ vs.\ $27.6$ at tight budget).
+exploration dominates, halving early regret (R@200: $5.9$ vs.\ $10.1$
+unconstrained; $20.5$ vs.\ $26.9$ at tight budget).
 Their contribution is transient by design---geometric forgetting
 replaces offline estimates with online evidence within ${\sim}200$
 effective-memory steps---so the router's steady-state quality is
@@ -132,14 +133,14 @@ significant gap is tabula rasa without burn-in.}
 \toprule
 \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & $\boldsymbol{\Delta}$ & $\boldsymbol{p}$ \\
 \midrule
-Warmup & 0\%   & 74.0\,$\pm$\,0.5 & 5.9  & $-0.6$\% & 0.55 \\
-Warmup & 25\%  & 76.0\,$\pm$\,0.7 & 8.6  & $+2.2$\% & 0.22 \\
-Warmup & 50\%  & 75.1\,$\pm$\,0.8 & 7.9  & $+0.9$\% & 0.50 \\
-Warmup & 75\%  & 75.1\,$\pm$\,0.6 & 7.9  & $+1.0$\% & 0.52 \\
+Warmup & 0\%   & 74.0\,$\pm$\,0.5 & 5.9  & $-0.6$\% & 0.64 \\
+Warmup & 25\%  & 76.0\,$\pm$\,0.7 & 8.6  & $+2.2$\% & 0.17 \\
+Warmup & 50\%  & 75.1\,$\pm$\,0.8 & 7.9  & $+0.9$\% & 0.56 \\
+Warmup & 75\%  & 75.1\,$\pm$\,0.7 & 7.9  & $+1.0$\% & 0.56 \\
 Warmup & 100\% & 74.4\,$\pm$\,0.8 & 7.7  & ---       & --- \\
 \midrule
-Tabula Rasa & 0\%   & 83.5\,$\pm$\,0.8 & 11.6 & $+12.2$\% & $< 10^{-5}$ \\
-Tabula Rasa & 100\% & 73.9\,$\pm$\,0.7 & 8.2  & $-0.8$\%  & 0.67 \\
+Tabula Rasa & 0\%   & 81.8\,$\pm$\,0.8 & 10.1 & $+10.0$\% & $< 10^{-5}$ \\
+Tabula Rasa & 100\% & 75.4\,$\pm$\,0.8 & 8.1  & $+1.4$\%  & 0.29 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -160,15 +161,15 @@ consistent across conditions.}
 \toprule
 \textbf{Budget} & \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & \textbf{Cost/T} & $\boldsymbol{\Delta}$ & $\boldsymbol{p}$ \\
 \midrule
-Tight    & Warmup      & 0\%   & 198.2\,$\pm$\,1.0 & 23.1 & 1.00 & $-0.8$\%  & 0.37 \\
-         & Warmup      & 100\% & 199.9\,$\pm$\,1.3 & 23.0 & 1.00 & ---        & --- \\
-         & Tabula Rasa & 0\%   & 205.1\,$\pm$\,2.1 & 27.6 & 0.99 & $+2.6$\%  & 0.019 \\
-         & Tabula Rasa & 100\% & 197.2\,$\pm$\,1.1 & 21.6 & 1.00 & $-1.3$\%  & 0.11 \\
+Tight    & Warmup      & 0\%   & 175.2\,$\pm$\,2.9 & 20.5 & 1.00 & $+1.8$\%  & 0.40 \\
+         & Warmup      & 100\% & 172.1\,$\pm$\,1.9 & 18.5 & 1.00 & ---        & --- \\
+         & Tabula Rasa & 0\%   & 183.6\,$\pm$\,2.6 & 26.9 & 0.99 & $+6.7$\%  & 0.002 \\
+         & Tabula Rasa & 100\% & 171.2\,$\pm$\,2.3 & 18.7 & 1.00 & $-0.5$\%  & 0.78 \\
 \midrule
-Moderate & Warmup      & 0\%   & 150.8\,$\pm$\,3.0 & 18.3 & 0.99 & $+0.9$\%  & 0.70 \\
+Moderate & Warmup      & 0\%   & 150.8\,$\pm$\,3.1 & 18.3 & 0.99 & $+0.9$\%  & 0.74 \\
          & Warmup      & 100\% & 149.4\,$\pm$\,1.9 & 16.5 & 0.99 & ---        & --- \\
-         & Tabula Rasa & 0\%   & 152.2\,$\pm$\,3.0 & 20.8 & 0.98 & $+1.9$\%  & 0.29 \\
-         & Tabula Rasa & 100\% & 144.4\,$\pm$\,2.1 & 16.0 & 0.99 & $-3.4$\%  & 0.28 \\
+         & Tabula Rasa & 0\%   & 155.6\,$\pm$\,2.1 & 20.0 & 0.97 & $+4.1$\%  & 0.017 \\
+         & Tabula Rasa & 100\% & 149.5\,$\pm$\,2.2 & 15.6 & 0.99 & $+0.1$\%  & 0.98 \\
 \bottomrule
 \end{tabular}
 \end{table}

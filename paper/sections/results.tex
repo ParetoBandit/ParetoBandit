@@ -21,7 +21,7 @@ SW-UCB ($W{=}200$)                     & \rsSWUCBPhaseOne  & \rsSWUCBPhaseTwo   
 \multicolumn{5}{@{}l}{\textit{(b) Phase~1 budget utilisation under cost drift (Experiment~3)}} \\[2pt]
 \textbf{Budget Target} & \textbf{Fixed} & \textbf{Naive} & \textbf{ParetoBandit} & \\
 \midrule
-Tight\enspace($\$2.3{\times}10^{-4}$)    & $\bdFixedTightPhaseOneRatio$ & $\bdNaiveTightPhaseOneRatio$ & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & \\
+Tight\enspace($\$3.0{\times}10^{-4}$)    & $\bdFixedTightPhaseOneRatio$ & $\bdNaiveTightPhaseOneRatio$ & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & \\
 Moderate ($\$6.6{\times}10^{-4}$)         & $\bdFixedModPhaseOneRatio$ & $\bdNaiveModPhaseOneRatio$ & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & \\
 Loose\enspace($\$1.9{\times}10^{-3}$)    & $\bdFixedLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseOneRatio$ & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}$ & \\
 \bottomrule
@@ -122,31 +122,38 @@ ParetoBandit's $\sigma{=}\rsParetoBanditStd$ is comparable to the Naive Bandit
 SW-UCB's high variance stems from its cold start: which arms happen
 to be sampled in the first ${\sim}200$ steps varies widely across
 seeds, producing high-regret outliers.
-ParetoBandit's warmup priors stabilise early routing, and geometric
-forgetting bounds the effective sample size at ${\sim}200$,
+ParetoBandit's warmup priors eliminate this cold-start lottery by providing
+informed routing from the first request, stabilising early routing
+and compressing cross-seed variance.
+Geometric forgetting then bounds the effective sample size at ${\sim}200$,
 preventing any single observation ordering from dominating.
-A production team gets one deployment---ParetoBandit's low variance
-means every deployment adapts reliably.
+The priors' contribution is transient---after ${\sim}200$ steps online
+evidence dominates regardless of initialisation
+(Appendix~\ref{appendix:val_burnin_ablation})---but in production a
+team gets one deployment, and the priors ensure that \emph{every}
+deployment starts well rather than gambling on favourable early
+exploration.
 
 \subsection{Budget Pacing under Cost Drift}
 \label{sec:exp3_cost_drift}
 
-We now introduce the most complex and realistic scenario: a mid-stream price drop (Cost Drift) while operating under strict budget constraints. In Phase 2, Gemini-Pro's price drops to nearly zero. We evaluate three budget regimes: Tight (\$0.00023/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
+We now introduce the most complex and realistic scenario: a mid-stream price drop (Cost Drift) while operating under strict budget constraints. In Phase 2, Gemini-Pro's price drops to nearly zero. We evaluate three budget regimes: Tight (\$0.0003/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
 
 \paragraph{Budget compliance is the key differentiator.}
-The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($\bdFixedTightPhaseOneRatio$ and $\bdFixedModPhaseOneRatio$) but massively over-spends at the loose budget ($\bdFixedLoosePhaseOneRatio$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it under-spends at tight budgets ($\bdNaiveTightPhaseOneRatio$) but over-spends by $\bdNaiveLoosePhaseOneRatio$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
+The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($\bdFixedTightPhaseOneRatio$ and $\bdFixedModPhaseOneRatio$) but massively over-spends at the loose budget ($\bdFixedLoosePhaseOneRatio$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it overshoots at tight ($\bdNaiveTightPhaseOneRatio$), near-tracks at moderate, but over-spends by $\bdNaiveLoosePhaseOneRatio$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
 To isolate the value of \emph{continuous} online tracking from merely reacting to a price change, we add a \textbf{Recalibrated Bandit}: identical to the Naive Bandit in Phase~1, but at the Phase~2 boundary its static penalty is re-tuned offline via a grid search on the validation split with Phase~2 pricing. This is the strongest static-penalty baseline, granting oracle knowledge of the change point and an offline calibration pass. Even so, the Recalibrated Bandit inherits Phase~1 non-compliance and cannot adjust within Phase~2 as spending conditions evolve (Table~\ref{tab:budget_compliance}).
 
 ParetoBandit is the only system that reliably hits the budget in Phase~1 ($\bdParetoBanditLoosePhaseOneUtil$ to $\bdParetoBanditTightPhaseOneUtil$ across all three targets; Table~\ref{tab:main_results}b). The BudgetPacer's primal-dual mechanism adjusts $\lambda_t$ continuously based on observed costs, providing closed-loop control that no static penalty---even with periodic recalibration---can replicate.
-From an SLA perspective, these deviations translate directly to financial risk: the Fixed Policy's $\bdFixedLoosePhaseOneRatio$ overshoot at the loose budget means spending more than~$160\%$ above the agreed-upon target---an overrun that grows linearly with traffic volume---while its $\bdFixedTightPhaseOneRatio$ utilisation at the tight budget means leaving $76\%$ of the quality headroom on the table.
+From an SLA perspective, these deviations translate directly to financial risk: the Fixed Policy's $\bdFixedLoosePhaseOneRatio$ overshoot at the loose budget means spending more than~$160\%$ above the agreed-upon target---an overrun that grows linearly with traffic volume---while its $\bdFixedTightPhaseOneRatio$ utilisation at the tight budget means leaving roughly half the quality headroom on the table.
 
 \paragraph{Exploiting the price drop.}
 When Gemini becomes nearly free in Phase~2, the BudgetPacer automatically detects the cost reduction via its EMA signal.
 The three budget regimes produce qualitatively distinct---but equally principled---dual-variable responses (Figure~\ref{fig:adaptation_dynamics}).
-At moderate and loose targets, post-drop costs fall well below the budget ($0.75\times$ and $0.58\times$ respectively), so $\lambda_t$ decays to near-zero: the constraint becomes slack and the router reverts to quality-only optimization, increasing Gemini selection to ${\sim}49$--$50\%$.
-At the tight target, the opposite occurs: post-drop costs (\$2.39e-4/req) slightly exceed the budget (\$2.34e-4), so $\lambda_t$ \emph{rises} from $0.47$ to $0.95$.
-Paradoxically, this elevated dual variable produces the \emph{highest} Gemini adoption ($86\%$) of any constrained condition, because the soft penalty $\lambda_t \times \tilde{c}_m$ penalizes the now-expensive Mistral ($\tilde{c}{=}0.38$) far more than the now-cheap Gemini ($\tilde{c}{\approx}0$).
-All three regimes show highly significant reward lifts ($\Delta{=}+0.017$ to $+0.067$; $p < 10^{-9}$), with the tight budget exhibiting the largest gain precisely because its binding constraint concentrates traffic on the cost-efficient frontier.
+At all three targets, post-drop costs fall below the budget, so $\lambda_t$ decays and the constraint becomes slack.
+The decay speed depends on the margin: at moderate and loose targets ($0.51\times$ and $0.18\times$ respectively), $\lambda_t$ drops to near-zero and the router reverts to quality-only optimization, increasing Gemini selection to ${\sim}49$--$50\%$.
+At tight target, the margin is narrower ($0.95\times$), so $\lambda_t$ decays from $0.41$ to ${\sim}0.05$---slower, but in the same direction.
+The tight condition still achieves the highest Gemini adoption ($68\%$) of any constrained condition, because the residual $\lambda_t$ provides mild cost pressure favoring the now-cheapest arm (Gemini, $\tilde{c}{\approx}0$) over Mistral ($\tilde{c}{\approx}0.49$).
+All three regimes show highly significant reward lifts ($\Delta{=}+0.017$ to $+0.054$; $p < 10^{-9}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 
 \paragraph{Quality cost of the pacer.}
 An unconstrained ParetoBandit baseline (same $\gamma{=}0.995$, no pacer) isolates the pacer's quality impact.
@@ -160,14 +167,13 @@ The ${\sim}1\%$ quality difference is the cost of non-stationarity robustness---
 \includegraphics[width=\textwidth]{figures/adaptation_dynamics.pdf}
 \caption{ParetoBandit dual-variable dynamics under a mid-stream
 Gemini price drop (step~912; 50~seeds, 95\% bootstrap CI).
-\textbf{(a)}~The dual variable $\lambda_t$ reveals qualitatively
-distinct responses: at tight budget, $\lambda_t$ \emph{rises}
-because costs still exceed the target (binding constraint); at
-moderate/loose budgets, $\lambda_t$ decays to zero as post-drop
-costs fall well below target (slack constraint).
-\textbf{(b)}~Gemini selection fraction mirrors the dual signal---tight
-budget drives $86\%$ Gemini adoption via cost-penalty concentration;
-moderate/loose converge toward the unconstrained baseline (dash-dot).
+\textbf{(a)}~The dual variable $\lambda_t$ decays at all three
+budget levels after the price drop as costs fall below target;
+the decay is fastest at loose and slowest at tight, where the
+margin is narrowest.
+\textbf{(b)}~Gemini selection fraction surges in Phase~2---tight
+budget reaches ${\sim}68\%$; moderate/loose converge toward the
+unconstrained baseline (dash-dot) at ${\sim}49$--$50\%$.
 \textbf{(c)}~Running average cost per request; dotted lines mark
 budget targets.
 All three regimes exhibit the correct Lagrangian response.
@@ -183,10 +189,9 @@ Table~\ref{tab:budget_compliance}.}
 the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
-all methods' costs below target, regardless of algorithm.
+costs below target, regardless of algorithm.
 ParetoBandit is the only condition that reliably meets the target in
-Phase~1 and, where the constraint remains binding (tight), in
-Phase~2.}
+Phase~1 ($0.98$--$1.00\times$).}
 \label{tab:budget_compliance}
 \small
 \begin{tabular}{@{}llcc@{}}
@@ -194,9 +199,9 @@ Phase~2.}
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} \\
 \midrule
-Tight        & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio$ \\
-             & Naive Bandit        & $\bdNaiveTightPhaseOneRatio$ & $\bdNaiveTightPhaseTwoRatio$ \\
-             & Recalibrated        & $\bdRecalTightPhaseOneRatio$ & $\bdRecalTightPhaseTwoRatio$ \\
+Tight        & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio^{\dagger}$ \\
+             & Naive Bandit        & $\bdNaiveTightPhaseOneRatio$ & $\bdNaiveTightPhaseTwoRatio^{\dagger}$ \\
+             & Recalibrated        & $\bdRecalTightPhaseOneRatio$ & $\mathbf{\bdRecalTightPhaseTwoRatio}$ \\
              & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\mathbf{\bdParetoBanditTightPhaseTwoRatio}$ \\[3pt]
 Moderate     & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ \\
              & Naive Bandit        & $\mathbf{\bdNaiveModPhaseOneRatio}$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ \\
@@ -210,14 +215,12 @@ Loose        & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoo
 \end{tabular}
 \end{table}
 
-\paragraph{Tight budgets: binding constraints as a feature.}
-A particularly instructive result emerges at the tight target ($B{=}\$0.00023$/req).
-Rather than being a limitation, the tight budget produces the \emph{strongest} adaptation:
-ParetoBandit achieves $86\%$ Gemini selection in Phase~2 (vs.\ $49$--$50\%$ for moderate/loose) and the largest reward lift.
-This occurs because the dual variable $\lambda_t$ rises to $0.95$ when costs slightly exceed the tight target, creating a large soft-penalty gap between the now-cheap Gemini and the now-expensive Mistral.
-Meanwhile, the Fixed Policy and Naive Bandit---using static cost penalties---overshoot the tight budget ($1.13\times$ each in Phase~2) because their open-loop penalties cannot exploit the new cost landscape.
-The Recalibrated Bandit re-tunes $\lambda_s$ at Phase~2 but cannot adjust within Phase~2.
-ParetoBandit stays within $2\%$ of target, demonstrating that the primal-dual mechanism provides precise closed-loop budget control under non-stationary pricing.
+\paragraph{Tight budgets: smooth constraint relaxation.}
+The tight target ($B{=}\$0.0003$/req) is the most instructive case because it transitions from \emph{binding} to \emph{slack} at the price-change boundary.
+In Phase~1, $\lambda_t$ averages $0.41$, enforcing a Llama/Mistral mix; after the price drop, post-drop costs (\$2.85e-4/req) fall just below the target, so $\lambda_t$ decays smoothly to ${\sim}0.05$.
+Despite the constraint becoming slack, the tight condition still achieves the highest Gemini adoption ($68\%$) of any constrained condition, because the residual $\lambda_t$ provides mild cost pressure favoring the now-cheapest arm.
+This smooth, automatic transition demonstrates that the primal-dual mechanism correctly identifies when the constraint relaxes and adjusts accordingly, without operator intervention.
+The tight budget also exhibits the largest reward lift ($\Delta{=}+0.054$) because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 
 \subsection{Hyperparameter Selection via Epsilon-Constraint}
 \label{sec:exp4_hparam_sweep}
@@ -251,7 +254,7 @@ On the held-out test split the selected configurations achieve Pareto AUC of $\h
 
 The experiments above assume a fixed $K{=}3$ portfolio.  In practice, providers release new models frequently, and platform teams need to integrate them without offline evaluation or policy retraining.  In Appendix~\ref{appendix:model_onboarding} we evaluate this scenario: after Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added via a single \texttt{register\_model()} call with \emph{no warmup priors}---it receives only a neutral T-shirt prior ($A{=}\lambda I$, $b{=}0$), the coldest possible LinUCB initialisation.
 
-Despite this cold start, ParetoBandit discovers and adopts Flash in \emph{every} trial (80/80 across 20~seeds $\times$ 4~budget tiers), reaching sustained adoption within ${\sim}370$ post-onboarding steps.  LinUCB's exploration bonus---maximal for the uninformed arm---drives initial exploration, and the online learner quickly calibrates Flash's quality--cost profile from live traffic.  Crucially, the BudgetPacer maintains compliance throughout the portfolio expansion without any reconfiguration.  The displacement analysis reveals economically rational behaviour: under budget pressure, Flash takes share from Mistral-Large (similar quality, lower cost); unconstrained, it displaces Gemini-Pro (near-Pro quality at $10\times$ lower cost).
+Despite this cold start, ParetoBandit discovers and adopts Flash in \emph{every} trial (80/80 across 20~seeds $\times$ 4~budget tiers), reaching sustained adoption within ${\sim}233$ post-onboarding steps.  LinUCB's exploration bonus---maximal for the uninformed arm---drives initial exploration, and the online learner quickly calibrates Flash's quality--cost profile from live traffic.  Crucially, the BudgetPacer maintains compliance throughout the portfolio expansion without any reconfiguration.  The displacement analysis reveals economically rational behaviour: under budget pressure, Flash takes share from Mistral-Large (similar quality, lower cost); unconstrained, it displaces Gemini-Pro (near-Pro quality at $10\times$ lower cost).
 
 \paragraph{No historical labeled data required.}
 A supervised router requires a \emph{pre-collected evaluation dataset} for every model in the portfolio: responses must be gathered on a representative prompt set, labeled by human annotators or an LLM judge, and the routing policy retrained on the expanded dataset---before the new model can receive any live traffic.  The bandit eliminates this offline data-collection campaign entirely.  It does require a reward signal, but that signal comes from the \emph{same} evaluation mechanism (judge, user ratings, or implicit behavioural composites; see Section~\ref{sec:discussion}) already serving the existing portfolio.  When exploration routes a prompt to the new model, the reward pipeline evaluates its response at zero marginal data-collection cost.  This distinction also avoids two risks inherent to offline evaluation: \emph{distribution mismatch}, where a curated eval set may not reflect the live prompt distribution, and \emph{dataset staleness}, where the eval ages as deployment patterns drift.  The bandit's ``training data'' is always the current production distribution, ensuring that the quality--cost profile it learns for the new model is representative from the start.

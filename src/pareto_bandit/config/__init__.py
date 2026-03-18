@@ -155,7 +155,7 @@ GEMINI_COST_DROP = {
 # K=3 Budget Targets (Experiment 03 / Appendix model onboarding)
 # ==============================================================================
 
-K3_BUDGET_TARGETS: List[float] = [2.34e-4, 6.62e-4, 1.87e-3]
+K3_BUDGET_TARGETS: List[float] = [3.0e-4, 6.62e-4, 1.87e-3]
 K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 
 # ==============================================================================
