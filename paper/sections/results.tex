@@ -93,6 +93,15 @@ In Phase~2, the unconstrained baseline reaches reward $0.928$; ParetoBandit at m
 The pacer itself is nearly free in quality terms.
 This quality difference is the cost of non-stationarity robustness---validated here by the reward lifts that the forgetting factor enables.
 
+\paragraph{The cost--quality tradeoff under normal operation.}
+Phase~1 (before any cost perturbation) reveals the practical value of the dual-variable mechanism under stable conditions.
+In this phase, the unconstrained baseline spends \bdUncPhaseOneCostEng/req and achieves reward $\bdUncPhaseOneReward$.
+The loose budget constraint (\$1.9${\times}10^{-3}$/req target) achieves reward $\bdParetoBanditLooseRewardPhaseOne$---only $\bdParetoBanditLooseRewardGapPct\%$ below unconstrained---while spending $\bdParetoBanditLooseCostRatioVsUnc{\times}$ less, a $\bdParetoBanditLooseCostSavingPct\%$ cost reduction.
+The pacer accomplishes this by routing the majority of traffic through Mistral-Large ($76\%$) and Llama-8B ($15\%$), reserving Gemini-Pro ($9\%$) for prompts where its quality advantage justifies the cost.
+Tighter budgets push the tradeoff further: at moderate, cost drops $\bdParetoBanditModCostSavingPct\%$ for a $\bdParetoBanditModRewardGapPct\%$ quality reduction; at tight, $\bdParetoBanditTightCostSavingPct\%$ savings for a $\bdParetoBanditTightRewardGapPct\%$ quality gap.
+This gradient is the pacer operating as designed: even a generous constraint avoids the unconstrained router's tendency to over-route to expensive models when cheaper alternatives are nearly as good for the given context, while tighter constraints progressively restrict access to high-cost arms.
+In production settings, these savings compound with traffic volume---a deployment routing one million requests per month would reduce costs from ${\sim}\$9{,}400$ (unconstrained) to ${\sim}\$1{,}800$ (loose) with negligible user-perceptible quality difference.
+
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.65\textwidth]{figures/adaptation_dynamics.pdf}

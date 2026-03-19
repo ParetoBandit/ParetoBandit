@@ -147,6 +147,35 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 ratio_p1 = p1.get("mean_cost", 0.0) / target if target > 0 else 0.0
                 cs.ratio(f"ParetoBandit{short_budget}PhaseOneUtil", ratio_p1)
 
+    uc_data = conditions.get("Unconstrained")
+    if uc_data is not None:
+        uc_p1 = uc_data.get("phase1_summary") or {}
+        uc_cost = uc_p1.get("mean_cost", 0.0)
+        uc_reward = uc_p1.get("mean_reward", 0.0)
+        cs.raw("UncPhaseOneCostEng", fmt_cost_eng(uc_cost))
+        cs.num("UncPhaseOneReward", uc_reward, digits=4)
+
+        for label in budget_labels:
+            short_budget = BUDGET_LABEL_TO_SHORT.get(label, label.title())
+            pb_key = _condition_key("ParetoBandit", label)
+            pb_data = conditions.get(pb_key)
+            if pb_data is None:
+                continue
+            pb_p1 = pb_data.get("phase1_summary") or {}
+            pb_cost = pb_p1.get("mean_cost", 0.0)
+            pb_reward = pb_p1.get("mean_reward", 0.0)
+
+            cost_ratio = uc_cost / pb_cost if pb_cost > 0 else 0.0
+            cost_saving_pct = (1.0 - pb_cost / uc_cost) * 100 if uc_cost > 0 else 0.0
+            reward_gap_pct = (1.0 - pb_reward / uc_reward) * 100 if uc_reward > 0 else 0.0
+
+            cs.raw(f"ParetoBandit{short_budget}CostRatioVsUnc",
+                   f"{cost_ratio:.1f}")
+            cs.raw(f"ParetoBandit{short_budget}CostSavingPct",
+                   fmt_int(round(cost_saving_pct)))
+            cs.num(f"ParetoBandit{short_budget}RewardGapPct",
+                   reward_gap_pct, digits=1)
+
     return cs
 
 
