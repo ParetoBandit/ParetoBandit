@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Generate figures for Experiment 03: Budget Pacing Under Cost Drift (Three-Phase).
+"""Generate figures for Experiment 02: Budget Pacing Under Cost Drift (Three-Phase).
 
 Reads ``results/budget_cost_drift_results.json`` and produces:
 
 ``adaptation_dynamics.pdf/.png``:
-  1x3 panel showing adaptation dynamics across three phases
+  3x1 stacked panel showing adaptation dynamics across three phases
   (normal → price drop → price restored) for ParetoBandit at each budget level.
 
-  (a) Windowed Mean Reward — quality outcome through the cost drift.
-  (b) Dual Variable λ_t — shows whether the pacer re-raises λ in Phase 3.
+  (a) Gemini-Pro Selection Fraction — shows how the pacer exploits the price drop.
+  (b) Windowed Mean Reward — quality outcome through the cost drift.
   (c) Running Avg Cost / Request — shows budget compliance recovery.
 
 Usage:
-    python experiments/03_budget_plus_drift/generate_figure.py
+    python experiments/02_budget_plus_drift/generate_figure.py
 """
 
 from __future__ import annotations
@@ -176,13 +176,43 @@ def _extract_curve_with_ci_direct(
     return steps, means, ci_lo, ci_hi
 
 
+def _extract_arm_fraction_with_ci(
+    conditions: Dict[str, Any],
+    cond_key: str,
+    arm_short_name: str,
+    sqrt_n: float,
+) -> Tuple[List[int], List[float], np.ndarray, np.ndarray]:
+    """Extract arm selection fraction with bootstrap CI."""
+    curve = conditions[cond_key]["curves"]
+    steps = [c["step"] for c in curve]
+    fracs = [c["arm_fractions"].get(arm_short_name, 0.0) for c in curve]
+
+    has_per_seed = "per_seed_arm_fractions" in curve[0]
+    if has_per_seed:
+        matrix = np.array(
+            [c["per_seed_arm_fractions"][arm_short_name] for c in curve]
+        )
+        ci_lo, ci_hi = bootstrap_ci_series(matrix)
+    else:
+        ses = [
+            c["arm_fractions_std"].get(arm_short_name, 0.0) / sqrt_n
+            for c in curve
+        ]
+        ci_lo = np.array([m - s for m, s in zip(fracs, ses)])
+        ci_hi = np.array([m + s for m, s in zip(fracs, ses)])
+
+    return steps, fracs, ci_lo, ci_hi
+
+
 # ======================================================================
-# Main figure: 1x3 adaptation dynamics
+# Main figure: 3x1 stacked adaptation dynamics
 # ======================================================================
+
+GEMINI_ARM_SHORT = "Gemini-Pro"
 
 
 def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
-    """1x3 figure: (a) windowed reward, (b) lambda_t, (c) cost/request.
+    """3x1 stacked figure: (a) Gemini-Pro fraction, (b) windowed reward, (c) cost/request.
 
     Parameters
     ----------
@@ -200,12 +230,59 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     n_seeds = data["n_seeds"]
     sqrt_n = np.sqrt(n_seeds)
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.5))
+    fig, axes = plt.subplots(3, 1, figsize=(8, 12), sharex=True)
 
     # ------------------------------------------------------------------
-    # (a) Windowed mean reward (trailing 50 steps)
+    # (a) Gemini-Pro selection fraction
     # ------------------------------------------------------------------
-    ax_rwd = axes[0]
+    ax_gem = axes[0]
+
+    for blabel in budget_labels:
+        cond_key = _find_condition_key(conditions, "ParetoBandit", blabel)
+        if cond_key is None:
+            continue
+        steps, fracs, ci_lo, ci_hi = _extract_arm_fraction_with_ci(
+            conditions, cond_key, GEMINI_ARM_SHORT, sqrt_n,
+        )
+        color = BUDGET_COLORS[blabel]
+        ax_gem.plot(
+            steps, fracs,
+            color=color, linewidth=2.2,
+            label=BUDGET_NICE_LABELS[blabel], zorder=4,
+        )
+        ax_gem.fill_between(
+            steps, ci_lo, ci_hi, alpha=0.15, color=color, zorder=2,
+        )
+
+    if "Unconstrained" in conditions:
+        steps, fracs, ci_lo, ci_hi = _extract_arm_fraction_with_ci(
+            conditions, "Unconstrained", GEMINI_ARM_SHORT, sqrt_n,
+        )
+        ax_gem.plot(
+            steps, fracs,
+            color=UNCONSTRAINED_COLOR, linestyle="-.", linewidth=2.0,
+            label=r"Unconstrained ($\lambda_s{=}0$)", zorder=3,
+        )
+        ax_gem.fill_between(
+            steps, ci_lo, ci_hi,
+            alpha=0.10, color=UNCONSTRAINED_COLOR, zorder=2,
+        )
+
+    _add_phase_shading(ax_gem, phase_boundaries)
+
+    ax_gem.set_title(
+        "(a) Gemini-Pro Selection Fraction",
+        fontsize=12, fontweight="bold", pad=10,
+    )
+    ax_gem.set_ylabel("Fraction", fontsize=12)
+    ax_gem.set_ylim(-0.02, 1.02)
+    ax_gem.grid(True, alpha=0.2, linewidth=0.5)
+    ax_gem.tick_params(labelsize=10)
+
+    # ------------------------------------------------------------------
+    # (b) Windowed mean reward (trailing 50 steps)
+    # ------------------------------------------------------------------
+    ax_rwd = axes[1]
 
     for blabel in budget_labels:
         result = _extract_curve_with_ci(
@@ -251,50 +328,12 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     _add_phase_shading(ax_rwd, phase_boundaries)
 
     ax_rwd.set_title(
-        "(a) Windowed Mean Reward",
+        "(b) Windowed Mean Reward",
         fontsize=12, fontweight="bold", pad=10,
     )
-    ax_rwd.set_xlabel("Prompts Routed", fontsize=11)
     ax_rwd.set_ylabel("Mean Reward", fontsize=12)
     ax_rwd.grid(True, alpha=0.2, linewidth=0.5)
     ax_rwd.tick_params(labelsize=10)
-
-    # ------------------------------------------------------------------
-    # (b) Dual variable λ_t
-    # ------------------------------------------------------------------
-    ax_lam = axes[1]
-    for blabel in budget_labels:
-        result = _extract_curve_with_ci(
-            conditions, "ParetoBandit", blabel,
-            mean_field="mean_lambda",
-            per_seed_field="per_seed_lambda",
-            std_field="std_lambda",
-            sqrt_n=sqrt_n,
-        )
-        if result is None:
-            continue
-        steps, lambdas, ci_lo, ci_hi = result
-        color = BUDGET_COLORS[blabel]
-
-        ax_lam.plot(
-            steps, lambdas,
-            color=color, linewidth=2.2,
-            label=BUDGET_NICE_LABELS[blabel], zorder=4,
-        )
-        ax_lam.fill_between(
-            steps, ci_lo, ci_hi, alpha=0.15, color=color, zorder=2,
-        )
-
-    _add_phase_shading(ax_lam, phase_boundaries)
-
-    ax_lam.set_title(
-        r"(b) Dual Variable $\lambda_t$",
-        fontsize=12, fontweight="bold", pad=10,
-    )
-    ax_lam.set_xlabel("Prompts Routed", fontsize=11)
-    ax_lam.set_ylabel(r"$\lambda_t$", fontsize=12)
-    ax_lam.grid(True, alpha=0.2, linewidth=0.5)
-    ax_lam.tick_params(labelsize=10)
 
     # ------------------------------------------------------------------
     # (c) Trailing-window average cost per request (last 50 steps)
@@ -382,26 +421,21 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     # ------------------------------------------------------------------
     # Layout
     # ------------------------------------------------------------------
-    fig.suptitle(
-        r"Cost Correction: Normal $\to$ Price Drop $\to$ Restored "
-        rf"($K{{=}}3$, {n_seeds} seeds, 95% bootstrap CI)",
-        fontsize=14,
-        fontweight="bold",
-        y=0.995,
-    )
+    ax_cost.set_xlabel("Prompts Routed", fontsize=11)
 
-    handles, labels = ax_rwd.get_legend_handles_labels()
+    handles, labels = ax_gem.get_legend_handles_labels()
     fig.legend(
         handles,
         labels,
         loc="lower center",
-        ncol=len(labels),
+        ncol=min(len(labels), 4),
         fontsize=9.5,
         framealpha=0.9,
-        bbox_to_anchor=(0.5, -0.01),
+        bbox_to_anchor=(0.5, -0.005),
     )
 
-    fig.tight_layout(rect=[0, 0.06, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.05, 1, 1.0])
+    fig.subplots_adjust(hspace=0.15)
 
     return fig
 

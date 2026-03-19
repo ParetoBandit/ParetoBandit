@@ -68,8 +68,8 @@ During all experiments the PCA transform and whitening scales are frozen and app
 The $K{=}3$ portfolio spans three distinct cost tiers (Table~\ref{tab:dataset}, right).  The $500\times$ price differential between Llama-3.1-8B and Gemini-2.5-Pro stresses the router's ability to balance quality and cost efficiently.
 
 We construct two distinct non-stationary test environments to evaluate the router's robustness:
-1. \textbf{Catastrophic Model Failure}: Simulates a production API outage where Mistral-Large begins returning garbage responses. The test trajectory ($n{=}1{,}824$) is divided into three phases of 608~prompts each. Phase~1 uses normal conditions; Phase~2 degrades Mistral-Large's reward to $0.05$ and cost to \$0 (the provider does not charge for failed requests); Phase~3 restores Mistral to normal operation (reusing Phase~1 prompts for controlled comparison). A separate reward-drift scenario (Llama--Mistral reward swap) is presented in Appendix~\ref{appendix:reward_swap}.
-2. \textbf{Cost Drift (Price Drop)}: Simulates an API price cut. The test trajectory ($n{=}1{,}824$) is similarly divided into three 608-prompt phases. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's price to \$0.0001 per request; Phase~3 restores the original pricing. Phase~3 reuses Phase~1 prompts, providing a controlled within-subject design.
+1. \textbf{Cost Drift (Price Drop)}: Simulates an API price cut. The test trajectory ($n{=}1{,}824$) is divided into three 608-prompt phases. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's price to \$0.0001 per request; Phase~3 restores the original pricing. Phase~3 reuses Phase~1 prompts, providing a controlled within-subject design.
+2. \textbf{Catastrophic Model Failure}: Simulates a production API outage where Mistral-Large begins returning garbage responses. The test trajectory ($n{=}1{,}824$) is similarly divided into three phases of 608~prompts each. Phase~1 uses normal conditions; Phase~2 degrades Mistral-Large's reward to $0.05$ and cost to \$0 (the provider does not charge for failed requests); Phase~3 restores Mistral to normal operation (reusing Phase~1 prompts for controlled comparison). A separate reward-drift scenario (Llama--Mistral reward swap) is presented in Appendix~\ref{appendix:reward_swap}.
 
 \subsection{Baselines}
 
@@ -110,7 +110,7 @@ A high $n_\mathit{eff}$ keeps the router close to its prior policy for many step
 With $n_\mathit{eff}{=}1{,}000$ and a validation split of $1{,}785$ prompts, the prior is influential during early deployment but transient by design: geometric forgetting ($\gamma{=}0.995$) gradually replaces offline estimates with online evidence over ${\sim}200$ effective-memory steps.  After sufficient online learning, the router's steady-state quality is determined by recent observations regardless of initialisation---a burn-in ablation (Appendix~\ref{appendix:val_burnin_ablation}) confirms that warmup priors alone (0\% burn-in) achieve the same test regret as the full protocol ($74.0$ vs.\ $74.4$, $p{=}0.64$), while a cold start without priors incurs $+10.0\%$ higher regret ($p < 10^{-5}$).  The priors' value is thus a \emph{deployment latency} gain: informed routing from request~\#1.
 SW-UCB uses $\alpha{=}0.01$ (appropriate for cold-start without
 priors, where no warmup information is available to stabilise early routing).
-Experiment~3 additionally includes a \textbf{Recalibrated Bandit}
+Experiment~2 additionally includes a \textbf{Recalibrated Bandit}
 that re-tunes its static penalty at the Phase~2 boundary, serving
 as the strongest static-penalty baseline for cost-drift evaluation.
 

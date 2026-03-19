@@ -42,7 +42,7 @@ Three budget targets (tight, moderate, loose) and four conditions
 an unconstrained baseline are tested.
 
 Usage:
-    python experiments/03_budget_plus_drift/run_budget_cost_drift.py
+    python experiments/02_budget_plus_drift/run_budget_cost_drift.py
 """
 
 from __future__ import annotations
@@ -978,7 +978,7 @@ def main() -> None:
     # Save
     # ------------------------------------------------------------------
     output: Dict[str, Any] = {
-        "experiment": "03_budget_plus_drift",
+        "experiment": "02_budget_plus_drift",
         "description": (
             "Three-phase cost drift: normal pricing → Gemini price drop → "
             "pricing restored (Phase 3 reuses Phase 1 prompts for "

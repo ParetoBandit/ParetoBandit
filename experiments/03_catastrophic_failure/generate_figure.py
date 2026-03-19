@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate figures for Experiment 02: Catastrophic Model Failure (Three-Phase).
+"""Generate figures for Experiment 03: Catastrophic Model Failure (Three-Phase).
 
 Reads ``results/catastrophic_failure_results.json`` and produces:
 
 ``catastrophic_failure_dynamics.pdf/.png``:
-  1x3 panel showing adaptation dynamics across three phases
+  3x1 stacked panel showing adaptation dynamics across three phases
   (normal → Mistral failure → recovery) for ParetoBandit at each budget level.
 
   (a) Gemini-Pro Selection Fraction — explains why constrained conditions
@@ -13,7 +13,7 @@ Reads ``results/catastrophic_failure_results.json`` and produces:
   (c) Running Avg Cost / Request — budget compliance through the crash.
 
 Usage:
-    python experiments/02_catastrophic_failure/generate_figure.py
+    python experiments/03_catastrophic_failure/generate_figure.py
 """
 
 from __future__ import annotations
@@ -201,14 +201,14 @@ def _extract_arm_fraction_with_ci(
 
 
 # ======================================================================
-# Main figure: 1x3 adaptation dynamics
+# Main figure: 3x1 stacked adaptation dynamics
 # ======================================================================
 
 GEMINI_ARM_SHORT = "Gemini-Pro"
 
 
 def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
-    """1x3 figure showing ParetoBandit adaptation across 3 failure phases.
+    """3x1 stacked figure showing ParetoBandit adaptation across 3 failure phases.
 
     Panels:
       (a) Gemini-Pro selection fraction — explains the quality gap between
@@ -232,7 +232,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     n_seeds = data["n_seeds"]
     sqrt_n = np.sqrt(n_seeds)
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.5))
+    fig, axes = plt.subplots(3, 1, figsize=(8, 12), sharex=True)
 
     # ------------------------------------------------------------------
     # (a) Gemini-Pro selection fraction
@@ -276,7 +276,6 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         "(a) Gemini-Pro Selection Fraction",
         fontsize=12, fontweight="bold", pad=10,
     )
-    ax_gem.set_xlabel("Prompts Routed", fontsize=11)
     ax_gem.set_ylabel("Fraction", fontsize=12)
     ax_gem.set_ylim(-0.02, 1.02)
     ax_gem.grid(True, alpha=0.2, linewidth=0.5)
@@ -334,7 +333,6 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         "(b) Windowed Mean Reward",
         fontsize=12, fontweight="bold", pad=10,
     )
-    ax_rwd.set_xlabel("Prompts Routed", fontsize=11)
     ax_rwd.set_ylabel("Mean Reward", fontsize=12)
     ax_rwd.grid(True, alpha=0.2, linewidth=0.5)
     ax_rwd.tick_params(labelsize=10)
@@ -410,21 +408,18 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     # ------------------------------------------------------------------
     # Layout
     # ------------------------------------------------------------------
-    fig.suptitle(
-        r"Catastrophic Failure: Normal $\to$ Mistral Failure $\to$ Recovered "
-        rf"($K{{=}}3$, {n_seeds} seeds, 95% bootstrap CI)",
-        fontsize=14, fontweight="bold", y=0.995,
-    )
+    ax_cost.set_xlabel("Prompts Routed", fontsize=11)
 
     handles, labels = ax_gem.get_legend_handles_labels()
     fig.legend(
         handles, labels,
-        loc="lower center", ncol=len(labels),
+        loc="lower center", ncol=min(len(labels), 4),
         fontsize=9.5, framealpha=0.9,
-        bbox_to_anchor=(0.5, -0.01),
+        bbox_to_anchor=(0.5, -0.005),
     )
 
-    fig.tight_layout(rect=[0, 0.06, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.05, 1, 1.0])
+    fig.subplots_adjust(hspace=0.15)
 
     return fig
 

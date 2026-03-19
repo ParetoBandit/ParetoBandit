@@ -15,7 +15,9 @@ experiments/
 │   └── results/
 ├── 02_nonstationary_k3_drift/         # K=3 reward-shift adaptation (5 conditions)
 │   └── results/
-├── 03_budget_plus_drift/              # Interaction: budget pacing under model drift
+├── 02_budget_plus_drift/              # Interaction: budget pacing under model drift
+│   └── results/
+├── 03_catastrophic_failure/           # Catastrophic model failure (3-phase)
 │   └── results/
 └── 04_hparam_optimization/            # Epsilon-constraint hyperparameter selection
     └── results/
@@ -26,8 +28,8 @@ experiments/
 | # | Title | Key Question | Primary Figure |
 |---|-------|-------------|----------------|
 | 01 | Stationary Budget Pacing | Does BudgetPacer Pareto-dominate a static cost-penalty sweep? | Pareto frontier + lambda convergence |
-| 02 | Non-stationary K=3 Drift | Does ParetoBandit adapt to model quality shifts better than stationary and non-stationary baselines? | 4-condition cumulative regret |
-| 03 | Budget + Drift Interaction | Does the BudgetPacer maintain budget compliance under cost drift where static penalties fail? | 3-condition regret per budget + adaptation dynamics |
+| 02 | Budget + Cost Drift | Does the BudgetPacer maintain budget compliance under cost drift where static penalties fail? | 3x1 stacked adaptation dynamics |
+| 03 | Catastrophic Model Failure | Can ParetoBandit detect failure, redistribute traffic, and maintain budget compliance? | 3x1 stacked adaptation dynamics |
 | 04 | Hparam Optimization | How should alpha, n_eff, and gamma be jointly selected? | Epsilon-constraint selection (budget-paced AUC + Phase-2 regret) |
 
 ### Main-text baselines (Experiments 02 and 03)

@@ -12,7 +12,7 @@ Phase 3 (recovered).
 
 Usage::
 
-    python experiments/02_catastrophic_failure/generate_latex.py
+    python experiments/03_catastrophic_failure/generate_latex.py
 """
 
 from __future__ import annotations
@@ -238,6 +238,23 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 fmt_cost_eng(phase_data.get("mean_cost", 0.0)),
             )
 
+        if "curves" in uc:
+            uc_curves = uc["curves"]
+            uc_p1_costs = [c["mean_window_cost"] for c in uc_curves
+                           if p2_start - 120 <= c["step"] <= p2_start]
+            uc_p1_cost = float(np.mean(uc_p1_costs[-5:])) if len(uc_p1_costs) >= 5 else uc_p1_costs[-1]
+
+            uc_p2_entries = [(c["step"], c["mean_window_reward"], c["mean_window_cost"])
+                            for c in uc_curves if p2_start < c["step"] <= p3_start]
+            uc_p2_steady_cost = float(np.mean([c for _, _, c in uc_p2_entries[-5:]]))
+            uc_p2_steady_reward = float(np.mean([r for _, r, _ in uc_p2_entries[-5:]]))
+            uc_cost_spike_pct = (uc_p2_steady_cost - uc_p1_cost) / uc_p1_cost * 100
+
+            cs.raw("UncP1Cost", fmt_cost_eng(uc_p1_cost))
+            cs.raw("UncP2SteadyCost", fmt_cost_eng(uc_p2_steady_cost))
+            cs.num("UncCostSpikePct", uc_cost_spike_pct, digits=1)
+            cs.num("UncP2SteadyRewardShort", uc_p2_steady_reward, digits=3)
+
     return cs
 
 
@@ -288,7 +305,7 @@ def generate_failure_response_table(data: Dict[str, Any]) -> str:
     lines = [
         r"\begin{table}[t]",
         r"\centering",
-        rf"\caption{{Failure response across algorithm variants (Experiment~2,",
+        rf"\caption{{Failure response across algorithm variants (Experiment~3,",
         rf"{data['n_seeds']}~seeds).  Phase~1: normal operation; Phase~2:",
         rf"{failure_arm_short} catastrophic failure (reward $\to$ {data['failure_reward']:.2f},",
         r"cost $\to$ \$0); Phase~3: model restored.  \textbf{Bold} marks",

@@ -61,7 +61,7 @@ baseline:
 
 Usage::
 
-    python experiments/02_catastrophic_failure/run_catastrophic_failure.py
+    python experiments/03_catastrophic_failure/run_catastrophic_failure.py
 """
 
 from __future__ import annotations
@@ -780,7 +780,7 @@ def main() -> None:
     # Save
     # ------------------------------------------------------------------
     output: Dict[str, Any] = {
-        "experiment": "02_catastrophic_failure",
+        "experiment": "03_catastrophic_failure",
         "description": (
             "Three-phase catastrophic failure: normal → Mistral failure "
             "(reward→0.05, cost→$0) → recovery.  Phase 3 reuses Phase 1 "

@@ -35,7 +35,7 @@ def _import_exp03():
     mod_name = "_exp_run_budget_cost_drift"
     if mod_name in sys.modules:
         return sys.modules[mod_name]
-    exp_dir = PROJECT_ROOT / "experiments" / "03_budget_plus_drift"
+    exp_dir = PROJECT_ROOT / "experiments" / "02_budget_plus_drift"
     spec = importlib.util.spec_from_file_location(
         mod_name,
         exp_dir / "run_budget_cost_drift.py",

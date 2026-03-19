@@ -1,11 +1,11 @@
 \section{Results}
 \label{sec:results}
 
-We evaluate ParetoBandit across four escalating experiments, moving from stationary budget pacing to complex, non-stationary environments involving catastrophic model failure and cost drift.  Table~\ref{tab:main_results} summarises the headline budget compliance findings from Experiment~3.
+We evaluate ParetoBandit across four escalating experiments, moving from stationary budget pacing to complex, non-stationary environments involving cost drift and catastrophic model failure.  Table~\ref{tab:main_results} summarises the headline budget compliance findings from Experiment~2.
 
 \begin{table}[t]
 \centering
-\caption{Phase~1 budget utilisation under cost drift (Experiment~3; 20~seeds).  Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times$ indicate precise budget control.  ParetoBandit is the only condition that reliably meets the target across all budget regimes.}
+\caption{Phase~1 budget utilisation under cost drift (Experiment~2; 20~seeds).  Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times$ indicate precise budget control.  ParetoBandit is the only condition that reliably meets the target across all budget regimes.}
 \label{tab:main_results}
 \small
 \begin{tabular}{@{}llll@{}}
@@ -58,84 +58,10 @@ This asymmetry reflects the concave geometry of the Pareto frontier: both method
 \label{fig:model_mix}
 \end{figure}
 
-\subsection{Resilience to Catastrophic Model Failure}
-\label{sec:exp2_catastrophic_failure}
-
-We next evaluate the most severe non-stationarity a production router can face: a \emph{catastrophic model failure} where a previously top-performing model begins returning garbage responses.
-Cloud API outages, 5xx errors, timeout cascades, and silent quality degradation after provider-side model updates are routine in production multi-LLM deployments.
-When such a failure occurs, a static router continues sending traffic to the dead model---degrading user experience and wasting latency---until a human detects the problem, re-evaluates alternatives, and redeploys.
-We ask: \emph{can ParetoBandit detect a catastrophic failure through its reward signal alone, redistribute traffic across the remaining $K{>}2$ models, and maintain budget compliance throughout?}
-
-\paragraph{Setup.}
-We construct a three-phase scenario on the $K{=}3$ portfolio using the held-out test split ($n{=}\cfPhaseN$ prompts per phase):
-
-\begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Phase~1} (steps 1--\cfPhaseN): Normal operation.
-    All models are healthy; the router has converged via online training on the validation split.
-  \item \textbf{Phase~2} (steps \cfPhaseN--$2{\times}$\cfPhaseN): \textbf{Catastrophic failure}---Mistral-Large's reward drops to $\cfFailureReward$ (the API returns errors or garbage) and per-request cost drops to \$0 (the provider does not charge for failed requests).
-    The router must detect the quality collapse through its reward signal and redistribute traffic to Llama-8B and Gemini-Pro.
-  \item \textbf{Phase~3} (steps $2{\times}$\cfPhaseN--$3{\times}$\cfPhaseN): \textbf{Recovery}---Mistral-Large is restored to normal quality and pricing.
-    Phase~3 reuses Phase~1 prompts so that any P1-vs-P3 difference is attributable solely to the router's internal state, not prompt-sampling variability.
-\end{itemize}
-
-The model registry is \emph{not} mutated at phase boundaries: the router's internal cost penalty continues to reflect Mistral's normal pricing.
-Adaptation is driven purely by the observed reward signal, as it would be in production.
-
-\paragraph{Why these baselines.}
-Three algorithm variants are compared at each of three budget targets (Tight, Moderate, Loose), plus an unconstrained baseline (\cfNseeds~seeds):
-(1)~\textbf{Fixed Policy}: frozen warmup priors, static cost penalty, no online learning---the counterfactual that keeps routing to the dead model;
-(2)~\textbf{Naive Bandit ($\gamma{=}1.0$)}: online learning with infinite memory and a static cost penalty---the approach taken by existing bandit-based LLM routers~\cite{panda2025pilot,wang2025barp};
-(3)~\textbf{ParetoBandit ($\gamma{=}0.995$)}: geometric forgetting with an active BudgetPacer---the proposed method.
-
-\paragraph{Results (Figure~\ref{fig:catastrophic_failure}; Table~\ref{tab:failure_response}).}
-The three conditions produce starkly different failure responses:
-\begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy} cannot learn; it continues routing \cfFixedModPhaseTwoReward-quality traffic through Mistral at 61\% allocation (moderate budget), suffering the most severe reward collapse.
-    At the loose budget, where the static penalty favours Mistral most heavily, the Fixed Policy routes $70\%$ of traffic to the dead model, driving Phase~2 reward down to $\cfFixedLoosePhaseTwoReward$.
-  \item \textbf{Naive Bandit ($\gamma{=}1.0$)} detects the failure and reduces Mistral traffic, but without a BudgetPacer its budget explodes: the static cost penalty that was calibrated for Phase~1 pricing cannot adjust to the changed cost landscape.
-    At the moderate budget, the Naive Bandit overshoots by $\cfNaiveModPhaseTwoRatio$ in Phase~2 and $\cfNaiveModPhaseThreeRatio$ in Phase~3---a persistent budget violation that worsens over time as online learning shifts traffic toward expensive arms without cost feedback.
-  \item \textbf{ParetoBandit ($\gamma{=}0.995$)} detects the failure, redistributes traffic (Mistral drops to $\cfParetoBanditModMistralPhaseTwo\%$ at moderate budget), \emph{and} maintains budget compliance: $\cfParetoBanditModPhaseOneRatio$, $\cfParetoBanditModPhaseTwoRatio$, and $\cfParetoBanditModPhaseThreeRatio$ across the three phases.
-    The BudgetPacer's dual variable $\lambda_t$ adjusts automatically as the cost landscape changes, providing closed-loop cost control that the Naive Bandit's static penalty structurally cannot achieve.
-\end{itemize}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{figures/catastrophic_failure_dynamics.pdf}
-\caption{ParetoBandit adaptation dynamics under catastrophic model failure:
-normal $\to$ Mistral failure (reward $\to$ \cfFailureReward, cost $\to$ \$0, step~\cfPhaseN) $\to$
-recovered (step~$2{\times}$\cfPhaseN).
-$K{=}3$, \cfNseeds~seeds, 95\% bootstrap CI.
-\textbf{(a)}~Gemini-Pro selection fraction: the unconstrained baseline freely
-shifts ${\sim}80\%$ of traffic to expensive Gemini-Pro when Mistral fails, while
-budget-constrained conditions remain near zero---forced to absorb the failure
-via cheaper Llama-8B.
-\textbf{(b)}~Windowed mean reward (trailing 50~steps): the Gemini gap in~(a)
-explains the quality gap---unconstrained recovers to ${\sim}0.9$ during failure
-while constrained conditions dip more because Llama is lower quality.
-\textbf{(c)}~Windowed average cost per request; dotted lines mark budget targets.
-All three budget regimes maintain compliance ($0.97$--$1.03\times$) throughout
-the failure, while unconstrained cost spikes.
-See Table~\ref{tab:failure_response} for quantitative comparisons across algorithms.}
-\label{fig:catastrophic_failure}
-\end{figure*}
-
-\input{../experiments/02_catastrophic_failure/_autogen_table_failure_response.tex}
-
-\paragraph{Budget compliance is the key differentiator.}
-The most striking result is not the reward comparison but the budget compliance column in Table~\ref{tab:failure_response}.
-ParetoBandit maintains budget ratios within $0.97$--$1.03\times$ across \emph{all} nine phase--budget combinations.
-The Naive Bandit, despite detecting the failure and recovering reward, violates the budget by up to $\cfNaiveTightPhaseThreeRatio$ (tight, Phase~3)---a persistent overrun that grows linearly with traffic volume.
-This demonstrates that online learning alone is insufficient for budget-constrained non-stationary routing: the dual-variable mechanism is essential for maintaining cost invariance through disruptions.
-
-\paragraph{Recovery dynamics.}
-When Mistral is restored in Phase~3, the geometric forgetting factor ($\gamma{=}\cfGamma$) allows ParetoBandit to re-discover the recovered model via UCB exploration as the Phase~2 failure memory is discounted.
-Phase~3 reward approaches but does not fully match Phase~1 levels within the 608-step phase length---consistent with the ${\sim}200$-step effective memory window requiring time to accumulate sufficient positive evidence for Mistral.
-The BudgetPacer tracks this transition smoothly, with $\lambda_t$ adjusting to maintain compliance as the traffic mix evolves.
-
 \subsection{Budget Pacing under Cost Drift}
-\label{sec:exp3_cost_drift}
+\label{sec:exp2_cost_drift}
 
-We now introduce the most complex and realistic scenario: a three-phase cost drift while operating under strict budget constraints. The held-out test split ($n{=}1{,}824$) provides 1,216 unique prompts: 608 randomly-selected prompts for Phase~1 (normal pricing) and a disjoint set of 608 for Phase~2 (Gemini price drop to nearly zero). Phase~3 restores the original pricing and \emph{reuses the same 608 prompts as Phase~1}, making the P1-vs-P3 comparison a controlled within-subject design: any difference is attributable solely to the router's internal state (accumulated Phase~2 history), not prompt-sampling variability. With geometric forgetting $\gamma{=}0.995$, Phase~1 observations are down-weighted by $\gamma^{608}\approx 0.047$ by Phase~3, so the learner retains negligible memory of individual Phase~1 evaluations. The Fixed Policy (no online learning) serves as a null check---its P1 and P3 metrics are identical, confirming this control. We evaluate three budget regimes: Tight (\$0.0003/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
+We now evaluate the pacer's ability to track cost changes in real time: a three-phase cost drift while operating under strict budget constraints. The held-out test split ($n{=}1{,}824$) provides 1,216 unique prompts: 608 randomly-selected prompts for Phase~1 (normal pricing) and a disjoint set of 608 for Phase~2 (Gemini price drop to nearly zero). Phase~3 restores the original pricing and \emph{reuses the same 608 prompts as Phase~1}, making the P1-vs-P3 comparison a controlled within-subject design: any difference is attributable solely to the router's internal state (accumulated Phase~2 history), not prompt-sampling variability. With geometric forgetting $\gamma{=}0.995$, Phase~1 observations are down-weighted by $\gamma^{608}\approx 0.047$ by Phase~3, so the learner retains negligible memory of individual Phase~1 evaluations. The Fixed Policy (no online learning) serves as a null check---its P1 and P3 metrics are identical, confirming this control. We evaluate three budget regimes: Tight (\$0.0003/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
 
 \paragraph{Budget compliance is the key differentiator.}
 The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($\bdFixedTightPhaseOneRatio$ and $\bdFixedModPhaseOneRatio$) but massively over-spends at the loose budget ($\bdFixedLoosePhaseOneRatio$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it overshoots at tight ($\bdNaiveTightPhaseOneRatio$) and moderate ($\bdNaiveModPhaseOneRatio$), and over-spends by $\bdNaiveLoosePhaseOneRatio$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
@@ -169,29 +95,27 @@ This quality difference is the cost of non-stationarity robustness---validated h
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/adaptation_dynamics.pdf}
+\includegraphics[width=0.65\textwidth]{figures/adaptation_dynamics.pdf}
 \caption{ParetoBandit adaptation dynamics across a three-phase cost
 scenario: normal pricing $\to$ Gemini price drop (step~609) $\to$
 price restored (step~1217). $K{=}3$, 20~seeds, 95\% bootstrap CI.
-\textbf{(a)}~Windowed mean reward (trailing 50~steps): quality lifts during
-the price drop as the pacer exploits the newly cheap Gemini arm, then
-returns to Phase~1 levels after price restoration.
-\textbf{(b)}~The dual variable $\lambda_t$ decays in Phase~2 as
-costs fall below target, then rises back toward Phase~1 levels in
-Phase~3---demonstrating round-trip adaptation.
-\textbf{(c)}~Windowed average cost per request (trailing 50~steps);
-dotted lines mark budget targets.
+\textbf{(a)}~Gemini-Pro selection fraction: when Gemini becomes nearly free,
+the tight budget surges to ${\sim}70\%$ Gemini adoption while
+the unconstrained baseline reaches ${\sim}60\%$---the pacer exploits the
+price drop more aggressively at tight budgets because the residual
+$\lambda_t$ favours the now-cheapest arm.
+\textbf{(b)}~Windowed mean reward (trailing 50~steps): quality lifts during
+the price drop track the Gemini adoption in~(a), then return to Phase~1
+levels after price restoration.
+\textbf{(c)}~Windowed average cost per request; dotted lines mark budget targets.
 All three regimes recover budget compliance in Phase~3.
-Phase~3 reuses Phase~1 prompts so that any P1-vs-P3 difference is
-attributable to the router's state, not prompt sampling; the Fixed
-Policy's identical P1/P3 traces confirm this control.
 See Table~\ref{tab:budget_compliance} for quantitative comparisons.}
 \label{fig:adaptation_dynamics}
 \end{figure*}
 
 \begin{table}[t]
 \centering
-\caption{Budget compliance under cost drift (Experiment~3,
+\caption{Budget compliance under cost drift (Experiment~2,
 20~seeds, three phases).  Each cell shows realised average cost
 as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
@@ -230,10 +154,96 @@ In Phase~3, when original pricing is restored, $\lambda_t$ rises to ${\sim}0.51$
 This full round-trip---binding $\to$ slack $\to$ binding---demonstrates that the primal-dual mechanism adapts in both directions without operator intervention.
 The tight budget also exhibits the largest reward lift ($\Delta{=}+0.071$) because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 
+\subsection{Resilience to Catastrophic Model Failure}
+\label{sec:exp3_catastrophic_failure}
+
+Having established the pacer's precision under cost drift, we now stress-test the system against the most severe non-stationarity a production router can face: a \emph{catastrophic model failure} where a previously top-performing model begins returning garbage responses.
+Cloud API outages, 5xx errors, timeout cascades, and silent quality degradation after provider-side model updates are routine in production multi-LLM deployments.
+When such a failure occurs, a static router continues sending traffic to the dead model---degrading user experience and wasting latency---until a human detects the problem, re-evaluates alternatives, and redeploys.
+We ask: \emph{can ParetoBandit detect a catastrophic failure through its reward signal alone, redistribute traffic across the remaining $K{>}2$ models, and maintain budget compliance throughout?}
+
+\paragraph{Setup.}
+We construct a three-phase scenario on the $K{=}3$ portfolio using the held-out test split ($n{=}\cfPhaseN$ prompts per phase):
+
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Phase~1} (steps 1--\cfPhaseN): Normal operation.
+    All models are healthy; the router has converged via online training on the validation split.
+  \item \textbf{Phase~2} (steps \cfPhaseN--$2{\times}$\cfPhaseN): \textbf{Catastrophic failure}---Mistral-Large's reward drops to $\cfFailureReward$ (the API returns errors or garbage) and per-request cost drops to \$0 (the provider does not charge for failed requests).
+    The router must detect the quality collapse through its reward signal and redistribute traffic to Llama-8B and Gemini-Pro.
+  \item \textbf{Phase~3} (steps $2{\times}$\cfPhaseN--$3{\times}$\cfPhaseN): \textbf{Recovery}---Mistral-Large is restored to normal quality and pricing.
+    Phase~3 reuses Phase~1 prompts so that any P1-vs-P3 difference is attributable solely to the router's internal state, not prompt-sampling variability.
+\end{itemize}
+
+The model registry is \emph{not} mutated at phase boundaries: the router's internal cost penalty continues to reflect Mistral's normal pricing.
+Adaptation is driven purely by the observed reward signal, as it would be in production.
+
+\paragraph{Why these baselines.}
+Three algorithm variants are compared at each of three budget targets (Tight, Moderate, Loose), plus an unconstrained baseline (\cfNseeds~seeds):
+(1)~\textbf{Fixed Policy}: frozen warmup priors, static cost penalty, no online learning---the counterfactual that keeps routing to the dead model;
+(2)~\textbf{Naive Bandit ($\gamma{=}1.0$)}: online learning with infinite memory and a static cost penalty---the approach taken by existing bandit-based LLM routers~\cite{panda2025pilot,wang2025barp};
+(3)~\textbf{ParetoBandit ($\gamma{=}0.995$)}: geometric forgetting with an active BudgetPacer---the proposed method.
+
+\paragraph{Results (Figure~\ref{fig:catastrophic_failure}; Table~\ref{tab:failure_response}).}
+The three conditions produce starkly different failure responses:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Fixed Policy} cannot learn; it continues routing \cfFixedModPhaseTwoReward-quality traffic through Mistral at 61\% allocation (moderate budget), suffering the most severe reward collapse.
+    At the loose budget, where the static penalty favours Mistral most heavily, the Fixed Policy routes $70\%$ of traffic to the dead model, driving Phase~2 reward down to $\cfFixedLoosePhaseTwoReward$.
+  \item \textbf{Naive Bandit ($\gamma{=}1.0$)} detects the failure and reduces Mistral traffic, but without a BudgetPacer its budget explodes: the static cost penalty that was calibrated for Phase~1 pricing cannot adjust to the changed cost landscape.
+    At the moderate budget, the Naive Bandit overshoots by $\cfNaiveModPhaseTwoRatio$ in Phase~2 and $\cfNaiveModPhaseThreeRatio$ in Phase~3---a persistent budget violation that worsens over time as online learning shifts traffic toward expensive arms without cost feedback.
+  \item \textbf{ParetoBandit ($\gamma{=}0.995$)} detects the failure, redistributes traffic (Mistral drops to $\cfParetoBanditModMistralPhaseTwo\%$ at moderate budget), \emph{and} maintains budget compliance: $\cfParetoBanditModPhaseOneRatio$, $\cfParetoBanditModPhaseTwoRatio$, and $\cfParetoBanditModPhaseThreeRatio$ across the three phases.
+    The BudgetPacer's dual variable $\lambda_t$ adjusts automatically as the cost landscape changes, providing closed-loop cost control that the Naive Bandit's static penalty structurally cannot achieve.
+\end{itemize}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.65\textwidth]{figures/catastrophic_failure_dynamics.pdf}
+\caption{ParetoBandit adaptation dynamics under catastrophic model failure:
+normal $\to$ Mistral failure (reward $\to$ \cfFailureReward, cost $\to$ \$0, step~\cfPhaseN) $\to$
+recovered (step~$2{\times}$\cfPhaseN).
+$K{=}3$, \cfNseeds~seeds, 95\% bootstrap CI.
+\textbf{(a)}~Gemini-Pro selection fraction: the unconstrained baseline freely
+shifts ${\sim}80\%$ of traffic to expensive Gemini-Pro when Mistral fails, while
+budget-constrained conditions remain near zero---forced to absorb the failure
+via cheaper Llama-8B.
+\textbf{(b)}~Windowed mean reward (trailing 50~steps): the Gemini gap in~(a)
+explains the quality gap---unconstrained recovers to ${\sim}0.9$ during failure
+while constrained conditions dip more because Llama is lower quality.
+\textbf{(c)}~Windowed average cost per request; dotted lines mark budget targets.
+All three budget regimes maintain compliance ($0.97$--$1.03\times$) throughout
+the failure, while unconstrained cost spikes.
+See Table~\ref{tab:failure_response} for quantitative comparisons across algorithms.}
+\label{fig:catastrophic_failure}
+\end{figure*}
+
+\input{../experiments/03_catastrophic_failure/_autogen_table_failure_response.tex}
+
+\paragraph{Budget compliance is the key differentiator.}
+The most striking result is not the reward comparison but the budget compliance column in Table~\ref{tab:failure_response}.
+ParetoBandit maintains budget ratios within $0.97$--$1.03\times$ across \emph{all} nine phase--budget combinations.
+The Naive Bandit, despite detecting the failure and recovering reward, violates the budget by up to $\cfNaiveTightPhaseThreeRatio$ (tight, Phase~3)---a persistent overrun that grows linearly with traffic volume.
+This demonstrates that online learning alone is insufficient for budget-constrained non-stationary routing: the dual-variable mechanism is essential for maintaining cost invariance through disruptions.
+
+\paragraph{Adaptation dynamics and the cost--quality tradeoff.}
+Figure~\ref{fig:catastrophic_failure} reveals the mechanism behind budget compliance.
+When Mistral fails, reward collapses within ${\sim}\cfParetoBanditModTroughOffset$~steps as the 50-step trailing window fills with near-zero rewards.
+At moderate budget, the trough reaches $\cfParetoBanditModTroughReward$ (a $\cfParetoBanditModTroughDropPct\%$ drop), with deeper troughs at looser budgets ($\cfParetoBanditLooseTroughReward$, $-\cfParetoBanditLooseTroughDropPct\%$ for loose) because these conditions route more traffic to Mistral pre-failure.
+ParetoBandit detects the collapse and adapts: reward stabilises within ${\sim}\cfParetoBanditModAdaptSteps$~steps (moderate) to ${\sim}\cfParetoBanditLooseAdaptSteps$~steps (loose), reaching Phase~2 steady-state levels of $\cfParetoBanditModP2SteadyReward$--$\cfParetoBanditLooseP2SteadyReward$ across budget regimes.
+
+The unconstrained baseline reveals the cost of this stability.
+Without a BudgetPacer, the unconstrained router freely shifts ${\sim}80\%$ of traffic to Gemini-Pro---the remaining high-quality model---and recovers reward to $\cfUncP2SteadyRewardShort$ during the failure (Figure~\ref{fig:catastrophic_failure}a).
+However, this comes at a $+\cfUncCostSpikePct\%$ cost spike (\cfUncP1Cost/req $\to$ \cfUncP2SteadyCost/req; Figure~\ref{fig:catastrophic_failure}c).
+Budget-constrained conditions cannot follow this strategy: their BudgetPacer penalises expensive Gemini-Pro traffic, forcing adaptation through cheaper Llama-8B and yielding a $\cfParetoBanditModP2RewardGapPct$--$\cfParetoBanditLooseP2RewardGapPct\%$ quality gap relative to Phase~1.
+The tradeoff is principled: cost compliance costs ${\sim}10\%$ quality during a catastrophic failure, while the unconstrained alternative maintains quality at the price of a $45\%$ cost overrun---a budget violation that in production would breach SLAs and accumulate linearly with traffic volume.
+
+\paragraph{Recovery dynamics.}
+When Mistral is restored in Phase~3, the geometric forgetting factor ($\gamma{=}\cfGamma$) allows ParetoBandit to re-discover the recovered model via UCB exploration as the Phase~2 failure memory is discounted.
+Phase~3 reward approaches but does not fully match Phase~1 levels within the 608-step phase length---consistent with the ${\sim}200$-step effective memory window requiring time to accumulate sufficient positive evidence for Mistral.
+The BudgetPacer tracks this transition smoothly, with $\lambda_t$ adjusting to maintain compliance as the traffic mix evolves.
+
 \subsection{Hyperparameter Selection via Epsilon-Constraint}
 \label{sec:exp4_hparam_sweep}
 
-Selecting hyperparameters ($\alpha$, $n_\mathit{eff}$, $\gamma$) for a non-stationary router poses a fundamental tension: standard cross-validation maximises stationary quality and selects $\gamma{=}1.0$ (no forgetting) for both variants, yet Section~\ref{sec:exp2_catastrophic_failure} showed that infinite memory fails to adapt under distribution shift.  The core idea of our resolution is simple: first, identify all hyperparameter settings that route well under normal (stationary) conditions; then, among those near-optimal settings, pick the one that adapts fastest when the environment changes---avoiding the trap of optimising purely for stationary performance, which would select settings that catastrophically fail under drift.  We formalise this with the \textbf{epsilon-constraint method}, a principled bi-objective selection procedure.
+Selecting hyperparameters ($\alpha$, $n_\mathit{eff}$, $\gamma$) for a non-stationary router poses a fundamental tension: standard cross-validation maximises stationary quality and selects $\gamma{=}1.0$ (no forgetting) for both variants, yet Section~\ref{sec:exp3_catastrophic_failure} showed that infinite memory fails to adapt under distribution shift.  The core idea of our resolution is simple: first, identify all hyperparameter settings that route well under normal (stationary) conditions; then, among those near-optimal settings, pick the one that adapts fastest when the environment changes---avoiding the trap of optimising purely for stationary performance, which would select settings that catastrophically fail under drift.  We formalise this with the \textbf{epsilon-constraint method}, a principled bi-objective selection procedure.
 
 \paragraph{Two objectives.}
 Each configuration in the grid ($\hpGridAlpha \times \hpGridNeff \times \hpGridGamma$ values of $\alpha$, $n_\mathit{eff}$, $\gamma$) is scored on two metrics using the validation split:
