@@ -1,32 +1,32 @@
 \begin{table}[t]
 \centering
 \caption{Budget compliance under cost drift (Experiment~3,
-50~seeds).  Each cell shows realised average cost as a multiple
-of the budget target ($1.00\times$ = perfect).
+50~seeds, three phases).  Each cell shows realised average cost
+as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
 all methods' costs below target, regardless of algorithm.
 ParetoBandit is the only condition that reliably meets the target in
-Phase~1 ($0.98$--$1.00\times$).}
+Phase~1 and recovers compliance in Phase~3 after the price is restored.}
 \label{tab:budget_compliance}
 \small
-\begin{tabular}{@{}llcc@{}}
+\begin{tabular}{@{}llccc@{}}
 \toprule
 \textbf{Budget} & \textbf{Condition}
-  & \textbf{Phase~1} & \textbf{Phase~2} \\
+  & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
-\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy        & $0.53\times$ & $0.88\times^{\dagger}$ \\
-  & Naive Bandit        & $1.28\times$ & $0.88\times^{\dagger}$ \\
-  & Recalibrated        & $1.28\times$ & $\mathbf{0.98\times}$ \\
-  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.95\times}$ \\[3pt]
-\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
-  & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
-  & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\
-  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.51\times}^{\dagger}$ \\[3pt]
-\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy        & $2.62\times$ & $0.14\times^{\dagger}$ \\
-  & Naive Bandit        & $2.88\times$ & $0.14\times^{\dagger}$ \\
-  & Recalibrated        & $2.88\times$ & $0.18\times^{\dagger}$ \\
-  & \textbf{ParetoBandit}        & $\mathbf{0.98\times}$ & $\mathbf{0.18\times}^{\dagger}$ \\[3pt]
+\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy        & $0.51\times$ & $0.89\times^{\dagger}$ & $0.48\times$ \\
+  & Naive Bandit        & $1.44\times$ & $0.89\times^{\dagger}$ & $\mathbf{0.97\times}$ \\
+  & Recalibrated        & $1.44\times$ & $\mathbf{1.00\times}$ & $0.59\times$ \\
+  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.95\times}$ & $\mathbf{1.01\times}$ \\[3pt]
+\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy        & $0.46\times$ & $0.40\times^{\dagger}$ & $0.49\times$ \\
+  & Naive Bandit        & $1.17\times$ & $0.40\times^{\dagger}$ & $0.73\times$ \\
+  & Recalibrated        & $1.17\times$ & $0.45\times^{\dagger}$ & $0.83\times$ \\
+  & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.53\times}^{\dagger}$ & $\mathbf{1.01\times}$ \\[3pt]
+\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy        & $2.70\times$ & $0.14\times^{\dagger}$ & $2.24\times$ \\
+  & Naive Bandit        & $2.76\times$ & $0.14\times^{\dagger}$ & $2.60\times$ \\
+  & Recalibrated        & $2.76\times$ & $0.19\times^{\dagger}$ & $0.83\times$ \\
+  & \textbf{ParetoBandit}        & $\mathbf{0.97\times}$ & $\mathbf{0.19\times}^{\dagger}$ & $\mathbf{1.00\times}$ \\[3pt]
 \bottomrule
 \end{tabular}
 \end{table}

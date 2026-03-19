@@ -1,21 +1,23 @@
 \begin{figure*}[htbp]
     \centering
     \includegraphics[width=\linewidth]{../experiments/03_budget_plus_drift/results/adaptation_dynamics.pdf}
-    \caption{ParetoBandit dual-variable dynamics under a mid-stream
-    Gemini price drop (step~912; $K{=}3$, 50~seeds, 95\% bootstrap CI).
+    \caption{ParetoBandit adaptation dynamics across a three-phase cost
+    scenario: normal pricing $\to$ Gemini price drop (step~609)
+    $\to$ price restored (step~1217).
+    $K{=}3$, 50~seeds, 95\% bootstrap CI.
     %
-    \textbf{(a)}~The dual variable $\lambda_t$ decays at all three
-    budget levels after the price drop as costs fall below target;
-    the decay is fastest at loose and slowest at tight, where the
-    margin is narrowest.
+    \textbf{(a)}~The dual variable $\lambda_t$ decays in Phase~2 as
+    costs fall below target, then rises back toward Phase~1 levels in
+    Phase~3 when original pricing is restored---demonstrating
+    round-trip adaptation.
     %
-    \textbf{(b)}~Gemini selection fraction surges in Phase~2---tight
-    budget reaches ${\sim}68\%$, moderate/loose converge toward the
-    unconstrained baseline (dash-dot) at ${\sim}49$--$50\%$.
+    \textbf{(b)}~Gemini selection fraction surges in Phase~2
+    (tight budget reaches ${\sim}72\%$) and returns to near-zero in
+    Phase~3, mirroring the $\lambda_t$ signal.
     %
-    \textbf{(c)}~Running average cost per request; dotted lines
-    mark budget targets.
-    All three regimes exhibit the correct Lagrangian response.
+    \textbf{(c)}~Windowed average cost per request (trailing
+    50~steps); dotted lines mark budget targets.
+    All three regimes recover budget compliance in Phase~3.
     See Table~\ref{tab:budget_compliance} for quantitative
     compliance comparisons with baselines.
     }

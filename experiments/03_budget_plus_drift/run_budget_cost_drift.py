@@ -1,59 +1,33 @@
 #!/usr/bin/env python3
-"""Experiment 03: Budget Pacing Under Cost Drift.
+"""Experiment 03: Budget Pacing Under Cost Drift (Three-Phase).
 
-Demonstrates that the BudgetPacer automatically exploits a mid-stream
-model pricing change to improve routing quality while maintaining budget
-compliance --- the most production-relevant scenario for cost-constrained
-LLM routing.
+A three-phase experiment that tests whether the BudgetPacer adapts its
+routing behavior in both directions when model pricing changes and is
+subsequently restored.
 
 Experimental setup
 ------------------
-The pipeline follows a **train-then-evaluate** design (matching Exp 01):
+The pipeline follows the same train-then-evaluate design as earlier experiments.
 
-  **Train phase** (val split, 1,785 prompts): The router online-learns
-  under normal pricing.  No evaluation metrics are recorded.  This uses
-  the validation split (``VAL_DATA_PATH``), the same data Exp 04 uses
-  for hyperparameter tuning --- but here it serves only as a learning
-  stream, not an evaluation surface.
+  **Train phase** (val split, 1,785 prompts): Online learning under normal
+  pricing.  No evaluation metrics recorded.
 
-  **Evaluation phase** (holdout split, 1,824 prompts): The router is
-  evaluated on held-out data (``HOLDOUT_DATA_PATH``) that was never
-  used for hyperparameter selection:
+  **Evaluation phase** (holdout split, 1,824 prompts split into 3 × 608):
 
-    **Phase 1** (steps 1--912): Normal pricing.  Gemini-Pro is expensive
-    (normalized cost 0.67); the BudgetPacer enforces the dollar budget
-    target by raising lambda_t, which suppresses Gemini selection.
+    **Phase 1** (steps 1–608): Normal pricing.  Gemini-Pro is expensive;
+    the BudgetPacer raises λ_t to enforce the dollar budget.
 
-    **Phase 2** (steps 913--1824): **Gemini price drop** — pricing falls
-    to $0.10/$0.10 per million tokens (normalized cost ~0.0).  The router
-    registry is updated at the boundary.  The cost EMA should decline,
-    driving lambda_t downward and allowing Gemini routing.
+    **Phase 2** (steps 609–1216): **Gemini price drop** — pricing falls
+    to $0.10/$0.10 per million tokens.  λ_t should decline, allowing
+    more Gemini routing.
 
-Three budget targets span the constraint regime:
+    **Phase 3** (steps 1217–1824): **Price correction** — Gemini pricing
+    is restored to its original level.  The key question: does the pacer
+    re-raise λ_t and return to Phase 1-like routing?
 
-  - **Tight**    ($2.3 × 10⁻⁴ $/req): lambda high, Llama-heavy Phase 1
-  - **Moderate** ($6.6 × 10⁻⁴ $/req): mixed routing Phase 1
-  - **Loose**    ($1.9 × 10⁻³ $/req): light constraint Phase 1
-
-Per target, four conditions are compared, representing increasing
-levels of routing sophistication:
-
-  1. **Fixed Policy (offline)** — Warmup priors with a matched static
-     cost penalty but no online learning.  The dominant production
-     pattern: train offline, deploy, never update.
-  2. **Naive Bandit** — LinUCB with warmup priors, infinite memory
-     (γ=1.0), and a matched static cost penalty.  The obvious first
-     attempt at online routing — adapts, but Phase 1 inertia dilutes
-     Phase 2 signal, and has no principled budget mechanism.
-  3. **Recalibrated Bandit** — Same as Naive Bandit, but at the Phase 2
-     boundary the static cost penalty is re-tuned offline using the
-     validation split with Phase 2 pricing.  This isolates the value
-     of continuous online tracking (ParetoBandit) vs. stepwise offline
-     recalibration.
-  4. **ParetoBandit** — Warmup priors + geometric forgetting (γ=0.995) +
-     primal-dual BudgetPacer.  The full system.
-
-Plus one unconstrained baseline (cp=0, no pacer) for quality ceiling.
+Three budget targets (tight, moderate, loose) and four conditions
+(Fixed Policy, Naive Bandit, Recalibrated Bandit, ParetoBandit) plus
+an unconstrained baseline are tested.
 
 Usage:
     python experiments/03_budget_plus_drift/run_budget_cost_drift.py
@@ -116,12 +90,12 @@ GEMINI_NEW_INPUT_COST: float = GEMINI_COST_DROP["new_input_cost_per_m"]
 GEMINI_NEW_OUTPUT_COST: float = GEMINI_COST_DROP["new_output_cost_per_m"]
 
 N_SEEDS: int = 50
-SEED_OFFSET: int = 7000
+SEED_OFFSET: int = 8000
 RESULTS_DIR = Path(__file__).parent / "results"
 
-PHASE1_N: int = 912
-PHASE2_N: int = 912
-CHECKPOINT_INTERVAL: int = 25
+PHASE_N: int = 608
+N_PHASES: int = 3
+CHECKPOINT_INTERVAL: int = 20
 
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
@@ -139,9 +113,8 @@ MATCHED_STATIC_CPS: Dict[str, float] = {
     "loose": 0.10,
 }
 
-# Calibration sweep for the Recalibrated Bandit baseline.
 CAL_N_SEEDS: int = 10
-CAL_SEED_OFFSET: int = 9000
+CAL_SEED_OFFSET: int = 9500
 CAL_LAMBDA_CANDIDATES: List[float] = [
     0.0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0,
 ]
@@ -154,7 +127,7 @@ CAL_LAMBDA_CANDIDATES: List[float] = [
 
 @dataclass
 class StepRecord:
-    """Per-step metrics recorded during the two-phase stream."""
+    """Per-step metrics recorded during the three-phase stream."""
 
     step: int
     phase: int
@@ -200,7 +173,7 @@ class SeedResult:
 
 
 # ======================================================================
-# Data Loading (reused from Exp02b)
+# Data Loading
 # ======================================================================
 
 
@@ -290,17 +263,20 @@ def _create_router(
 
 
 # ======================================================================
-# Two-Phase Learning Curve
+# Three-Phase Learning Curve
 # ======================================================================
 
 
-def _run_two_phase_trial(
+def _run_three_phase_trial(
     *,
     condition_label: str,
     train_data: SplitData,
     phase1: SplitData,
     phase2: SplitData,
+    phase3: SplitData,
     registry: Dict[str, Any],
+    original_gemini_input: float,
+    original_gemini_output: float,
     feature_dim: int,
     cost_penalty: float,
     warmup: bool = True,
@@ -308,28 +284,29 @@ def _run_two_phase_trial(
     online_learn: bool = True,
     budget_pacer: Optional[BudgetPacer] = None,
     phase2_cost_penalty: Optional[float] = None,
+    phase3_cost_penalty: Optional[float] = None,
     seed: int,
 ) -> SeedResult:
-    """Run one seed through the train-then-evaluate cost-drift scenario.
+    """Run one seed through the three-phase cost correction scenario.
 
-    The trial has three stages:
-
-    1. **Train** (val split, normal pricing): online-learn without
-       recording metrics.  Skipped when ``online_learn=False``.
-    2. **Phase 1** (holdout split, normal pricing): evaluate and record.
-    3. **Phase 2** (holdout split, Gemini price drop): the registry is
-       updated at the boundary, then evaluate and record.
+    Stages:
+      1. **Train** (val split, normal pricing): online-learn, no metrics.
+      2. **Phase 1** (holdout, normal pricing): evaluate and record.
+      3. **Phase 2** (holdout, Gemini price drop): registry updated.
+      4. **Phase 3** (holdout, price correction): registry restored.
 
     Parameters
     ----------
     condition_label : str
         Human-readable condition name.
     train_data : SplitData
-        Validation split used for online learning (no metrics recorded).
-    phase1, phase2 : SplitData
+        Validation split for online learning (no metrics recorded).
+    phase1, phase2, phase3 : SplitData
         Holdout evaluation data for each phase.
     registry : dict
-        Original model registry (Phase 1 pricing).
+        Original model registry (Phase 1 / Phase 3 pricing).
+    original_gemini_input, original_gemini_output : float
+        Original Gemini pricing ($/M tokens) to restore in Phase 3.
     feature_dim : int
         Context vector dimensionality.
     cost_penalty : float
@@ -339,13 +316,13 @@ def _run_two_phase_trial(
     forgetting_factor : float
         Fixed forgetting factor.
     online_learn : bool
-        If False, the policy is frozen at deployment — ``process_feedback``
-        is never called and the train phase is skipped.
+        If False, the policy is frozen (no ``process_feedback``).
     budget_pacer : BudgetPacer or None
         Budget pacer instance (reset before each seed).
     phase2_cost_penalty : float or None
-        If provided, the router's ``cost_penalty`` is updated to this value
-        at the Phase 2 boundary — simulating periodic offline recalibration.
+        If provided, router's ``cost_penalty`` is updated at Phase 2 boundary.
+    phase3_cost_penalty : float or None
+        If provided, router's ``cost_penalty`` is updated at Phase 3 boundary.
     seed : int
         Random seed for prompt ordering.
 
@@ -368,7 +345,6 @@ def _run_two_phase_trial(
         budget_pacer=budget_pacer,
     )
 
-    # --- Train phase (val split, normal pricing, no metrics) ---
     if online_learn:
         train_order = rng.permutation(train_data.n)
         for i in train_order:
@@ -377,16 +353,18 @@ def _run_two_phase_trial(
             log.cost_usd = float(train_data.costs[model][i])
             router.process_feedback(log.request_id, reward=reward)
 
-    # --- Eval phases (holdout split) ---
     n_p1 = phase1.n
     n_p2 = phase2.n
+    n_p3 = phase3.n
 
     p1_order = rng.permutation(n_p1)
     p2_order = rng.permutation(n_p2)
+    p3_order = rng.permutation(n_p3)
 
     all_emb = np.concatenate([
         phase1.embeddings[p1_order],
         phase2.embeddings[p2_order],
+        phase3.embeddings[p3_order],
     ], axis=0)
 
     all_rewards: Dict[str, np.ndarray] = {}
@@ -395,27 +373,51 @@ def _run_two_phase_trial(
         all_rewards[arm] = np.concatenate([
             phase1.rewards[arm][p1_order],
             phase2.rewards[arm][p2_order],
+            phase3.rewards[arm][p3_order],
         ])
         all_costs[arm] = np.concatenate([
             phase1.costs[arm][p1_order],
             phase2.costs[arm][p2_order],
+            phase3.costs[arm][p3_order],
         ])
 
     result = SeedResult(condition=condition_label, seed=seed)
-    registry_updated = False
+    p2_boundary = n_p1
+    p3_boundary = n_p1 + n_p2
+    n_total = n_p1 + n_p2 + n_p3
 
-    for t in range(n_p1 + n_p2):
-        if t == n_p1 and not registry_updated:
+    registry_phase2_applied = False
+    registry_phase3_applied = False
+
+    for t in range(n_total):
+        # Phase 2 boundary: apply price drop
+        if t == p2_boundary and not registry_phase2_applied:
             gemini_reg = router.registry[GEMINI_ID]
             gemini_reg["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
             gemini_reg["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
             gemini_reg.pop("blended_cost_per_m", None)
             router._resolve_registry_costs()
-            registry_updated = True
+            registry_phase2_applied = True
             if phase2_cost_penalty is not None:
                 router.cost_penalty = phase2_cost_penalty
 
-        phase = 1 if t < n_p1 else 2
+        # Phase 3 boundary: restore original pricing
+        if t == p3_boundary and not registry_phase3_applied:
+            gemini_reg = router.registry[GEMINI_ID]
+            gemini_reg["input_cost_per_m"] = original_gemini_input
+            gemini_reg["output_cost_per_m"] = original_gemini_output
+            gemini_reg.pop("blended_cost_per_m", None)
+            router._resolve_registry_costs()
+            registry_phase3_applied = True
+            if phase3_cost_penalty is not None:
+                router.cost_penalty = phase3_cost_penalty
+
+        if t < p2_boundary:
+            phase = 1
+        elif t < p3_boundary:
+            phase = 2
+        else:
+            phase = 3
 
         emb = all_emb[t]
         model, log = router.route(emb)
@@ -449,35 +451,29 @@ def _run_two_phase_trial(
 # ======================================================================
 
 
-def _calibrate_phase2_cp(
+def _calibrate_phase_cp(
     train_data: SplitData,
-    cal_data_phase2: SplitData,
+    cal_data: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
     original_cp: float,
     budget_target: float,
+    gemini_input: float,
+    gemini_output: float,
     n_cal_seeds: int = CAL_N_SEEDS,
     candidates: Optional[List[float]] = None,
 ) -> float:
-    """Find the static cost penalty that best tracks *budget_target* under Phase 2 pricing.
+    """Find the static cost penalty that best tracks *budget_target* under given pricing.
 
-    Simulates periodic offline recalibration: after observing a price change
-    an operator re-tunes the static cost penalty on a dev set with updated
-    pricing.  The candidate that minimises ``|mean_cost − target|`` wins.
-
-    The calibration trains a Naive Bandit (γ=1.0) on the validation split
-    under normal pricing, then — for each candidate λ — deep-copies the
-    trained router, applies the price drop, sets ``cost_penalty = λ``, and
-    evaluates on the **same** validation split with Phase 2 pricing.
-    Using the validation split for both training and calibration is
-    standard dev-set practice and avoids any leakage from the holdout set.
+    Generalizes the Phase 2 calibration from Exp 03 to work with arbitrary
+    target pricing (used for both Phase 2 and Phase 3 recalibration).
 
     Parameters
     ----------
     train_data : SplitData
-        Validation split under **original** pricing (used for online training).
-    cal_data_phase2 : SplitData
-        Validation split with **Phase 2** Gemini pricing applied.
+        Validation split under **original** pricing (for online training).
+    cal_data : SplitData
+        Validation split with **target** pricing applied.
     registry : dict
         Original model registry (Phase 1 pricing).
     feature_dim : int
@@ -486,15 +482,17 @@ def _calibrate_phase2_cp(
         Static cost penalty used during Phase 1 training.
     budget_target : float
         Dollar budget target per request.
+    gemini_input, gemini_output : float
+        Gemini pricing to apply in the calibration registry.
     n_cal_seeds : int
         Number of calibration seeds.
     candidates : list[float] or None
-        Candidate λ values to sweep.
+        Candidate cost penalty values to sweep.
 
     Returns
     -------
     float
-        Cost penalty for Phase 2 that best tracks the budget target.
+        Cost penalty for the target phase that best tracks the budget.
     """
     if candidates is None:
         candidates = CAL_LAMBDA_CANDIDATES
@@ -521,26 +519,26 @@ def _calibrate_phase2_cp(
                 log.request_id, reward=float(train_data.rewards[model][i])
             )
 
-        cal_order = rng.permutation(cal_data_phase2.n)
+        cal_order = rng.permutation(cal_data.n)
 
         for cp_candidate in candidates:
             router = copy.deepcopy(base_router)
 
             gemini_reg = router.registry[GEMINI_ID]
-            gemini_reg["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
-            gemini_reg["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
+            gemini_reg["input_cost_per_m"] = gemini_input
+            gemini_reg["output_cost_per_m"] = gemini_output
             gemini_reg.pop("blended_cost_per_m", None)
             router._resolve_registry_costs()
             router.cost_penalty = cp_candidate
 
             costs: List[float] = []
             for i in cal_order:
-                model, log = router.route(cal_data_phase2.embeddings[i])
-                cost = float(cal_data_phase2.costs[model][i])
+                model, log = router.route(cal_data.embeddings[i])
+                cost = float(cal_data.costs[model][i])
                 log.cost_usd = cost
                 router.process_feedback(
                     log.request_id,
-                    reward=float(cal_data_phase2.rewards[model][i]),
+                    reward=float(cal_data.rewards[model][i]),
                 )
                 costs.append(cost)
 
@@ -558,7 +556,7 @@ def _calibrate_phase2_cp(
             best_gap = gap
             best_cp = cp_candidate
 
-    logger.info("  → Best Phase 2 λ = %.3f (gap=$%.2e)", best_cp, best_gap)
+    logger.info("  → Best λ = %.3f (gap=$%.2e)", best_cp, best_gap)
     return best_cp
 
 
@@ -572,11 +570,9 @@ def _build_conditions(
     budget_label: str,
     matched_cp: float,
     recalibrated_phase2_cp: float,
+    recalibrated_phase3_cp: float,
 ) -> List[Dict[str, Any]]:
     """Build four conditions for a given budget target.
-
-    The conditions represent increasing routing sophistication:
-    Fixed Policy → Naive Bandit → Recalibrated Bandit → ParetoBandit.
 
     Parameters
     ----------
@@ -588,6 +584,8 @@ def _build_conditions(
         Static cost penalty that produces similar Phase 1 spend.
     recalibrated_phase2_cp : float
         Cost penalty recalibrated offline for Phase 2 pricing.
+    recalibrated_phase3_cp : float
+        Cost penalty recalibrated offline for Phase 3 pricing (restored).
 
     Returns
     -------
@@ -603,6 +601,7 @@ def _build_conditions(
             "forgetting_factor": 1.0,
             "online_learn": False,
             "phase2_cost_penalty": None,
+            "phase3_cost_penalty": None,
         },
         {
             "label": f"Naive Bandit ({budget_label})",
@@ -612,6 +611,7 @@ def _build_conditions(
             "forgetting_factor": 1.0,
             "online_learn": True,
             "phase2_cost_penalty": None,
+            "phase3_cost_penalty": None,
         },
         {
             "label": f"Recalibrated ({budget_label})",
@@ -621,6 +621,7 @@ def _build_conditions(
             "forgetting_factor": 1.0,
             "online_learn": True,
             "phase2_cost_penalty": recalibrated_phase2_cp,
+            "phase3_cost_penalty": recalibrated_phase3_cp,
         },
         {
             "label": f"ParetoBandit ({budget_label})",
@@ -630,6 +631,7 @@ def _build_conditions(
             "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
             "online_learn": True,
             "phase2_cost_penalty": None,
+            "phase3_cost_penalty": None,
         },
     ]
 
@@ -641,7 +643,7 @@ def _build_conditions(
 
 def _aggregate_seeds(
     seed_results: List[SeedResult],
-    n_p1: int,
+    phase_boundaries: List[int],
 ) -> Dict[str, Any]:
     """Aggregate per-seed results into checkpoint curves and phase summaries.
 
@@ -649,8 +651,9 @@ def _aggregate_seeds(
     ----------
     seed_results : list[SeedResult]
         Results from each seed for one condition.
-    n_p1 : int
-        Number of steps in Phase 1 (for phase boundary).
+    phase_boundaries : list[int]
+        Step counts where each phase ends (cumulative).
+        E.g. [608, 1216, 1824] for three 608-step phases.
 
     Returns
     -------
@@ -666,12 +669,18 @@ def _aggregate_seeds(
         + [n_total]
     ))
 
+    def _step_to_phase_label(step: int) -> str:
+        if step <= phase_boundaries[0]:
+            return "normal"
+        elif step <= phase_boundaries[1]:
+            return "price-drop"
+        else:
+            return "price-restored"
+
     curves: List[Dict[str, Any]] = []
     for cp_step in checkpoints:
         lambdas, cost_emas, gammas = [], [], []
         arm_frac_lists: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
-        rewards_agg, costs_agg = [], []
-
         avg_costs: List[float] = []
 
         for sr in seed_results:
@@ -680,9 +689,8 @@ def _aggregate_seeds(
             lambdas.append(last.lambda_t)
             cost_emas.append(last.cost_ema)
             gammas.append(last.gamma)
-            rewards_agg.append(last.reward)
-            costs_agg.append(last.cost)
-            avg_costs.append(float(np.mean([s.cost for s in steps_so_far])))
+            cost_window = steps_so_far[-min(50, len(steps_so_far)):]
+            avg_costs.append(float(np.mean([s.cost for s in cost_window])))
 
             arm_counts: Dict[str, int] = {a: 0 for a in ARM_ORDER}
             window = steps_so_far[-min(50, len(steps_so_far)):]
@@ -707,8 +715,8 @@ def _aggregate_seeds(
 
         curves.append({
             "step": cp_step,
-            "phase": "normal" if cp_step <= n_p1 else "price-drop",
-            "phase_boundary": n_p1,
+            "phase": _step_to_phase_label(cp_step),
+            "phase_boundaries": phase_boundaries,
             "mean_lambda": float(np.mean(lambdas)),
             "std_lambda": float(np.std(lambdas)),
             "per_seed_lambda": [float(l) for l in lambdas],
@@ -716,43 +724,43 @@ def _aggregate_seeds(
             "std_cost_ema": float(np.std(cost_emas)),
             "mean_gamma": float(np.mean(gammas)),
             "std_gamma": float(np.std(gammas)),
-            "mean_avg_cost": float(np.mean(avg_costs)),
-            "std_avg_cost": float(np.std(avg_costs)),
-            "per_seed_avg_cost": [float(c) for c in avg_costs],
+            "mean_window_cost": float(np.mean(avg_costs)),
+            "std_window_cost": float(np.std(avg_costs)),
+            "per_seed_window_cost": [float(c) for c in avg_costs],
             "arm_fractions": arm_fracs,
             "arm_fractions_std": arm_fracs_std,
             "per_seed_arm_fractions": per_seed_arm_fracs,
             "n_seeds": n_seeds,
         })
 
-    phase1_metrics = [sr.phase_metrics(1) for sr in seed_results]
-    phase2_metrics = [sr.phase_metrics(2) for sr in seed_results]
+    phase_summaries: Dict[str, Dict[str, Any]] = {}
+    for p in (1, 2, 3):
+        p_metrics = [sr.phase_metrics(p) for sr in seed_results]
+        if not p_metrics or not p_metrics[0]:
+            continue
+        phase_summaries[f"phase{p}_summary"] = {
+            "mean_reward": float(np.mean([m["mean_reward"] for m in p_metrics])),
+            "mean_cost": float(np.mean([m["mean_cost"] for m in p_metrics])),
+            "mean_lambda": float(np.mean([m["mean_lambda"] for m in p_metrics])),
+            "arm_fractions": {
+                ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in p_metrics]))
+                for a in ARM_ORDER
+            },
+        }
+
+    per_seed_data: Dict[str, List[float]] = {}
+    for p in (1, 2, 3):
+        p_metrics = [sr.phase_metrics(p) for sr in seed_results]
+        if not p_metrics or not p_metrics[0]:
+            continue
+        per_seed_data[f"per_seed_phase{p}_reward"] = [m["mean_reward"] for m in p_metrics]
+        per_seed_data[f"per_seed_phase{p}_cost"] = [m["mean_cost"] for m in p_metrics]
 
     return {
         "label": seed_results[0].condition,
         "curves": curves,
-        "phase1_summary": {
-            "mean_reward": float(np.mean([m["mean_reward"] for m in phase1_metrics])),
-            "mean_cost": float(np.mean([m["mean_cost"] for m in phase1_metrics])),
-            "mean_lambda": float(np.mean([m["mean_lambda"] for m in phase1_metrics])),
-            "arm_fractions": {
-                ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in phase1_metrics]))
-                for a in ARM_ORDER
-            },
-        },
-        "phase2_summary": {
-            "mean_reward": float(np.mean([m["mean_reward"] for m in phase2_metrics])),
-            "mean_cost": float(np.mean([m["mean_cost"] for m in phase2_metrics])),
-            "mean_lambda": float(np.mean([m["mean_lambda"] for m in phase2_metrics])),
-            "arm_fractions": {
-                ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in phase2_metrics]))
-                for a in ARM_ORDER
-            },
-        },
-        "per_seed_phase1_reward": [m["mean_reward"] for m in phase1_metrics],
-        "per_seed_phase2_reward": [m["mean_reward"] for m in phase2_metrics],
-        "per_seed_phase1_cost": [m["mean_cost"] for m in phase1_metrics],
-        "per_seed_phase2_cost": [m["mean_cost"] for m in phase2_metrics],
+        **phase_summaries,
+        **per_seed_data,
     }
 
 
@@ -766,8 +774,6 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info("Loading K=3 data ...")
-    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
-    # only .transform() is called during evaluation (no leakage).
     fs = FeatureService()
     feature_dim = fs.dimension
 
@@ -775,25 +781,19 @@ def main() -> None:
     test_all = _load_all(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
 
     logger.info("  Train (val): %d prompts — online learning, no eval", train_all.n)
-    logger.info("  Eval (holdout): %d prompts — Phase 1 + Phase 2", test_all.n)
+    logger.info("  Eval (holdout): %d prompts — 3 phases × %d", test_all.n, PHASE_N)
 
     rng_global = np.random.default_rng(42)
     all_indices = rng_global.permutation(test_all.n)
-    p1_indices = all_indices[:PHASE1_N]
-    p2_indices = all_indices[PHASE1_N : PHASE1_N + PHASE2_N]
+    p1_idx = all_indices[:PHASE_N]
+    p2_idx = all_indices[PHASE_N:2 * PHASE_N]
+    p3_idx = all_indices[2 * PHASE_N:3 * PHASE_N]
 
     phase1 = SplitData(
-        prompts=[test_all.prompts[i] for i in p1_indices],
-        rewards={a: test_all.rewards[a][p1_indices] for a in ARM_ORDER},
-        costs={a: test_all.costs[a][p1_indices] for a in ARM_ORDER},
-        embeddings=test_all.embeddings[p1_indices],
-    )
-
-    phase2_raw = SplitData(
-        prompts=[test_all.prompts[i] for i in p2_indices],
-        rewards={a: test_all.rewards[a][p2_indices] for a in ARM_ORDER},
-        costs={a: test_all.costs[a][p2_indices] for a in ARM_ORDER},
-        embeddings=test_all.embeddings[p2_indices],
+        prompts=[test_all.prompts[i] for i in p1_idx],
+        rewards={a: test_all.rewards[a][p1_idx] for a in ARM_ORDER},
+        costs={a: test_all.costs[a][p1_idx] for a in ARM_ORDER},
+        embeddings=test_all.embeddings[p1_idx],
     )
 
     registry = build_model_registry(ARM_ORDER)
@@ -801,14 +801,30 @@ def main() -> None:
     old_input = gemini_meta["input_cost_per_m"]
     old_output = gemini_meta["output_cost_per_m"]
 
+    phase2_raw = SplitData(
+        prompts=[test_all.prompts[i] for i in p2_idx],
+        rewards={a: test_all.rewards[a][p2_idx] for a in ARM_ORDER},
+        costs={a: test_all.costs[a][p2_idx] for a in ARM_ORDER},
+        embeddings=test_all.embeddings[p2_idx],
+    )
     phase2 = _apply_gemini_cost_reduction(
         phase2_raw, GEMINI_ID,
         old_input, old_output,
         GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
     )
 
+    # Phase 3 uses original pricing (same as Phase 1)
+    phase3 = SplitData(
+        prompts=[test_all.prompts[i] for i in p3_idx],
+        rewards={a: test_all.rewards[a][p3_idx] for a in ARM_ORDER},
+        costs={a: test_all.costs[a][p3_idx] for a in ARM_ORDER},
+        embeddings=test_all.embeddings[p3_idx],
+    )
+
+    phase_boundaries = [PHASE_N, 2 * PHASE_N, 3 * PHASE_N]
+
     # ------------------------------------------------------------------
-    # Calibrate Phase 2 cost penalties for the Recalibrated Bandit
+    # Calibrate cost penalties for Recalibrated Bandit
     # ------------------------------------------------------------------
     train_phase2 = _apply_gemini_cost_reduction(
         train_all, GEMINI_ID,
@@ -816,22 +832,41 @@ def main() -> None:
         GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
     )
 
-    recalibrated_cps: Dict[str, float] = {}
+    recalibrated_phase2_cps: Dict[str, float] = {}
+    recalibrated_phase3_cps: Dict[str, float] = {}
     for target, blabel in zip(BUDGET_TARGETS, BUDGET_LABELS):
         matched_cp = MATCHED_STATIC_CPS[blabel]
+
         logger.info(
             "\nCalibrating Phase 2 λ for %s (target=$%.2e) ...", blabel, target,
         )
-        recalibrated_cps[blabel] = _calibrate_phase2_cp(
+        recalibrated_phase2_cps[blabel] = _calibrate_phase_cp(
             train_data=train_all,
-            cal_data_phase2=train_phase2,
+            cal_data=train_phase2,
             registry=registry,
             feature_dim=feature_dim,
             original_cp=matched_cp,
             budget_target=target,
+            gemini_input=GEMINI_NEW_INPUT_COST,
+            gemini_output=GEMINI_NEW_OUTPUT_COST,
         )
 
-    logger.info("\nRecalibrated Phase 2 cost penalties: %s", recalibrated_cps)
+        logger.info(
+            "\nCalibrating Phase 3 λ for %s (target=$%.2e) ...", blabel, target,
+        )
+        recalibrated_phase3_cps[blabel] = _calibrate_phase_cp(
+            train_data=train_all,
+            cal_data=train_all,
+            registry=registry,
+            feature_dim=feature_dim,
+            original_cp=matched_cp,
+            budget_target=target,
+            gemini_input=old_input,
+            gemini_output=old_output,
+        )
+
+    logger.info("\nRecalibrated Phase 2 cost penalties: %s", recalibrated_phase2_cps)
+    logger.info("Recalibrated Phase 3 cost penalties: %s", recalibrated_phase3_cps)
 
     # ------------------------------------------------------------------
     # Run all conditions
@@ -841,7 +876,9 @@ def main() -> None:
     for target, blabel in zip(BUDGET_TARGETS, BUDGET_LABELS):
         matched_cp = MATCHED_STATIC_CPS[blabel]
         conditions = _build_conditions(
-            target, blabel, matched_cp, recalibrated_cps[blabel],
+            target, blabel, matched_cp,
+            recalibrated_phase2_cps[blabel],
+            recalibrated_phase3_cps[blabel],
         )
 
         for cond in conditions:
@@ -861,12 +898,15 @@ def main() -> None:
             seed_results: List[SeedResult] = []
             for s in range(N_SEEDS):
                 seed = SEED_OFFSET + s
-                sr = _run_two_phase_trial(
+                sr = _run_three_phase_trial(
                     condition_label=label,
                     train_data=train_all,
                     phase1=phase1,
                     phase2=phase2,
+                    phase3=phase3,
                     registry=registry,
+                    original_gemini_input=old_input,
+                    original_gemini_output=old_output,
                     feature_dim=feature_dim,
                     cost_penalty=cond["cost_penalty"],
                     warmup=cond["warmup"],
@@ -874,39 +914,38 @@ def main() -> None:
                     online_learn=cond.get("online_learn", True),
                     budget_pacer=pacer,
                     phase2_cost_penalty=cond.get("phase2_cost_penalty"),
+                    phase3_cost_penalty=cond.get("phase3_cost_penalty"),
                     seed=seed,
                 )
                 seed_results.append(sr)
 
-            agg = _aggregate_seeds(seed_results, PHASE1_N)
+            agg = _aggregate_seeds(seed_results, phase_boundaries)
             all_condition_results[label] = agg
 
-            logger.info(
-                "  Phase 1: reward=%.4f  cost=$%.6f  λ=%.3f  arm=%s",
-                agg["phase1_summary"]["mean_reward"],
-                agg["phase1_summary"]["mean_cost"],
-                agg["phase1_summary"]["mean_lambda"],
-                agg["phase1_summary"]["arm_fractions"],
-            )
-            logger.info(
-                "  Phase 2: reward=%.4f  cost=$%.6f  λ=%.3f  arm=%s",
-                agg["phase2_summary"]["mean_reward"],
-                agg["phase2_summary"]["mean_cost"],
-                agg["phase2_summary"]["mean_lambda"],
-                agg["phase2_summary"]["arm_fractions"],
-            )
+            for p in (1, 2, 3):
+                key = f"phase{p}_summary"
+                if key in agg:
+                    summ = agg[key]
+                    logger.info(
+                        "  Phase %d: reward=%.4f  cost=$%.6f  λ=%.3f  arm=%s",
+                        p, summ["mean_reward"], summ["mean_cost"],
+                        summ["mean_lambda"], summ["arm_fractions"],
+                    )
 
     # Unconstrained baseline
     logger.info("\n=== Unconstrained (cp=0) ===")
     unconstrained_seeds: List[SeedResult] = []
     for s in range(N_SEEDS):
         seed = SEED_OFFSET + s
-        sr = _run_two_phase_trial(
+        sr = _run_three_phase_trial(
             condition_label="Unconstrained",
             train_data=train_all,
             phase1=phase1,
             phase2=phase2,
+            phase3=phase3,
             registry=registry,
+            original_gemini_input=old_input,
+            original_gemini_output=old_output,
             feature_dim=feature_dim,
             cost_penalty=0.0,
             warmup=True,
@@ -916,7 +955,7 @@ def main() -> None:
         )
         unconstrained_seeds.append(sr)
 
-    unconstrained_agg = _aggregate_seeds(unconstrained_seeds, PHASE1_N)
+    unconstrained_agg = _aggregate_seeds(unconstrained_seeds, phase_boundaries)
     all_condition_results["Unconstrained"] = unconstrained_agg
 
     # ------------------------------------------------------------------
@@ -924,19 +963,27 @@ def main() -> None:
     # ------------------------------------------------------------------
     output: Dict[str, Any] = {
         "experiment": "03_budget_plus_drift",
+        "description": (
+            "Three-phase cost drift: normal pricing → Gemini price drop → "
+            "pricing restored. Tests budget pacing adaptation in both directions."
+        ),
         "arm_order": ARM_ORDER,
         "arm_short": ARM_SHORT,
         "cost_shift_model": GEMINI_ID,
-        "gemini_new_input_cost": GEMINI_NEW_INPUT_COST,
-        "gemini_new_output_cost": GEMINI_NEW_OUTPUT_COST,
+        "gemini_original_input_cost": old_input,
+        "gemini_original_output_cost": old_output,
+        "gemini_drop_input_cost": GEMINI_NEW_INPUT_COST,
+        "gemini_drop_output_cost": GEMINI_NEW_OUTPUT_COST,
         "n_seeds": N_SEEDS,
         "seed_offset": SEED_OFFSET,
-        "phase1_n": PHASE1_N,
-        "phase2_n": PHASE2_N,
+        "phase_n": PHASE_N,
+        "n_phases": N_PHASES,
+        "phase_boundaries": phase_boundaries,
         "budget_targets": BUDGET_TARGETS,
         "budget_labels": BUDGET_LABELS,
         "matched_static_cps": MATCHED_STATIC_CPS,
-        "recalibrated_phase2_cps": recalibrated_cps,
+        "recalibrated_phase2_cps": recalibrated_phase2_cps,
+        "recalibrated_phase3_cps": recalibrated_phase3_cps,
         "cal_n_seeds": CAL_N_SEEDS,
         "cal_lambda_candidates": CAL_LAMBDA_CANDIDATES,
         "pacer_lr": PACER_LR,
@@ -958,24 +1005,27 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Summary
     # ------------------------------------------------------------------
-    logger.info("\n" + "=" * 100)
-    logger.info("EXPERIMENT 03: BUDGET + COST DRIFT — Summary")
-    logger.info("=" * 100)
+    logger.info("\n" + "=" * 120)
+    logger.info("EXPERIMENT 03: BUDGET + COST DRIFT — Summary (3 phases: normal → price-drop → restored)")
+    logger.info("=" * 120)
     logger.info(
-        "  %-35s  %8s  %8s  %8s  %8s",
-        "Condition", "P1 Rwd", "P2 Rwd", "P1 λ", "P2 λ",
+        "  %-35s  %8s  %8s  %8s  %8s  %8s  %8s",
+        "Condition", "P1 Rwd", "P2 Rwd", "P3 Rwd", "P1 λ", "P2 λ", "P3 λ",
     )
-    logger.info("  " + "-" * 80)
+    logger.info("  " + "-" * 100)
     for label, agg in all_condition_results.items():
-        p1 = agg["phase1_summary"]
-        p2 = agg["phase2_summary"]
+        vals = []
+        for p in (1, 2, 3):
+            key = f"phase{p}_summary"
+            if key in agg:
+                vals.extend([agg[key]["mean_reward"], agg[key]["mean_lambda"]])
+            else:
+                vals.extend([0.0, 0.0])
         logger.info(
-            "  %-35s  %8.4f  %8.4f  %8.3f  %8.3f",
-            label,
-            p1["mean_reward"], p2["mean_reward"],
-            p1["mean_lambda"], p2["mean_lambda"],
+            "  %-35s  %8.4f  %8.4f  %8.4f  %8.3f  %8.3f  %8.3f",
+            label, vals[0], vals[2], vals[4], vals[1], vals[3], vals[5],
         )
-    logger.info("=" * 100)
+    logger.info("=" * 120)
     logger.info("Wall time: %.1fs", time.time() - t0)
 
 

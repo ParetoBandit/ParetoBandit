@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Generate figures for Experiment 03: Budget Pacing Under Cost Drift.
+"""Generate figures for Experiment 03: Budget Pacing Under Cost Drift (Three-Phase).
 
 Reads ``results/budget_cost_drift_results.json`` and produces:
 
 ``adaptation_dynamics.pdf/.png``:
-  1x3 panel showing ParetoBandit-only adaptation mechanics
-  (λ_t, Gemini fraction, running cost) across three budget levels.
+  1x3 panel showing adaptation dynamics across three phases
+  (normal → price drop → price restored) for ParetoBandit at each budget level.
+
+  (a) Dual Variable λ_t — shows whether the pacer re-raises λ in Phase 3.
+  (b) Gemini-Pro Selection Fraction — shows whether Gemini usage drops back.
+  (c) Running Avg Cost / Request — shows budget compliance recovery.
 
 Usage:
     python experiments/03_budget_plus_drift/generate_figure.py
@@ -49,6 +53,9 @@ BUDGET_NICE_LABELS: Dict[str, str] = {
 
 UNCONSTRAINED_COLOR = "#009E73"
 
+PHASE_LABELS = ["P1", "P2", "P3"]
+PHASE_SUBTITLES = ["Normal", "Price Drop", "Restored"]
+
 
 def _load_results() -> Dict[str, Any]:
     with open(RESULTS_DIR / RESULTS_FILE) as f:
@@ -67,32 +74,36 @@ def _find_condition_key(
     return None
 
 
-def _add_phase_boundary(
+def _add_phase_boundaries(
     ax: plt.Axes,
-    boundary: int,
+    boundaries: List[int],
     label: bool = True,
 ) -> None:
-    ax.axvline(
-        boundary, color="black", linestyle="--",
-        linewidth=1.0, alpha=0.4, zorder=1,
-    )
+    """Draw vertical dashed lines at phase boundaries with P1/P2/P3 labels."""
+    for b in boundaries[:-1]:
+        ax.axvline(
+            b, color="black", linestyle="--",
+            linewidth=1.0, alpha=0.4, zorder=1,
+        )
+
     if label:
         y_lo, y_hi = ax.get_ylim()
-        y_text = y_lo + 0.25 * (y_hi - y_lo)
-        ax.text(
-            boundary - 10, y_text, "P1",
-            ha="right", va="top", fontsize=7, fontstyle="italic",
-            color="#555555",
-        )
-        ax.text(
-            boundary + 10, y_text, "P2",
-            ha="left", va="top", fontsize=7, fontstyle="italic",
-            color="#555555",
-        )
+        y_text = y_lo + 0.92 * (y_hi - y_lo)
+        midpoints = [
+            boundaries[0] / 2,
+            (boundaries[0] + boundaries[1]) / 2,
+            (boundaries[1] + boundaries[2]) / 2,
+        ]
+        for mid, plabel, subtitle in zip(midpoints, PHASE_LABELS, PHASE_SUBTITLES):
+            ax.text(
+                mid, y_text, f"{plabel}\n{subtitle}",
+                ha="center", va="top", fontsize=6.5, fontstyle="italic",
+                color="#555555",
+            )
 
 
 # ======================================================================
-# Adaptation Dynamics (1x3)
+# Curve extraction with bootstrap CI
 # ======================================================================
 
 
@@ -105,11 +116,7 @@ def _extract_curve_with_ci(
     std_field: Optional[str] = None,
     sqrt_n: float = 1.0,
 ) -> Optional[Tuple[List[int], List[float], np.ndarray, np.ndarray]]:
-    """Extract (steps, means, ci_lo, ci_hi) for a condition's checkpoint curve.
-
-    When *per_seed_field* is present in the JSON, bootstrap CIs are computed.
-    Otherwise falls back to ``mean ± std / sqrt(n)`` (SE-based bands).
-    """
+    """Extract (steps, means, ci_lo, ci_hi) for a condition's checkpoint curve."""
     key = _find_condition_key(conditions, prefix, budget_label)
     if key is None:
         return None
@@ -132,8 +139,13 @@ def _extract_curve_with_ci(
     return steps, means, ci_lo, ci_hi
 
 
+# ======================================================================
+# Main figure: 1x3 adaptation dynamics
+# ======================================================================
+
+
 def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
-    """1x3 figure showing ParetoBandit adaptation dynamics under cost drift.
+    """1x3 figure showing ParetoBandit adaptation across 3 cost phases.
 
     Parameters
     ----------
@@ -147,17 +159,17 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     budget_labels = data["budget_labels"]
     budget_targets = data["budget_targets"]
     conditions = data["conditions"]
-    phase_boundary = data["phase1_n"]
+    phase_boundaries = data["phase_boundaries"]
     n_seeds = data["n_seeds"]
     sqrt_n = np.sqrt(n_seeds)
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 4.5))
+    fig, axes = plt.subplots(1, 3, figsize=(17, 4.8))
 
     # ------------------------------------------------------------------
     # (a) Dual variable λ_t
     # ------------------------------------------------------------------
     ax_lam = axes[0]
-    for blabel, _btarget in zip(budget_labels, budget_targets):
+    for blabel in budget_labels:
         result = _extract_curve_with_ci(
             conditions, "ParetoBandit", blabel,
             mean_field="mean_lambda",
@@ -180,7 +192,6 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             alpha=0.18, color=color, zorder=2,
         )
 
-    _add_phase_boundary(ax_lam, phase_boundary, label=False)
     ax_lam.set_title(
         r"(a) Dual Variable $\lambda_t$",
         fontsize=11, fontweight="bold", pad=8,
@@ -189,6 +200,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ax_lam.set_ylabel(r"$\lambda_t$", fontsize=11)
     ax_lam.grid(True, alpha=0.2, linewidth=0.5)
     ax_lam.tick_params(labelsize=9)
+    _add_phase_boundaries(ax_lam, phase_boundaries)
 
     # ------------------------------------------------------------------
     # (b) Gemini-Pro selection fraction
@@ -251,7 +263,6 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             alpha_fill=0.12, zorder_line=3,
         )
 
-    _add_phase_boundary(ax_mix, phase_boundary, label=False)
     ax_mix.set_title(
         "(b) Gemini-Pro Selection Fraction",
         fontsize=11, fontweight="bold", pad=8,
@@ -261,17 +272,18 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ax_mix.set_ylim(-0.02, 1.02)
     ax_mix.grid(True, alpha=0.2, linewidth=0.5)
     ax_mix.tick_params(labelsize=9)
+    _add_phase_boundaries(ax_mix, phase_boundaries, label=False)
 
     # ------------------------------------------------------------------
-    # (c) Running average cost per request
+    # (c) Trailing-window average cost per request (last 50 steps)
     # ------------------------------------------------------------------
     ax_cost = axes[2]
     for blabel, btarget in zip(budget_labels, budget_targets):
         result = _extract_curve_with_ci(
             conditions, "ParetoBandit", blabel,
-            mean_field="mean_avg_cost",
-            per_seed_field="per_seed_avg_cost",
-            std_field="std_avg_cost",
+            mean_field="mean_window_cost",
+            per_seed_field="per_seed_window_cost",
+            std_field="std_window_cost",
             sqrt_n=sqrt_n,
         )
         if result is None:
@@ -296,14 +308,14 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     if "Unconstrained" in conditions:
         uc_curve = conditions["Unconstrained"]["curves"]
         uc_steps = [c["step"] for c in uc_curve]
-        uc_costs = [c["mean_avg_cost"] for c in uc_curve]
+        uc_costs = [c["mean_window_cost"] for c in uc_curve]
 
-        has_per_seed = "per_seed_avg_cost" in uc_curve[0]
+        has_per_seed = "per_seed_window_cost" in uc_curve[0]
         if has_per_seed:
-            matrix = np.array([c["per_seed_avg_cost"] for c in uc_curve])
+            matrix = np.array([c["per_seed_window_cost"] for c in uc_curve])
             uc_ci_lo, uc_ci_hi = bootstrap_ci_series(matrix)
         else:
-            uc_ses = [c["std_avg_cost"] / sqrt_n for c in uc_curve]
+            uc_ses = [c["std_window_cost"] / sqrt_n for c in uc_curve]
             uc_ci_lo = [m - s for m, s in zip(uc_costs, uc_ses)]
             uc_ci_hi = [m + s for m, s in zip(uc_costs, uc_ses)]
 
@@ -317,19 +329,19 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             alpha=0.12, color=UNCONSTRAINED_COLOR, zorder=2,
         )
 
-    _add_phase_boundary(ax_cost, phase_boundary, label=False)
     ax_cost.set_title(
-        "(c) Running Avg Cost / Request",
+        "(c) Windowed Avg Cost / Request",
         fontsize=11, fontweight="bold", pad=8,
     )
     ax_cost.set_xlabel("Step", fontsize=10)
     ax_cost.set_ylabel("$/request", fontsize=11)
     ax_cost.grid(True, alpha=0.2, linewidth=0.5)
     ax_cost.tick_params(labelsize=9)
+    _add_phase_boundaries(ax_cost, phase_boundaries, label=False)
 
     fig.suptitle(
-        r"Budget Pacing Under Cost Drift ($K{=}3$, "
-        rf"{n_seeds} seeds, 95% bootstrap CI)",
+        r"Cost Correction: Normal $\to$ Price Drop $\to$ Restored "
+        rf"($K{{=}}3$, {n_seeds} seeds, 95% bootstrap CI)",
         fontsize=13, fontweight="bold", y=1.02,
     )
     fig.tight_layout()
@@ -357,13 +369,13 @@ def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = _load_results()
 
-    dynamics_fig = plot_adaptation_dynamics(data)
+    fig = plot_adaptation_dynamics(data)
     for fmt in ("pdf", "png"):
-        dynamics_fig.savefig(
+        fig.savefig(
             RESULTS_DIR / f"adaptation_dynamics.{fmt}",
             bbox_inches="tight", dpi=300,
         )
-    plt.close(dynamics_fig)
+    plt.close(fig)
     print("Saved adaptation_dynamics.{pdf,png}")
 
 

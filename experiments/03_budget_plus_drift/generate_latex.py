@@ -4,6 +4,9 @@ Reads results/budget_cost_drift_results.json and emits:
 - _autogen.tex: \\newcommand definitions (prefix \\bd)
 - _autogen_table_budget_compliance.tex: formal budget compliance table
 
+Three-phase design: Phase 1 (normal pricing) → Phase 2 (Gemini price drop)
+→ Phase 3 (pricing restored).
+
 Run from the experiment directory: python generate_latex.py
 """
 
@@ -35,7 +38,6 @@ BUDGET_LABEL_TO_SHORT: Dict[str, str] = {
     "loose": "Loose",
 }
 
-# Full display names for table headers (Mod -> Moderate)
 BUDGET_TABLE_DISPLAY: Dict[str, str] = {
     "Tight": "Tight",
     "Mod": "Moderate",
@@ -80,6 +82,9 @@ def _short_name(condition: str, budget_label: str) -> str:
     return f"{cond_short}{short_budget}"
 
 
+PHASE_NAMES = {1: "One", 2: "Two", 3: "Three"}
+
+
 def build_command_set(data: Dict[str, Any]) -> CommandSet:
     """Build the full CommandSet from JSON data."""
     cs = CommandSet(prefix="bd")
@@ -87,7 +92,6 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
     budget_targets = data["budget_targets"]
     budget_labels = data["budget_labels"]
 
-    # prior_n_effective (fixes n_eff=10 bug)
     prior_n_eff = data.get("prior_n_effective", 1000.0)
     cs.raw("Neff", fmt_int(prior_n_eff))
 
@@ -101,42 +105,46 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 continue
 
             short = _short_name(condition, label)
-            p1 = cond_data.get("phase1_summary") or {}
-            p2 = cond_data.get("phase2_summary") or {}
 
-            mean_cost_p1 = p1.get("mean_cost", 0.0)
-            mean_cost_p2 = p2.get("mean_cost", 0.0)
+            for phase_num in (1, 2, 3):
+                phase_key = f"phase{phase_num}_summary"
+                phase_data = cond_data.get(phase_key) or {}
+                phase_name = PHASE_NAMES[phase_num]
 
-            ratio_p1 = mean_cost_p1 / target if target > 0 else 0.0
-            ratio_p2 = mean_cost_p2 / target if target > 0 else 0.0
+                mean_cost = phase_data.get("mean_cost", 0.0)
+                ratio = mean_cost / target if target > 0 else 0.0
 
-            # Phase 1 and Phase 2 budget compliance ratios
-            cs.ratio(f"{short}PhaseOneRatio", ratio_p1)
-            cs.ratio(f"{short}PhaseTwoRatio", ratio_p2)
+                cs.ratio(f"{short}Phase{phase_name}Ratio", ratio)
+                cs.raw(f"{short}Phase{phase_name}Cost", fmt_cost_eng(mean_cost))
 
-            # Phase 1 inline table: cost and ratio (for narrative)
-            cs.raw(f"{short}PhaseOneCost", fmt_cost_eng(mean_cost_p1))
-            # ratio already added above
-
-            # ParetoBandit-specific: lambda, Gemini adoption, reward lift, Phase 1 util
             if condition == "ParetoBandit":
-                mean_lambda_p1 = p1.get("mean_lambda", 0.0)
-                mean_lambda_p2 = p2.get("mean_lambda", 0.0)
-                cs.num(f"ParetoBandit{short_budget}LambdaPhaseOne", mean_lambda_p1, digits=2)
-                cs.num(f"ParetoBandit{short_budget}LambdaPhaseTwo", mean_lambda_p2, digits=2)
+                for phase_num in (1, 2, 3):
+                    phase_key = f"phase{phase_num}_summary"
+                    phase_data = cond_data.get(phase_key) or {}
+                    phase_name = PHASE_NAMES[phase_num]
 
-                arm_fracs_p2 = p2.get("arm_fractions") or {}
-                gemini_frac = arm_fracs_p2.get(GEMINI_ARM_KEY, 0.0)
-                cs.raw(
-                    f"ParetoBandit{short_budget}GeminiPhaseTwo",
-                    fmt_int(gemini_frac * 100),
-                )
+                    mean_lambda = phase_data.get("mean_lambda", 0.0)
+                    cs.num(f"ParetoBandit{short_budget}LambdaPhase{phase_name}",
+                           mean_lambda, digits=2)
 
-                mean_reward_p1 = p1.get("mean_reward", 0.0)
-                mean_reward_p2 = p2.get("mean_reward", 0.0)
-                reward_lift = mean_reward_p2 - mean_reward_p1
-                cs.num(f"ParetoBandit{short_budget}RewardLift", reward_lift, digits=3)
+                    arm_fracs = phase_data.get("arm_fractions") or {}
+                    gemini_frac = arm_fracs.get(GEMINI_ARM_KEY, 0.0)
+                    cs.raw(
+                        f"ParetoBandit{short_budget}GeminiPhase{phase_name}",
+                        fmt_int(gemini_frac * 100),
+                    )
 
+                    mean_reward = phase_data.get("mean_reward", 0.0)
+                    cs.num(f"ParetoBandit{short_budget}RewardPhase{phase_name}",
+                           mean_reward, digits=4)
+
+                p1 = cond_data.get("phase1_summary") or {}
+                p2 = cond_data.get("phase2_summary") or {}
+                r1 = p1.get("mean_reward", 0.0)
+                r2 = p2.get("mean_reward", 0.0)
+                cs.num(f"ParetoBandit{short_budget}RewardLift", r2 - r1, digits=3)
+
+                ratio_p1 = p1.get("mean_cost", 0.0) / target if target > 0 else 0.0
                 cs.ratio(f"ParetoBandit{short_budget}PhaseOneUtil", ratio_p1)
 
     return cs
@@ -145,7 +153,7 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 def _format_ratio_cell(
     ratio: float,
     is_paretobandit: bool,
-    is_phase2_non_binding: bool = False,
+    is_non_binding: bool = False,
 ) -> str:
     """Format a ratio cell with optional bold and dagger."""
     within_5pct = BINDING_RATIO_LOW <= ratio <= BINDING_RATIO_HIGH
@@ -158,13 +166,13 @@ def _format_ratio_cell(
         inner = ratio_str
 
     cell = f"${inner}$"
-    if is_phase2_non_binding:
+    if is_non_binding:
         cell = f"${inner}^{{\\dagger}}$"
     return cell
 
 
 def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
-    """Generate the formal budget compliance table LaTeX."""
+    """Generate the formal budget compliance table LaTeX (3 phases)."""
     conditions = data.get("conditions", {})
     budget_targets = data["budget_targets"]
     budget_labels = data["budget_labels"]
@@ -173,19 +181,19 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
         r"\begin{table}[t]",
         r"\centering",
         r"\caption{Budget compliance under cost drift (Experiment~3,",
-        r"50~seeds).  Each cell shows realised average cost as a multiple",
-        r"of the budget target ($1.00\times$ = perfect).",
+        r"50~seeds, three phases).  Each cell shows realised average cost",
+        r"as a multiple of the budget target ($1.00\times$ = perfect).",
         r"\textbf{Bold} marks values within $5\%$ of $1.00\times$.",
         r"$\dagger$~Phase~2 constraint non-binding: the price drop reduces",
         r"all methods' costs below target, regardless of algorithm.",
         r"ParetoBandit is the only condition that reliably meets the target in",
-        r"Phase~1 ($0.98$--$1.00\times$).}",
+        r"Phase~1 and recovers compliance in Phase~3 after the price is restored.}",
         r"\label{tab:budget_compliance}",
         r"\small",
-        r"\begin{tabular}{@{}llcc@{}}",
+        r"\begin{tabular}{@{}llccc@{}}",
         r"\toprule",
         r"\textbf{Budget} & \textbf{Condition}",
-        r"  & \textbf{Phase~1} & \textbf{Phase~2} \\",
+        r"  & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\",
         r"\midrule",
     ]
 
@@ -200,30 +208,29 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
             if not cond_data:
                 continue
 
-            p1 = cond_data.get("phase1_summary") or {}
-            p2 = cond_data.get("phase2_summary") or {}
-
-            mean_cost_p1 = p1.get("mean_cost", 0.0)
-            mean_cost_p2 = p2.get("mean_cost", 0.0)
-
-            ratio_p1 = mean_cost_p1 / target if target > 0 else 0.0
-            ratio_p2 = mean_cost_p2 / target if target > 0 else 0.0
+            ratios = []
+            for phase_num in (1, 2, 3):
+                phase_key = f"phase{phase_num}_summary"
+                pd = cond_data.get(phase_key) or {}
+                mc = pd.get("mean_cost", 0.0)
+                ratios.append(mc / target if target > 0 else 0.0)
 
             is_paretobandit = condition == "ParetoBandit"
-            phase2_non_binding = ratio_p2 < NON_BINDING_RATIO_THRESHOLD
+            p2_non_binding = ratios[1] < NON_BINDING_RATIO_THRESHOLD
 
             cond_display = "\\textbf{ParetoBandit}" if is_paretobandit else condition
-            cell_p1 = _format_ratio_cell(ratio_p1, is_paretobandit, is_phase2_non_binding=False)
-            cell_p2 = _format_ratio_cell(ratio_p2, is_paretobandit, is_phase2_non_binding=phase2_non_binding)
+            cell_p1 = _format_ratio_cell(ratios[0], is_paretobandit)
+            cell_p2 = _format_ratio_cell(ratios[1], is_paretobandit, is_non_binding=p2_non_binding)
+            cell_p3 = _format_ratio_cell(ratios[2], is_paretobandit)
 
             line_end = r"\\[3pt]" if cond_idx == len(CONDITION_ORDER) - 1 else r"\\"
             if cond_idx == 0:
                 row = (
                     f"\\multirow{{4}}{{*}}{{{budget_display} (${target_str}$)}}"
-                    f"  & {cond_display}        & {cell_p1} & {cell_p2} {line_end}"
+                    f"  & {cond_display}        & {cell_p1} & {cell_p2} & {cell_p3} {line_end}"
                 )
             else:
-                row = f"  & {cond_display}        & {cell_p1} & {cell_p2} {line_end}"
+                row = f"  & {cond_display}        & {cell_p1} & {cell_p2} & {cell_p3} {line_end}"
             lines.append(row)
 
     lines.extend([
@@ -248,7 +255,7 @@ def main() -> None:
     cs = build_command_set(data)
 
     autogen_path = exp_dir / "_autogen.tex"
-    cs.write(autogen_path, header="Exp 03: budget + cost drift")
+    cs.write(autogen_path, header="Exp 03: budget + cost drift (3-phase)")
 
     table_path = exp_dir / "_autogen_table_budget_compliance.tex"
     table_content = generate_budget_compliance_table(data)

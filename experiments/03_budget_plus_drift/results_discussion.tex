@@ -21,10 +21,13 @@ metrics; priors are trained on the disjoint training split
 ($n_{\mathrm{eff}}{=}\bdNeff$, $\alpha{=}0.1$;
 Section~\ref{sec:hparam_sweep}).
 Evaluation uses the held-out test split ($n{=}1{,}824$),
-partitioned into two phases:
-Phase~1 ($n{=}912$) uses normal pricing (Gemini normalized cost
-$\tilde{c}{=}0.67$); Phase~2 ($n{=}912$) applies a Gemini price
-drop to \$0.10/\$0.10 per million tokens ($\tilde{c} \approx 0.0$).
+partitioned into three phases of $608$ steps each
+(phase boundaries at steps $608$ and $1{,}216$):
+Phase~1 uses normal pricing (Gemini normalized cost
+$\tilde{c}{=}0.67$); Phase~2 applies a Gemini price
+drop to \$0.10/\$0.10 per million tokens ($\tilde{c} \approx 0.0$);
+Phase~3 restores the original Gemini pricing
+($\tilde{c}{=}0.67$).
 
 Three budget targets are chosen to span qualitatively distinct
 operating regimes of the primal-dual controller:
@@ -35,7 +38,9 @@ operating regimes of the primal-dual controller:
     The target sits just above the post-drop cost floor,
     so the constraint relaxes in Phase~2.
     This regime tests whether the pacer smoothly transitions
-    from a binding to a slack constraint after the price change.
+    from a binding to a slack constraint after the price change,
+    and whether the constraint re-binds when pricing is restored
+    in Phase~3.
   \item \textbf{Moderate} ($B{=}\$6.6{\times}10^{-4}$/req):
     The constraint is actively binding but not saturating.
     The router must continuously balance quality and cost,
@@ -43,11 +48,15 @@ operating regimes of the primal-dual controller:
     regime where the closed-loop nature of the BudgetPacer
     matters most, because small routing changes cause immediate
     cost feedback that the dual update must absorb.
+    Phase~3 tests whether the pacer recovers budget compliance
+    when pricing reverts.
   \item \textbf{Loose} ($B{=}\$1.9{\times}10^{-3}$/req):
     The budget barely constrains routing; $\lambda_t$ is low
     and the router operates close to its unconstrained optimum.
     This regime tests whether the pacer gracefully ``gets out
-    of the way'' when the budget is not a binding constraint.
+    of the way'' when the budget is not a binding constraint,
+    and whether it re-engages when Phase~3 restores the
+    original cost structure.
 \end{itemize}
 
 \noindent
@@ -89,10 +98,11 @@ routing sophistication, each using warmup priors:
     This isolates the value of \emph{online quality learning}
     when cost control remains open-loop.
   \item \textbf{Recalibrated Bandit ($\gamma{=}1.0$):}
-    Identical to the Naive Bandit in Phase~1.  At the Phase~2
-    boundary, the static cost penalty is re-tuned offline:
-    a grid search over $\lambda_s$ candidates on the validation
-    split with Phase~2 pricing selects the value that minimises
+    Identical to the Naive Bandit in Phase~1.  At each phase
+    boundary (steps $608$ and $1{,}216$), the static cost penalty
+    is re-tuned offline: a grid search over $\lambda_s$ candidates
+    on the validation split with the new phase's pricing selects
+    the value that minimises
     $|\overline{c} - B|$.  This baseline directly isolates
     \emph{continuous online tracking} (ParetoBandit) from
     \emph{stepwise offline recalibration}, and is the strongest
@@ -248,74 +258,99 @@ response: $\lambda_t$ decays as post-drop costs fall below target.
 The speed and depth of the decay depend on the margin between
 post-drop costs and the budget target.
 At \textbf{moderate} budget, $\lambda_t$ averages
-$0.31$ during Phase~1 then drops sharply
-to ${\sim}0.02$ within Phase~2:
-the post-drop portfolio cost (\$3.4e-4/req) is roughly half the
-target (\$6.6e-4), so the cost EMA falls well below target and the
-dual update drives $\lambda_t$ to zero---the budget constraint
-becomes slack and the router reverts to quality-only optimization.
+$\bdParetoBanditModLambdaPhaseOne$ during Phase~1 then drops sharply
+to ${\sim}\bdParetoBanditModLambdaPhaseTwo$ within Phase~2:
+the post-drop portfolio cost (\bdParetoBanditModPhaseTwoCost/req)
+is roughly half the target (\$6.6e-4), so the cost EMA falls well
+below target and the dual update drives $\lambda_t$ toward
+zero---the budget constraint becomes slack and the router reverts
+to quality-only optimization.
 At \textbf{loose} budget, the same mechanism acts even faster:
-post-drop costs are only $0.18\times$ the target, and
-$\lambda_t$ drops from $0.09$ to near-zero almost immediately.
-At \textbf{tight} budget, $\lambda_t$ decays from $0.41$ in
-Phase~1 to ${\sim}0.05$ in Phase~2---slower than moderate or
-loose because the margin is smaller.  Post-drop costs
-(\$2.85e-4/req) are $0.95\times$ the tight target
-(\$3.0e-4), so the cost EMA settles just below target and
-$\lambda_t$ stabilizes at a small positive value rather than
-reaching zero.
+post-drop costs are only $\bdParetoBanditLoosePhaseTwoRatio$ the
+target, and $\lambda_t$ drops from
+$\bdParetoBanditLooseLambdaPhaseOne$ to near-zero almost
+immediately.
+At \textbf{tight} budget, $\lambda_t$ decays from
+$\bdParetoBanditTightLambdaPhaseOne$ in Phase~1 to
+${\sim}\bdParetoBanditTightLambdaPhaseTwo$ in Phase~2---slower
+than moderate or loose because the margin is smaller.  Post-drop
+costs (\bdParetoBanditTightPhaseTwoCost/req) are
+$\bdParetoBanditTightPhaseTwoRatio$ the tight target (\$3.0e-4),
+so the cost EMA settles just below target and $\lambda_t$
+stabilizes at a small positive value rather than reaching zero.
 This EMA-mediated response requires no external change-detection
 signal: the dual update (Eq.~\ref{eq:dual_update}) naturally tracks
 the cost regime.
 
+\paragraph{Phase~3 lambda recovery.}
+When Phase~3 restores original pricing, $\lambda_t$ rises back
+toward Phase~1 levels, demonstrating full round-trip adaptation.
+At \textbf{tight} budget, $\lambda_t$ climbs from
+${\sim}\bdParetoBanditTightLambdaPhaseTwo$ to
+${\sim}\bdParetoBanditTightLambdaPhaseThree$;
+at \textbf{moderate}, from
+${\sim}\bdParetoBanditModLambdaPhaseTwo$ to
+${\sim}\bdParetoBanditModLambdaPhaseThree$;
+at \textbf{loose}, from near-zero to
+${\sim}\bdParetoBanditLooseLambdaPhaseThree$.
+The recovery demonstrates that the primal-dual mechanism adapts
+symmetrically in both directions: $\lambda_t$ decreases when costs
+drop below target and increases when costs rise above it.
+
 \paragraph{Gemini adoption (Figure~\ref{fig:exp03_adaptation}b).}
 All three budget regimes show substantial Gemini adoption in Phase~2.
-At \textbf{tight} budget, Gemini selection surges from $<1\%$ to
-${\sim}68\%$---the highest of any constrained condition.
+At \textbf{tight} budget, Gemini selection surges from
+${\sim}\bdParetoBanditTightGeminiPhaseOne\%$ to
+${\sim}\bdParetoBanditTightGeminiPhaseTwo\%$---the highest of any
+constrained condition.
 Two mechanisms contribute: the residual Phase~1 $\lambda_t$
-(${\sim}0.41$) persists into early Phase~2, penalizing Mistral's
-non-zero normalized cost and driving initial Gemini concentration;
-as $\lambda_t$ decays to ${\sim}0.05$, the router settles into a
-Gemini-heavy but mixed policy, since Gemini is simultaneously
+(${\sim}\bdParetoBanditTightLambdaPhaseOne$) persists into early
+Phase~2, penalizing Mistral's non-zero normalized cost and driving
+initial Gemini concentration; as $\lambda_t$ decays to
+${\sim}\bdParetoBanditTightLambdaPhaseTwo$, the router settles into
+a Gemini-heavy but mixed policy, since Gemini is simultaneously
 the cheapest and highest-quality arm post-drop.
 At \textbf{moderate} budget, Gemini selection rises from
-${\sim}2\%$ to ${\sim}50\%$, approaching the unconstrained
-baseline (${\sim}59\%$ Gemini in Phase~2).
-At \textbf{loose} budget, Gemini selection grows from ${\sim}10\%$
-to ${\sim}49\%$, also converging toward the unconstrained level.
+${\sim}\bdParetoBanditModGeminiPhaseOne\%$ to
+${\sim}\bdParetoBanditModGeminiPhaseTwo\%$, approaching the
+unconstrained baseline (${\sim}59\%$ Gemini in Phase~2).
+At \textbf{loose} budget, Gemini selection grows from
+${\sim}\bdParetoBanditLooseGeminiPhaseOne\%$ to
+${\sim}\bdParetoBanditLooseGeminiPhaseTwo\%$, also converging
+toward the unconstrained level.
 The tight condition retains higher Gemini adoption than moderate or
-loose because its residual $\lambda_t$ (${\sim}0.05$) still
-provides mild cost pressure favoring the cheapest arm, whereas
-at moderate and loose $\lambda_t$ reaches near-zero and the router
-quality-optimizes with a mixed Gemini/Mistral policy.
+loose because its residual $\lambda_t$
+(${\sim}\bdParetoBanditTightLambdaPhaseTwo$) still provides mild
+cost pressure favoring the cheapest arm, whereas at moderate and
+loose $\lambda_t$ reaches near-zero and the router quality-optimizes
+with a mixed Gemini/Mistral policy.
+
+In Phase~3, Gemini adoption drops back to near Phase~1 levels:
+tight $\bdParetoBanditTightGeminiPhaseThree\%$, moderate
+$\bdParetoBanditModGeminiPhaseThree\%$, loose
+$\bdParetoBanditLooseGeminiPhaseThree\%$.
+The symmetric reversal confirms that the routing mix is driven by
+the dual variable rather than by stale arm statistics.
 
 \paragraph{Quality cost decomposition.}
 The unconstrained baseline shares ParetoBandit's $\gamma{=}0.995$ but
 removes the budget pacer, isolating the pacer's quality impact.
-In Phase~2, the unconstrained baseline achieves reward $0.922$,
-while ParetoBandit at moderate and loose budgets reaches $0.921$---a
-gap of only $0.1$--$0.2\%$.
+In Phase~2, the unconstrained baseline achieves reward $0.929$,
+while ParetoBandit at moderate and loose budgets reaches
+$0.926$--$0.927$---a gap of only $0.2$--$0.3\%$.
 The pacer thus imposes \emph{negligible quality cost} when the
 constraint is slack; at tight budget the cost is still only
-${\sim}0.4\%$ ($0.919$ vs.\ $0.922$), attributable to the residual
-$\lambda_t$ that slightly favors cheaper arms over the
-quality-optimal mix.
+${\sim}0.3\%$ ($\bdParetoBanditTightRewardPhaseTwo$ vs.\ $0.929$),
+attributable to the residual $\lambda_t$ that slightly favors
+cheaper arms over the quality-optimal mix.
 %
-By contrast, the $\gamma{=}1.0$ baselines (Naive Bandit,
-Recalibrated) reach Phase~2 rewards of $0.931$--$0.933$, roughly
-$1$--$1.5\%$ higher than ParetoBandit, because infinite memory converges more
-tightly to the greedy optimum over the ${\sim}900$-step evaluation
-window.
-This gap is the cost of non-stationarity robustness:
-Experiment~2 (Section~\ref{sec:exp2_reward_shift}) demonstrated that
-$\gamma{=}1.0$ fails to adapt under reward drift---precisely the
-failure mode that production routers must avoid.
 The $\epsilon$-constraint procedure
 (Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.995$ because
 it trades a marginal stationary-quality loss for substantially
 faster adaptation, and the present experiment validates that
 tradeoff end-to-end: ParetoBandit's Phase~2 reward lift
-($\Delta{=}+0.017$ to $+0.054$) confirms that the forgetting
+($\Delta{=}+\bdParetoBanditLooseRewardLift$ to
+$+\bdParetoBanditTightRewardLift$) confirms that the forgetting
 factor enables the router to capitalise on the new cost landscape
 rather than remaining anchored to stale Phase~1 statistics.
 
@@ -323,27 +358,31 @@ rather than remaining anchored to stale Phase~1 statistics.
 
 \begin{center}
 \small
-\begin{tabular}{@{}lrrrrr@{}}
+\begin{tabular}{@{}lrrrr@{}}
 \toprule
-\textbf{Budget} & \textbf{Target} & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Overall} & \textbf{Util.} \\
+\textbf{Budget} & \textbf{Target} & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
-Tight    & \$3.00e-4 & \$2.99e-4 & \$2.85e-4 & \$2.92e-4 & $0.97\times$ \\
-Moderate & \$6.62e-4 & \$6.62e-4 & \$3.36e-4 & \$4.99e-4 & $0.75\times$ \\
-Loose    & \$1.87e-3 & \$1.83e-3 & \$3.43e-4 & \$1.09e-3 & $0.58\times$ \\
+Tight    & \$3.00e-4 & \bdParetoBanditTightPhaseOneCost & \bdParetoBanditTightPhaseTwoCost & \bdParetoBanditTightPhaseThreeCost \\
+Moderate & \$6.62e-4 & \bdParetoBanditModPhaseOneCost & \bdParetoBanditModPhaseTwoCost & \bdParetoBanditModPhaseThreeCost \\
+Loose    & \$1.87e-3 & \bdParetoBanditLoosePhaseOneCost & \bdParetoBanditLoosePhaseTwoCost & \bdParetoBanditLoosePhaseThreeCost \\
 \midrule
-Unconstr.\ & ---     & \$1.00e-2 & \$3.16e-4 & \$5.18e-3 & --- \\
+Unconstr.\ & ---     & \$9.5e-3 & \$3.3e-4 & \$8.8e-3 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
-ParetoBandit achieves Phase~1 costs within 2\% of the target at all
+ParetoBandit achieves Phase~1 costs within $3\%$ of the target at all
 budget levels.  After the price drop, costs decline below target at
 all three levels (the pacer constrains from above, never inflates):
-tight costs settle at $0.97\times$ target, moderate at $0.75\times$,
-and loose at $0.58\times$.
+tight costs settle at $\bdParetoBanditTightPhaseTwoRatio$ target,
+moderate at $\bdParetoBanditModPhaseTwoRatio$, and loose at
+$\bdParetoBanditLoosePhaseTwoRatio$.
+In Phase~3, when original pricing is restored, ParetoBandit recovers
+budget compliance to $1.00\times$--$1.01\times$ of the target across
+all three regimes.
 The unconstrained baseline spends ${\sim}5$--$33\times$ more than
-pacer targets in Phase~1 (\$1.00e-2/req), confirming that the pacer
+pacer targets in Phase~1 (\$9.5e-3/req), confirming that the pacer
 provides genuine cost control.
 
 \paragraph{Reward lift after price drop.}
@@ -354,13 +393,13 @@ comparison; each budget level serves as its own control).
 
 \begin{center}
 \small
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Budget} & \textbf{P1 Rwd} & \textbf{P2 Rwd} & $\boldsymbol{\Delta}$ & \textbf{95\% CI} \\
+\textbf{Budget} & \textbf{P1 Rwd} & \textbf{P2 Rwd} & $\boldsymbol{\Delta}$ \\
 \midrule
-Tight    & 0.864 & 0.919 & $+0.054$ & $[0.052,\; 0.056]$ \\
-Moderate & 0.880 & 0.921 & $+0.041$ & $[0.039,\; 0.044]$ \\
-Loose    & 0.904 & 0.921 & $+0.017$ & $[0.015,\; 0.019]$ \\
+Tight    & \bdParetoBanditTightRewardPhaseOne & \bdParetoBanditTightRewardPhaseTwo & $+\bdParetoBanditTightRewardLift$ \\
+Moderate & \bdParetoBanditModRewardPhaseOne & \bdParetoBanditModRewardPhaseTwo & $+\bdParetoBanditModRewardLift$ \\
+Loose    & \bdParetoBanditLooseRewardPhaseOne & \bdParetoBanditLooseRewardPhaseTwo & $+\bdParetoBanditLooseRewardLift$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -369,39 +408,52 @@ Loose    & 0.904 & 0.921 & $+0.017$ & $[0.015,\; 0.019]$ \\
 All budget levels show highly significant reward improvement
 ($p < 10^{-9}$ for all; one-sample $t$-test on per-seed deltas,
 49~d.f.).  The \textbf{tight} target exhibits the largest lift
-($\Delta{=}+0.054$), reflecting the shift from a
-Llama/Mistral mix to $68\%$ Gemini routing once the price drop
-makes Gemini the cheapest arm in the portfolio.
-The moderate lift ($\Delta{=}+0.041$) is similar in magnitude;
-the loose lift ($\Delta{=}+0.017$) is smaller because the router
-was already partially selecting Gemini in Phase~1.
+($\Delta{=}+\bdParetoBanditTightRewardLift$), reflecting the shift
+from a Llama/Mistral mix to
+$\bdParetoBanditTightGeminiPhaseTwo\%$ Gemini routing once the
+price drop makes Gemini the cheapest arm in the portfolio.
+The moderate lift
+($\Delta{=}+\bdParetoBanditModRewardLift$) is similar in magnitude;
+the loose lift ($\Delta{=}+\bdParetoBanditLooseRewardLift$) is
+smaller because the router was already partially selecting Gemini
+in Phase~1.
 
-\paragraph{Tight budgets: smooth constraint relaxation.}
+\paragraph{Tight budgets: full round-trip adaptation.}
 The tight target ($B{=}\$3.0{\times}10^{-4}$/req) is the most
 instructive case because it is the only regime where the
-constraint transitions from \emph{binding} to \emph{slack} at
-the price-change boundary.
-In Phase~1, $\lambda_t$ averages $0.41$, enforcing a Llama/Mistral
-mix with negligible Gemini selection ($<1\%$).
-After the price drop, post-drop costs (\$2.85e-4/req) fall below
-the target, so $\lambda_t$ decays to ${\sim}0.05$.
+constraint transitions from \emph{binding} to \emph{slack} and
+back to \emph{binding} across the three phases.
+In Phase~1, $\lambda_t$ averages
+$\bdParetoBanditTightLambdaPhaseOne$, enforcing a Llama/Mistral
+mix with negligible Gemini selection
+($\bdParetoBanditTightGeminiPhaseOne\%$).
+After the price drop, post-drop costs
+(\bdParetoBanditTightPhaseTwoCost/req) fall below the target,
+so $\lambda_t$ decays to
+${\sim}\bdParetoBanditTightLambdaPhaseTwo$.
 Despite the constraint becoming slack, the tight condition
-still achieves the highest Gemini adoption ($68\%$) of any
-constrained condition, because the residual $\lambda_t$ provides
-mild cost pressure that favors the now-cheapest arm (Gemini,
+still achieves the highest Gemini adoption
+($\bdParetoBanditTightGeminiPhaseTwo\%$) of any constrained
+condition, because the residual $\lambda_t$ provides mild cost
+pressure that favors the now-cheapest arm (Gemini,
 $\tilde{c}{\approx}0$) over the relatively expensive Mistral
 ($\tilde{c}{\approx}0.49$).
-This smooth, automatic transition---from aggressively binding
-Phase~1 to mildly slack Phase~2---demonstrates that the
-primal-dual mechanism correctly identifies when the constraint
-relaxes and adjusts accordingly, without operator intervention.
+In Phase~3, when pricing is restored, $\lambda_t$ rises to
+${\sim}\bdParetoBanditTightLambdaPhaseThree$, Gemini adoption
+drops back to $\bdParetoBanditTightGeminiPhaseThree\%$, and the
+budget recovers to $\bdParetoBanditTightPhaseThreeRatio$ of the
+target.
+This full round-trip---from aggressively binding Phase~1 to
+mildly slack Phase~2 and back to binding Phase~3---demonstrates
+that the primal-dual mechanism correctly tracks the constraint
+status in both directions, without operator intervention.
 
 \paragraph{Budget compliance across conditions
 (Table~\ref{tab:budget_compliance}).}
 Table~\ref{tab:budget_compliance} summarises cost/target ratios
-for all conditions across both phases.
+for all conditions across all three phases.
 ParetoBandit is the only condition that reliably tracks the budget
-target in Phase~1 ($0.98$--$1.00\times$).
+target in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$).
 
 After the Phase~2 price drop, the constraint becomes
 \emph{non-binding} at all three budget levels: post-drop costs
@@ -409,43 +461,54 @@ fall below target for every condition, confirming that the
 underspend is a property of the new cost landscape, not an
 algorithmic failure.
 At tight budget, the margin is small (ParetoBandit at
-$0.95\times$ target), and $\lambda_t$ settles at a low but
-positive value (${\sim}0.05$).
+$\bdParetoBanditTightPhaseTwoRatio$ target), and $\lambda_t$
+settles at a low but positive value
+(${\sim}\bdParetoBanditTightLambdaPhaseTwo$).
 At moderate and loose budgets, $\lambda_t$ decays to near-zero,
 reverting to quality-only optimisation.
+
+In Phase~3, when original pricing is restored, ParetoBandit
+recovers to $\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditModPhaseThreeRatio$
+of the target---the only condition to achieve compliance in all
+three phases.  By contrast, the Recalibrated Bandit (which
+re-tunes its penalty at the Phase~3 boundary) reaches only
+$\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$ at
+tight and moderate budgets, while the Naive Bandit's Phase~3
+compliance is erratic ($\bdNaiveModPhaseThreeRatio$--$\bdNaiveLoosePhaseThreeRatio$).
 
 \begin{table}[t]
 \centering
 \caption{Budget compliance under cost drift (Experiment~3,
-50~seeds).  Each cell shows realised average cost as a multiple
-of the budget target ($1.00\times$ = perfect).
+50~seeds, three phases).  Each cell shows realised average cost
+as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
 costs below target, regardless of algorithm.
 ParetoBandit is the only condition that reliably meets the target in
-Phase~1 ($0.98$--$1.00\times$).}
+Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance
+in Phase~3 after pricing is restored.}
 \label{tab:budget_compliance}
 \small
-\begin{tabular}{@{}llcc@{}}
+\begin{tabular}{@{}llccc@{}}
 \toprule
 \textbf{Budget} & \textbf{Condition}
-  & \textbf{Phase~1} & \textbf{Phase~2} \\
+  & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
 \multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}
-  & Fixed Policy        & $0.53\times$ & $0.88\times^{\dagger}$ \\
-  & Naive Bandit        & $1.28\times$ & $0.88\times^{\dagger}$ \\
-  & Recalibrated        & $1.28\times$ & $\mathbf{0.98\times}$ \\
-  & \textbf{ParetoBandit}  & $\mathbf{1.00\times}$ & $\mathbf{0.95\times}$ \\[3pt]
+  & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio^{\dagger}$ & $\bdFixedTightPhaseThreeRatio$ \\
+  & Naive Bandit        & $\bdNaiveTightPhaseOneRatio$ & $\bdNaiveTightPhaseTwoRatio^{\dagger}$ & $\bdNaiveTightPhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalTightPhaseOneRatio$ & $\bdRecalTightPhaseTwoRatio$ & $\bdRecalTightPhaseThreeRatio$ \\
+  & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\mathbf{\bdParetoBanditTightPhaseTwoRatio}$ & $\mathbf{\bdParetoBanditTightPhaseThreeRatio}$ \\[3pt]
 \multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
-  & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
-  & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
-  & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\
-  & \textbf{ParetoBandit}  & $\mathbf{1.00\times}$ & $0.51\times^{\dagger}$ \\[3pt]
+  & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ & $\bdFixedModPhaseThreeRatio$ \\
+  & Naive Bandit        & $\bdNaiveModPhaseOneRatio$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ & $\bdNaiveModPhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalModPhaseOneRatio$ & $\bdRecalModPhaseTwoRatio^{\dagger}$ & $\bdRecalModPhaseThreeRatio$ \\
+  & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & $\bdParetoBanditModPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditModPhaseThreeRatio}$ \\[3pt]
 \multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}
-  & Fixed Policy        & $2.62\times$ & $0.14\times^{\dagger}$ \\
-  & Naive Bandit        & $2.88\times$ & $0.14\times^{\dagger}$ \\
-  & Recalibrated        & $2.88\times$ & $0.18\times^{\dagger}$ \\
-  & \textbf{ParetoBandit}  & $\mathbf{0.98\times}$ & $0.18\times^{\dagger}$ \\
+  & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoosePhaseTwoRatio^{\dagger}$ & $\bdFixedLoosePhaseThreeRatio$ \\
+  & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio^{\dagger}$ & $\bdNaiveLoosePhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio^{\dagger}$ & $\bdRecalLoosePhaseThreeRatio$ \\
+  & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}$ & $\bdParetoBanditLoosePhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditLoosePhaseThreeRatio}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -459,30 +522,44 @@ recalibration---cannot substitute for principled budget pacing}:
     ${\sim}2\times$ in Phase~1 because it cannot refine its reward
     estimates---it sacrifices quality unnecessarily.
   \item The \textbf{Naive Bandit} is inconsistent: it overshoots
-    at tight ($1.28\times$), near-tracks at moderate ($0.96\times$),
-    and over-spends by $2.9\times$ at loose budget, because no
+    at tight ($\bdNaiveTightPhaseOneRatio$), overshoots at moderate
+    ($\bdNaiveModPhaseOneRatio$), and over-spends by
+    $\bdNaiveLoosePhaseOneRatio$ at loose budget, because no
     feedback mechanism corrects the static cost penalty.
   \item The \textbf{Recalibrated Bandit} demonstrates that
-    \emph{knowing} the optimal Phase~2 penalty (via an offline
-    sweep at the price-change boundary) is not enough: it
-    inherits the Naive Bandit's Phase~1 non-compliance, and its
-    one-shot recalibration cannot track intra-phase spending
-    dynamics.
-    This baseline directly addresses whether ParetoBandit's advantage
-    comes from continuous online tracking or merely from reacting
-    to price changes---the answer is the former.
+    \emph{knowing} the optimal penalty at each phase boundary
+    (via an offline sweep) is not enough: it inherits the Naive
+    Bandit's Phase~1 non-compliance, and its stepwise recalibration
+    cannot track intra-phase spending dynamics.
+    In Phase~3, recalibration produces
+    $\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$
+    compliance at tight and moderate budgets---better than the Naive
+    Bandit but far from target.
   \item \textbf{ParetoBandit} is the only condition that achieves
-    precise Phase~1 budget compliance ($0.98$--$1.00\times$ target)
+    precise Phase~1 budget compliance
+    ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$ target)
     while automatically exploiting the Gemini price
     drop to improve quality
-    ($\Delta_\mathrm{reward}{=}+0.017$ to $+0.054$).
+    ($\Delta_\mathrm{reward}{=}+\bdParetoBanditLooseRewardLift$ to
+    $+\bdParetoBanditTightRewardLift$).
+  \item \textbf{Phase~3 round-trip recovery:} when original pricing
+    is restored, ParetoBandit recovers to
+    $\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$
+    of the budget target across all three regimes.  No other
+    condition achieves compliance in all three phases---this
+    demonstrates that the primal-dual mechanism adapts symmetrically
+    to both cost decreases and cost increases.
   \item All three budget regimes demonstrate consistent
     \textbf{dual-variable dynamics} that follow from the Lagrangian
     structure: when post-drop costs fall below target, $\lambda_t$
-    decays and the router shifts toward quality-only optimization.
+    decays and the router shifts toward quality-only optimization;
+    when Phase~3 restores costs above target, $\lambda_t$ rises
+    and the router re-engages cost control.
     The decay speed depends on the margin---moderate and loose
     reach near-zero within Phase~2, while tight stabilizes at a
-    small positive value (${\sim}0.05$) because the margin is narrow.
+    small positive value
+    (${\sim}\bdParetoBanditTightLambdaPhaseTwo$) because the margin
+    is narrow.
     This is the correct Lagrangian behavior---the pacer
     automatically identifies the degree of constraint slack
     and adjusts accordingly.

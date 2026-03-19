@@ -1,7 +1,7 @@
 """Regression tests for Experiment 03: Budget Pacing under Cost Drift.
 
 Fast tests verify config integration.  The ``@pytest.mark.slow`` smoke
-test runs one ParetoBandit (moderate budget) seed through the two-phase
+test runs one ParetoBandit (moderate budget) seed through the three-phase
 cost-drift scenario and compares metrics against a pinned reference.
 """
 
@@ -26,8 +26,8 @@ from utils.simulation import SplitData, build_model_registry
 
 from helpers import assert_metrics_match, load_reference, save_reference
 
-REFERENCE_NAME = "exp03_seed7000_paretobandit_moderate"
-SEED = 7000
+REFERENCE_NAME = "exp03_seed8000_paretobandit_moderate_3phase"
+SEED = 8000
 
 
 def _import_exp03():
@@ -70,6 +70,8 @@ class TestExp03Config:
             budget_target=6.62e-4,
             budget_label="moderate",
             matched_cp=0.30,
+            recalibrated_phase2_cp=0.0,
+            recalibrated_phase3_cp=0.30,
         )
         paretobandit = [c for c in conditions if "ParetoBandit" in c["label"]][0]
         assert paretobandit["forgetting_factor"] == BEST_K3_HPARAMS["forgetting_factor"]
@@ -79,12 +81,18 @@ class TestExp03Config:
             budget_target=6.62e-4,
             budget_label="moderate",
             matched_cp=0.30,
+            recalibrated_phase2_cp=0.0,
+            recalibrated_phase3_cp=0.30,
         )
         fixed = [c for c in conditions if "Fixed" in c["label"]][0]
         assert fixed["forgetting_factor"] == 1.0
 
     def test_arm_order_matches_config(self):
         assert self.mod.ARM_ORDER == K3_ARM_ORDER
+
+    def test_three_phase_structure(self):
+        assert self.mod.N_PHASES == 3
+        assert self.mod.PHASE_N == 608
 
 
 # ======================================================================
@@ -100,7 +108,7 @@ def test_exp03_single_seed_regression(
     model_registry,
     feature_dim,
 ):
-    """Run one ParetoBandit (moderate) seed and compare to pinned reference.
+    """Run one ParetoBandit (moderate) seed through the three-phase scenario.
 
     Sets up the train-then-evaluate cost drift exactly as ``main()``
     does, but for a single seed only.
@@ -108,15 +116,14 @@ def test_exp03_single_seed_regression(
     mod = _import_exp03()
 
     arm_order = mod.ARM_ORDER
-    phase1_n = mod.PHASE1_N
-    phase2_n = mod.PHASE2_N
+    phase_n = mod.PHASE_N
     gemini_id = mod.GEMINI_ID
 
-    # Split holdout into Phase 1 / Phase 2 (same global RNG as main).
     rng_global = np.random.default_rng(42)
     all_indices = rng_global.permutation(test_split.n)
-    p1_idx = all_indices[:phase1_n]
-    p2_idx = all_indices[phase1_n : phase1_n + phase2_n]
+    p1_idx = all_indices[:phase_n]
+    p2_idx = all_indices[phase_n:2 * phase_n]
+    p3_idx = all_indices[2 * phase_n:3 * phase_n]
 
     phase1 = SplitData(
         prompts=[test_split.prompts[i] for i in p1_idx],
@@ -124,24 +131,30 @@ def test_exp03_single_seed_regression(
         costs={a: test_split.costs[a][p1_idx] for a in arm_order},
         embeddings=test_split.embeddings[p1_idx],
     )
+
+    gemini_meta = model_registry[gemini_id]
+    old_input = gemini_meta["input_cost_per_m"]
+    old_output = gemini_meta["output_cost_per_m"]
+
     phase2_raw = SplitData(
         prompts=[test_split.prompts[i] for i in p2_idx],
         rewards={a: test_split.rewards[a][p2_idx] for a in arm_order},
         costs={a: test_split.costs[a][p2_idx] for a in arm_order},
         embeddings=test_split.embeddings[p2_idx],
     )
-
-    gemini_meta = model_registry[gemini_id]
-    old_input = gemini_meta["input_cost_per_m"]
-    old_output = gemini_meta["output_cost_per_m"]
-
     phase2 = mod._apply_gemini_cost_reduction(
         phase2_raw, gemini_id,
         old_input, old_output,
         mod.GEMINI_NEW_INPUT_COST, mod.GEMINI_NEW_OUTPUT_COST,
     )
 
-    # ParetoBandit (moderate) condition.
+    phase3 = SplitData(
+        prompts=[test_split.prompts[i] for i in p3_idx],
+        rewards={a: test_split.rewards[a][p3_idx] for a in arm_order},
+        costs={a: test_split.costs[a][p3_idx] for a in arm_order},
+        embeddings=test_split.embeddings[p3_idx],
+    )
+
     budget_target = mod.BUDGET_TARGETS[1]  # moderate
     pacer = BudgetPacer(
         target_avg_spend_usd=budget_target,
@@ -151,12 +164,15 @@ def test_exp03_single_seed_regression(
         ema_alpha=mod.PACER_EMA_ALPHA,
     )
 
-    seed_result = mod._run_two_phase_trial(
+    seed_result = mod._run_three_phase_trial(
         condition_label="ParetoBandit (moderate)",
         train_data=val_split,
         phase1=phase1,
         phase2=phase2,
+        phase3=phase3,
         registry=copy.deepcopy(model_registry),
+        original_gemini_input=old_input,
+        original_gemini_output=old_output,
         feature_dim=feature_dim,
         cost_penalty=0.0,
         warmup=True,
@@ -168,6 +184,7 @@ def test_exp03_single_seed_regression(
 
     p1_metrics = seed_result.phase_metrics(1)
     p2_metrics = seed_result.phase_metrics(2)
+    p3_metrics = seed_result.phase_metrics(3)
 
     actual: Dict[str, Any] = {
         "p1_mean_reward": p1_metrics["mean_reward"],
@@ -175,8 +192,12 @@ def test_exp03_single_seed_regression(
         "p2_mean_reward": p2_metrics["mean_reward"],
         "p2_mean_cost": p2_metrics["mean_cost"],
         "p2_mean_lambda": p2_metrics["mean_lambda"],
+        "p3_mean_reward": p3_metrics["mean_reward"],
+        "p3_mean_cost": p3_metrics["mean_cost"],
+        "p3_mean_lambda": p3_metrics["mean_lambda"],
         "p1_arm_fractions": p1_metrics["arm_fractions"],
         "p2_arm_fractions": p2_metrics["arm_fractions"],
+        "p3_arm_fractions": p3_metrics["arm_fractions"],
     }
 
     try:

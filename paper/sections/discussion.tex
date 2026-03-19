@@ -17,7 +17,7 @@ In a deployment where model pricing changes frequently (as is common with fronti
 Any cost-aware router reduces spend by shifting traffic to cheaper models; the relevant question is what ParetoBandit delivers \emph{beyond} a well-tuned static penalty.  Three differentiators emerge from the experiments.
 %
 \emph{Budget precision.}
-Across six budget--phase conditions (Table~\ref{tab:budget_compliance}), static baselines deviate from target by $\bdFixedTightPhaseOneRatio$--$\bdNaiveLoosePhaseOneRatio$; ParetoBandit holds within $\bdParetoBanditLoosePhaseOneUtil$--$\bdParetoBanditTightPhaseOneRatio$.
+Across nine budget--phase conditions (Table~\ref{tab:budget_compliance}), static baselines deviate from target by $\bdFixedTightPhaseOneRatio$--$\bdNaiveLoosePhaseOneRatio$; ParetoBandit holds within $\bdParetoBanditLoosePhaseOneUtil$--$\bdParetoBanditTightPhaseThreeRatio$.
 At a deployment routing 100{,}000~requests/day, the Fixed Policy's $\bdFixedLoosePhaseOneRatio$ overshoot at the loose budget ($B{=}\$0.0019$/req) translates to over~\$300/day in SLA-violating overruns; its $\bdFixedTightPhaseOneRatio$ under-spend at the tight budget wastes quality headroom that could have improved user experience.
 %
 \emph{Autonomous adaptation.}
