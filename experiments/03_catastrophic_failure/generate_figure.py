@@ -366,12 +366,11 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             btarget, color=color, linestyle=":", linewidth=1.4,
             alpha=0.6, zorder=1,
         )
-        ax_cost.annotate(
-            f"  {blabel} target",
-            xy=(steps[-1], btarget),
-            xytext=(8, 0), textcoords="offset points",
+        ax_cost.text(
+            1.01, btarget, f"{blabel} target",
+            transform=blended_transform_factory(ax_cost.transAxes, ax_cost.transData),
             fontsize=7.5, color=color, va="center", ha="left",
-            fontweight="bold",
+            fontweight="bold", clip_on=False,
         )
 
     if "Unconstrained" in conditions:
