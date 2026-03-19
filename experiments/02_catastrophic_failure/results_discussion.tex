@@ -1,0 +1,62 @@
+% Extended results discussion for Experiment 02: Catastrophic Model Failure.
+% This file provides a standalone narrative of the catastrophic failure
+% experiment results, suitable for inclusion in an appendix or supplementary
+% material if a more detailed treatment is needed.
+
+\subsection{Experiment~2: Catastrophic Failure --- Extended Discussion}
+\label{appendix:catastrophic_failure_extended}
+
+The catastrophic failure experiment evaluates ParetoBandit's resilience
+when a previously top-performing model (Mistral-Large) begins returning
+garbage responses mid-deployment.  This scenario---cloud API outages,
+5xx errors, timeout cascades, and silent quality degradation after
+provider-side model updates---is routine in production multi-LLM
+deployments.
+
+\paragraph{Three-phase design.}
+The test split ($n{=}608$ prompts per phase) is divided into:
+Phase~1 (normal operation), Phase~2 (Mistral failure: reward
+$\to 0.05$, cost $\to \$0$), and Phase~3 (Mistral recovered,
+reusing Phase~1 prompts).  The model registry is \emph{not} mutated
+at boundaries; adaptation is driven purely by observed rewards.
+
+\paragraph{Key findings.}
+Three algorithm variants are compared at each of three budget targets
+(Tight, Moderate, Loose), plus an unconstrained baseline (20~seeds):
+
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Fixed Policy} cannot learn and continues routing
+    to the dead model, suffering the most severe reward collapse.
+    At the loose budget, 70\% of Phase~2 traffic goes to Mistral,
+    driving reward down to \cfFixedLoosePhaseTwoReward.
+  \item \textbf{Naive Bandit ($\gamma{=}1.0$)} detects the failure
+    and reduces Mistral traffic, recovering reward.  However, its
+    static cost penalty cannot adjust to the changed cost landscape:
+    at moderate budget, it overshoots by \cfNaiveModPhaseTwoRatio{}
+    in Phase~2 and \cfNaiveModPhaseThreeRatio{} in Phase~3---a
+    persistent, worsening budget violation.
+  \item \textbf{ParetoBandit ($\gamma{=}0.995$)} detects the failure,
+    redistributes traffic (Mistral drops to
+    \cfParetoBanditModMistralPhaseTwo\% at moderate budget), \emph{and}
+    maintains budget compliance: \cfParetoBanditModPhaseOneRatio,
+    \cfParetoBanditModPhaseTwoRatio, and
+    \cfParetoBanditModPhaseThreeRatio{} across the three phases.
+\end{itemize}
+
+\paragraph{Budget compliance is the key differentiator.}
+ParetoBandit maintains budget ratios within $0.97$--$1.03\times$
+across all nine phase--budget combinations.  The Naive Bandit, despite
+recovering reward, violates the budget by up to
+\cfNaiveTightPhaseThreeRatio{} (tight, Phase~3).  This demonstrates
+that online learning alone is insufficient for budget-constrained
+non-stationary routing: the dual-variable mechanism is essential
+for maintaining cost invariance through disruptions.
+
+\paragraph{Recovery dynamics.}
+When Mistral is restored in Phase~3, geometric forgetting
+($\gamma{=}\cfGamma$) allows re-discovery via UCB exploration
+as Phase~2 failure memory is discounted.  Phase~3 reward
+approaches but does not fully match Phase~1 levels within the
+608-step phase---consistent with the ${\sim}200$-step effective
+memory window requiring time to accumulate sufficient positive
+evidence.

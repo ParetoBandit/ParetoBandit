@@ -5,14 +5,17 @@ Produces the results for Section~\\ref{sec:hparam_sweep} of the main
 paper, which presents the multi-objective framework and key insights.
 
 Grid search over exploration parameter (alpha), prior strength (n_eff),
-and forgetting factor (gamma) for **two variants** — ParetoBandit (warmup
-priors) and Tabula Rasa (cold start) — using an epsilon-constraint
-method to balance budget-paced routing quality and non-stationary
-adaptation ability.
+forgetting factor (gamma), and window size for **three variants** —
+ParetoBandit (warmup priors), Tabula Rasa (cold start with geometric
+forgetting), and SW-UCB (cold start with sliding-window forgetting) —
+using an epsilon-constraint method to balance budget-paced routing
+quality and non-stationary adaptation ability.
 
 We fix PCA dimensionality to d=25 (~28.5% cumulative variance).
 For Tabula Rasa, n_eff is irrelevant (no priors), so only alpha x
 gamma is swept with n_eff fixed at 1.0.
+For SW-UCB, gamma is fixed at 1.0 (no geometric decay) and the
+sliding-window size is swept alongside alpha.
 
 Data protocol
 -------------
@@ -94,8 +97,9 @@ from pareto_bandit.config import (
     VAL_DATA_PATH,
 )
 from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
-from pareto_bandit.router import BanditRouter
 from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.policy import SlidingWindowLinUCBPolicy
+from pareto_bandit.router import BanditRouter
 from pareto_bandit.storage import EphemeralContextStore
 from utils.pareto import pareto_auc
 from utils.simulation import build_model_registry, compute_normalized_costs
@@ -114,11 +118,12 @@ for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_
 
 ALPHA_VALUES: List[float] = [0.01, 0.05, 0.1, 0.25, 0.5, 1.0]
 N_EFF_VALUES: List[float] = [1.0, 10.0, 50.0, 200.0, 1000.0, 5000.0]
+WINDOW_SIZE_VALUES: List[int] = [50, 100, 200, 400, 800]
 BUDGET_TARGET_COUNT: int = 7
 PACER_LR: float = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
 EPSILON: float = 0.0025
-VARIANTS: List[str] = ["paretobandit", "tabula_rasa"]
+VARIANTS: List[str] = ["paretobandit", "tabula_rasa", "sw_ucb"]
 
 PCA_DIM: int = 25
 GAMMA_VALUES: List[float] = [0.995, 0.997, 0.999, 1.0]
@@ -139,10 +144,11 @@ NONSTAT_SWAP_PAIRS: List[Tuple[str, str]] = K3_ALL_SWAP_PAIRS
 
 
 def _build_configs() -> List[Dict[str, Any]]:
-    """Generate all (variant, alpha, n_eff, gamma) configurations.
+    """Generate all hyperparameter configurations for every variant.
 
-    For ParetoBandit: full alpha x n_eff x gamma grid.
-    For Tabula Rasa: alpha x gamma (n_eff fixed at 1.0, priors unused).
+    For ParetoBandit: full alpha x n_eff x gamma grid (window_size=0).
+    For Tabula Rasa: alpha x gamma (n_eff=1.0, window_size=0).
+    For SW-UCB: alpha x window_size (gamma=1.0, n_eff=1.0).
     """
     configs: List[Dict[str, Any]] = []
     for alpha, n_eff, gamma in itertools.product(
@@ -153,6 +159,7 @@ def _build_configs() -> List[Dict[str, Any]]:
             "alpha": alpha,
             "n_eff": n_eff,
             "gamma": gamma,
+            "window_size": 0,
         })
     for alpha, gamma in itertools.product(ALPHA_VALUES, GAMMA_VALUES):
         configs.append({
@@ -160,6 +167,15 @@ def _build_configs() -> List[Dict[str, Any]]:
             "alpha": alpha,
             "n_eff": 1.0,
             "gamma": gamma,
+            "window_size": 0,
+        })
+    for alpha, ws in itertools.product(ALPHA_VALUES, WINDOW_SIZE_VALUES):
+        configs.append({
+            "variant": "sw_ucb",
+            "alpha": alpha,
+            "n_eff": 1.0,
+            "gamma": 1.0,
+            "window_size": ws,
         })
     return configs
 
@@ -258,6 +274,35 @@ def _split_data(
 # ======================================================================
 
 
+def _maybe_swap_to_sw_ucb(
+    router: BanditRouter,
+    window_size: int,
+    alpha: float,
+    feature_dim: int,
+    seed: int,
+) -> None:
+    """Replace the router's policy with :class:`SlidingWindowLinUCBPolicy`.
+
+    Called only when ``window_size > 0``, i.e. the current config is SW-UCB.
+    Mirrors the pattern in Experiment 02's ``_create_router``.
+
+    Args:
+        router: Already-constructed router whose ``bandit`` field will be
+            overwritten in place.
+        window_size: Sliding-window length (number of retained observations).
+        alpha: UCB exploration coefficient.
+        feature_dim: Context vector dimensionality.
+        seed: RNG seed for deterministic tie-breaking.
+    """
+    router.bandit = SlidingWindowLinUCBPolicy(
+        model_names=ARM_ORDER,
+        dim=feature_dim,
+        alpha=alpha,
+        window_size=window_size,
+        seed=seed,
+    )
+
+
 def _simulate_bandit(
     burnin_data: Dict[str, Any],
     eval_data: Dict[str, Any],
@@ -270,6 +315,7 @@ def _simulate_bandit(
     gamma: float,
     cost_penalty: float,
     seed: int,
+    window_size: int = 0,
 ) -> Tuple[float, float]:
     """Run burn-in then eval bandit simulation, return (mean_reward, mean_cost).
 
@@ -290,6 +336,7 @@ def _simulate_bandit(
         gamma: Forgetting factor (1.0 = no forgetting).
         cost_penalty: Cost penalty weight in the routing objective.
         seed: Random seed for data shuffling.
+        window_size: If > 0, use SW-UCB policy with this window length.
 
     Returns:
         ``(mean_reward, mean_cost)`` on the eval split.
@@ -315,6 +362,8 @@ def _simulate_bandit(
         adaptive_gamma=False,
         budget_pacer=None,
     )
+    if window_size > 0:
+        _maybe_swap_to_sw_ucb(router, window_size, alpha, feature_dim, seed)
 
     burnin_order = rng.permutation(burnin_data["n"])
     for i in burnin_order:
@@ -354,6 +403,7 @@ def _simulate_budget_paced(
     gamma: float,
     budget_target: float,
     seed: int,
+    window_size: int = 0,
 ) -> Tuple[float, float]:
     """Run burn-in then budget-paced eval, return (mean_reward, mean_cost).
 
@@ -373,6 +423,7 @@ def _simulate_budget_paced(
         gamma: Forgetting factor (1.0 = no forgetting).
         budget_target: Target average spend per request in USD.
         seed: Random seed for data shuffling.
+        window_size: If > 0, use SW-UCB policy with this window length.
 
     Returns:
         ``(mean_reward, mean_cost)`` on the eval split.
@@ -405,6 +456,8 @@ def _simulate_budget_paced(
         adaptive_gamma=False,
         budget_pacer=pacer,
     )
+    if window_size > 0:
+        _maybe_swap_to_sw_ucb(router, window_size, alpha, feature_dim, seed)
 
     burnin_order = rng.permutation(burnin_data["n"])
     for i in burnin_order:
@@ -441,6 +494,7 @@ def compute_budget_paced_pareto_auc(
     gamma: float,
     n_seeds: int,
     seed_offset: int,
+    window_size: int = 0,
 ) -> Tuple[float, float, List[Dict[str, Any]]]:
     """Sweep budget targets with BudgetPacer and compute per-seed Pareto AUC.
 
@@ -467,6 +521,7 @@ def compute_budget_paced_pareto_auc(
         gamma: Forgetting factor (1.0 = no forgetting).
         n_seeds: Number of independent random seeds.
         seed_offset: Base offset added to each seed index.
+        window_size: If > 0, use SW-UCB policy with this window length.
 
     Returns:
         ``(mean_auc, std_auc, sweep_points)``.
@@ -494,6 +549,7 @@ def compute_budget_paced_pareto_auc(
                 gamma=gamma,
                 budget_target=bt,
                 seed=seed,
+                window_size=window_size,
             )
             seed_costs.append(mc)
             seed_rewards.append(mr)
@@ -539,6 +595,7 @@ def _simulate_nonstationary_regret(
     cost_penalty: float,
     seed: int,
     swap_arms: Tuple[str, str],
+    window_size: int = 0,
 ) -> Tuple[float, float]:
     """Burn-in then two-phase simulation with reward swap.
 
@@ -563,6 +620,7 @@ def _simulate_nonstationary_regret(
         cost_penalty: Cost penalty weight.
         seed: Random seed.
         swap_arms: Pair of arm IDs whose rewards/costs are exchanged in Phase 2.
+        window_size: If > 0, use SW-UCB policy with this window length.
 
     Returns:
         ``(phase1_regret, phase2_regret)`` — cumulative regret per phase.
@@ -588,6 +646,8 @@ def _simulate_nonstationary_regret(
         adaptive_gamma=False,
         budget_pacer=None,
     )
+    if window_size > 0:
+        _maybe_swap_to_sw_ucb(router, window_size, alpha, feature_dim, seed)
 
     burnin_order = rng.permutation(burnin_data["n"])
     for i in burnin_order:
@@ -666,6 +726,7 @@ def compute_nonstat_metric(
     gamma: float,
     n_seeds: int,
     seed_offset: int,
+    window_size: int = 0,
 ) -> Tuple[float, float, float]:
     """Phase 2 regret averaged over all pairwise swaps and seeds.
 
@@ -693,6 +754,7 @@ def compute_nonstat_metric(
                 cost_penalty=NONSTAT_COST_PENALTY,
                 seed=seed_offset + s,
                 swap_arms=swap_pair,
+                window_size=window_size,
             )
             p1_regs.append(p1)
             p2_regs.append(p2)
@@ -772,6 +834,7 @@ def main() -> None:
     configs = _build_configs()
     n_paretobandit = len(ALPHA_VALUES) * len(N_EFF_VALUES) * len(GAMMA_VALUES)
     n_tabula = len(ALPHA_VALUES) * len(GAMMA_VALUES)
+    n_sw_ucb = len(ALPHA_VALUES) * len(WINDOW_SIZE_VALUES)
 
     per_model_means = {
         a: float(np.mean([r["arms"][a]["cost"] for r in train_records]))
@@ -785,9 +848,9 @@ def main() -> None:
     total_trials = len(configs) * len(budget_targets) * N_SEEDS
     logger.info(
         "\nSweep: %d paretobandit (alpha x n_eff x gamma) + %d tabula_rasa "
-        "(alpha x gamma) = %d configs, %d budget targets x %d seeds "
-        "= %d total val trials",
-        n_paretobandit, n_tabula, len(configs),
+        "(alpha x gamma) + %d sw_ucb (alpha x window_size) = %d configs, "
+        "%d budget targets x %d seeds = %d total val trials",
+        n_paretobandit, n_tabula, n_sw_ucb, len(configs),
         len(budget_targets), N_SEEDS, total_trials,
     )
     logger.info(
@@ -806,6 +869,7 @@ def main() -> None:
         alpha = cfg["alpha"]
         n_eff = cfg["n_eff"]
         gamma = cfg["gamma"]
+        ws = cfg["window_size"]
 
         if variant != current_variant:
             current_variant = variant
@@ -824,6 +888,7 @@ def main() -> None:
             gamma=gamma,
             n_seeds=N_SEEDS,
             seed_offset=SEED_OFFSET_VAL,
+            window_size=ws,
         )
         elapsed = time.time() - t_cfg
         delta_pct = (auc - val_fixed_auc) / val_fixed_auc * 100
@@ -833,6 +898,7 @@ def main() -> None:
             "alpha": alpha,
             "n_eff": n_eff,
             "gamma": gamma,
+            "window_size": ws,
             "pca_dim": PCA_DIM,
             "val_pareto_auc": round(auc, 6),
             "val_pareto_auc_std": round(auc_std, 6),
@@ -849,15 +915,24 @@ def main() -> None:
         )
         if (best_so_far["alpha"] == alpha
                 and best_so_far["n_eff"] == n_eff
-                and best_so_far["gamma"] == gamma):
+                and best_so_far["gamma"] == gamma
+                and best_so_far["window_size"] == ws):
             marker = " *** BEST ***"
 
-        logger.info(
-            "  [%3d/%d] alpha=%.3f n_eff=%7.0f γ=%.4f  BP_AUC=%.6f ± %.6f "
-            "(Δ=%+.3f%%)  %.1fs%s",
-            idx + 1, len(configs), alpha, n_eff, gamma,
-            auc, auc_std, delta_pct, elapsed, marker,
-        )
+        if variant == "sw_ucb":
+            logger.info(
+                "  [%3d/%d] alpha=%.3f W=%4d  BP_AUC=%.6f ± %.6f "
+                "(Δ=%+.3f%%)  %.1fs%s",
+                idx + 1, len(configs), alpha, ws,
+                auc, auc_std, delta_pct, elapsed, marker,
+            )
+        else:
+            logger.info(
+                "  [%3d/%d] alpha=%.3f n_eff=%7.0f γ=%.4f  BP_AUC=%.6f ± %.6f "
+                "(Δ=%+.3f%%)  %.1fs%s",
+                idx + 1, len(configs), alpha, n_eff, gamma,
+                auc, auc_std, delta_pct, elapsed, marker,
+            )
 
     # ------------------------------------------------------------------
     # 4. Non-stationary evaluation on val (Phase 2 regret)
@@ -882,6 +957,7 @@ def main() -> None:
         alpha = cfg["alpha"]
         n_eff = cfg["n_eff"]
         gamma = cfg["gamma"]
+        ws = cfg["window_size"]
 
         if variant != current_variant:
             current_variant = variant
@@ -899,6 +975,7 @@ def main() -> None:
             gamma=gamma,
             n_seeds=N_SEEDS,
             seed_offset=SEED_OFFSET_VAL,
+            window_size=ws,
         )
         elapsed = time.time() - t_cfg
 
@@ -907,18 +984,27 @@ def main() -> None:
             "alpha": alpha,
             "n_eff": n_eff,
             "gamma": gamma,
+            "window_size": ws,
             "phase2_regret": round(p2_reg, 2),
             "phase2_regret_std": round(p2_std, 2),
             "phase1_regret_diag": round(p1_reg, 2),
             "elapsed_s": round(elapsed, 1),
         })
 
-        logger.info(
-            "  [%3d/%d] alpha=%.3f n_eff=%7.0f γ=%.4f  P2_regret=%.1f ± %.1f  "
-            "(P1_diag=%.1f)  %.1fs",
-            idx + 1, len(configs), alpha, n_eff, gamma,
-            p2_reg, p2_std, p1_reg, elapsed,
-        )
+        if variant == "sw_ucb":
+            logger.info(
+                "  [%3d/%d] alpha=%.3f W=%4d  P2_regret=%.1f ± %.1f  "
+                "(P1_diag=%.1f)  %.1fs",
+                idx + 1, len(configs), alpha, ws,
+                p2_reg, p2_std, p1_reg, elapsed,
+            )
+        else:
+            logger.info(
+                "  [%3d/%d] alpha=%.3f n_eff=%7.0f γ=%.4f  P2_regret=%.1f ± %.1f  "
+                "(P1_diag=%.1f)  %.1fs",
+                idx + 1, len(configs), alpha, n_eff, gamma,
+                p2_reg, p2_std, p1_reg, elapsed,
+            )
 
     # ------------------------------------------------------------------
     # 5. Epsilon-constraint selection
@@ -929,6 +1015,15 @@ def main() -> None:
 
     per_variant_best: Dict[str, Dict[str, Any]] = {}
     auc_only_best: Dict[str, Dict[str, Any]] = {}
+
+    def _cfg_matches(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+        """True when two result dicts share the same hyperparameter config."""
+        return (
+            a["alpha"] == b["alpha"]
+            and a["n_eff"] == b["n_eff"]
+            and a["gamma"] == b["gamma"]
+            and a["window_size"] == b["window_size"]
+        )
 
     for variant in VARIANTS:
         var_stat = [r for r in val_results if r["variant"] == variant]
@@ -942,31 +1037,43 @@ def main() -> None:
             "alpha": auc_best_cfg["alpha"],
             "n_eff": auc_best_cfg["n_eff"],
             "gamma": auc_best_cfg["gamma"],
+            "window_size": auc_best_cfg["window_size"],
             "val_pareto_auc": auc_best_cfg["val_pareto_auc"],
         }
 
         logger.info("\n  --- %s ---", variant)
         logger.info("  Best BP AUC: %.6f  Threshold (%.0f%%): %.6f",
                      best_auc, (1 - EPSILON) * 100, threshold)
-        logger.info(
-            "  AUC-only winner: alpha=%.3f, n_eff=%.0f, γ=%.4f, AUC=%.6f",
-            auc_best_cfg["alpha"], auc_best_cfg["n_eff"],
-            auc_best_cfg["gamma"], auc_best_cfg["val_pareto_auc"],
-        )
 
-        logger.info("\n  %-7s  %-7s  %-7s  %-10s  %-9s  %-10s  %-8s",
-                     "alpha", "n_eff", "gamma", "BP_AUC", "Δ%",
-                     "P2_Regret", "Feasible")
-        logger.info("  " + "-" * 75)
+        if variant == "sw_ucb":
+            logger.info(
+                "  AUC-only winner: alpha=%.3f, W=%d, AUC=%.6f",
+                auc_best_cfg["alpha"], auc_best_cfg["window_size"],
+                auc_best_cfg["val_pareto_auc"],
+            )
+            logger.info(
+                "\n  %-7s  %-7s  %-10s  %-9s  %-10s  %-8s",
+                "alpha", "W", "BP_AUC", "Δ%", "P2_Regret", "Feasible",
+            )
+            logger.info("  " + "-" * 65)
+        else:
+            logger.info(
+                "  AUC-only winner: alpha=%.3f, n_eff=%.0f, γ=%.4f, AUC=%.6f",
+                auc_best_cfg["alpha"], auc_best_cfg["n_eff"],
+                auc_best_cfg["gamma"], auc_best_cfg["val_pareto_auc"],
+            )
+            logger.info(
+                "\n  %-7s  %-7s  %-7s  %-10s  %-9s  %-10s  %-8s",
+                "alpha", "n_eff", "gamma", "BP_AUC", "Δ%",
+                "P2_Regret", "Feasible",
+            )
+            logger.info("  " + "-" * 75)
 
         feasible_indices: List[int] = []
         for i in range(len(var_stat)):
             auc_val = var_stat[i]["val_pareto_auc"]
             ns_match = [
-                r for r in var_nonstat
-                if r["alpha"] == var_stat[i]["alpha"]
-                and r["n_eff"] == var_stat[i]["n_eff"]
-                and r["gamma"] == var_stat[i]["gamma"]
+                r for r in var_nonstat if _cfg_matches(r, var_stat[i])
             ]
             p2_reg = ns_match[0]["phase2_regret"] if ns_match else float("nan")
             is_feasible = auc_val >= threshold
@@ -974,13 +1081,21 @@ def main() -> None:
                 feasible_indices.append(i)
 
             delta = (auc_val - best_auc) / best_auc * 100
-            logger.info(
-                "  %.3f  %7.0f  %.4f  %.6f  %+6.2f%%  %8.1f    %s",
-                var_stat[i]["alpha"], var_stat[i]["n_eff"],
-                var_stat[i]["gamma"],
-                auc_val, delta, p2_reg,
-                "YES" if is_feasible else "",
-            )
+            if variant == "sw_ucb":
+                logger.info(
+                    "  %.3f  %7d  %.6f  %+6.2f%%  %8.1f    %s",
+                    var_stat[i]["alpha"], var_stat[i]["window_size"],
+                    auc_val, delta, p2_reg,
+                    "YES" if is_feasible else "",
+                )
+            else:
+                logger.info(
+                    "  %.3f  %7.0f  %.4f  %.6f  %+6.2f%%  %8.1f    %s",
+                    var_stat[i]["alpha"], var_stat[i]["n_eff"],
+                    var_stat[i]["gamma"],
+                    auc_val, delta, p2_reg,
+                    "YES" if is_feasible else "",
+                )
 
         logger.info("\n  Feasible set: %d / %d configs",
                      len(feasible_indices), len(var_stat))
@@ -990,23 +1105,19 @@ def main() -> None:
             key=lambda i: next(
                 r["phase2_regret"]
                 for r in var_nonstat
-                if r["alpha"] == var_stat[i]["alpha"]
-                and r["n_eff"] == var_stat[i]["n_eff"]
-                and r["gamma"] == var_stat[i]["gamma"]
+                if _cfg_matches(r, var_stat[i])
             ),
         )
         winner_stat = var_stat[best_idx]
         winner_ns = next(
-            r for r in var_nonstat
-            if r["alpha"] == winner_stat["alpha"]
-            and r["n_eff"] == winner_stat["n_eff"]
-            and r["gamma"] == winner_stat["gamma"]
+            r for r in var_nonstat if _cfg_matches(r, winner_stat)
         )
 
         per_variant_best[variant] = {
             "alpha": winner_stat["alpha"],
             "n_eff": winner_stat["n_eff"],
             "gamma": winner_stat["gamma"],
+            "window_size": winner_stat["window_size"],
             "pca_dim": PCA_DIM,
             "val_pareto_auc": winner_stat["val_pareto_auc"],
             "val_phase2_regret": winner_ns["phase2_regret"],
@@ -1014,13 +1125,21 @@ def main() -> None:
             "epsilon": EPSILON,
         }
 
-        logger.info(
-            "\n  SELECTED: alpha=%.3f, n_eff=%.0f, γ=%.4f  "
-            "BP_AUC=%.6f  P2_Regret=%.1f",
-            winner_stat["alpha"], winner_stat["n_eff"],
-            winner_stat["gamma"],
-            winner_stat["val_pareto_auc"], winner_ns["phase2_regret"],
-        )
+        if variant == "sw_ucb":
+            logger.info(
+                "\n  SELECTED: alpha=%.3f, W=%d  "
+                "BP_AUC=%.6f  P2_Regret=%.1f",
+                winner_stat["alpha"], winner_stat["window_size"],
+                winner_stat["val_pareto_auc"], winner_ns["phase2_regret"],
+            )
+        else:
+            logger.info(
+                "\n  SELECTED: alpha=%.3f, n_eff=%.0f, γ=%.4f  "
+                "BP_AUC=%.6f  P2_Regret=%.1f",
+                winner_stat["alpha"], winner_stat["n_eff"],
+                winner_stat["gamma"],
+                winner_stat["val_pareto_auc"], winner_ns["phase2_regret"],
+            )
 
     # ------------------------------------------------------------------
     # 6. Holdout evaluation (budget-paced AUC on test)
@@ -1056,12 +1175,20 @@ def main() -> None:
         best_alpha = per_variant_best[variant]["alpha"]
         best_n_eff = per_variant_best[variant]["n_eff"]
         best_gamma = per_variant_best[variant]["gamma"]
+        best_ws = per_variant_best[variant]["window_size"]
 
-        logger.info(
-            "\n  %s (alpha=%.3f, n_eff=%.0f, γ=%.4f) on test "
-            "[epsilon-constraint] ...",
-            variant, best_alpha, best_n_eff, best_gamma,
-        )
+        if variant == "sw_ucb":
+            logger.info(
+                "\n  %s (alpha=%.3f, W=%d) on test "
+                "[epsilon-constraint] ...",
+                variant, best_alpha, best_ws,
+            )
+        else:
+            logger.info(
+                "\n  %s (alpha=%.3f, n_eff=%.0f, γ=%.4f) on test "
+                "[epsilon-constraint] ...",
+                variant, best_alpha, best_n_eff, best_gamma,
+            )
         t_test = time.time()
         test_auc, test_std, test_sweep = compute_budget_paced_pareto_auc(
             val_data, test_data, registry, feature_dim,
@@ -1072,6 +1199,7 @@ def main() -> None:
             gamma=best_gamma,
             n_seeds=N_SEEDS,
             seed_offset=SEED_OFFSET_TEST,
+            window_size=best_ws,
         )
         elapsed_test = time.time() - t_test
         test_delta_pct = (test_auc - test_fixed_auc) / test_fixed_auc * 100
@@ -1080,6 +1208,7 @@ def main() -> None:
             "alpha": best_alpha,
             "n_eff": best_n_eff,
             "gamma": best_gamma,
+            "window_size": best_ws,
             "selection_method": "epsilon_constraint",
             "test_pareto_auc": round(test_auc, 6),
             "test_pareto_auc_std": round(test_std, 6),
@@ -1115,6 +1244,7 @@ def main() -> None:
             "alpha_values": ALPHA_VALUES,
             "n_eff_values": N_EFF_VALUES,
             "gamma_values": GAMMA_VALUES,
+            "window_size_values": WINDOW_SIZE_VALUES,
             "pca_dim": PCA_DIM,
             "budget_targets": [round(t, 10) for t in budget_targets],
             "pacer_lr": PACER_LR,
@@ -1172,20 +1302,36 @@ def main() -> None:
         b = per_variant_best[variant]
         t = test_results[variant]
         auc_b = auc_only_best[variant]
-        logger.info(
-            "  %-12s  SELECTED: alpha=%.3f  n_eff=%7.0f  γ=%.4f  "
-            "val_BP_AUC=%.6f  val_P2_regret=%.1f  "
-            "test_BP_AUC=%.6f (Δ=%+.3f%%)",
-            variant, b["alpha"], b["n_eff"], b["gamma"],
-            b["val_pareto_auc"], b["val_phase2_regret"],
-            t["test_pareto_auc"], t["test_delta_pct"],
-        )
-        logger.info(
-            "  %-12s  AUC-only: alpha=%.3f  n_eff=%7.0f  γ=%.4f  "
-            "val_BP_AUC=%.6f",
-            "", auc_b["alpha"], auc_b["n_eff"], auc_b["gamma"],
-            auc_b["val_pareto_auc"],
-        )
+        if variant == "sw_ucb":
+            logger.info(
+                "  %-12s  SELECTED: alpha=%.3f  W=%4d  "
+                "val_BP_AUC=%.6f  val_P2_regret=%.1f  "
+                "test_BP_AUC=%.6f (Δ=%+.3f%%)",
+                variant, b["alpha"], b["window_size"],
+                b["val_pareto_auc"], b["val_phase2_regret"],
+                t["test_pareto_auc"], t["test_delta_pct"],
+            )
+            logger.info(
+                "  %-12s  AUC-only: alpha=%.3f  W=%4d  "
+                "val_BP_AUC=%.6f",
+                "", auc_b["alpha"], auc_b["window_size"],
+                auc_b["val_pareto_auc"],
+            )
+        else:
+            logger.info(
+                "  %-12s  SELECTED: alpha=%.3f  n_eff=%7.0f  γ=%.4f  "
+                "val_BP_AUC=%.6f  val_P2_regret=%.1f  "
+                "test_BP_AUC=%.6f (Δ=%+.3f%%)",
+                variant, b["alpha"], b["n_eff"], b["gamma"],
+                b["val_pareto_auc"], b["val_phase2_regret"],
+                t["test_pareto_auc"], t["test_delta_pct"],
+            )
+            logger.info(
+                "  %-12s  AUC-only: alpha=%.3f  n_eff=%7.0f  γ=%.4f  "
+                "val_BP_AUC=%.6f",
+                "", auc_b["alpha"], auc_b["n_eff"], auc_b["gamma"],
+                auc_b["val_pareto_auc"],
+            )
     logger.info("=" * 70)
     logger.info("Wall time: %.1fs", elapsed)
 

@@ -10,7 +10,7 @@ ParetoBandit exposes a small set of interpretable hyperparameters, each governin
   \item $\gamma$ (forgetting factor): how quickly the router discounts stale evidence, determining when it \emph{re-explores} arms whose quality may have changed (Section~\ref{sec:forgetting}).
   \item $B$ (budget target): a dollar constraint that bounds the cost of exploration, forcing the router to explore efficiently within its financial envelope (Section~\ref{sec:budget_pacing}).
 \end{itemize}
-Every experiment in this paper examines how these knobs interact under the realities of budget-constrained, non-stationary deployment: stationary budget pacing (Section~\ref{sec:exp1_budget_pacing}), reward drift (Section~\ref{sec:exp2_reward_shift}), cost drift (Section~\ref{sec:exp3_cost_drift}), joint hyperparameter selection (Section~\ref{sec:exp4_hparam_sweep}), and cold-start model onboarding (Section~\ref{sec:model_onboarding_preview}).
+Every experiment in this paper examines how these knobs interact under the realities of budget-constrained, non-stationary deployment: stationary budget pacing (Section~\ref{sec:exp1_budget_pacing}), catastrophic model failure (Section~\ref{sec:exp2_catastrophic_failure}), cost drift (Section~\ref{sec:exp3_cost_drift}), joint hyperparameter selection (Section~\ref{sec:exp4_hparam_sweep}), and cold-start model onboarding (Section~\ref{sec:model_onboarding_preview}).
 
 \paragraph{Design rationale.}
 No single existing algorithm simultaneously learns reward surfaces from bandit feedback, enforces a long-run budget constraint, and adapts to non-stationarity.

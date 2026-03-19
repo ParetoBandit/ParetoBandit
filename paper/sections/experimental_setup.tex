@@ -68,8 +68,8 @@ During all experiments the PCA transform and whitening scales are frozen and app
 The $K{=}3$ portfolio spans three distinct cost tiers (Table~\ref{tab:dataset}, right).  The $500\times$ price differential between Llama-3.1-8B and Gemini-2.5-Pro stresses the router's ability to balance quality and cost efficiently.
 
 We construct two distinct non-stationary test environments to evaluate the router's robustness:
-1. \textbf{Reward Drift (Model Quality Shift)}: Simulates a silent API update where model quality changes mid-deployment. The test trajectory ($n=1,785$) is split into two phases. Phase 1 (steps 1--893) uses normal rewards where Mistral-Large is the utility-optimal model. In Phase 2 (steps 894--1,785), Llama-8B and Mistral-Large exchange their reward distributions, simulating a scenario where Mistral degrades to the worst option while Llama becomes the best. Gemini-Pro serves as an unchanged anchor.
-2. \textbf{Cost Drift (Price Drop)}: Simulates an API price cut. The test trajectory ($n=1,824$) is similarly split. Phase 1 (steps 1--912) uses normal pricing. In Phase 2 (steps 913--1,824), Gemini-2.5-Pro's price drops to \$0.0001 per request, drastically altering the optimal cost-quality trade-off.
+1. \textbf{Catastrophic Model Failure}: Simulates a production API outage where Mistral-Large begins returning garbage responses. The test trajectory ($n{=}1{,}824$) is divided into three phases of 608~prompts each. Phase~1 uses normal conditions; Phase~2 degrades Mistral-Large's reward to $0.05$ and cost to \$0 (the provider does not charge for failed requests); Phase~3 restores Mistral to normal operation (reusing Phase~1 prompts for controlled comparison). A separate reward-drift scenario (Llama--Mistral reward swap) is presented in Appendix~\ref{appendix:reward_swap}.
+2. \textbf{Cost Drift (Price Drop)}: Simulates an API price cut. The test trajectory ($n{=}1{,}824$) is similarly divided into three 608-prompt phases. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's price to \$0.0001 per request; Phase~3 restores the original pricing. Phase~3 reuses Phase~1 prompts, providing a controlled within-subject design.
 
 \subsection{Baselines}
 
@@ -92,8 +92,8 @@ We compare ParetoBandit against three baselines representing increasing levels o
     $1/(1{-}\gamma){=}200$---the standard equivalence between
     exponential and rectangular windows---ensuring equal estimation
     precision while isolating the forgetting shape and initialisation
-    as the experimental variables.  Used in the reward-drift
-    experiment (Section~\ref{sec:exp2_reward_shift}).
+    as the experimental variables.  Used in the appendix
+    reward-swap experiment (Appendix~\ref{appendix:reward_swap}).
   \item \textbf{ParetoBandit ($\gamma{=}0.995$):} Our proposed system,
     initialized with warmup priors, utilizing geometric forgetting,
     and governed by the Primal-Dual \texttt{BudgetPacer} targeting
@@ -116,7 +116,18 @@ as the strongest static-penalty baseline for cost-drift evaluation.
 
 \subsection{Metrics}
 
-We evaluate the systems using three primary metrics:
-1. \textbf{Cumulative Regret:} Measured against a cost-adjusted oracle that selects the model maximizing $r_{a,t} - \lambda_s \tilde{c}_a$ at each step $t$ (where $\lambda_s$ is a shared static penalty). Lower regret indicates better routing decisions relative to the optimal choice.
-2. \textbf{Budget Compliance:} The ratio of actual realized cost to the target budget $B$. A perfect pacer achieves a ratio $\leq 1.0\times$, maximizing quality without overspending. Ratios $>1.0\times$ indicate budget violations.
-3. \textbf{Pareto AUC:} The area under the quality-cost Pareto frontier, measuring the router's efficiency across all possible cost trade-offs. Higher AUC indicates better quality at lower costs.
+We evaluate the systems using three primary metrics and four supplementary routing metrics standard in the LLM routing literature~\cite{ong2024routellm,ding2024hybrid}:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Cumulative Regret:} Measured against a cost-adjusted oracle that selects the model maximizing $r_{a,t} - \lambda_s \tilde{c}_a$ at each step $t$ (where $\lambda_s$ is a shared static penalty). Lower regret indicates better routing decisions relative to the optimal choice.
+  \item \textbf{Budget Compliance:} The ratio of actual realized cost to the target budget $B$. A perfect pacer achieves a ratio $\leq 1.0\times$, maximizing quality without overspending. Ratios $>1.0\times$ indicate budget violations.
+  \item \textbf{Pareto AUC:} The area under the quality--cost Pareto frontier, measuring the router's efficiency across all possible cost trade-offs. Higher AUC indicates better quality at lower costs.
+\end{enumerate}
+
+\noindent
+To facilitate comparison with the LLM routing literature, we additionally report four metrics evaluated on the Pareto frontier produced by each method (Table~\ref{tab:routing_metrics}):
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{cost@$Q$\%\,qual} ($\downarrow$): the cost on the Pareto frontier at $Q$\% of unconstrained (oracle) quality.  Measures how cheaply a method reaches a given quality threshold.
+  \item \textbf{qual@$C$\%\,cost} ($\uparrow$): the quality achieved at $C$\% of unconstrained cost.  Measures quality at a fixed cost fraction.
+  \item \textbf{Save@$Q$\%} ($\uparrow$): fractional cost reduction at $Q$\% of oracle quality relative to the unconstrained operating point, i.e.\ $1 - \text{cost@}Q / \text{cost}_{\text{oracle}}$.
+  \item \textbf{AUCPC} ($\uparrow$): the normalised Area Under the Cost--Performance Curve~\cite{ding2024hybrid}, integrated over the model-cost range $[\text{cheapest model cost},\, \text{most expensive model cost}]$ and scaled to $[0,1]$ using cheapest-model quality and oracle quality as anchors.
+\end{enumerate}

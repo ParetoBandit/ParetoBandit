@@ -694,6 +694,7 @@ def _aggregate_seeds(
         lambdas, cost_emas, gammas = [], [], []
         arm_frac_lists: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
         avg_costs: List[float] = []
+        avg_rewards: List[float] = []
 
         for sr in seed_results:
             steps_so_far = sr.steps[:cp_step]
@@ -703,6 +704,7 @@ def _aggregate_seeds(
             gammas.append(last.gamma)
             cost_window = steps_so_far[-min(50, len(steps_so_far)):]
             avg_costs.append(float(np.mean([s.cost for s in cost_window])))
+            avg_rewards.append(float(np.mean([s.reward for s in cost_window])))
 
             arm_counts: Dict[str, int] = {a: 0 for a in ARM_ORDER}
             window = steps_so_far[-min(50, len(steps_so_far)):]
@@ -736,6 +738,9 @@ def _aggregate_seeds(
             "std_cost_ema": float(np.std(cost_emas)),
             "mean_gamma": float(np.mean(gammas)),
             "std_gamma": float(np.std(gammas)),
+            "mean_window_reward": float(np.mean(avg_rewards)),
+            "std_window_reward": float(np.std(avg_rewards)),
+            "per_seed_window_reward": [float(r) for r in avg_rewards],
             "mean_window_cost": float(np.mean(avg_costs)),
             "std_window_cost": float(np.std(avg_costs)),
             "per_seed_window_cost": [float(c) for c in avg_costs],

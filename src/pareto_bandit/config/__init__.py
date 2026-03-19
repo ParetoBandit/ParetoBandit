@@ -162,6 +162,16 @@ GEMINI_COST_DROP = {
 """Simulated Gemini-Pro price drop used in cost-drift experiments."""
 
 # ==============================================================================
+# Catastrophic Failure Scenario (Experiment 02)
+# ==============================================================================
+
+K3_FAILURE_ARM: str = "mistralai/mistral-large-2512"
+"""Model that suffers catastrophic failure in Experiment 02."""
+
+K3_FAILURE_REWARD: float = 0.05
+"""Fixed low reward during failure (API returns garbage, not exact zero)."""
+
+# ==============================================================================
 # K=3 Budget Targets (Experiment 03 / Appendix model onboarding)
 # ==============================================================================
 
@@ -208,8 +218,23 @@ BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
 Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9288, test BP AUC = 0.9246.
+lowest Phase 2 regret).  Val BP AUC = 0.9284, test BP AUC = 0.9247.
 Geometric forgetting (gamma=0.995, effective memory ~200 steps) matches the
 ParetoBandit selection; moderate exploration (alpha=0.10) provides sufficient
 re-exploration budget after distribution shifts.
+"""
+
+BEST_K3_SW_UCB_HPARAMS: Dict[str, Any] = {
+    "alpha": 0.10,
+    "pca_components": 25,
+    "window_size": 100,
+}
+"""Best K=3 SW-UCB config (cold start, PCA-25, sliding-window forgetting).
+
+Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
+lowest Phase 2 regret).  Val BP AUC = 0.9290, test BP AUC = 0.9257.
+A window of W=100 retains fewer observations than ParetoBandit's effective
+memory (~200 steps at gamma=0.995), enabling faster adaptation at the cost
+of slightly higher variance.  Moderate exploration (alpha=0.10) matches the
+other two variants, confirming that the original alpha=0.01 was suboptimal.
 """

@@ -3,6 +3,7 @@
 Reads results/budget_pacing_results.json and emits:
 - _autogen.tex: \\newcommand definitions for the paper
 - table_budget_compliance.tex: budget compliance diagnostics table
+- table_routing_metrics.tex: standard LLM routing evaluation metrics
 
 Run from the experiment directory: python generate_latex.py
 """
@@ -12,7 +13,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
@@ -21,8 +24,15 @@ from utils.latex_gen import (
     fmt_cost_dollar,
     fmt_cost_sci,
     fmt_num,
+    fmt_pct,
     fmt_ratio,
     fmt_reward,
+)
+from utils.pareto import (
+    interpolate_pareto_cost,
+    interpolate_pareto_reward,
+    pareto_aucpc_normalized,
+    pareto_hull,
 )
 
 
@@ -43,6 +53,9 @@ PACER_INDEX_NAMES = [
 REQUESTS_PER_DAY = 100_000
 BINDING_UTIL_LOW = 0.95
 BINDING_UTIL_HIGH = 1.05
+
+QUALITY_FRACTIONS = {"90": 0.90, "95": 0.95}
+COST_FRACTIONS = {"25": 0.25, "50": 0.50}
 
 
 def load_results(json_path: Path) -> Dict[str, Any]:
@@ -315,8 +328,325 @@ def generate_table(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# =========================================================================
+# Routing evaluation metrics (cost@Q, quality@C, AUCPC, Pareto AUC)
+# =========================================================================
+
+
+def _aggregate_seeds(
+    values: List[float],
+) -> Tuple[Optional[float], Optional[float]]:
+    """Compute mean and SE from per-seed metric values.
+
+    Args:
+        values: Per-seed scalars (empty entries already filtered out).
+
+    Returns:
+        ``(mean, se)`` or ``(None, None)`` if *values* is empty.
+    """
+    if not values:
+        return None, None
+    arr = np.array(values)
+    return float(np.mean(arr)), float(np.std(arr, ddof=1) / np.sqrt(len(arr)))
+
+
+def compute_routing_metrics(
+    data: Dict[str, Any],
+) -> Dict[str, Dict[str, Any]]:
+    """Compute standard LLM routing evaluation metrics for each method.
+
+    For each method builds per-seed Pareto hulls from the sweep and
+    computes:
+
+    - **Pareto AUC** (reused from the dominance test).
+    - **AUCPC** (normalised to [0, 1] over the model-cost range).
+    - **cost@Q%**: cost on the Pareto hull at Q% of unconstrained quality.
+    - **quality@C%**: quality at C% of unconstrained cost.
+    - **CostSave@95%**: ``1 - cost@95% / ref_cost``.
+
+    Two sets of anchors are used:
+
+    - **AUCPC** uses the model-mean cost endpoints
+      (``budget_targets[0]`` / ``budget_targets[-1]``) so that both
+      methods are evaluated over the identical cost range with all
+      sweep points included.  Quality anchors: cheapest-model quality
+      (pacer at tightest budget) and unconstrained oracle quality
+      (static lambda=0).
+    - **cost@Q / Q@C / Save** use the unconstrained operating point
+      (static lambda=0) as the reference for quality and cost
+      thresholds.
+
+    Args:
+        data: Full JSON dict from ``budget_pacing_results.json``.
+
+    Returns:
+        Dict keyed by ``"static"``, ``"pacer"``, ``"_anchors"``.
+    """
+    results = data["results"]
+    n_seeds = data["n_seeds"]
+    budget_targets = data["budget_targets"]
+
+    static_rows = [r for r in results if r["method"] == "static"]
+    pacer_rows = [r for r in results if r["method"] == "pacer"]
+
+    s0 = get_static_by_penalty(results, 0.0)
+    s1 = get_static_by_penalty(results, 1.0)
+    assert s0 is not None and s1 is not None, (
+        "Static lambda=0 and lambda=1 rows required for anchor points"
+    )
+
+    # Reference for cost@Q and Q@C: unconstrained (oracle) operating point
+    ref_reward = s0["mean_reward"]
+    ref_cost = s0["mean_cost"]
+
+    # AUCPC cost anchors: true model-mean costs (symmetric for both methods)
+    aucpc_cheap_cost = budget_targets[0]
+    aucpc_frontier_cost = budget_targets[-1]
+
+    # AUCPC quality anchors: cheapest-model quality and oracle ceiling
+    p_tightest = get_pacer_by_target(results, budget_targets[0])
+    aucpc_cheap_reward = (
+        p_tightest["mean_reward"] if p_tightest else s1["mean_reward"]
+    )
+    aucpc_frontier_reward = s0["mean_reward"]
+
+    dt = data.get("dominance_test", {})
+    out: Dict[str, Dict[str, Any]] = {}
+
+    for method_label, rows, dt_auc_key in [
+        ("static", static_rows, "per_seed_static_auc"),
+        ("pacer", pacer_rows, "per_seed_pacer_auc"),
+    ]:
+        per_seed_auc: List[float] = dt.get(dt_auc_key, [])
+        per_seed_aucpc: List[float] = []
+        per_seed_cost_at: Dict[str, List[float]] = {
+            k: [] for k in QUALITY_FRACTIONS
+        }
+        per_seed_quality_at: Dict[str, List[float]] = {
+            k: [] for k in COST_FRACTIONS
+        }
+
+        for s in range(n_seeds):
+            s_costs = [r["per_seed_costs"][s] for r in rows]
+            s_rewards = [r["per_seed_rewards"][s] for r in rows]
+
+            aucpc = pareto_aucpc_normalized(
+                s_costs,
+                s_rewards,
+                cheap_cost=aucpc_cheap_cost,
+                frontier_cost=aucpc_frontier_cost,
+                cheap_reward=aucpc_cheap_reward,
+                frontier_reward=aucpc_frontier_reward,
+            )
+            per_seed_aucpc.append(aucpc)
+
+            hull_c, hull_r = pareto_hull(s_costs, s_rewards)
+
+            for label, q_frac in QUALITY_FRACTIONS.items():
+                target_q = q_frac * ref_reward
+                c_val = interpolate_pareto_cost(hull_c, hull_r, target_q)
+                if c_val is not None:
+                    per_seed_cost_at[label].append(c_val)
+
+            for label, c_frac in COST_FRACTIONS.items():
+                target_c = c_frac * ref_cost
+                q_val = interpolate_pareto_reward(hull_c, hull_r, target_c)
+                if q_val is not None:
+                    per_seed_quality_at[label].append(q_val)
+
+        metrics: Dict[str, Any] = {}
+
+        auc_m, auc_se = _aggregate_seeds(per_seed_auc)
+        metrics["pareto_auc_mean"] = auc_m
+        metrics["pareto_auc_se"] = auc_se
+
+        aucpc_m, aucpc_se = _aggregate_seeds(per_seed_aucpc)
+        metrics["aucpc_mean"] = aucpc_m
+        metrics["aucpc_se"] = aucpc_se
+
+        for label in QUALITY_FRACTIONS:
+            m, se = _aggregate_seeds(per_seed_cost_at[label])
+            metrics[f"cost_at_{label}_mean"] = m
+            metrics[f"cost_at_{label}_se"] = se
+
+        for label in COST_FRACTIONS:
+            m, se = _aggregate_seeds(per_seed_quality_at[label])
+            metrics[f"quality_at_{label}_mean"] = m
+            metrics[f"quality_at_{label}_se"] = se
+
+        cs95_vals = [
+            1.0 - c / ref_cost for c in per_seed_cost_at["95"]
+        ]
+        cs95_m, cs95_se = _aggregate_seeds(cs95_vals)
+        metrics["cost_save_95_mean"] = cs95_m
+        metrics["cost_save_95_se"] = cs95_se
+
+        out[method_label] = metrics
+
+    out["_anchors"] = {
+        "ref_reward": ref_reward,
+        "ref_cost": ref_cost,
+        "aucpc_cheap_cost": aucpc_cheap_cost,
+        "aucpc_frontier_cost": aucpc_frontier_cost,
+        "aucpc_cheap_reward": aucpc_cheap_reward,
+        "aucpc_frontier_reward": aucpc_frontier_reward,
+        "n_seeds": n_seeds,
+    }
+
+    return out
+
+
+def add_routing_metric_commands(
+    cs: CommandSet,
+    routing_metrics: Dict[str, Dict[str, Any]],
+) -> None:
+    r"""Add ``\bp`` commands for routing evaluation metrics.
+
+    Args:
+        cs: The command-set accumulator.
+        routing_metrics: Output of :func:`compute_routing_metrics`.
+    """
+    for method, pfx in [("static", "RmStatic"), ("pacer", "RmPacer")]:
+        m = routing_metrics[method]
+        if m["pareto_auc_mean"] is not None:
+            cs.num(f"{pfx}AUC", m["pareto_auc_mean"], digits=4)
+        if m["aucpc_mean"] is not None:
+            cs.num(f"{pfx}AUCPC", m["aucpc_mean"], digits=3)
+        if m["cost_at_90_mean"] is not None:
+            cs.cost_sci(f"{pfx}CostAt90", m["cost_at_90_mean"])
+        if m["cost_at_95_mean"] is not None:
+            cs.cost_sci(f"{pfx}CostAt95", m["cost_at_95_mean"])
+        if m["quality_at_50_mean"] is not None:
+            cs.reward(f"{pfx}QAt50", m["quality_at_50_mean"])
+        if m["quality_at_25_mean"] is not None:
+            cs.reward(f"{pfx}QAt25", m["quality_at_25_mean"])
+        if m.get("cost_save_95_mean") is not None:
+            cs.pct(f"{pfx}Save95", m["cost_save_95_mean"], digits=1)
+
+
+def _fmt_metric_cell(
+    val: Optional[float],
+    fmt_fn: Any,
+    bold: bool = False,
+) -> str:
+    """Format a single table cell, optionally bolded.
+
+    Args:
+        val: Metric value, or ``None`` for a missing entry.
+        fmt_fn: Callable that maps ``float -> str`` (LaTeX math body).
+        bold: Wrap the entire cell in ``\\textbf``.
+
+    Returns:
+        LaTeX snippet ready for insertion into a tabular row.
+    """
+    if val is None:
+        return "---"
+    s = fmt_fn(val)
+    cell = f"${s}$"
+    if bold:
+        cell = f"\\textbf{{{cell}}}"
+    return cell
+
+
+def generate_routing_table(
+    routing_metrics: Dict[str, Dict[str, Any]],
+    dominance_p: float,
+) -> str:
+    """Generate the LLM routing evaluation metrics table.
+
+    Produces a compact two-row table comparing the static cost-penalty
+    baseline and the BudgetPacer on standard metrics from the LLM
+    routing literature (cost@Q, quality@C, AUCPC, Pareto AUC).
+
+    Args:
+        routing_metrics: Output of :func:`compute_routing_metrics`.
+        dominance_p: Wilcoxon *p*-value for Pareto AUC dominance.
+
+    Returns:
+        Complete LaTeX table string.
+    """
+    anchors = routing_metrics["_anchors"]
+    sm = routing_metrics["static"]
+    pm = routing_metrics["pacer"]
+    n_seeds = int(anchors["n_seeds"])
+
+    def _pick_bold(
+        s_val: Optional[float],
+        p_val: Optional[float],
+        higher_is_better: bool,
+    ) -> Tuple[bool, bool]:
+        if s_val is None or p_val is None:
+            return False, False
+        if higher_is_better:
+            return (s_val > p_val, p_val > s_val)
+        return (s_val < p_val, p_val < s_val)
+
+    col_specs: List[Tuple[str, Any, bool]] = [
+        ("pareto_auc_mean", lambda v: fmt_num(v, digits=4), True),
+        ("aucpc_mean", lambda v: fmt_num(v, digits=3), True),
+        ("cost_at_90_mean", fmt_cost_dollar, False),
+        ("cost_at_95_mean", fmt_cost_dollar, False),
+        ("quality_at_50_mean", lambda v: fmt_reward(v), True),
+        ("quality_at_25_mean", lambda v: fmt_reward(v), True),
+        ("cost_save_95_mean", lambda v: f"{fmt_pct(v, digits=1)}\\%", True),
+    ]
+
+    s_cells: List[str] = []
+    p_cells: List[str] = []
+    for key, fmt_fn, higher in col_specs:
+        s_bold, p_bold = _pick_bold(sm.get(key), pm.get(key), higher)
+        s_cells.append(_fmt_metric_cell(sm.get(key), fmt_fn, bold=s_bold))
+        p_cells.append(_fmt_metric_cell(pm.get(key), fmt_fn, bold=p_bold))
+
+    p_str = f"{dominance_p:.1e}" if dominance_p >= 1e-10 else r"< 10^{-10}"
+    ref_q = fmt_reward(anchors["ref_reward"])
+    ref_c = fmt_cost_dollar(anchors["ref_cost"])
+    aucpc_lo = fmt_cost_sci(anchors["aucpc_cheap_cost"])
+    aucpc_hi = fmt_cost_sci(anchors["aucpc_frontier_cost"])
+
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\caption{LLM routing evaluation metrics comparing the static",
+        f"  cost-penalty baseline and the BudgetPacer ($K{{=}}3$, {n_seeds}~seeds).",
+        r"  %",
+        r"  \textbf{cost@$Q$\%\,qual}: cost on the Pareto frontier at $Q$\% of",
+        f"  unconstrained quality (${ref_q}$).",
+        r"  \textbf{qual@$C$\%\,cost}: quality at $C$\% of unconstrained cost",
+        f"  (${ref_c}$/req).",
+        r"  \textbf{Save@95\%}: fractional cost reduction at 95\% quality.",
+        r"  \textbf{AUCPC}: normalised area under the cost--performance",
+        r"  curve, integrated over the model-cost range",
+        f"  $[{aucpc_lo},\\, {aucpc_hi}]$.",
+        r"  \textbf{Bold} marks the better value in each column.",
+        f"  Pareto AUC dominance: Wilcoxon $p = {p_str}$.",
+        r"}",
+        r"\label{tab:routing_metrics}",
+        r"\small",
+        r"\begin{tabular}{@{}l ccccccc@{}}",
+        r"\toprule",
+        r"\textbf{Method}",
+        r"  & \textbf{Pareto AUC\,$\uparrow$}",
+        r"  & \textbf{AUCPC\,$\uparrow$}",
+        r"  & \textbf{cost@90\%\,qual\,$\downarrow$}",
+        r"  & \textbf{cost@95\%\,qual\,$\downarrow$}",
+        r"  & \textbf{qual@50\%\,cost\,$\uparrow$}",
+        r"  & \textbf{qual@25\%\,cost\,$\uparrow$}",
+        r"  & \textbf{Save@95\%\,$\uparrow$}",
+        r"  \\",
+        r"\midrule",
+        "Static & " + " & ".join(s_cells) + r"  \\",
+        "Pacer  & " + " & ".join(p_cells) + r"  \\",
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\end{table}",
+    ]
+
+    return "\n".join(lines)
+
+
 def main() -> None:
-    """Load JSON, emit _autogen.tex and table_budget_compliance.tex."""
+    """Load JSON, emit _autogen.tex, table_budget_compliance.tex, and table_routing_metrics.tex."""
     exp_dir = Path(__file__).resolve().parent
     json_path = exp_dir / "results" / "budget_pacing_results.json"
 
@@ -325,7 +655,10 @@ def main() -> None:
         sys.exit(1)
 
     data = load_results(json_path)
+    routing_metrics = compute_routing_metrics(data)
+
     cs = build_command_set(data)
+    add_routing_metric_commands(cs, routing_metrics)
 
     autogen_path = exp_dir / "_autogen.tex"
     cs.write(autogen_path, header="Exp 01: stationary budget pacing")
@@ -334,6 +667,14 @@ def main() -> None:
     table_content = generate_table(data)
     table_path.write_text(table_content)
     print(f"  Wrote table → {table_path}")
+
+    dt = data.get("dominance_test", {})
+    routing_table_path = exp_dir / "table_routing_metrics.tex"
+    routing_table_content = generate_routing_table(
+        routing_metrics, dt.get("p_value", 1.0),
+    )
+    routing_table_path.write_text(routing_table_content)
+    print(f"  Wrote table → {routing_table_path}")
 
 
 if __name__ == "__main__":

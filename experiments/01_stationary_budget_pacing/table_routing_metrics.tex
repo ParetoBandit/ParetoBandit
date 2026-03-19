@@ -1,0 +1,35 @@
+\begin{table}[htbp]
+\centering
+\caption{LLM routing evaluation metrics comparing the static
+  cost-penalty baseline and the BudgetPacer ($K{=}3$, 20~seeds).
+  %
+  \textbf{cost@$Q$\%\,qual}: cost on the Pareto frontier at $Q$\% of
+  unconstrained quality ($0.921$).
+  \textbf{qual@$C$\%\,cost}: quality at $C$\% of unconstrained cost
+  ($\$0.00942$/req).
+  \textbf{Save@95\%}: fractional cost reduction at 95\% quality.
+  \textbf{AUCPC}: normalised area under the cost--performance
+  curve, integrated over the model-cost range
+  $[\$2.9{\times}10^{-5},\, \$1.5{\times}10^{-2}]$.
+  \textbf{Bold} marks the better value in each column.
+  Pareto AUC dominance: Wilcoxon $p = 1.3e-05$.
+}
+\label{tab:routing_metrics}
+\small
+\begin{tabular}{@{}l ccccccc@{}}
+\toprule
+\textbf{Method}
+  & \textbf{Pareto AUC\,$\uparrow$}
+  & \textbf{AUCPC\,$\uparrow$}
+  & \textbf{cost@90\%\,qual\,$\downarrow$}
+  & \textbf{cost@95\%\,qual\,$\downarrow$}
+  & \textbf{qual@50\%\,cost\,$\uparrow$}
+  & \textbf{qual@25\%\,cost\,$\uparrow$}
+  & \textbf{Save@95\%\,$\uparrow$}
+  \\
+\midrule
+Static & $0.9239$ & $0.902$ & $\$0.000762$ & $\$0.00145$ & $0.915$ & $0.904$ & $84.7\%$  \\
+Pacer  & \textbf{$0.9252$} & \textbf{$0.942$} & \textbf{$\$0.000142$} & \textbf{$\$0.000542$} & \textbf{$0.917$} & \textbf{$0.910$} & \textbf{$94.3\%$}  \\
+\bottomrule
+\end{tabular}
+\end{table}

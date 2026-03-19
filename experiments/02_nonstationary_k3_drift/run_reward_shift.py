@@ -68,6 +68,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from pareto_bandit.config import (
     BEST_K3_HPARAMS,
+    BEST_K3_SW_UCB_HPARAMS,
     DEFAULT_NONSTAT_COST_PENALTY,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
@@ -115,11 +116,8 @@ CHECKPOINT_INTERVAL: int = 50
 
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA_WARMUP: float = BEST_K3_HPARAMS["alpha"]
-ALPHA_NO_PRIOR: float = 0.01
-
-# SW-UCB window matched to ParetoBandit's effective memory:
-# γ=0.995 → half-life = ln2/(1-0.995) ≈ 139 → effective window ≈ 200 steps.
-SW_UCB_WINDOW: int = 200
+ALPHA_SW_UCB: float = BEST_K3_SW_UCB_HPARAMS["alpha"]
+SW_UCB_WINDOW: int = BEST_K3_SW_UCB_HPARAMS["window_size"]
 
 CONDITIONS: List[Dict[str, Any]] = [
     {
@@ -137,10 +135,10 @@ CONDITIONS: List[Dict[str, Any]] = [
         "online_learn": True,
     },
     {
-        "label": "SW-UCB (W=200)",
+        "label": f"SW-UCB (W={SW_UCB_WINDOW})",
         "warmup": False,
         "forgetting_factor": 1.0,
-        "alpha": ALPHA_NO_PRIOR,
+        "alpha": ALPHA_SW_UCB,
         "online_learn": True,
         "window_size": SW_UCB_WINDOW,
     },
@@ -622,7 +620,7 @@ def main() -> None:
         "cost_penalty": COST_PENALTY,
         "prior_n_effective": PRIOR_N_EFFECTIVE,
         "alpha_warmup": ALPHA_WARMUP,
-        "alpha_no_prior": ALPHA_NO_PRIOR,
+        "alpha_sw_ucb": ALPHA_SW_UCB,
         "sw_ucb_window": SW_UCB_WINDOW,
         "checkpoint_interval": CHECKPOINT_INTERVAL,
         "normalized_costs": {

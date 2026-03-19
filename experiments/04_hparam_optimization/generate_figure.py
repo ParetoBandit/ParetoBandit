@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate alpha-sweep figure comparing ParetoBandit vs Tabula Rasa.
+"""Generate alpha-sweep figure comparing ParetoBandit, Tabula Rasa, and SW-UCB.
 
 Reads ``results/hparam_sweep_results.json`` and produces:
   - ``results/hparam_sweep_alpha.{pdf,png}``
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import matplotlib
 matplotlib.use("Agg")
@@ -24,17 +24,43 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from pareto_bandit.config import BEST_K3_HPARAMS, BEST_K3_TABULA_RASA_HPARAMS
+from pareto_bandit.config import (
+    BEST_K3_HPARAMS,
+    BEST_K3_SW_UCB_HPARAMS,
+    BEST_K3_TABULA_RASA_HPARAMS,
+)
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
 CB_BLUE = "#0072B2"
 CB_ORANGE = "#E69F00"
+CB_GREEN = "#009E73"
 
-VARIANT_STYLE: Dict[str, Dict] = {
+VARIANT_STYLE: Dict[str, Dict[str, Any]] = {
     "paretobandit": {"color": CB_BLUE, "label": "ParetoBandit (warmup)"},
     "tabula_rasa": {"color": CB_ORANGE, "label": "Tabula Rasa (cold start)"},
+    "sw_ucb": {"color": CB_GREEN, "label": f"SW-UCB (W={BEST_K3_SW_UCB_HPARAMS['window_size']})"},
 }
+
+
+def _find_entry(
+    val_results: List[Dict[str, Any]],
+    variant: str,
+    alpha: float,
+    *,
+    gamma: float = 1.0,
+    n_eff: float = 1.0,
+    window_size: int = 0,
+) -> Dict[str, Any]:
+    """Look up a single sweep entry by its hyperparameter coordinates."""
+    return next(
+        r for r in val_results
+        if r["variant"] == variant
+        and r["alpha"] == alpha
+        and r["gamma"] == gamma
+        and r["n_eff"] == n_eff
+        and r["window_size"] == window_size
+    )
 
 
 def main() -> None:
@@ -42,7 +68,7 @@ def main() -> None:
         data = json.load(f)
 
     alpha_values: List[float] = data["grid"]["alpha_values"]
-    variants: List[str] = data["grid"]["variants"]
+    plot_variants: List[str] = ["paretobandit", "tabula_rasa", "sw_ucb"]
     best_per_variant = data["best_per_variant"]
     val_results = data["val_budget_paced_full"]
 
@@ -51,29 +77,34 @@ def main() -> None:
         "tabula_rasa": BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"],
     }
     PLOT_GAMMA = 1.0
+    BEST_SW_WINDOW: int = BEST_K3_SW_UCB_HPARAMS["window_size"]
 
-    auc_by_variant: Dict[str, List[float]] = {v: [] for v in variants}
-    std_by_variant: Dict[str, List[float]] = {v: [] for v in variants}
+    auc_by_variant: Dict[str, List[float]] = {v: [] for v in plot_variants}
+    std_by_variant: Dict[str, List[float]] = {v: [] for v in plot_variants}
     for alpha in alpha_values:
-        for variant in variants:
-            entry = next(
-                r for r in val_results
-                if r["variant"] == variant
-                and r["alpha"] == alpha
-                and r["gamma"] == PLOT_GAMMA
-                and r["n_eff"] == BEST_NEFF[variant]
-            )
+        for variant in plot_variants:
+            if variant == "sw_ucb":
+                entry = _find_entry(
+                    val_results, variant, alpha,
+                    gamma=1.0, n_eff=1.0, window_size=BEST_SW_WINDOW,
+                )
+            else:
+                entry = _find_entry(
+                    val_results, variant, alpha,
+                    gamma=PLOT_GAMMA, n_eff=BEST_NEFF[variant],
+                )
             auc_by_variant[variant].append(entry["val_pareto_auc"])
             std_by_variant[variant].append(entry["val_pareto_auc_std"])
 
+    n_variants = len(plot_variants)
     x = np.arange(len(alpha_values))
-    width = 0.35
+    width = 0.25
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+    fig, ax = plt.subplots(figsize=(9, 4.5))
 
-    for i, variant in enumerate(variants):
+    for i, variant in enumerate(plot_variants):
         style = VARIANT_STYLE[variant]
-        offset = (i - 0.5) * width
+        offset = (i - (n_variants - 1) / 2) * width
         bars = ax.bar(
             x + offset,
             auc_by_variant[variant],
@@ -88,32 +119,34 @@ def main() -> None:
         )
 
         best_alpha = best_per_variant[variant]["alpha"]
-        best_idx = alpha_values.index(best_alpha)
-        bars[best_idx].set_edgecolor("black")
-        bars[best_idx].set_linewidth(2.0)
+        if best_alpha in alpha_values:
+            best_idx = alpha_values.index(best_alpha)
+            bars[best_idx].set_edgecolor("black")
+            bars[best_idx].set_linewidth(2.0)
 
     ax.set_xlabel(r"$\alpha$ (exploration parameter)", fontsize=11)
-    ax.set_ylabel("Val Pareto AUC (per-seed, 10 seeds)", fontsize=11)
+    ax.set_ylabel(f"Val Pareto AUC (per-seed, {data['grid']['n_seeds']} seeds)", fontsize=11)
     pca_d = BEST_K3_HPARAMS["pca_components"]
     neff_w = int(BEST_NEFF["paretobandit"])
     neff_c = int(BEST_NEFF["tabula_rasa"])
     ax.set_title(
-        rf"Alpha Sweep — K=3, PCA-{pca_d}, $\gamma$={PLOT_GAMMA}, "
+        rf"Alpha Sweep — K=3, PCA-{pca_d}, "
+        rf"$\gamma$={PLOT_GAMMA}, "
         rf"$n_{{\mathrm{{eff}}}}$={neff_w}/{neff_c} (warmup/cold), "
-        r"train$\to$val protocol",
-        fontsize=12,
+        rf"W={BEST_SW_WINDOW} (SW-UCB)",
+        fontsize=11,
     )
 
     ax.set_xticks(x)
     ax.set_xticklabels([f"{a}" for a in alpha_values])
 
-    all_aucs = [a for v in variants for a in auc_by_variant[v]]
+    all_aucs = [a for v in plot_variants for a in auc_by_variant[v]]
     y_lo = min(all_aucs) - 0.005
     y_hi = max(all_aucs) + 0.005
     ax.set_ylim(y_lo, y_hi)
 
-    for i, variant in enumerate(variants):
-        offset = (i - 0.5) * width
+    for i, variant in enumerate(plot_variants):
+        offset = (i - (n_variants - 1) / 2) * width
         for j, auc in enumerate(auc_by_variant[variant]):
             ax.text(
                 x[j] + offset,
@@ -121,14 +154,14 @@ def main() -> None:
                 f"{auc:.4f}",
                 ha="center",
                 va="bottom",
-                fontsize=7,
+                fontsize=6,
                 rotation=45,
             )
 
     test_per_variant = data.get("test_per_variant", {})
     if test_per_variant:
         note_parts = []
-        for variant in variants:
+        for variant in plot_variants:
             t = test_per_variant.get(variant, {})
             if t:
                 label = VARIANT_STYLE[variant]["label"].split(" (")[0]
@@ -139,10 +172,10 @@ def main() -> None:
             note = "Holdout: " + ", ".join(note_parts)
             ax.annotate(
                 note, xy=(0.5, 0.02), xycoords="axes fraction",
-                fontsize=8, ha="center", fontstyle="italic", color="0.4",
+                fontsize=7, ha="center", fontstyle="italic", color="0.4",
             )
 
-    ax.legend(loc="lower left", fontsize=10, framealpha=0.9)
+    ax.legend(loc="lower left", fontsize=9, framealpha=0.9)
     ax.grid(axis="y", alpha=0.3, linestyle="--")
 
     fig.tight_layout()

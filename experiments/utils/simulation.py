@@ -140,6 +140,43 @@ def apply_reward_swap(
     )
 
 
+def apply_catastrophic_failure(
+    split: SplitData,
+    failed_arm: str,
+    failure_reward: float = 0.05,
+) -> SplitData:
+    """Return a new ``SplitData`` with one arm's rewards near-zero and costs zero.
+
+    Models a catastrophic API failure where requests fail (no useful
+    response, no charge).  Rewards are set to a small positive value
+    (rather than exact zero) to reflect that the model may still return
+    *something* before timing out.  Costs are zeroed because cloud
+    providers do not bill for failed requests (5xx, timeout).
+
+    Args:
+        split: Original data.
+        failed_arm: Model ID whose quality has collapsed.
+        failure_reward: Fixed low reward assigned to every prompt
+            for the failed arm (default 0.05).
+
+    Returns:
+        New ``SplitData`` with degraded rewards and zeroed costs for
+        ``failed_arm``; all other arms and embeddings unchanged.
+    """
+    new_rewards = dict(split.rewards)
+    new_rewards[failed_arm] = np.full_like(
+        split.rewards[failed_arm], failure_reward,
+    )
+    new_costs = dict(split.costs)
+    new_costs[failed_arm] = np.zeros_like(split.costs[failed_arm])
+    return SplitData(
+        prompts=split.prompts,
+        rewards=new_rewards,
+        costs=new_costs,
+        embeddings=split.embeddings,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Model Registry
 # ═══════════════════════════════════════════════════════════════════════════

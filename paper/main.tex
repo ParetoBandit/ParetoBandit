@@ -31,9 +31,9 @@
 \input{sections/experimental_setup.tex}
 
 % Auto-generated numbers from JSON results (one file per experiment).
-% Regenerate all: for d in 01_stationary_budget_pacing 02_nonstationary_k3_drift 03_budget_plus_drift 04_hparam_optimization; do python experiments/$d/generate_latex.py; done
+% Regenerate all: for d in 01_stationary_budget_pacing 02_catastrophic_failure 03_budget_plus_drift 04_hparam_optimization; do python experiments/$d/generate_latex.py; done
 \input{../experiments/01_stationary_budget_pacing/_autogen.tex}
-\input{../experiments/02_nonstationary_k3_drift/_autogen.tex}
+\input{../experiments/02_catastrophic_failure/_autogen.tex}
 \input{../experiments/03_budget_plus_drift/_autogen.tex}
 \input{../experiments/04_hparam_optimization/_autogen.tex}
 
@@ -45,7 +45,10 @@
 
 \appendix
 
+\input{../experiments/02_nonstationary_k3_drift/_autogen.tex}  % \rs* macros for reward-swap appendix
+
 \section{Supplementary Experiments}
+\label{appendix:reward_swap}
 
 \input{../experiments/appendix/latency_benchmark/results_discussion.tex}
 
