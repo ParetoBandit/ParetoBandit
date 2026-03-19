@@ -198,27 +198,25 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
             markeredgecolor=CB_BLUE, markeredgewidth=1.5, zorder=7,
         )
 
-    for r in static:
-        cp = r["cost_penalty"]
-        if cp in (0.0, 0.20, 0.50, 1.0):
-            ax.annotate(
-                f"cp={cp:.1g}",
-                (r["mean_cost"], r["mean_reward"]),
-                textcoords="offset points", xytext=(8, -4),
-                fontsize=8, color=CB_GRAY, fontstyle="italic",
-            )
-
-    for r in pacer:
-        t = r["target_spend"]
-        util = r.get("budget_utilization", 0)
-        if t == data["budget_targets"][0] or t == data["budget_targets"][-1] or abs(util - 1.0) < 0.05:
-            label = f"${t:.4f}" if t >= 0.001 else f"${t:.1e}"
-            ax.annotate(
-                label,
-                (r["mean_cost"], r["mean_reward"]),
-                textcoords="offset points", xytext=(-10, 8),
-                fontsize=7.5, color=CB_BLUE,
-            )
+    # Shade the dominance region between the two Pareto frontiers.
+    # Interpolate both curves onto a shared log-spaced grid so
+    # fill_between can highlight where adaptive > static.
+    overlap_lo = max(min(sf_c), min(pf_c))
+    overlap_hi = min(max(sf_c), max(pf_c))
+    if overlap_lo < overlap_hi:
+        x_shared = np.geomspace(overlap_lo, overlap_hi, 200)
+        static_interp = np.interp(
+            np.log(x_shared), np.log(sf_c), sf_r,
+        )
+        pacer_interp = np.interp(
+            np.log(x_shared), np.log(pf_c), pf_r,
+        )
+        ax.fill_between(
+            x_shared, static_interp, pacer_interp,
+            where=pacer_interp >= static_interp,
+            color=CB_BLUE, alpha=0.10, zorder=2,
+            label="_nolegend_",
+        )
 
     ax.set_xlabel("Mean Cost per Request (USD)", fontsize=13)
     ax.set_ylabel("Mean Reward", fontsize=13)
@@ -231,10 +229,12 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
     legend_elements = [
         Line2D([0], [0], color=CB_GRAY, linestyle="--", marker="s",
                markerfacecolor="white", markeredgecolor=CB_GRAY,
-               markersize=6, linewidth=2, label="Static cost penalty"),
+               markersize=6, linewidth=2,
+               label=r"Static $\lambda$"),
         Line2D([0], [0], color=CB_BLUE, linestyle="-", marker="o",
                markerfacecolor="white", markeredgecolor=CB_BLUE,
-               markersize=7, linewidth=2.5, label="BudgetPacer (adaptive)"),
+               markersize=7, linewidth=2.5,
+               label=r"Adaptive $\lambda$ (BudgetPacer)"),
         Line2D([0], [0], color="none", marker="o", markerfacecolor=CB_GREEN,
                markeredgecolor=CB_BLUE, markersize=7,
                label="On-target (0.95–1.05×)"),
