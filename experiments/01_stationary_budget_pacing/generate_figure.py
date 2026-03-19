@@ -224,18 +224,19 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
     bottom = min(pacer, key=lambda r: r["mean_reward"])
     top = max(pacer, key=lambda r: r["mean_reward"])
     for pt, va, offset, ha in [
-        (bottom, "bottom", (38, 8), "left"),
-        (top, "top", (-18, -30), "center"),
+        (bottom, "bottom", (42, 10), "left"),
+        (top, "top", (-20, -34), "center"),
     ]:
         gap_pct = (oracle - pt["mean_reward"]) / oracle * 100
         ax.annotate(
             f"{gap_pct:.1f}% gap to oracle",
             xy=(pt["mean_cost"], pt["mean_reward"]),
             xytext=offset, textcoords="offset points",
-            fontsize=8.5, fontstyle="italic", color="0.30",
+            fontsize=11, fontweight="bold", fontstyle="italic",
+            color="#1a1a1a",
             ha=ha, va=va,
             arrowprops=dict(
-                arrowstyle="-", color="0.55", lw=0.7,
+                arrowstyle="-", color="0.35", lw=1.0,
             ),
         )
 
