@@ -13,7 +13,7 @@
 
 - `meta-llama/llama-3.1-8b-instruct` (budget)
 - `mistralai/mistral-large-2512` (mid-cost)
-- `google/gemini-2.5-pro` (premium)
+- `google/gemini-2.5-pro` (high-cost)
 
 ## Reproduction Pipeline
 

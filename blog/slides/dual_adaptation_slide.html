@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: #ffffff;
+  color: #1a1a1a;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 36px 20px;
+  overflow: hidden;
+}
+
+.container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.title h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #111111;
+}
+.title .subtitle {
+  font-size: 14px;
+  font-weight: 400;
+  color: #666666;
+  margin-top: 4px;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) 36px 1fr 36px minmax(120px, 160px);
+  grid-template-rows: 1fr 16px 1fr;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Perturbation cards (left) */
+.perturbation {
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1.5px solid;
+}
+.perturbation.reward {
+  background: #fff5f5;
+  border-color: #e8a0a0;
+  grid-row: 1;
+  grid-column: 1;
+}
+.perturbation.cost {
+  background: #f0f7ff;
+  border-color: #8fb8e0;
+  grid-row: 3;
+  grid-column: 1;
+}
+.perturbation .label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+.perturbation.reward .label { color: #c0392b; }
+.perturbation.cost .label { color: #2471a3; }
+.perturbation .desc {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #444444;
+}
+.perturbation .examples {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.perturbation .examples span {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: #777777;
+}
+
+/* Arrow columns */
+.arrow-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.arrow-col.left-top { grid-row: 1; grid-column: 2; }
+.arrow-col.left-bot { grid-row: 3; grid-column: 2; }
+.arrow-col.right-top { grid-row: 1; grid-column: 4; }
+.arrow-col.right-bot { grid-row: 3; grid-column: 4; }
+.arrow-col svg { width: 32px; height: 20px; }
+
+/* Center mechanism column */
+.center-col {
+  grid-row: 1 / 4;
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  justify-content: center;
+}
+
+.mechanism {
+  width: 100%;
+  max-width: 420px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  position: relative;
+}
+.mechanism::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 12px;
+  border: 1.5px solid;
+  pointer-events: none;
+}
+
+.mechanism.forgetting {
+  background: linear-gradient(135deg, #fff8f8, #fff4f0);
+}
+.mechanism.forgetting::before {
+  border-color: #d9a0a0;
+}
+.mechanism.pacer {
+  background: linear-gradient(135deg, #f5f9ff, #f0f8ff);
+}
+.mechanism.pacer::before {
+  border-color: #8fb8e0;
+}
+
+.mechanism .mech-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.mechanism .mech-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 17px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.mechanism.forgetting .mech-icon {
+  background: #f5d5d5;
+  color: #a83232;
+}
+.mechanism.pacer .mech-icon {
+  background: #d0e4f5;
+  color: #1a5276;
+}
+.mechanism .mech-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111111;
+}
+.mechanism .mech-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  color: #666666;
+  margin-top: 1px;
+}
+
+.mechanism .mech-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mechanism .loop-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.mechanism .step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.mechanism.forgetting .step-num {
+  background: #f0c0c0;
+  color: #8b2020;
+}
+.mechanism.pacer .step-num {
+  background: #b8d4ee;
+  color: #1a3c5e;
+}
+.mechanism .step-text {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #333333;
+}
+.mechanism .step-text strong {
+  color: #111111;
+  font-weight: 600;
+}
+.mechanism .step-text code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.05);
+  color: #333;
+}
+
+/* Connector */
+.connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.connector .conn-line {
+  width: 1px;
+  height: 10px;
+  background: #cccccc;
+}
+.connector .conn-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #999999;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+/* Outcome cards (right) */
+.outcome {
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #7dbe9b;
+  background: #f2faf5;
+}
+.outcome.quality {
+  grid-row: 1;
+  grid-column: 5;
+}
+.outcome.budget {
+  grid-row: 3;
+  grid-column: 5;
+}
+.outcome .label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #1e7e45;
+  margin-bottom: 6px;
+}
+.outcome .desc {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #444444;
+}
+.outcome .metric {
+  margin-top: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: #2a8c50;
+}
+
+/* Failure callout */
+.failure-callout {
+  max-width: 420px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1.5px dashed #d4a054;
+  background: #fdf8f0;
+}
+.failure-callout .fail-header {
+  font-size: 10px;
+  font-weight: 700;
+  color: #b8760a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.failure-callout .fail-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #666666;
+}
+.failure-callout .fail-text strong {
+  color: #333333;
+  font-weight: 600;
+}
+
+/* Summary */
+.summary {
+  margin-top: 10px;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: #f8f8f8;
+  border: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.summary p {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #555555;
+}
+.summary p strong {
+  color: #111111;
+  font-weight: 600;
+}
+.summary p .hl-reward { color: #c0392b; font-weight: 600; }
+.summary p .hl-cost { color: #2471a3; font-weight: 600; }
+.summary p .hl-green { color: #1e7e45; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="title">
+    <h1>Dual Adaptation Architecture</h1>
+    <div class="subtitle">How ParetoBandit self-corrects through cost and quality perturbations</div>
+  </div>
+
+  <div class="main-grid">
+    <div class="perturbation reward">
+      <div class="label">Reward Shift</div>
+      <div class="desc">Model quality changes post-deployment</div>
+      <div class="examples">
+        <span>&#8594; Model degradation</span>
+        <span>&#8594; Catastrophic failure</span>
+        <span>&#8594; New model added</span>
+      </div>
+    </div>
+
+    <div class="perturbation cost">
+      <div class="label">Cost Shift</div>
+      <div class="desc">Provider pricing changes overnight</div>
+      <div class="examples">
+        <span>&#8594; 50&#8211;80% price cuts</span>
+        <span>&#8594; New tier introduced</span>
+        <span>&#8594; Rate limit changes</span>
+      </div>
+    </div>
+
+    <div class="arrow-col left-top">
+      <svg viewBox="0 0 32 20"><path d="M2 10 L24 10" stroke="#c0392b" stroke-width="2" fill="none" stroke-opacity="0.6"/><path d="M20 5 L27 10 L20 15" stroke="#c0392b" stroke-width="2" fill="none" stroke-opacity="0.6"/></svg>
+    </div>
+    <div class="arrow-col left-bot">
+      <svg viewBox="0 0 32 20"><path d="M2 10 L24 10" stroke="#2471a3" stroke-width="2" fill="none" stroke-opacity="0.6"/><path d="M20 5 L27 10 L20 15" stroke="#2471a3" stroke-width="2" fill="none" stroke-opacity="0.6"/></svg>
+    </div>
+
+    <div class="center-col">
+      <div class="mechanism forgetting">
+        <div class="mech-header">
+          <div class="mech-icon">&#947;</div>
+          <div>
+            <div class="mech-title">Geometric Forgetting</div>
+            <div class="mech-subtitle">Adapts reward estimates</div>
+          </div>
+        </div>
+        <div class="mech-body">
+          <div class="loop-step">
+            <div class="step-num">1</div>
+            <div class="step-text"><strong>Detect:</strong> Down-weight stale evidence via <code>&#947;<sup>t</sup></code> exponential decay</div>
+          </div>
+          <div class="loop-step">
+            <div class="step-num">2</div>
+            <div class="step-text"><strong>Adapt:</strong> UCB scores reflect <em>current</em> model quality, not historical average</div>
+          </div>
+          <div class="loop-step">
+            <div class="step-num">3</div>
+            <div class="step-text"><strong>Reroute:</strong> Traffic shifts away from degraded models within ~200 rounds</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">
+        <div class="conn-line"></div>
+        <div class="conn-label">Independent &amp; complementary</div>
+        <div class="conn-line"></div>
+      </div>
+
+      <div class="mechanism pacer">
+        <div class="mech-header">
+          <div class="mech-icon">&#955;<sub>t</sub></div>
+          <div>
+            <div class="mech-title">Online BudgetPacer</div>
+            <div class="mech-subtitle">Adapts cost-quality tradeoff</div>
+          </div>
+        </div>
+        <div class="mech-body">
+          <div class="loop-step">
+            <div class="step-num">1</div>
+            <div class="step-text"><strong>Monitor:</strong> EMA of realized $/request vs. operator&#8217;s target rate</div>
+          </div>
+          <div class="loop-step">
+            <div class="step-num">2</div>
+            <div class="step-text"><strong>Adjust:</strong> <code>&#955;<sub>t+1</sub> = [&#955;<sub>t</sub> + &#951;(cost_ema &#8722; target)]<sub>+</sub></code> every request</div>
+          </div>
+          <div class="loop-step">
+            <div class="step-num">3</div>
+            <div class="step-text"><strong>Enforce:</strong> Higher &#955; penalises expensive arms; lower &#955; unlocks them</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="failure-callout">
+        <div class="fail-header">&#9888; Without forgetting (&#947; = 1)</div>
+        <div class="fail-text">
+          &#955;<sub>t</sub> alone <strong>cannot fix stale reward estimates</strong>. The bandit keeps selecting a degraded model &#8212; <strong>catastrophic inertia</strong>. This is the failure mode of all existing bandit-based LLM routers.
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-col right-top">
+      <svg viewBox="0 0 32 20"><path d="M2 10 L24 10" stroke="#1e7e45" stroke-width="2" fill="none" stroke-opacity="0.6"/><path d="M20 5 L27 10 L20 15" stroke="#1e7e45" stroke-width="2" fill="none" stroke-opacity="0.6"/></svg>
+    </div>
+    <div class="arrow-col right-bot">
+      <svg viewBox="0 0 32 20"><path d="M2 10 L24 10" stroke="#1e7e45" stroke-width="2" fill="none" stroke-opacity="0.6"/><path d="M20 5 L27 10 L20 15" stroke="#1e7e45" stroke-width="2" fill="none" stroke-opacity="0.6"/></svg>
+    </div>
+
+    <div class="outcome quality">
+      <div class="label">Quality Maintained</div>
+      <div class="desc">Router discovers best models within ~200 rounds of any perturbation</div>
+      <div class="metric">Exp 3: steady-state in ~200 steps</div>
+    </div>
+
+    <div class="outcome budget">
+      <div class="label">Budget Enforced</div>
+      <div class="desc">$/request rate target held across arbitrary cost regime changes</div>
+      <div class="metric">Exp 2: &lt;3% overshoot, self-corrects</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <p>
+      <span class="hl-reward">Geometric forgetting</span> handles reward non-stationarity.
+      The <span class="hl-cost">online dual variable</span> handles cost non-stationarity.
+      Together they provide <span class="hl-green">closed-loop adaptation</span> to arbitrary perturbations &#8212;
+      something <strong>no existing LLM router</strong> offers.
+    </p>
+  </div>
+</div>
+</body>
+</html>

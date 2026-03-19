@@ -11,8 +11,8 @@ are the *only* authoritative copies; everything else is in ``archive/``.
 
 Models
 ~~~~~~
-K=3 portfolio: Llama-3.1-8B (budget) + Mistral-Large-2512 (mid) +
-               Gemini-2.5-Pro (premium).
+K=3 portfolio: Llama-3.1-8B (budget) + Mistral-Large-2512 (mid-cost) +
+               Gemini-2.5-Pro (high-cost).
 
 Judges
 ~~~~~~

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Build a public, reproducible full-information prompt dataset for a 3-arm
-contextual router (budget / mid / premium).
+contextual router (budget / mid-cost / high-cost).
 
 Pipeline
 --------
@@ -959,7 +959,7 @@ def classify_prompt_record(
     arm_costs:
         ``{model_id: cost}`` for each arm.
     arms:
-        Ordered arm configs (assumed budget → premium ordering).
+        Ordered arm configs (assumed budget → high-cost ordering).
 
     Returns
     -------
