@@ -149,7 +149,7 @@ Adopting either approach for LLM routing is appealing in principle but introduce
   \item \emph{Warm-start initialization.}
     Seeding LinUCB from offline data is a single matrix addition; transferring offline knowledge into a neural reward model requires careful pre-training or meta-learning to avoid catastrophic forgetting of the prior during online fine-tuning.
   \item \emph{Latency.}
-    LinUCB's $O(d^2)$ update and $O(Kd)$ selection complete in ${<}\,40\,\mu$s; neural forward and backward passes are orders of magnitude slower, potentially conflicting with the sub-millisecond latency budget of a routing-critical path.
+    LinUCB's $O(d^2)$ update and $O(Kd)$ selection complete in ${<}\,40\,\mu$s; neural forward and backward passes are orders of magnitude slower---the vLLM Semantic Router reports $9$--$14$\,ms per GPU-accelerated ModernBERT classifier even for short prompts~\cite{liu2026vllmsr}, roughly $400\times$ slower than ParetoBandit's route call---potentially conflicting with the sub-millisecond latency budget of a routing-critical path.
 \end{enumerate}
 Investigating whether the empirical gains from nonlinear reward models justify these engineering costs---and designing forgetting and warm-start mechanisms that work without closed-form sufficient statistics---is a compelling direction for future work.
 

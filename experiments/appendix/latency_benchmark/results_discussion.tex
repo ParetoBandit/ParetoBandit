@@ -96,4 +96,48 @@ Because routing sits on the user-facing critical path while updates can be proce
     Sherman-Morrison eliminates per-route inversion ($O(d^2)$ vs.\ $O(d^3)$),
     and cached $\hat{\theta}_a$ reduces the expected-reward computation
     to a single $O(d)$ dot product per arm.
+  \item \textbf{Orders of magnitude faster than neural routing alternatives.}
+    Table~\ref{tab:latency_comparison} places ParetoBandit's overhead
+    alongside published latencies from representative LLM routing systems.
+    The fastest neural router in the literature---the GPU-accelerated
+    vLLM Semantic Router~\cite{liu2026vllmsr} using ModernBERT
+    classifiers on an AMD MI300X---reports $9$--$14$\,ms per classifier
+    for short prompts (${\leq}512$ tokens) and $22$\,ms end-to-end
+    with three concurrent classifiers.
+    ParetoBandit's $22\,\mu$s route latency is ${\sim}400\times$ faster
+    while requiring no GPU for the routing decision.
+    Even production AI gateways that perform \emph{no classification}---pure
+    L7 proxy overhead---add $1$--$30$\,ms of latency~\cite{konghq2025benchmark},
+    placing ParetoBandit's routing overhead beneath the noise floor of
+    the infrastructure it would be deployed alongside.
+    The only system claiming comparable latency is
+    CSCR~\cite{shirkavand2025cscr}, which reports ``microsecond'' $k$-NN
+    lookups via a FAISS index; however, this figure excludes the
+    contrastive encoder forward pass required to produce the query embedding,
+    so the true end-to-end routing latency is substantially higher.
 \end{enumerate}
+
+\begin{table}[h]
+\centering
+\caption{ParetoBandit routing latency compared with published
+LLM routing systems.  ParetoBandit operates on CPU only; neural
+classifiers require GPU co-location.  Gateway proxies perform no
+model-selection classification.  CSCR's ``microsecond'' figure
+covers only the $k$-NN index lookup, excluding the neural encoder
+forward pass.}
+\label{tab:latency_comparison}
+\small
+\begin{tabular}{@{}l l r l@{}}
+\toprule
+\textbf{System} & \textbf{Router type} & \textbf{Latency} & \textbf{Hardware} \\
+\midrule
+ParetoBandit ($d{=}26$) & LinUCB + Sherman-Morrison & $22\,\mu$s\,(route) & CPU \\
+CSCR~\cite{shirkavand2025cscr} & $k$-NN lookup only & $\mu$s (claimed) & CPU \\
+Portkey Gateway~\cite{portkey2025} & L7 proxy (no classification) & ${<}\,1$\,ms & Cloud \\
+Kong AI Gateway~\cite{konghq2025benchmark} & L7 proxy (no classification) & $24$\,ms\,(p95) & 16\,vCPU \\
+vLLM SR (1 classifier)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & $9$--$14$\,ms & MI300X GPU \\
+vLLM SR (3 classifiers)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & $22$\,ms & MI300X GPU \\
+vLLM SR (8K tokens)~\cite{liu2026vllmsr} & ModernBERT + compression & $50$\,ms & MI300X GPU \\
+\bottomrule
+\end{tabular}
+\end{table}

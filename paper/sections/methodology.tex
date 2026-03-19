@@ -130,3 +130,7 @@ When $\gamma < 1$, discounting $A_a \leftarrow \gamma\,A_a$ requires multiplying
 
 \paragraph{Empirical validation.}
 A latency microbenchmark (Appendix~\ref{sec:latency_benchmark}) confirms that the production configuration ($d{=}26$, Sherman-Morrison) completes a full route\,+\,update cycle in $39\,\mu$s (p50) and sustains $>$\,24{,}000\,req/s on a single CPU core, adding $<$\,0.004\% overhead to even the fastest LLM inference call.  The combined effect of PCA dimensionality reduction and incremental inverse caching yields a $120\times$ throughput improvement over a naive full-inversion baseline operating on raw 384-D embeddings.
+
+To contextualise this overhead: the fastest published neural router---the GPU-accelerated vLLM Semantic Router using ModernBERT classifiers on an AMD MI300X---reports $9$--$14$\,ms per classification for short prompts (${\leq}512$ tokens) and $22$\,ms end-to-end with three concurrent classifiers~\cite{liu2026vllmsr}.
+ParetoBandit's $22\,\mu$s route latency is thus ${\sim}400\times$ faster while requiring no GPU for the routing decision itself.
+Even production AI gateways that perform no classification---pure L7 proxy overhead---report $1$--$30$\,ms of added latency~\cite{konghq2025benchmark}, placing ParetoBandit's overhead beneath the noise floor of the infrastructure it would be deployed alongside.
