@@ -218,6 +218,27 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
             label="_nolegend_",
         )
 
+    oracle = data["results"][0]["mean_reward"] + (
+        data["results"][0]["mean_quality_gap"] / data["test_n"]
+    )
+    bottom = min(pacer, key=lambda r: r["mean_reward"])
+    top = max(pacer, key=lambda r: r["mean_reward"])
+    for pt, va, offset, ha in [
+        (bottom, "bottom", (38, 8), "left"),
+        (top, "top", (-18, -30), "center"),
+    ]:
+        gap_pct = (oracle - pt["mean_reward"]) / oracle * 100
+        ax.annotate(
+            f"{gap_pct:.1f}% gap to oracle",
+            xy=(pt["mean_cost"], pt["mean_reward"]),
+            xytext=offset, textcoords="offset points",
+            fontsize=8.5, fontstyle="italic", color="0.30",
+            ha=ha, va=va,
+            arrowprops=dict(
+                arrowstyle="-", color="0.55", lw=0.7,
+            ),
+        )
+
     ax.set_xlabel("Mean Cost per Request (USD)", fontsize=13)
     ax.set_ylabel("Mean Reward", fontsize=13)
     ax.set_xscale("log")

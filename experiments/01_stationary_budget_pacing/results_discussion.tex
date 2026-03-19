@@ -176,6 +176,15 @@ The remaining $4.3\%$ gap reflects prompts where the bandit's
 contextual estimate differs from the true best arm---an inherent
 exploration--exploitation cost that shrinks with more data but
 cannot be eliminated by the pacing mechanism alone.
+Figure~\ref{fig:pareto_budget} annotates both endpoints of this
+tradeoff: the cheapest pacer target operates at a $17.7\%$ oracle
+gap, while the unconstrained ceiling sits at $4.3\%$---a
+${\sim}4\times$ increase in oracle gap that buys a
+$300\times$ cost reduction (\$0.0095 $\to$ \$0.00003/req).
+For a more moderate operating point, an $80\%$ cost reduction
+(\$0.0095 $\to$ \$0.0018/req) widens the oracle gap by only
+$1.4$\,pp ($4.3\% \to 5.7\%$)---a concrete frame for the
+practitioner choosing where to sit on the Pareto curve.
 
 \paragraph{Budget compliance (Table~\ref{tab:budget_compliance}).}
 The pacer's primary claim is that it \emph{hits the target}.
