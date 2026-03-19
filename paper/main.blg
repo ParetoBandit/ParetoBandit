@@ -7,6 +7,7 @@ Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
 Database file #1: references.bib
 Warning--I didn't find a database entry for "bae2026learning"
+Warning--I didn't find a database entry for "ding2024hybrid"
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
 Reallocated global_strs (elt_size=200001) to 20 items from 10.
@@ -33,6 +34,9 @@ Warning--no number and no volume in chen2025silent
 Warning--page numbers missing in both pages and numpages fields in chen2025silent
 Warning--no number and no volume in deepseekai2025deepseekr1
 Warning--page numbers missing in both pages and numpages fields in deepseekai2025deepseekr1
+Warning--empty publisher in ding2024hybridllm
+Warning--empty address in ding2024hybridllm
+Warning--page numbers missing in both pages and numpages fields in ding2024hybridllm
 Warning--empty publisher in feng2025graphrouter
 Warning--empty address in feng2025graphrouter
 Warning--page numbers missing in both pages and numpages fields in feng2025graphrouter
@@ -45,9 +49,13 @@ Warning--empty publisher in li2010contextual
 Warning--empty address in li2010contextual
 Warning--no number and no volume in li2025llmbandit
 Warning--page numbers missing in both pages and numpages fields in li2025llmbandit
+Warning--no number and no volume in liu2026vllmsr
+Warning--page numbers missing in both pages and numpages fields in liu2026vllmsr
 Warning--empty publisher in ma2024prompt
 Warning--empty address in ma2024prompt
 Warning--page numbers missing in both pages and numpages fields in ma2024prompt
+Warning--no number and no volume in ma2025omnirouter
+Warning--page numbers missing in both pages and numpages fields in ma2025omnirouter
 Warning--empty publisher in ong2024routellm
 Warning--empty address in ong2024routellm
 Warning--page numbers missing in both pages and numpages fields in ong2024routellm
@@ -60,6 +68,12 @@ Warning--no number and no volume in qian2025xrouter
 Warning--page numbers missing in both pages and numpages fields in qian2025xrouter
 Warning--empty publisher in reimers2019sentence
 Warning--empty address in reimers2019sentence
+Warning--empty publisher in shirkavand2025cscr
+Warning--empty address in shirkavand2025cscr
+Warning--page numbers missing in both pages and numpages fields in shirkavand2025cscr
+Warning--empty publisher in sun2025lookahead
+Warning--empty address in sun2025lookahead
+Warning--page numbers missing in both pages and numpages fields in sun2025lookahead
 Warning--no number and no volume in verga2024poll
 Warning--page numbers missing in both pages and numpages fields in verga2024poll
 Warning--no number and no volume in wang2025barp
@@ -75,45 +89,45 @@ Warning--page numbers missing in both pages and numpages fields in zhao2025care
 Warning--no number and no volume in zheng2023judging
 Warning--page numbers missing in both pages and numpages fields in zheng2023judging
 Warning--empty address in zhou2020neural
-You've used 33 entries,
+You've used 45 entries,
             6056 wiz_defined-function locations,
-            1638 strings with 25199 characters,
-and the built_in function-call counts, 36945 in all, are:
-= -- 4461
-> -- 1449
+            1693 strings with 28092 characters,
+and the built_in function-call counts, 47456 in all, are:
+= -- 5678
+> -- 1803
 < -- 0
-+ -- 499
-- -- 502
-* -- 2720
-:= -- 3684
-add.period$ -- 162
-call.type$ -- 33
-change.case$ -- 277
-chr.to.int$ -- 31
-cite$ -- 95
-duplicate$ -- 3216
-empty$ -- 2283
-format.name$ -- 608
-if$ -- 8978
++ -- 610
+- -- 631
+* -- 3401
+:= -- 4775
+add.period$ -- 226
+call.type$ -- 45
+change.case$ -- 355
+chr.to.int$ -- 43
+cite$ -- 120
+duplicate$ -- 4185
+empty$ -- 2975
+format.name$ -- 753
+if$ -- 11421
 int.to.chr$ -- 4
 int.to.str$ -- 1
-missing$ -- 133
-newline$ -- 296
-num.names$ -- 229
-pop$ -- 1510
+missing$ -- 156
+newline$ -- 403
+num.names$ -- 313
+pop$ -- 1905
 preamble$ -- 1
-purify$ -- 537
+purify$ -- 711
 quote$ -- 0
-skip$ -- 1105
+skip$ -- 1465
 stack$ -- 0
-substring$ -- 2254
-swap$ -- 234
+substring$ -- 2908
+swap$ -- 285
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 773
-warning$ -- 62
-while$ -- 170
+type$ -- 1105
+warning$ -- 75
+while$ -- 238
 width$ -- 0
-write$ -- 638
-(There were 63 warnings)
+write$ -- 865
+(There were 77 warnings)

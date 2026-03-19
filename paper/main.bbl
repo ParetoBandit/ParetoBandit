@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{33}
+\begin{thebibliography}{45}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -36,6 +36,20 @@
 \providecommand\natexlab[1]{#1}
 \providecommand\showeprint[2][]{arXiv:#2}
 
+\bibitem[Acquaviva(2025)]%
+        {konghq2025benchmark}
+\bibfield{author}{\bibinfo{person}{Claudio Acquaviva}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{{AI} Gateway Benchmark: {Kong AI Gateway}, {Portkey},
+  and {LiteLLM}}.
+\newblock
+  \bibinfo{howpublished}{\url{https://konghq.com/blog/engineering/ai-gateway-benchmark-kong-ai-gateway-portkey-litellm}}.
+\newblock
+\newblock
+\shownote{Proxy-only benchmark on c5.4xlarge EKS nodes (16 vCPU). Kong p95 = 24
+  ms, Portkey p95 $\approx$ 70 ms; WireMock baseline p95 = 24 ms.}.
+
+
 \bibitem[Agrawal and Devanur(2014)]%
         {agrawal2014bandits}
 \bibfield{author}{\bibinfo{person}{Shipra Agrawal} {and}
@@ -56,6 +70,18 @@
 \newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2404.16966}}
   (\bibinfo{year}{2024}).
 \newblock
+
+
+\bibitem[Amir(2026)]%
+        {nadirclaw2026}
+\bibfield{author}{\bibinfo{person}{Dor Amir}.} \bibinfo{year}{2026}\natexlab{}.
+\newblock \bibinfo{title}{{NadirClaw}: Open-Source {LLM} Router}.
+\newblock
+  \bibinfo{howpublished}{\url{https://github.com/doramirdor/NadirClaw}}.
+\newblock
+\newblock
+\shownote{Sentence-embedding-based tier router; 8--12\,ms E2E classification
+  overhead reported.}.
 
 
 \bibitem[Bhatti et~al\mbox{.}(2026)]%
@@ -138,6 +164,19 @@
 \newblock
 
 
+\bibitem[Ding et~al\mbox{.}(2024)]%
+        {ding2024hybridllm}
+\bibfield{author}{\bibinfo{person}{Dujian Ding}, \bibinfo{person}{Ankur
+  Mallick}, \bibinfo{person}{Chi Wang}, \bibinfo{person}{Robert Sim},
+  \bibinfo{person}{Subhabrata Mukherjee}, \bibinfo{person}{Victor Ruhle},
+  \bibinfo{person}{Laks~V.S. Levi}, {and} \bibinfo{person}{Ahmed~Hassan
+  Awadallah}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{Hybrid {LLM}: Cost-Efficient and Quality-Aware
+  Query Routing}. In \bibinfo{booktitle}{\emph{International Conference on
+  Learning Representations (ICLR)}}.
+\newblock
+
+
 \bibitem[Feng et~al\mbox{.}(2025)]%
         {feng2025graphrouter}
 \bibfield{author}{\bibinfo{person}{Tao Feng}, \bibinfo{person}{Yanzhen Shen},
@@ -160,6 +199,21 @@
 \newblock
 
 
+\bibitem[Ganglani(2026)]%
+        {ganglani2026llmlatency}
+\bibfield{author}{\bibinfo{person}{Kunal Ganglani}.}
+  \bibinfo{year}{2026}\natexlab{}.
+\newblock \bibinfo{title}{{LLM API} Latency Benchmarks [2026]: 5 Models
+  Compared}.
+\newblock
+  \bibinfo{howpublished}{\url{https://kunalganglani.com/blog/llm-api-latency-benchmarks-2026}}.
+\newblock
+\newblock
+\shownote{Independent benchmark of five production {LLM} {API}s (GPT-4.1,
+  GPT-4.1 Mini, Gemini 2.5 Flash, Claude Haiku 4.5, Claude Sonnet 4). Three
+  prompt sizes, streaming {TTFT}, total latency, and throughput.}.
+
+
 \bibitem[Garivier and Moulines(2011)]%
         {garivier2011switching}
 \bibfield{author}{\bibinfo{person}{Aur{\'e}lien Garivier} {and}
@@ -169,6 +223,19 @@
   International Conference on Algorithmic Learning Theory (ALT)}}. Springer,
   \bibinfo{pages}{174--188}.
 \newblock
+
+
+\bibitem[{Google}(2024)]%
+        {google2024flashpricing}
+\bibfield{author}{\bibinfo{person}{{Google}}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Gemini 1.5 {Flash} Price Reduction}.
+\newblock
+  \bibinfo{howpublished}{\url{https://ai.google.dev/gemini-api/docs/pricing}}.
+\newblock
+\newblock
+\shownote{Input token price cut from \$0.35 to \$0.075 per million tokens
+  (${\sim}78\%$ reduction); output from \$1.05 to \$0.30 (${\sim}71\%$
+  reduction). Effective August 12, 2024.}.
 
 
 \bibitem[Kveton et~al\mbox{.}(2023)]%
@@ -230,6 +297,20 @@
 \newblock
 
 
+\bibitem[Liu et~al\mbox{.}(2026)]%
+        {liu2026vllmsr}
+\bibfield{author}{\bibinfo{person}{Xunzhuo Liu}, \bibinfo{person}{Bowei He},
+  \bibinfo{person}{Xue Liu}, \bibinfo{person}{Andy Luo},
+  \bibinfo{person}{Haichen Zhang}, {and} \bibinfo{person}{Huamin Chen}.}
+  \bibinfo{year}{2026}\natexlab{}.
+\newblock \showarticletitle{98$\times$ Faster {LLM} Routing Without a Dedicated
+  {GPU}: {Flash} Attention, Prompt Compression, and Near-Streaming for the
+  {vLLM} Semantic Router}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2603.12646}}
+  (\bibinfo{year}{2026}).
+\newblock
+
+
 \bibitem[Ma et~al\mbox{.}(2024)]%
         {ma2024prompt}
 \bibfield{author}{\bibinfo{person}{Wanqin Ma}, \bibinfo{person}{Chenyang Yang},
@@ -239,6 +320,17 @@
   Regression Testing for Evolving {LLM} {APIs}}. In
   \bibinfo{booktitle}{\emph{Proceedings of the IEEE/ACM 3rd International
   Conference on AI Engineering---Software Engineering for AI (CAIN)}}.
+\newblock
+
+
+\bibitem[Ma et~al\mbox{.}(2025)]%
+        {ma2025omnirouter}
+\bibfield{author}{\bibinfo{person}{Zitian Ma} {et~al\mbox{.}}}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{{OmniRouter}: Budget and Performance Controllable
+  Multi-{LLM} Routing}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2502.20576}}
+  (\bibinfo{year}{2025}).
 \newblock
 
 
@@ -283,6 +375,19 @@
 \newblock
 
 
+\bibitem[{OpenAI}(2025)]%
+        {openai2025turbopricing}
+\bibfield{author}{\bibinfo{person}{{OpenAI}}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{{GPT-4 Turbo} with Vision: Price Drop Announcement}.
+\newblock
+  \bibinfo{howpublished}{\url{https://openai.com/index/new-models-and-developer-products-announced-at-devday}}.
+\newblock
+\newblock
+\shownote{Input token price reduced from \$0.03 to \$0.01 per 1K tokens (67\%
+  cut); output from \$0.06 to \$0.03 (50\% cut). Step change effective
+  immediately.}.
+
+
 \bibitem[Pan et~al\mbox{.}(2024)]%
         {pan2024cbli}
 \bibfield{author}{\bibinfo{person}{Haochen Pan}, \bibinfo{person}{Guy
@@ -310,6 +415,33 @@
 \shownote{arXiv:2508.21141}.
 
 
+\bibitem[Pasquali(2026)]%
+        {orqai2026}
+\bibfield{author}{\bibinfo{person}{Arian Pasquali}.}
+  \bibinfo{year}{2026}\natexlab{}.
+\newblock \bibinfo{title}{Intelligent {LLM} Routing: How {Auto Router} Cuts
+  Costs by 25--70\% While Preserving Quality}.
+\newblock
+  \bibinfo{howpublished}{\url{https://router.orq.ai/blog/auto-router-intelligent-llm-routing}}.
+\newblock
+\newblock
+\shownote{Commercial router; ${<}$40\,ms routing overhead per request.}.
+
+
+\bibitem[{Portkey AI}(2025)]%
+        {portkey2025}
+\bibfield{author}{\bibinfo{person}{{Portkey AI}}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{The Most Reliable {AI} Gateway for Production
+  Systems}.
+\newblock
+  \bibinfo{howpublished}{\url{https://portkey.ai/blog/the-most-reliable-ai-gateway-for-production-systems}}.
+\newblock
+\newblock
+\shownote{Sub-millisecond hot-path latency; 122\,KB gateway footprint; $>$10B
+  requests/month in production.}.
+
+
 \bibitem[Qian et~al\mbox{.}(2025)]%
         {qian2025xrouter}
 \bibfield{author}{\bibinfo{person}{Cheng Qian}, \bibinfo{person}{Zuxin Liu},
@@ -335,6 +467,28 @@
   Conference on Empirical Methods in Natural Language Processing and the 9th
   International Joint Conference on Natural Language Processing
   (EMNLP-IJCNLP)}}. \bibinfo{pages}{3982--3992}.
+\newblock
+
+
+\bibitem[Shirkavand et~al\mbox{.}(2025)]%
+        {shirkavand2025cscr}
+\bibfield{author}{\bibinfo{person}{Reza Shirkavand}, \bibinfo{person}{Shangqian
+  Gao}, \bibinfo{person}{Peiran Yu}, {and} \bibinfo{person}{Heng Huang}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Cost-Aware Contrastive Routing for {LLMs}}. In
+  \bibinfo{booktitle}{\emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}}.
+\newblock
+
+
+\bibitem[Sun et~al\mbox{.}(2025)]%
+        {sun2025lookahead}
+\bibfield{author}{\bibinfo{person}{Zijian Sun}, \bibinfo{person}{Hanling Xue},
+  \bibinfo{person}{Jie Wang}, {and} \bibinfo{person}{Zhi-Xuan Tu}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Lookahead Routing for Large Language Models}. In
+  \bibinfo{booktitle}{\emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}}.
 \newblock
 
 

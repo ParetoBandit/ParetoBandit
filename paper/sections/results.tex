@@ -163,6 +163,12 @@ In Phase~3, when original pricing is restored, $\lambda_t$ rises to ${\sim}0.51$
 This full round-trip---binding $\to$ slack $\to$ binding---demonstrates that the primal-dual mechanism adapts in both directions without operator intervention.
 The tight budget also exhibits the largest reward lift ($\Delta{=}+0.071$) because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 
+\paragraph{Ecological validity of the cost perturbation.}
+The near-total price collapse used in Phase~2 is deliberately extreme: it stress-tests the pacer at the boundary of its operating range, where the dual variable must traverse from binding to fully slack and back.
+Under milder cost perturbations, the same EMA-driven dual update produces proportionally smaller $\lambda_t$ adjustments with faster convergence, since the required policy shift is smaller---the mechanism's response is continuous and monotonic in the magnitude of the cost signal.
+Importantly, discrete step-change pricing is the norm in production LLM deployments, not the exception: OpenAI reduced GPT-4~Turbo input prices by 67\% in a single announcement~\cite{openai2025turbopricing}, and Google cut Gemini~1.5~Flash input pricing by 78\% overnight~\cite{google2024flashpricing}.
+The experimental design therefore mirrors the structure of real-world cost shocks---abrupt, provider-initiated, and often large---while testing at an extreme that bounds the pacer's worst-case adaptation latency.
+
 \subsection{Resilience to Catastrophic Model Failure}
 \label{sec:exp3_catastrophic_failure}
 
