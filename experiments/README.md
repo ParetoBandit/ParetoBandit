@@ -19,7 +19,9 @@ experiments/
 │   └── results/
 ├── 03_catastrophic_failure/           # Catastrophic model failure (3-phase)
 │   └── results/
-└── 04_hparam_optimization/            # Epsilon-constraint hyperparameter selection
+├── 04_model_onboarding/              # Cold-start model onboarding (K=3→K=4)
+│   └── results/
+└── 05_hparam_optimization/            # Epsilon-constraint hyperparameter selection
     └── results/
 ```
 
@@ -30,7 +32,8 @@ experiments/
 | 01 | Stationary Budget Pacing | Does BudgetPacer Pareto-dominate a static cost-penalty sweep? | Pareto frontier + lambda convergence |
 | 02 | Budget + Cost Drift | Does the BudgetPacer maintain budget compliance under cost drift where static penalties fail? | 3x1 stacked adaptation dynamics |
 | 03 | Catastrophic Model Failure | Can ParetoBandit detect failure, redistribute traffic, and maintain budget compliance? | 3x1 stacked adaptation dynamics |
-| 04 | Hparam Optimization | How should alpha, n_eff, and gamma be jointly selected? | Epsilon-constraint selection (budget-paced AUC + Phase-2 regret) |
+| 04 | Model Onboarding | Can a single register_model() call onboard a new model with zero offline evaluation? | 3-panel: Flash adoption, arm composition, cost compliance |
+| 05 | Hparam Optimization | How should alpha, n_eff, and gamma be jointly selected? | Epsilon-constraint selection (budget-paced AUC + Phase-2 regret) |
 
 ### Main-text baselines (Experiments 02 and 03)
 

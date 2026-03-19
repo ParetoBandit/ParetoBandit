@@ -9,7 +9,7 @@ Reads ``results/model_onboarding_results.json`` (which must include the
 ``trace_A_inv`` fields produced by the updated run script).
 
 Usage:
-    python experiments/appendix/model_onboarding/generate_uncertainty_figure.py
+    python experiments/04_model_onboarding/generate_uncertainty_figure.py
 """
 from __future__ import annotations
 

@@ -9,7 +9,7 @@ a ``google/gemini-2.5-flash`` arm into each prompt record.  Only prompts
 with complete flash data are included in the K=4 output.
 
 The K=4 split files are used by the model-onboarding appendix experiment
-(``experiments/appendix/model_onboarding/``).
+(``experiments/04_model_onboarding/``).
 
 Usage
 -----

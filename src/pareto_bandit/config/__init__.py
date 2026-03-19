@@ -187,7 +187,7 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 # report on test.jsonl (burn-in on full val, eval on test).
 # Per-seed budget-paced Pareto AUC (10 seeds) with fixed-model endpoints
 # and cost range anchored to arm cost extremes.
-# Source of truth: experiments/04_hparam_optimization/results/best_hparams.json
+# Source of truth: experiments/05_hparam_optimization/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
 # is flat across d in [6, 25], validating this design choice.

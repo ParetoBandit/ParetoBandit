@@ -6,7 +6,7 @@ Reads ``results/hparam_sweep_results.json`` and produces:
 
 Usage::
 
-    python experiments/04_hparam_optimization/generate_figure.py
+    python experiments/05_hparam_optimization/generate_figure.py
 """
 
 from __future__ import annotations

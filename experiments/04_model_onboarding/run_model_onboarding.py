@@ -43,8 +43,8 @@ Output: ``results/model_onboarding_results.json``
 
 Usage
 -----
-    python experiments/appendix/model_onboarding/run_model_onboarding.py
-    python experiments/appendix/model_onboarding/run_model_onboarding.py --fast
+    python experiments/04_model_onboarding/run_model_onboarding.py
+    python experiments/04_model_onboarding/run_model_onboarding.py --fast
 """
 from __future__ import annotations
 

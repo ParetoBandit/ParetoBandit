@@ -35,13 +35,13 @@ This produces `data_collection/rewards/val_k4.jsonl` and
 
 ```bash
 # Full experiment (20 seeds, ~30 min)
-python experiments/appendix/model_onboarding/run_model_onboarding.py
+python experiments/04_model_onboarding/run_model_onboarding.py
 
 # Quick debugging run (3 seeds)
-python experiments/appendix/model_onboarding/run_model_onboarding.py --fast
+python experiments/04_model_onboarding/run_model_onboarding.py --fast
 
 # Generate figure
-python experiments/appendix/model_onboarding/generate_figure.py
+python experiments/04_model_onboarding/generate_figure.py
 ```
 
 ## Output

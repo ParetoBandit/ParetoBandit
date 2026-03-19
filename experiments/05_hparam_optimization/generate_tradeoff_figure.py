@@ -11,7 +11,7 @@ winner are highlighted with annotations.
 
 Usage::
 
-    python experiments/04_hparam_optimization/generate_tradeoff_figure.py
+    python experiments/05_hparam_optimization/generate_tradeoff_figure.py
 """
 
 from __future__ import annotations

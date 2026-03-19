@@ -64,7 +64,7 @@ The winning config is re-evaluated on the held-out test split.
 
 Usage::
 
-    python experiments/04_hparam_optimization/run_hparam_sweep.py
+    python experiments/05_hparam_optimization/run_hparam_sweep.py
 """
 
 from __future__ import annotations

@@ -8,7 +8,7 @@ publication-ready 1×2 panel figure:
   **(b)** Cost compliance: ParetoBandit stays within budget despite onboarding.
 
 Usage:
-    python experiments/appendix/model_onboarding/generate_figure.py
+    python experiments/04_model_onboarding/generate_figure.py
 """
 from __future__ import annotations
 

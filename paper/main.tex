@@ -31,11 +31,11 @@
 \input{sections/experimental_setup.tex}
 
 % Auto-generated numbers from JSON results (one file per experiment).
-% Regenerate all: for d in 01_stationary_budget_pacing 02_budget_plus_drift 03_catastrophic_failure 04_hparam_optimization; do python experiments/$d/generate_latex.py; done
+% Regenerate all: for d in 01_stationary_budget_pacing 02_budget_plus_drift 03_catastrophic_failure 05_hparam_optimization; do python experiments/$d/generate_latex.py; done
 \input{../experiments/01_stationary_budget_pacing/_autogen.tex}
 \input{../experiments/02_budget_plus_drift/_autogen.tex}
 \input{../experiments/03_catastrophic_failure/_autogen.tex}
-\input{../experiments/04_hparam_optimization/_autogen.tex}
+\input{../experiments/05_hparam_optimization/_autogen.tex}
 
 \input{sections/results.tex}
 \input{sections/discussion.tex}
@@ -129,7 +129,7 @@ The figure also illustrates the forgetting--budget pacer feedback loop for Gemin
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{../experiments/appendix/model_onboarding/results/uncertainty_evolution.pdf}
+\includegraphics[width=0.85\linewidth]{../experiments/04_model_onboarding/results/uncertainty_evolution.pdf}
 \caption{Uncertainty evolution during model onboarding (moderate budget, 20 seeds, 95\% bootstrap CI).
   $\mathrm{tr}(A_a^{-1})$ measures total uncertainty per arm: higher values indicate less information and larger exploration bonuses.
   Warm-started arms (Llama-8B, Mistral-Large) maintain low, stable uncertainty (${\sim}0.6$--$2$) throughout both phases.
