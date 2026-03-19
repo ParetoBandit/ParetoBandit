@@ -56,8 +56,8 @@ def build_slide(output_path: Path) -> None:
          fontsize=28, fontweight="bold")
 
     # ── Goal statement ────────────────────────────────────────────────
-    _box(ax, 0.04, 0.870, 0.92, 0.055, fc="#EAF4F4", ec=TEAL, lw=1.5)
-    _txt(ax, 0.50, 0.897,
+    _box(ax, 0.04, 0.855, 0.92, 0.055, fc="#EAF4F4", ec=TEAL, lw=1.5)
+    _txt(ax, 0.50, 0.882,
          r"Goal:  Route each query to an LLM while keeping average spend "
          r"per request at target $B$",
          fontsize=13.5, fontweight="bold", color=TEAL, ha="center")
@@ -65,10 +65,9 @@ def build_slide(output_path: Path) -> None:
     # ══════════════════════════════════════════════════════════════════
     # STEP 1 — EMA smoothed cost
     # ══════════════════════════════════════════════════════════════════
-    _txt(ax, 0.04, 0.795, "Step 1: Smooth the noisy cost signal",
+    eq1_y, eq1_h = 0.660, 0.07
+    _txt(ax, 0.04, eq1_y + eq1_h + 0.040, "Step 1: Smooth the noisy cost signal",
          fontsize=18, fontweight="bold", color=ORANGE)
-
-    eq1_y, eq1_h = 0.700, 0.07
     _box(ax, 0.04, eq1_y, 0.92, eq1_h)
 
     eq1c = eq1_y + eq1_h / 2
@@ -91,10 +90,9 @@ def build_slide(output_path: Path) -> None:
     # ══════════════════════════════════════════════════════════════════
     # STEP 2 — Dual variable update
     # ══════════════════════════════════════════════════════════════════
-    _txt(ax, 0.04, 0.610, "Step 2: Update the dual variable",
+    eq2_y, eq2_h = 0.370, 0.075
+    _txt(ax, 0.04, eq2_y + eq2_h + 0.040, "Step 2: Update the dual variable",
          fontsize=18, fontweight="bold", color=ORANGE)
-
-    eq2_y, eq2_h = 0.515, 0.075
     _box(ax, 0.04, eq2_y, 0.92, eq2_h)
 
     eq2c = eq2_y + eq2_h / 2
@@ -119,7 +117,7 @@ def build_slide(output_path: Path) -> None:
     # ══════════════════════════════════════════════════════════════════
     # THE FEEDBACK LOOP — side-by-side boxes
     # ══════════════════════════════════════════════════════════════════
-    loop_y, loop_h = 0.260, 0.14
+    loop_y, loop_h = 0.100, 0.14
     _box(ax, 0.04, loop_y, 0.44, loop_h, fc=LIGHT_ORANGE_BG, ec=ORANGE, lw=1.5)
     _box(ax, 0.52, loop_y, 0.44, loop_h, fc=LIGHT_ORANGE_BG, ec=ORANGE, lw=1.5)
 

@@ -46,9 +46,11 @@ each arm $a$ are discounted:
 This exponential weighting, originally proposed for
 switching bandits by Garivier and
 Moulines~\cite{garivier2011switching}, gives observations an
-effective half-life of $\ln 2 / (1 - \gamma)$ steps.
-With $\gamma{=}0.995$, the effective memory window is
-$\sim\!200$ steps: recent evidence dominates while historical
+effective half-life of $\ln 2 / (1 - \gamma)$ steps
+(${\approx}139$ for $\gamma{=}0.995$) and an e-folding time
+of $1/(1-\gamma){=}200$ steps.
+We refer to this e-folding time as the effective memory window:
+recent evidence dominates while historical
 observations---including warmup priors---are geometrically
 discounted.
 The parameter $\gamma$ thus controls a
@@ -163,7 +165,7 @@ at each step $t$, the oracle selects
 $a^*_t = \arg\max_a [r_{a,t} - \lambda_s \tilde{c}_a]$
 where $\lambda_s{=}0.20$ is the shared static cost penalty
 and $\tilde{c}_a$ is the normalized cost.
-Because all three conditions face the same cost penalty, this
+Because all four conditions face the same cost penalty, this
 oracle defines a common comparator.
 
 \paragraph{Results (Figure~\ref{fig:cumulative_regret}).}
@@ -175,10 +177,10 @@ The four conditions produce clearly separated regret trajectories:
 \toprule
 Condition & Phase~1 & Phase~2 & Total & $\sigma$ \\
 \midrule
-Fixed Policy (offline) & 46.6 & 169.1 & 215.6 & 0.0 \\
-Naive Bandit ($\gamma{=}1.0$) & 56.1 & 97.1 & 153.2 & 9.1 \\
-SW-UCB ($W{=}200$) & 100.1 & 32.5 & 132.7 & 34.4 \\
-\textbf{ParetoBandit ($\gamma{=}0.995$)} & 61.5 & \textbf{53.1} & \textbf{114.6} & \textbf{7.5} \\
+Fixed Policy (offline) & 48.8 & 166.8 & 215.6 & 0.0 \\
+Naive Bandit ($\gamma{=}1.0$) & 58.7 & 94.4 & 153.2 & 9.1 \\
+SW-UCB ($W{=}200$) & 104.9 & 27.8 & 132.7 & 34.4 \\
+\textbf{ParetoBandit ($\gamma{=}0.995$)} & 64.6 & \textbf{50.1} & \textbf{114.6} & \textbf{7.5} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -191,9 +193,9 @@ column-by-column reveals \emph{why each design decision matters}:
   \item \textbf{Fixed Policy $\to$ Naive Bandit ($-29\%$ total):}
     Online learning alone reduces total regret from $215.6$ to
     $153.2$.  The Naive Bandit adapts in Phase~2 (regret
-    $97.1$ vs.\ $169.1$), but infinite memory means Phase~1
+    $94.4$ vs.\ $166.8$), but infinite memory means Phase~1
     inertia dilutes the new signal: the Naive Bandit accumulates
-    $83\%$ more Phase~2 regret than ParetoBandit.
+    $89\%$ more Phase~2 regret than ParetoBandit.
     \textbf{For the practitioner:} this is the gap between
     ``we have online learning'' and ``we have online learning
     that actually works under change.''
@@ -202,11 +204,11 @@ column-by-column reveals \emph{why each design decision matters}:
 
   \item \textbf{SW-UCB: the strongest non-stationary baseline.}
     SW-UCB~\cite{garivier2011switching} achieves the
-    \emph{lowest Phase~2 regret} of any condition ($32.5$),
+    \emph{lowest Phase~2 regret} of any condition ($27.8$),
     demonstrating that a purpose-built non-stationary algorithm
-    adapts faster than ParetoBandit ($53.1$) once the shift occurs.
+    adapts faster than ParetoBandit ($50.1$) once the shift occurs.
     However, without warmup priors SW-UCB pays a $2.1\times$
-    higher Phase~1 cost ($100.1$ vs.\ $46.6$--$61.5$), and its
+    higher Phase~1 cost ($104.9$ vs.\ $48.8$--$64.6$), and its
     cross-seed standard deviation ($\sigma{=}34.4$) is
     $4.6\times$ that of ParetoBandit ($7.5$).
 
@@ -228,7 +230,7 @@ column-by-column reveals \emph{why each design decision matters}:
     The lower $\alpha{=}0.01$ used for SW-UCB (vs.\ $0.1$ for
     prior conditions) partially mitigates the cold start---higher
     exploration would make it worse---but cannot close the gap.
-    The $100.1$-unit Phase~1 regret is the irreducible price of
+    The $104.9$-unit Phase~1 regret is the irreducible price of
     having no historical knowledge.
 
     \textbf{For the practitioner:} SW-UCB is the better choice
@@ -240,8 +242,8 @@ column-by-column reveals \emph{why each design decision matters}:
 
   \item \textbf{Naive Bandit $\to$ ParetoBandit ($-25\%$ total):}
     Adding geometric forgetting reduces regret from $153.2$ to
-    $114.6$.  The gain is concentrated in Phase~2 ($53.1$ vs.\
-    $97.1$, a $45\%$ reduction): the 200-step effective memory
+    $114.6$.  The gain is concentrated in Phase~2 ($50.1$ vs.\
+    $94.4$, a $47\%$ reduction): the 200-step effective memory
     window discounts stale Phase~1 evidence, allowing ParetoBandit
     to re-learn the new optimum within ${\sim}200$ steps of
     the swap.
@@ -254,9 +256,9 @@ column-by-column reveals \emph{why each design decision matters}:
 
   \item \textbf{Phase~1 is ``free'' with warmup priors.}
     Conditions with warmup priors (Fixed, Naive, ParetoBandit)
-    achieve similar Phase~1 regret ($46.6$--$61.5$), while
-    SW-UCB (no priors) incurs $100.1$---a cold-start tax of
-    ${\sim}40$--$54$ regret units.
+    achieve similar Phase~1 regret ($48.8$--$64.6$), while
+    SW-UCB (no priors) incurs $104.9$---a cold-start tax of
+    ${\sim}40$--$56$ regret units.
     \textbf{For the practitioner:} if you have historical
     evaluation data (which most production deployments do),
     warmup priors eliminate the cold-start cost entirely.
@@ -270,7 +272,7 @@ because it routes deterministically from its frozen priors.
 Without online feedback, it continues routing 78\%~Mistral-Large
 and 21\%~Llama throughout the entire trajectory---even after
 the swap makes Mistral the worst arm.
-Its Phase~2 regret ($169.1$) accounts for 78\% of its total regret,
+Its Phase~2 regret ($166.8$) accounts for 77\% of its total regret,
 illustrating the cost of deploying a static router in a
 non-stationary environment.
 
@@ -307,12 +309,12 @@ correction~\cite{holm1979simple} for all pairwise comparisons
 \toprule
 \textbf{Comparison} & \textbf{$\Delta$} & \textbf{95\% CI} & \textbf{$p$} \\
 \midrule
-ParetoBandit vs.\ Fixed Policy   & $-101.0$ & $[-103.4, -98.6]$  & $< 10^{-45}$ \\
-ParetoBandit vs.\ Naive Bandit   & $-38.5$  & $[-42.2, -34.8]$   & $< 10^{-22}$ \\
-ParetoBandit vs.\ SW-UCB         & $-18.0$  & $[-29.5, -6.6]$    & $< 10^{-2}$  \\
-SW-UCB vs.\ Naive Bandit      & $-20.5$  & $[-32.6, -8.4]$    & $< 10^{-2}$  \\
-SW-UCB vs.\ Fixed Policy      & $-83.0$  & $[-94.1, -71.8]$   & $< 10^{-17}$ \\
-Naive Bandit vs.\ Fixed Policy & $-62.5$ & $[-65.4, -59.5]$   & $< 10^{-33}$ \\
+ParetoBandit vs.\ Fixed Policy   & $-101.0$ & $[-103.4, -98.7]$  & $< 10^{-45}$ \\
+ParetoBandit vs.\ Naive Bandit   & $-38.5$  & $[-42.1, -34.9]$   & $< 10^{-22}$ \\
+ParetoBandit vs.\ SW-UCB         & $-18.0$  & $[-29.1, -6.9]$    & $< 10^{-2}$  \\
+SW-UCB vs.\ Naive Bandit      & $-20.5$  & $[-32.2, -8.8]$    & $< 10^{-2}$  \\
+SW-UCB vs.\ Fixed Policy      & $-83.0$  & $[-93.8, -72.2]$   & $< 10^{-17}$ \\
+Naive Bandit vs.\ Fixed Policy & $-62.5$ & $[-65.3, -59.6]$   & $< 10^{-33}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -321,7 +323,7 @@ Naive Bandit vs.\ Fixed Policy & $-62.5$ & $[-65.4, -59.5]$   & $< 10^{-33}$ \\
 All six pairwise comparisons remain significant after
 Holm--Bonferroni correction ($p < 10^{-2}$).
 The widest confidence interval is ParetoBandit vs.\ SW-UCB
-($[-29.5, -6.6]$), reflecting SW-UCB's high cross-seed
+($[-29.1, -6.9]$), reflecting SW-UCB's high cross-seed
 variance ($\sigma{=}34.4$); even so, the effect is significant
 at $p < 0.003$.
 
@@ -342,8 +344,8 @@ isolates the contribution of each design decision:
     Every existing bandit-based LLM router operates at this
     rung.
   \item \textbf{Non-stationary bandit theory} (SW-UCB):
-    achieves the lowest Phase~2 regret ($32.5$) but suffers
-    a $100.1$-unit cold-start tax in Phase~1 and exhibits
+    achieves the lowest Phase~2 regret ($27.8$) but suffers
+    a $104.9$-unit cold-start tax in Phase~1 and exhibits
     $4.6\times$ higher variance than ParetoBandit.
     SW-UCB demonstrates that forgetting \emph{alone} is not
     enough---warmup priors are essential for reliable

@@ -56,7 +56,7 @@ We evaluate the $K{=}3$ portfolio under stationary conditions.  Following the st
 \subsection{Adapting to Model Quality Shifts}
 \label{sec:exp2_reward_shift}
 
-We next evaluate robustness to non-stationarity (Reward Drift). At step $t{=}893$ (Phase~2), Llama-8B and Mistral-Large exchange their reward and cost distributions, simulating a scenario where Mistral degrades to the worst option while Llama becomes the best. All conditions use a shared static cost penalty ($\lambda_s{=}0.20$) to isolate the effect of the learning mechanism.
+We next evaluate robustness to non-stationarity (Reward Drift). At step $t{=}893$ (Phase~2), Llama-8B and Mistral-Large exchange their reward distributions (costs unchanged), simulating a scenario where Mistral degrades to the worst option while Llama becomes the best. All conditions use a shared static cost penalty ($\lambda_s{=}0.20$) to isolate the effect of the learning mechanism.
 
 \paragraph{Why these baselines.}
 We compare four conditions forming an \emph{ablation ladder}---each
