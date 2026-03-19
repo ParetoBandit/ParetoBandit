@@ -89,6 +89,7 @@ from pareto_bandit.config import (
     K3_ARM_ORDER,
     K3_ARM_SHORT,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     TRAIN_DATA_PATH,
     VAL_DATA_PATH,
 )
@@ -121,7 +122,6 @@ VARIANTS: List[str] = ["paretobandit", "tabula_rasa"]
 
 PCA_DIM: int = 25
 GAMMA_VALUES: List[float] = [0.995, 0.997, 0.999, 1.0]
-N_SEEDS: int = 10
 SEED_OFFSET_VAL: int = 0
 SEED_OFFSET_TEST: int = 1000
 

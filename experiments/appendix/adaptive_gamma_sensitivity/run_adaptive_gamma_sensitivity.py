@@ -53,6 +53,7 @@ from pareto_bandit.config import (
     K3_ARM_SHORT,
     K3_DEFAULT_SWAP_ARMS,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     VAL_DATA_PATH,
 )
 from pareto_bandit.feature_service import FeatureService
@@ -88,7 +89,6 @@ COST_PENALTY: float = DEFAULT_NONSTAT_COST_PENALTY
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
 
-N_SEEDS: int = 20
 SEED_OFFSET: int = 8000
 RESULTS_DIR = Path(__file__).parent / "results"
 

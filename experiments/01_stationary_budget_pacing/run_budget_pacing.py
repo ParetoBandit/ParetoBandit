@@ -59,6 +59,7 @@ from pareto_bandit.config import (
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     VAL_DATA_PATH,
 )
 from pareto_bandit.feature_service import FeatureService
@@ -81,7 +82,6 @@ for _noisy in ("pareto_bandit.router", "pareto_bandit.feature_service", "pareto_
 # ======================================================================
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
-N_SEEDS = 20
 SEED_OFFSET = 3000
 RESULTS_DIR = Path(__file__).parent / "results"
 

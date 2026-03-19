@@ -181,7 +181,7 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
         r"\begin{table}[t]",
         r"\centering",
         r"\caption{Budget compliance under cost drift (Experiment~3,",
-        r"50~seeds, three phases).  Each cell shows realised average cost",
+        rf"{data['n_seeds']}~seeds, three phases).  Each cell shows realised average cost",
         r"as a multiple of the budget target ($1.00\times$ = perfect).",
         r"\textbf{Bold} marks values within $5\%$ of $1.00\times$.",
         r"$\dagger$~Phase~2 constraint non-binding: the price drop reduces",

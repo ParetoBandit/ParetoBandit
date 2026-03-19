@@ -217,12 +217,12 @@ Three failure modes emerge:
 
   \item \textbf{Naive Bandit is inconsistent across budgets.}
     After pre-training on the validation split, the Naive Bandit
-    overshoots at tight ($1.44\times$) and moderate ($1.17\times$)
+    overshoots at tight ($1.52\times$) and moderate ($1.16\times$)
     because the static cost penalty provides no feedback mechanism to
     correct realised over-spend.
     At loose budget, the same static penalty ($\lambda_s{=}0.10$)
     cannot contain the shift toward expensive arms: the Naive Bandit
-    spends \$5.2e-3/req ($2.76\times$ target).
+    spends \$5.1e-3/req ($2.74\times$ target).
     A different penalty per budget tier would require the very
     closed-loop calibration that the BudgetPacer provides automatically.
 
@@ -308,8 +308,8 @@ The recovery demonstrates that the primal-dual mechanism adapts
 in both directions: $\lambda_t$ decreases when costs drop below
 target and increases when costs rise above it.
 Phase~3 $\lambda_t$ does not exactly match Phase~1 levels: at tight
-budget, $\lambda_t$ overshoots ($0.55$ vs.\ $0.43$ in Phase~1),
-while at loose budget it undershoots ($0.09$ vs.\ $0.10$).
+budget, $\lambda_t$ overshoots ($0.51$ vs.\ $0.41$ in Phase~1),
+while at loose budget it closely tracks ($0.10$ vs.\ $0.08$).
 This asymmetry reflects the ramp-up transient---the dual update must
 raise $\lambda_t$ from near-zero through the slack region---and is
 consistent with the finite phase length (608 steps).
@@ -352,12 +352,12 @@ the dual variable rather than by stale arm statistics.
 \paragraph{Quality cost decomposition.}
 The unconstrained baseline shares ParetoBandit's $\gamma{=}0.995$ but
 removes the budget pacer, isolating the pacer's quality impact.
-In Phase~2, the unconstrained baseline achieves reward $0.929$,
+In Phase~2, the unconstrained baseline achieves reward $0.928$,
 while ParetoBandit at moderate and loose budgets reaches
-$0.926$--$0.927$---a gap of only $0.2$--$0.3\%$.
+$0.927$---a gap of ${\leq}0.1\%$.
 The pacer thus imposes \emph{negligible quality cost} when the
 constraint is slack; at tight budget the cost is still only
-${\sim}0.3\%$ ($\bdParetoBanditTightRewardPhaseTwo$ vs.\ $0.929$),
+${\sim}0.1\%$ ($\bdParetoBanditTightRewardPhaseTwo$ vs.\ $0.928$),
 attributable to the residual $\lambda_t$ that slightly favors
 cheaper arms over the quality-optimal mix.
 %
@@ -383,7 +383,7 @@ Tight    & \$3.00e-4 & \bdParetoBanditTightPhaseOneCost & \bdParetoBanditTightPh
 Moderate & \$6.62e-4 & \bdParetoBanditModPhaseOneCost & \bdParetoBanditModPhaseTwoCost & \bdParetoBanditModPhaseThreeCost \\
 Loose    & \$1.87e-3 & \bdParetoBanditLoosePhaseOneCost & \bdParetoBanditLoosePhaseTwoCost & \bdParetoBanditLoosePhaseThreeCost \\
 \midrule
-Unconstr.\ & ---     & \$9.5e-3 & \$3.3e-4 & \$9.8e-3 \\
+Unconstr.\ & ---     & \$9.5e-3 & \$3.2e-4 & \$9.8e-3 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -423,8 +423,8 @@ Loose    & \bdParetoBanditLooseRewardPhaseOne & \bdParetoBanditLooseRewardPhaseT
 
 \noindent
 All budget levels show highly significant reward improvement
-($p < 10^{-9}$ for all; one-sample $t$-test on per-seed deltas,
-49~d.f.).  The \textbf{tight} target exhibits the largest lift
+($p < 10^{-3}$ for all; one-sample $t$-test on per-seed deltas,
+19~d.f.).  The \textbf{tight} target exhibits the largest lift
 ($\Delta{=}+\bdParetoBanditTightRewardLift$), reflecting the shift
 from a Llama/Mistral mix to
 $\bdParetoBanditTightGeminiPhaseTwo\%$ Gemini routing once the
@@ -496,7 +496,7 @@ compliance is erratic ($\bdNaiveModPhaseThreeRatio$--$\bdNaiveLoosePhaseThreeRat
 \begin{table}[t]
 \centering
 \caption{Budget compliance under cost drift (Experiment~3,
-50~seeds, three phases).  Each cell shows realised average cost
+20~seeds, three phases).  Each cell shows realised average cost
 as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces

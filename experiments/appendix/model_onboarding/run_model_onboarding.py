@@ -76,6 +76,7 @@ from pareto_bandit.config import (
     K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
     K4_MODELS_PATH,
+    N_SEEDS,
     OFFLINE_DATASET_DIR,
     VAL_DATA_PATH,
 )
@@ -107,7 +108,6 @@ FLASH_ID = "google/gemini-2.5-flash"
 
 ARM_SHORT: Dict[str, str] = {**K3_ARM_SHORT, FLASH_ID: "Flash"}
 
-N_SEEDS: int = 20
 SEED_OFFSET: int = 9000
 RESULTS_DIR = Path(__file__).parent / "results"
 

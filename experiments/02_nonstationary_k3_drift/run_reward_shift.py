@@ -74,6 +74,7 @@ from pareto_bandit.config import (
     K3_ARM_SHORT,
     K3_DEFAULT_SWAP_ARMS,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     VAL_DATA_PATH,
 )
 from pareto_bandit.feature_service import FeatureService
@@ -104,7 +105,6 @@ ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 
 SWAP_ARMS = K3_DEFAULT_SWAP_ARMS
 
-N_SEEDS: int = 40
 SEED_OFFSET: int = 4000
 RESULTS_DIR = Path(__file__).parent / "results"
 

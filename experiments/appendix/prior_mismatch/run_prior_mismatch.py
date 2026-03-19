@@ -63,6 +63,7 @@ from pareto_bandit.config import (
     K3_ARM_ORDER,
     K3_ARM_SHORT,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     TRAIN_DATA_PATH,
 )
 from pareto_bandit.calibration import generate_warmup_priors
@@ -94,7 +95,6 @@ ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 LLAMA = "meta-llama/llama-3.1-8b-instruct"
 GEMINI = "google/gemini-2.5-pro"
 
-N_SEEDS: int = 20
 SEED_OFFSET: int = 9000
 RESULTS_DIR = Path(__file__).parent / "results"
 PRIORS_DIR = RESULTS_DIR / "priors"

@@ -33,6 +33,16 @@ from typing import Any, Dict, List, Tuple
 
 DEFAULT_SENTENCE_TRANSFORMER = "all-MiniLM-L6-v2"
 
+# ==============================================================================
+# Reproducibility — Unified Seed Count
+# ==============================================================================
+#
+# All experiments use the same number of random seeds so that confidence
+# intervals are directly comparable across the paper.  Individual experiments
+# keep their own SEED_OFFSET to ensure non-overlapping RNG streams.
+
+N_SEEDS: int = 20
+
 K3_ARM_ORDER: List[str] = [
     "meta-llama/llama-3.1-8b-instruct",
     "mistralai/mistral-large-2512",

@@ -70,6 +70,7 @@ from pareto_bandit.config import (
     K3_BUDGET_LABELS,
     K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     VAL_DATA_PATH,
 )
 from pareto_bandit.feature_service import FeatureService
@@ -96,7 +97,6 @@ for _noisy in (
 ARM_ORDER: List[str] = K3_ARM_ORDER
 ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 
-N_SEEDS: int = 20
 SEED_OFFSET: int = 7000
 RESULTS_DIR = Path(__file__).parent / "results"
 

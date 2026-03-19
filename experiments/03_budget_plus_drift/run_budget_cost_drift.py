@@ -75,6 +75,7 @@ from pareto_bandit.config import (
     K3_BUDGET_LABELS,
     K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
+    N_SEEDS,
     VAL_DATA_PATH,
 )
 from pareto_bandit.feature_service import FeatureService
@@ -101,7 +102,6 @@ GEMINI_ID: str = GEMINI_COST_DROP["model_id"]
 GEMINI_NEW_INPUT_COST: float = GEMINI_COST_DROP["new_input_cost_per_m"]
 GEMINI_NEW_OUTPUT_COST: float = GEMINI_COST_DROP["new_output_cost_per_m"]
 
-N_SEEDS: int = 50
 SEED_OFFSET: int = 8000
 RESULTS_DIR = Path(__file__).parent / "results"
 

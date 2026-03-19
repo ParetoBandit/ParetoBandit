@@ -210,7 +210,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         fontweight="bold",
         pad=10,
     )
-    ax_lam.set_xlabel("Step", fontsize=11)
+    ax_lam.set_xlabel("Prompts Routed", fontsize=11)
     ax_lam.set_ylabel(r"$\lambda_t$", fontsize=12)
     ax_lam.grid(True, alpha=0.2, linewidth=0.5)
     ax_lam.tick_params(labelsize=10)
@@ -278,7 +278,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             ax_mix,
             "Unconstrained",
             UNCONSTRAINED_COLOR,
-            label="Unconstrained",
+            label=r"Unconstrained ($\lambda_s{=}0$)",
             linestyle="-.",
             linewidth=2.0,
             alpha_fill=0.10,
@@ -293,7 +293,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         fontweight="bold",
         pad=10,
     )
-    ax_mix.set_xlabel("Step", fontsize=11)
+    ax_mix.set_xlabel("Prompts Routed", fontsize=11)
     ax_mix.set_ylabel("Fraction", fontsize=12)
     ax_mix.set_ylim(-0.02, 1.02)
     ax_mix.grid(True, alpha=0.2, linewidth=0.5)
@@ -369,7 +369,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             color=UNCONSTRAINED_COLOR,
             linestyle="-.",
             linewidth=2.0,
-            label="Unconstrained",
+            label=r"Unconstrained ($\lambda_s{=}0$)",
             zorder=3,
         )
         ax_cost.fill_between(
@@ -389,7 +389,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         fontweight="bold",
         pad=10,
     )
-    ax_cost.set_xlabel("Step", fontsize=11)
+    ax_cost.set_xlabel("Prompts Routed", fontsize=11)
     ax_cost.set_ylabel("$/request", fontsize=12)
     ax_cost.grid(True, alpha=0.2, linewidth=0.5)
     ax_cost.tick_params(labelsize=10)

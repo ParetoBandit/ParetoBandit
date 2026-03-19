@@ -5,7 +5,7 @@ We evaluate ParetoBandit across four escalating experiments, moving from station
 
 \begin{table}[t]
 \centering
-\caption{Summary of main results.  \textit{Panel~(a):} cumulative regret decomposed by phase under reward drift (Exp.~2; 40~seeds, $\lambda_s{=}0.20$).  \textit{Panel~(b):} Phase~1 budget utilisation under cost drift (Exp.~3; 50~seeds).  Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times$ indicate precise budget control.  All six pairwise differences in~(a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$).}
+\caption{Summary of main results.  \textit{Panel~(a):} cumulative regret decomposed by phase under reward drift (Exp.~2; 40~seeds, $\lambda_s{=}0.20$).  \textit{Panel~(b):} Phase~1 budget utilisation under cost drift (Exp.~3; 20~seeds).  Utilisation~$=$~realised cost~/~target~$B$; values near $1.0\times$ indicate precise budget control.  All six pairwise differences in~(a) are significant after Holm--Bonferroni correction ($p < 10^{-2}$).}
 \label{tab:main_results}
 \small
 \begin{tabular}{@{}lrrrr@{}}
@@ -155,21 +155,21 @@ When Gemini becomes nearly free in Phase~2, the BudgetPacer automatically detect
 The three budget regimes produce qualitatively distinct---but equally principled---dual-variable responses (Figure~\ref{fig:adaptation_dynamics}).
 At all three targets, post-drop costs fall below the budget, so $\lambda_t$ decays and the constraint becomes slack.
 The decay speed depends on the margin: at moderate and loose targets ($0.53\times$ and $0.19\times$ respectively), $\lambda_t$ drops to near-zero and the router reverts to quality-only optimization, increasing Gemini selection to ${\sim}46$--$51\%$.
-At tight target, the margin is narrower ($0.95\times$), so $\lambda_t$ decays from $0.43$ to ${\sim}0.07$---slower, but in the same direction.
+At tight target, the margin is narrower ($0.95\times$), so $\lambda_t$ decays from $0.41$ to ${\sim}0.07$---slower, but in the same direction.
 The tight condition still achieves the highest Gemini adoption ($72\%$) of any constrained condition, because the residual $\lambda_t$ provides mild cost pressure favoring the now-cheapest arm (Gemini, $\tilde{c}{\approx}0$) over Mistral ($\tilde{c}{\approx}0.49$).
-All three regimes show highly significant reward lifts ($\Delta{=}+0.025$ to $+0.069$; $p < 10^{-9}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
+All three regimes show highly significant reward lifts ($\Delta{=}+0.024$ to $+0.071$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 
 \paragraph{Recovering after price restoration (Phase~3).}
 When Gemini's original pricing is restored at step~1217, the BudgetPacer reverses course: $\lambda_t$ rises back toward Phase~1 levels as the cost EMA exceeds the budget target, and Gemini adoption drops to near-zero.
-At tight budget, $\lambda_t$ rises from $0.07$ to ${\sim}0.55$; at moderate from $0.04$ to ${\sim}0.36$; at loose from near-zero to ${\sim}0.09$ (Figure~\ref{fig:adaptation_dynamics}a).
-Phase~3 $\lambda_t$ does not exactly match Phase~1 values (e.g., tight: $0.55$ vs.\ $0.43$)---this asymmetry reflects the ramp-up transient from near-zero through the slack region and is consistent with the finite 608-step phase length.
+At tight budget, $\lambda_t$ rises from $0.07$ to ${\sim}0.51$; at moderate from $0.01$ to ${\sim}0.40$; at loose from near-zero to ${\sim}0.10$ (Figure~\ref{fig:adaptation_dynamics}a).
+Phase~3 $\lambda_t$ does not exactly match Phase~1 values (e.g., tight: $0.51$ vs.\ $0.41$)---this asymmetry reflects the ramp-up transient from near-zero through the slack region and is consistent with the finite 608-step phase length.
 Budget compliance recovers to $\bdParetoBanditTightPhaseThreeRatio$, $\bdParetoBanditModPhaseThreeRatio$, and $\bdParetoBanditLoosePhaseThreeRatio$ across the three targets---within $2\%$ of the budget at all levels.
 No other condition achieves this round-trip compliance: the Recalibrated Bandit obtains a second oracle recalibration at the Phase~3 boundary yet still under-spends ($\bdRecalTightPhaseThreeRatio$--$\bdRecalLoosePhaseThreeRatio$), while the Naive Bandit cannot recover at moderate and loose budgets ($\bdNaiveModPhaseThreeRatio$ and $\bdNaiveLoosePhaseThreeRatio$).
 This Phase~3 recovery is the strongest evidence that the primal-dual mechanism provides genuine closed-loop budget control rather than merely reacting to favorable cost changes.
 
 \paragraph{Quality cost of the pacer.}
 An unconstrained ParetoBandit baseline (same $\gamma{=}0.995$, no pacer) isolates the pacer's quality impact.
-In Phase~2, the unconstrained baseline reaches reward $0.929$; ParetoBandit at moderate/loose budgets reaches $0.926$--$0.927$---a gap of ${\leq}0.3\%$.
+In Phase~2, the unconstrained baseline reaches reward $0.928$; ParetoBandit at moderate/loose budgets reaches $0.927$---a gap of ${\leq}0.1\%$.
 The pacer itself is nearly free in quality terms.
 This quality difference is the cost of non-stationarity robustness---validated here by the reward lifts that the forgetting factor enables.
 
@@ -178,7 +178,7 @@ This quality difference is the cost of non-stationarity robustness---validated h
 \includegraphics[width=\textwidth]{figures/adaptation_dynamics.pdf}
 \caption{ParetoBandit adaptation dynamics across a three-phase cost
 scenario: normal pricing $\to$ Gemini price drop (step~609) $\to$
-price restored (step~1217). $K{=}3$, 50~seeds, 95\% bootstrap CI.
+price restored (step~1217). $K{=}3$, 20~seeds, 95\% bootstrap CI.
 \textbf{(a)}~The dual variable $\lambda_t$ decays in Phase~2 as
 costs fall below target, then rises back toward Phase~1 levels in
 Phase~3 when original pricing is restored---demonstrating
@@ -199,7 +199,7 @@ See Table~\ref{tab:budget_compliance} for quantitative comparisons.}
 \begin{table}[t]
 \centering
 \caption{Budget compliance under cost drift (Experiment~3,
-50~seeds, three phases).  Each cell shows realised average cost
+20~seeds, three phases).  Each cell shows realised average cost
 as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
 $\dagger$~Phase~2 constraint non-binding: the price drop reduces
@@ -231,11 +231,11 @@ Loose        & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoo
 
 \paragraph{Tight budgets: full round-trip adaptation.}
 The tight target ($B{=}\$0.0003$/req) is the most instructive case because it transitions from \emph{binding} to \emph{slack} and back to \emph{binding} across the three phases.
-In Phase~1, $\lambda_t$ averages $0.43$, enforcing a Llama/Mistral mix; after the price drop, $\lambda_t$ decays to ${\sim}0.07$ as costs fall below target.
+In Phase~1, $\lambda_t$ averages $0.41$, enforcing a Llama/Mistral mix; after the price drop, $\lambda_t$ decays to ${\sim}0.07$ as costs fall below target.
 The tight condition achieves the highest Gemini adoption ($72\%$) of any constrained condition.
-In Phase~3, when original pricing is restored, $\lambda_t$ rises to ${\sim}0.55$ and Gemini selection returns to near-zero, recovering budget compliance at $\bdParetoBanditTightPhaseThreeRatio$.
+In Phase~3, when original pricing is restored, $\lambda_t$ rises to ${\sim}0.51$ and Gemini selection returns to near-zero, recovering budget compliance at $\bdParetoBanditTightPhaseThreeRatio$.
 This full round-trip---binding $\to$ slack $\to$ binding---demonstrates that the primal-dual mechanism adapts in both directions without operator intervention.
-The tight budget also exhibits the largest reward lift ($\Delta{=}+0.069$) because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
+The tight budget also exhibits the largest reward lift ($\Delta{=}+0.071$) because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 
 \subsection{Hyperparameter Selection via Epsilon-Constraint}
 \label{sec:exp4_hparam_sweep}
