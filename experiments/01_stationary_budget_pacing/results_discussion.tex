@@ -168,6 +168,14 @@ imposes zero cost constraint.
 The pacer at its loosest target ($B{=}\$0.015$) reaches $0.922$
 at \$0.0096---the dual variable correctly decays to zero and the
 pacer gracefully becomes a no-op.
+Both methods asymptote toward the same unconstrained reward of
+${\sim}0.922$, which is itself $95.7\%$ of the per-prompt oracle
+($0.963$, the reward obtained by always selecting the highest-quality
+model for each prompt regardless of cost).
+The remaining $4.3\%$ gap reflects prompts where the bandit's
+contextual estimate differs from the true best arm---an inherent
+exploration--exploitation cost that shrinks with more data but
+cannot be eliminated by the pacing mechanism alone.
 
 \paragraph{Budget compliance (Table~\ref{tab:budget_compliance}).}
 The pacer's primary claim is that it \emph{hits the target}.

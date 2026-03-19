@@ -39,7 +39,7 @@ We evaluate the $K{=}3$ portfolio under stationary conditions.  Following the st
 
 Notably, the two frontiers differ not only in quality at shared operating points but in \emph{coverage}: the static curve terminates at \$0.00037/req ($\lambda_s{=}1.0$, 93\% Llama), while the pacer extends to \$0.00003/req (99.9\% Llama)---a $12\times$ gap.  This is structural, not a sweep artefact: for any finite $\lambda_s$, the LinUCB exploration bonus on expensive models occasionally exceeds the fixed penalty, leaking traffic to costlier arms.  The adaptive $\lambda_t$ faces no such ceiling---it ratchets upward until the budget constraint binds, providing continuous Pareto coverage across the full cost spectrum without offline calibration.
 
-Figure~\ref{fig:pareto} shows that ParetoBandit equipped with the {\tt BudgetPacer} perfectly traces this optimal penalty Pareto frontier. At unconstrained budgets (cost $> \$0.005$), the pacer matches the static baseline's maximum quality ($0.923$); the dual variable correctly decays to zero, and the pacer gracefully becomes a no-op.
+Figure~\ref{fig:pareto} shows that ParetoBandit equipped with the {\tt BudgetPacer} perfectly traces this optimal penalty Pareto frontier. At unconstrained budgets (cost $> \$0.005$), both methods asymptote toward a quality ceiling of ${\sim}0.922$---itself $95.7\%$ of the per-prompt oracle ($0.963$)---and the dual variable correctly decays to zero, so the pacer gracefully becomes a no-op.
 
 \begin{figure}[h]
 \centering
