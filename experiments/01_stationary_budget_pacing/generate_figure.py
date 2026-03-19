@@ -250,17 +250,6 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
         fontsize=15, fontweight="bold", pad=12,
     )
 
-    dt = data.get("dominance_test")
-    if dt is not None:
-        p = dt["p_value"]
-        p_str = f"$p = {p:.1e}$" if p >= 1e-10 else f"$p < 10^{{-10}}$"
-        ax.text(
-            0.98, 0.18,
-            f"Pareto dominance (Wilcoxon): {p_str}",
-            transform=ax.transAxes, fontsize=8.5, ha="right",
-            fontstyle="italic", color="0.35",
-        )
-
     fig.tight_layout()
     return fig
 
