@@ -22,7 +22,13 @@ The 11,983 prompts are partitioned into three disjoint sets via stratified sampl
 
 \begin{table}[t]
 \centering
-\caption{Dataset splits and model portfolio ($K{=}3$).  All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1.  The $500\times$ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff.}
+\caption{Dataset splits, model portfolio ($K{=}3$), and budget targets.
+All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1.
+The $500\times$ cost differential between the cheapest and most expensive
+model stresses the router's quality--cost tradeoff.
+The three budget targets span the practical operating range between
+budget-only and frontier-heavy routing; their position relative to
+model costs determines which arms the pacer can afford to select.}
 \label{tab:dataset}
 \small
 \begin{tabular}{@{}lrl@{}}
@@ -41,9 +47,21 @@ Test  & 1,824 & Online evaluation (held-out data) \\
 \toprule
 \textbf{Model} & \textbf{Cost Tier} & \textbf{Cost (\$/req)} \\
 \midrule
-Llama-3.1-8B    & Budget   & \$0.00003 \\
-Mistral-Large   & Mid-cost & \$0.003 \\
-Gemini-2.5-Pro  & Frontier & \$0.015 \\
+Llama-3.1-8B    & Budget    & \$0.00003 \\
+Mistral-Large   & Mid-cost  & \$0.003 \\
+Gemini-2.5-Pro  & High-cost & \$0.015 \\
+\bottomrule
+\end{tabular}
+
+\vspace{4pt}
+\centering
+\begin{tabular}{@{}l r l@{}}
+\toprule
+\textbf{Budget} & \textbf{Target $B$} & \textbf{Regime} \\
+\midrule
+Tight    & $\$3.0{\times}10^{-4}$  & $10\times$ Llama; Llama-dominant \\
+Moderate & $\$6.6{\times}10^{-4}$  & ${\sim}0.2\times$ Mistral; Llama--Mistral mix \\
+Loose    & $\$1.9{\times}10^{-3}$  & ${\sim}0.6\times$ Mistral; selective Gemini \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -66,6 +84,11 @@ During all experiments the PCA transform and whitening scales are frozen and app
 \subsection{Environment Construction}
 
 The $K{=}3$ portfolio spans three distinct cost tiers (Table~\ref{tab:dataset}, right).  The $500\times$ price differential between Llama-3.1-8B and Gemini-2.5-Pro stresses the router's ability to balance quality and cost efficiently.
+We evaluate under three budget targets that span the practical operating range between budget-only and frontier-heavy routing (Table~\ref{tab:dataset}, bottom).
+The \emph{tight} target ($\$3.0{\times}10^{-4}$/req) sits at $10\times$ the Llama-only cost but an order of magnitude below Mistral, constraining the router to a Llama-dominant regime.
+The \emph{moderate} target ($\$6.6{\times}10^{-4}$/req) affords a meaningful Llama--Mistral mix but effectively prices out the high-cost model.
+The \emph{loose} target ($\$1.9{\times}10^{-3}$/req) allows selective Gemini-Pro use, operating at roughly $5\times$ below the unconstrained average of ${\sim}\$0.0095$/req.
+This progression lets us test whether the BudgetPacer enforces compliance across qualitatively different routing regimes---from near-single-model to multi-model---rather than at a single arbitrary price point.
 
 \paragraph{Non-stationary evaluation protocol.}
 A key contribution of this work is the systematic evaluation of LLM routers under non-stationary conditions.

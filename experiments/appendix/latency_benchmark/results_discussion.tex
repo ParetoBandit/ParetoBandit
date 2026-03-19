@@ -123,16 +123,21 @@ Because routing sits on the user-facing critical path while updates can be proce
     the true end-to-end decision latency is substantially higher.
 
     Among RL-based routers, PROTEUS~\cite{bhatti2026proteus} is the
-    only system to report end-to-end routing latency: $8.7$\,ms (p50)
-    for a single query on an A100 GPU, dropping to $2.6$\,ms with
-    batch-32 amortisation (DeBERTa-v3-small encoder, 22M parameters).
-    ParetoBandit achieves comparable end-to-end latency ($8.3$\,ms) on
-    \emph{CPU only}, without requiring a dedicated GPU for the routing
-    decision---a meaningful infrastructure advantage in production
-    deployments where GPUs are saturated by LLM inference.
+    only peer-reviewed system to report end-to-end routing latency:
+    $8.7$\,ms (p50, single query) on an A100 GPU, dropping to $2.6$\,ms
+    with batch-32 amortisation (DeBERTa-v3-small encoder, 22M parameters).
+    For an apples-to-apples comparison, both ParetoBandit's $8.3$\,ms
+    and PROTEUS's $8.7$\,ms are \textbf{single-query p50 (median)}
+    latencies.
+    ParetoBandit achieves this on \emph{CPU only}, without requiring a
+    dedicated GPU for the routing decision---a meaningful infrastructure
+    advantage in production deployments where GPUs are saturated by
+    LLM inference.
     ParetoBandit's routing decision itself ($22\,\mu$s) is
     ${\sim}400\times$ faster than PROTEUS's per-query forward pass,
     though the embedding step dominates both systems' end-to-end latency.
+    PROTEUS's batch-32 figure ($2.6$\,ms) reflects throughput-optimised
+    amortisation and is not directly comparable to single-query latency.
 
     The best published end-to-end routing latency from a system-level
     router comes from the
@@ -151,7 +156,8 @@ Because routing sits on the user-facing critical path while updates can be proce
     In production, ParetoBandit's critical path includes prompt embedding
     (MiniLM-L6-v2) and PCA projection before the \texttt{route()} call.
     We benchmark this full pipeline on CPU (Apple M-series,
-    single-threaded, 100 iterations, 3-pass warmup):
+    single-threaded, 100 iterations, 3-pass warmup) and report
+    p50 (median) and p95 latencies:
 
     \begin{center}
     \small
@@ -192,12 +198,12 @@ Because routing sits on the user-facing critical path while updates can be proce
     ${<}\,40$\,ms~\cite{orqai2026}---higher overhead, consistent with
     a heavier classification pipeline.
 
-    \textbf{Among peer-reviewed LLM routers, only PROTEUS reports
-    end-to-end routing latency; no bandit-based or classifier-based
-    router publishes this figure}
+    \textbf{Among peer-reviewed LLM routers, only PROTEUS and
+    ParetoBandit report end-to-end routing latency; no other
+    bandit-based or classifier-based router publishes this figure}
     (Table~\ref{tab:latency_comparison}).
-    This decomposition, and the finding that the routing decision
-    contributes $<$\,1\% of total overhead, is to our knowledge the
+    The latency decomposition showing that the routing decision
+    contributes $<$\,1\% of total overhead is, to our knowledge, the
     first such analysis in the LLM routing literature.
 
     With a GPU-hosted embedding model (${\sim}0.3$--$0.5$\,ms for
@@ -209,6 +215,8 @@ Because routing sits on the user-facing critical path while updates can be proce
 \begin{table}[h]
 \centering
 \caption{Routing latency comparison across system types.
+All numeric latencies are single-query p50 (median) where available;
+ranges indicate the reported interval when percentiles were not specified.
 \emph{Decision only} isolates the model-selection computation;
 \emph{E2E} includes prompt encoding.
 $\dagger$\,System-level router (domain/safety classification for
@@ -299,7 +307,7 @@ LLM call---effectively unmeasurable in production traces.
 In practical terms, \textbf{the routing decision is invisible to the
 end user}: the time spent selecting the optimal model is orders of magnitude
 smaller than the time spent waiting for that model to respond.
-PROTEUS achieves a similar end-to-end overhead ($8.7$\,ms, or $0.9\%$ of
-the fastest LLM call), but requires an A100 GPU for the DeBERTa-v3 forward
-pass; ParetoBandit matches this overhead on CPU alone, freeing GPU
-resources for LLM inference.
+PROTEUS achieves a similar end-to-end overhead ($8.7$\,ms p50, single query,
+or $0.9\%$ of the fastest LLM call), but requires an A100 GPU for the
+DeBERTa-v3 forward pass; ParetoBandit matches this overhead ($8.3$\,ms p50)
+on CPU alone, freeing GPU resources for LLM inference.
