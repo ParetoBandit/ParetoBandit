@@ -67,6 +67,13 @@ During all experiments the PCA transform and whitening scales are frozen and app
 
 The $K{=}3$ portfolio spans three distinct cost tiers (Table~\ref{tab:dataset}, right).  The $500\times$ price differential between Llama-3.1-8B and Gemini-2.5-Pro stresses the router's ability to balance quality and cost efficiently.
 
+\paragraph{Non-stationary evaluation protocol.}
+A key contribution of this work is the systematic evaluation of LLM routers under non-stationary conditions.
+Existing bandit-based routing methods---PILOT~\cite{panda2025pilot}, BaRP~\cite{wang2025barp}, LLM Bandit~\cite{li2025llmbandit}---evaluate exclusively under stationary assumptions: model quality and pricing are fixed throughout the entire experimental trajectory.
+Yet the production LLM landscape is inherently non-stationary: providers update model weights, adjust RLHF procedures, and alter pricing on timescales of weeks~\cite{chen2023chatgptdrift}, and silent quality degradation after provider-side updates has been empirically documented~\cite{chen2025silent}.
+To our knowledge, no prior LLM routing work has experimentally evaluated router behaviour under reward or cost non-stationarity.
+We adopt the standard three-phase stress-test protocol from the non-stationary multi-armed bandit literature~\cite{garivier2011switching}---normal operation, abrupt perturbation, recovery---which provides clean phase boundaries for measuring detection latency, adaptation speed, and steady-state compliance.
+
 We construct two distinct non-stationary test environments to evaluate the router's robustness:
 1. \textbf{Cost Drift (Price Drop)}: Simulates an API price cut. The test trajectory ($n{=}1{,}824$) is divided into three 608-prompt phases. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's price to \$0.0001 per request; Phase~3 restores the original pricing. Phase~3 reuses Phase~1 prompts, providing a controlled within-subject design.
 2. \textbf{Catastrophic Model Failure}: Simulates a production API outage where Mistral-Large begins returning garbage responses. The test trajectory ($n{=}1{,}824$) is similarly divided into three phases of 608~prompts each. Phase~1 uses normal conditions; Phase~2 degrades Mistral-Large's reward to $0.05$ and cost to \$0 (the provider does not charge for failed requests); Phase~3 restores Mistral to normal operation (reusing Phase~1 prompts for controlled comparison). A separate reward-drift scenario (Llama--Mistral reward swap) is presented in Appendix~\ref{appendix:reward_swap}.
