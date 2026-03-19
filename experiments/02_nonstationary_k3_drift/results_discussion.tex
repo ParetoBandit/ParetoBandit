@@ -127,9 +127,12 @@ Four conditions are compared across 40~seeds:
     Sliding-Window LinUCB~\cite{garivier2011switching} without
     warmup priors ($\alpha{=}0.01$).  Retains only the most
     recent $W$ observations with equal weighting; older
-    observations receive zero weight.  Window size is matched to
-    ParetoBandit's effective memory (${\sim}200$ steps) for a
-    controlled comparison of the forgetting mechanism.
+    observations receive zero weight.  Window size $W{=}200$ is set
+    to match ParetoBandit's asymptotic effective sample size
+    $1/(1{-}\gamma){=}200$---the standard equivalence between
+    exponential and rectangular windows---ensuring both methods
+    have equal estimation precision while isolating the forgetting
+    shape and initialisation as the only experimental variables.
     This is a well-studied non-stationary bandit algorithm with
     known minimax regret bounds~\cite{garivier2011switching}; its
     inclusion ensures we compare against a method specifically

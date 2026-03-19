@@ -87,10 +87,12 @@ We compare ParetoBandit against three baselines representing increasing levels o
   \item \textbf{SW-UCB ($W{=}200$):} Sliding-Window
     LinUCB~\cite{garivier2011switching} without warmup priors
     ($\alpha{=}0.01$).  Retains only the last $W$ observations
-    with equal weighting.  Window size is matched to ParetoBandit's
-    effective memory (${\sim}200$ steps) for a controlled
-    comparison of the forgetting mechanism against an established
-    non-stationary bandit algorithm.  Used in the reward-drift
+    with equal weighting.  Window size $W{=}200$ matches
+    ParetoBandit's asymptotic effective sample size
+    $1/(1{-}\gamma){=}200$---the standard equivalence between
+    exponential and rectangular windows---ensuring equal estimation
+    precision while isolating the forgetting shape and initialisation
+    as the experimental variables.  Used in the reward-drift
     experiment (Section~\ref{sec:exp2_reward_shift}).
   \item \textbf{ParetoBandit ($\gamma{=}0.995$):} Our proposed system,
     initialized with warmup priors, utilizing geometric forgetting,

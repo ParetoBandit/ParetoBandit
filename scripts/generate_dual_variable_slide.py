@@ -65,7 +65,7 @@ def build_slide(output_path: Path) -> None:
     # ══════════════════════════════════════════════════════════════════
     # STEP 1 — EMA smoothed cost
     # ══════════════════════════════════════════════════════════════════
-    eq1_y, eq1_h = 0.660, 0.07
+    eq1_y, eq1_h = 0.620, 0.07
     _txt(ax, 0.04, eq1_y + eq1_h + 0.040, "Step 1: Smooth the noisy cost signal",
          fontsize=18, fontweight="bold", color=ORANGE)
     _box(ax, 0.04, eq1_y, 0.92, eq1_h)
@@ -90,7 +90,7 @@ def build_slide(output_path: Path) -> None:
     # ══════════════════════════════════════════════════════════════════
     # STEP 2 — Dual variable update
     # ══════════════════════════════════════════════════════════════════
-    eq2_y, eq2_h = 0.370, 0.075
+    eq2_y, eq2_h = 0.330, 0.075
     _txt(ax, 0.04, eq2_y + eq2_h + 0.040, "Step 2: Update the dual variable",
          fontsize=18, fontweight="bold", color=ORANGE)
     _box(ax, 0.04, eq2_y, 0.92, eq2_h)
@@ -117,7 +117,7 @@ def build_slide(output_path: Path) -> None:
     # ══════════════════════════════════════════════════════════════════
     # THE FEEDBACK LOOP — side-by-side boxes
     # ══════════════════════════════════════════════════════════════════
-    loop_y, loop_h = 0.100, 0.14
+    loop_y, loop_h = 0.060, 0.14
     _box(ax, 0.04, loop_y, 0.44, loop_h, fc=LIGHT_ORANGE_BG, ec=ORANGE, lw=1.5)
     _box(ax, 0.52, loop_y, 0.44, loop_h, fc=LIGHT_ORANGE_BG, ec=ORANGE, lw=1.5)
 
