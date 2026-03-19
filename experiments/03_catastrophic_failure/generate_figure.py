@@ -84,6 +84,7 @@ def _find_condition_key(
 def _add_phase_shading(
     ax: plt.Axes,
     boundaries: List[int],
+    font_scale: float = 1.0,
 ) -> None:
     """Shade Phase 2 (failure perturbation) and label all three phases."""
     ax.axvspan(
@@ -105,7 +106,7 @@ def _add_phase_shading(
         ax.text(
             mid, 0.97, label,
             transform=trans, ha="center", va="top",
-            fontsize=10, fontweight="bold", color="#333333",
+            fontsize=10 * font_scale, fontweight="bold", color="#333333",
         )
 
 
@@ -207,7 +208,11 @@ def _extract_arm_fraction_with_ci(
 GEMINI_ARM_SHORT = "Gemini-Pro"
 
 
-def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
+def plot_adaptation_dynamics(
+    data: Dict[str, Any],
+    figsize: Tuple[float, float] = (8, 12),
+    font_scale: float = 1.0,
+) -> plt.Figure:
     """3x1 stacked figure showing ParetoBandit adaptation across 3 failure phases.
 
     Panels:
@@ -220,11 +225,16 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     ----------
     data : dict
         Parsed results JSON.
+    figsize : tuple of float
+        Figure width and height in inches.
+    font_scale : float
+        Multiplicative factor applied to all explicit font sizes (default 1.0).
 
     Returns
     -------
     plt.Figure
     """
+    fs = font_scale
     budget_labels = data["budget_labels"]
     budget_targets = data["budget_targets"]
     conditions = data["conditions"]
@@ -232,7 +242,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
     n_seeds = data["n_seeds"]
     sqrt_n = np.sqrt(n_seeds)
 
-    fig, axes = plt.subplots(3, 1, figsize=(8, 12), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=figsize, sharex=True)
 
     # ------------------------------------------------------------------
     # (a) Gemini-Pro selection fraction
@@ -270,16 +280,16 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
             alpha=0.10, color=UNCONSTRAINED_COLOR, zorder=2,
         )
 
-    _add_phase_shading(ax_gem, phase_boundaries)
+    _add_phase_shading(ax_gem, phase_boundaries, font_scale=fs)
 
     ax_gem.set_title(
         "(a) Gemini-Pro Selection Fraction",
-        fontsize=12, fontweight="bold", pad=10,
+        fontsize=12 * fs, fontweight="bold", pad=10,
     )
-    ax_gem.set_ylabel("Fraction", fontsize=12)
+    ax_gem.set_ylabel("Fraction", fontsize=12 * fs)
     ax_gem.set_ylim(-0.02, 1.02)
     ax_gem.grid(True, alpha=0.2, linewidth=0.5)
-    ax_gem.tick_params(labelsize=10)
+    ax_gem.tick_params(labelsize=10 * fs, labelbottom=False)
 
     # ------------------------------------------------------------------
     # (b) Windowed mean reward (trailing 50 steps)
@@ -327,15 +337,15 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
                 alpha=0.10, color=UNCONSTRAINED_COLOR, zorder=2,
             )
 
-    _add_phase_shading(ax_rwd, phase_boundaries)
+    _add_phase_shading(ax_rwd, phase_boundaries, font_scale=fs)
 
     ax_rwd.set_title(
         "(b) Windowed Mean Reward",
-        fontsize=12, fontweight="bold", pad=10,
+        fontsize=12 * fs, fontweight="bold", pad=10,
     )
-    ax_rwd.set_ylabel("Mean Reward", fontsize=12)
+    ax_rwd.set_ylabel("Mean Reward", fontsize=12 * fs)
     ax_rwd.grid(True, alpha=0.2, linewidth=0.5)
-    ax_rwd.tick_params(labelsize=10)
+    ax_rwd.tick_params(labelsize=10 * fs, labelbottom=False)
 
     # ------------------------------------------------------------------
     # (c) Trailing-window average cost per request (last 50 steps)
@@ -369,7 +379,7 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
         ax_cost.text(
             1.01, btarget, f"{blabel} target",
             transform=blended_transform_factory(ax_cost.transAxes, ax_cost.transData),
-            fontsize=7.5, color=color, va="center", ha="left",
+            fontsize=7.5 * fs, color=color, va="center", ha="left",
             fontweight="bold", clip_on=False,
         )
 
@@ -393,33 +403,221 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
                 alpha=0.10, color=UNCONSTRAINED_COLOR, zorder=2,
             )
 
-    _add_phase_shading(ax_cost, phase_boundaries)
+    _add_phase_shading(ax_cost, phase_boundaries, font_scale=fs)
 
     ax_cost.set_title(
         "(c) Windowed Avg Cost / Request",
-        fontsize=12, fontweight="bold", pad=10,
+        fontsize=12 * fs, fontweight="bold", pad=10,
     )
-    ax_cost.set_xlabel("Prompts Routed", fontsize=11)
-    ax_cost.set_ylabel("$/request", fontsize=12)
+    ax_cost.set_xlabel("Prompts Routed", fontsize=11 * fs)
+    ax_cost.set_ylabel("$/request", fontsize=12 * fs)
     ax_cost.grid(True, alpha=0.2, linewidth=0.5)
-    ax_cost.tick_params(labelsize=10)
+    ax_cost.tick_params(labelsize=10 * fs)
 
     # ------------------------------------------------------------------
     # Layout
     # ------------------------------------------------------------------
-    ax_cost.set_xlabel("Prompts Routed", fontsize=11)
+    ax_cost.set_xlabel("Prompts Routed", fontsize=11 * fs)
 
     handles, labels = ax_gem.get_legend_handles_labels()
     fig.legend(
         handles, labels,
         loc="lower center", ncol=min(len(labels), 4),
-        fontsize=9.5, framealpha=0.9,
+        fontsize=9.5 * fs, framealpha=0.9,
         bbox_to_anchor=(0.5, -0.005),
     )
 
     fig.tight_layout(rect=[0, 0.05, 1, 1.0])
     fig.subplots_adjust(hspace=0.15)
 
+    return fig
+
+
+# ======================================================================
+# Slide-ready single-panel figures (16:9 widescreen)
+# ======================================================================
+
+_SLIDE_FS = 1.8
+_SLIDE_LW = 3.0
+_SLIDE_CI_ALPHA = 0.20
+_SLIDE_FIGSIZE = (13, 5.5)
+
+
+def _slide_legend(ax: plt.Axes, fs: float) -> None:
+    """Place legend inside the axes at upper-right."""
+    ax.legend(fontsize=9 * fs, framealpha=0.9, loc="upper right")
+
+
+def plot_slide_gemini_fraction(data: Dict[str, Any]) -> plt.Figure:
+    """Slide panel: Gemini-Pro selection fraction over time."""
+    fs = _SLIDE_FS
+    conditions = data["conditions"]
+    phase_boundaries = data["phase_boundaries"]
+    budget_labels = data["budget_labels"]
+    sqrt_n = np.sqrt(data["n_seeds"])
+
+    fig, ax = plt.subplots(figsize=_SLIDE_FIGSIZE)
+
+    for blabel in budget_labels:
+        cond_key = _find_condition_key(conditions, "ParetoBandit", blabel)
+        if cond_key is None:
+            continue
+        steps, fracs, ci_lo, ci_hi = _extract_arm_fraction_with_ci(
+            conditions, cond_key, GEMINI_ARM_SHORT, sqrt_n,
+        )
+        color = BUDGET_COLORS[blabel]
+        ax.plot(steps, fracs, color=color, linewidth=_SLIDE_LW,
+                label=BUDGET_NICE_LABELS[blabel], zorder=4)
+        ax.fill_between(steps, ci_lo, ci_hi,
+                        alpha=_SLIDE_CI_ALPHA, color=color, zorder=2)
+
+    if "Unconstrained" in conditions:
+        steps, fracs, ci_lo, ci_hi = _extract_arm_fraction_with_ci(
+            conditions, "Unconstrained", GEMINI_ARM_SHORT, sqrt_n,
+        )
+        ax.plot(steps, fracs, color=UNCONSTRAINED_COLOR, linestyle="-.",
+                linewidth=_SLIDE_LW, label=r"Unconstrained ($\lambda_s{=}0$)",
+                zorder=3)
+        ax.fill_between(steps, ci_lo, ci_hi,
+                        alpha=_SLIDE_CI_ALPHA * 0.6, color=UNCONSTRAINED_COLOR,
+                        zorder=2)
+
+    _add_phase_shading(ax, phase_boundaries, font_scale=fs)
+    ax.set_title("Gemini-Pro Selection Fraction",
+                 fontsize=14 * fs, fontweight="bold", pad=12)
+    ax.set_ylabel("Fraction", fontsize=12 * fs)
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, alpha=0.2, linewidth=0.5)
+    ax.tick_params(labelsize=10 * fs)
+    fig.tight_layout()
+    return fig
+
+
+def plot_slide_reward(data: Dict[str, Any]) -> plt.Figure:
+    """Slide panel: windowed mean reward over time."""
+    fs = _SLIDE_FS
+    conditions = data["conditions"]
+    phase_boundaries = data["phase_boundaries"]
+    budget_labels = data["budget_labels"]
+    sqrt_n = np.sqrt(data["n_seeds"])
+
+    fig, ax = plt.subplots(figsize=_SLIDE_FIGSIZE)
+
+    for blabel in budget_labels:
+        result = _extract_curve_with_ci(
+            conditions, "ParetoBandit", blabel,
+            mean_field="mean_window_reward",
+            per_seed_field="per_seed_window_reward",
+            std_field="std_window_reward",
+            sqrt_n=sqrt_n,
+        )
+        if result is None:
+            continue
+        steps, rewards, ci_lo, ci_hi = result
+        color = BUDGET_COLORS[blabel]
+        ax.plot(steps, rewards, color=color, linewidth=_SLIDE_LW,
+                label=BUDGET_NICE_LABELS[blabel], zorder=4)
+        ax.fill_between(steps, ci_lo, ci_hi,
+                        alpha=_SLIDE_CI_ALPHA, color=color, zorder=2)
+
+    if "Unconstrained" in conditions:
+        uc_result = _extract_curve_with_ci_direct(
+            conditions["Unconstrained"]["curves"],
+            mean_field="mean_window_reward",
+            per_seed_field="per_seed_window_reward",
+            std_field="std_window_reward",
+            sqrt_n=sqrt_n,
+        )
+        if uc_result is not None:
+            steps, rewards, ci_lo, ci_hi = uc_result
+            ax.plot(steps, rewards, color=UNCONSTRAINED_COLOR, linestyle="-.",
+                    linewidth=_SLIDE_LW,
+                    label=r"Unconstrained ($\lambda_s{=}0$)", zorder=3)
+            ax.fill_between(steps, ci_lo, ci_hi,
+                            alpha=_SLIDE_CI_ALPHA * 0.6,
+                            color=UNCONSTRAINED_COLOR, zorder=2)
+
+    _add_phase_shading(ax, phase_boundaries, font_scale=fs)
+    ax.set_title("Windowed Mean Reward",
+                 fontsize=14 * fs, fontweight="bold", pad=12)
+    ax.set_ylabel("Mean Reward", fontsize=12 * fs)
+    ax.grid(True, alpha=0.2, linewidth=0.5)
+    ax.tick_params(labelsize=10 * fs)
+    fig.tight_layout()
+    return fig
+
+
+def plot_slide_cost(data: Dict[str, Any]) -> plt.Figure:
+    """Slide panel: windowed average cost per request over time."""
+    fs = _SLIDE_FS
+    conditions = data["conditions"]
+    phase_boundaries = data["phase_boundaries"]
+    budget_labels = data["budget_labels"]
+    budget_targets = data["budget_targets"]
+    sqrt_n = np.sqrt(data["n_seeds"])
+
+    fig, ax = plt.subplots(figsize=_SLIDE_FIGSIZE)
+
+    for blabel, btarget in zip(budget_labels, budget_targets):
+        result = _extract_curve_with_ci(
+            conditions, "ParetoBandit", blabel,
+            mean_field="mean_window_cost",
+            per_seed_field="per_seed_window_cost",
+            std_field="std_window_cost",
+            sqrt_n=sqrt_n,
+        )
+        if result is None:
+            continue
+        steps, avg_costs, ci_lo, ci_hi = result
+        color = BUDGET_COLORS[blabel]
+        ax.plot(steps, avg_costs, color=color, linewidth=_SLIDE_LW,
+                label=BUDGET_NICE_LABELS[blabel], zorder=4)
+        ax.fill_between(steps, ci_lo, ci_hi,
+                        alpha=_SLIDE_CI_ALPHA, color=color, zorder=2)
+        ax.axhline(btarget, color=color, linestyle=":", linewidth=2.0,
+                   alpha=0.6, zorder=1)
+        ax.text(
+            1.01, btarget, f"{blabel} target",
+            transform=blended_transform_factory(ax.transAxes, ax.transData),
+            fontsize=8 * fs, color=color, va="center", ha="left",
+            fontweight="bold", clip_on=False,
+        )
+
+    if "Unconstrained" in conditions:
+        uc_result = _extract_curve_with_ci_direct(
+            conditions["Unconstrained"]["curves"],
+            mean_field="mean_window_cost",
+            per_seed_field="per_seed_window_cost",
+            std_field="std_window_cost",
+            sqrt_n=sqrt_n,
+        )
+        if uc_result is not None:
+            uc_steps, uc_costs, uc_ci_lo, uc_ci_hi = uc_result
+            ax.plot(uc_steps, uc_costs, color=UNCONSTRAINED_COLOR,
+                    linestyle="-.", linewidth=_SLIDE_LW,
+                    label=r"Unconstrained ($\lambda_s{=}0$)", zorder=3)
+            ax.fill_between(uc_steps, uc_ci_lo, uc_ci_hi,
+                            alpha=_SLIDE_CI_ALPHA * 0.6,
+                            color=UNCONSTRAINED_COLOR, zorder=2)
+
+    _add_phase_shading(ax, phase_boundaries, font_scale=fs)
+    ax.set_title("Windowed Avg Cost / Request",
+                 fontsize=14 * fs, fontweight="bold", pad=12)
+    ax.set_ylabel("$/request", fontsize=12 * fs)
+    ax.set_xlabel("Prompts Routed", fontsize=12 * fs)
+    ax.grid(True, alpha=0.2, linewidth=0.5)
+    ax.tick_params(labelsize=10 * fs)
+
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        loc="lower center",
+        ncol=min(len(labels), 4),
+        fontsize=9 * fs,
+        framealpha=0.9,
+        bbox_to_anchor=(0.5, -0.02),
+    )
+    fig.tight_layout(rect=[0, 0.10, 1, 1.0])
     return fig
 
 
@@ -441,6 +639,32 @@ def main() -> None:
         )
     plt.close(fig)
     print("Saved catastrophic_failure_dynamics.{pdf,png}")
+
+    blog_dir = PROJECT_ROOT / "blog"
+    blog_dir.mkdir(parents=True, exist_ok=True)
+    fig_blog = plot_adaptation_dynamics(data, figsize=(16, 14), font_scale=1.4)
+    fig_blog.savefig(
+        blog_dir / "experiment_03_catastrophic_failure.png",
+        bbox_inches="tight",
+        dpi=200,
+    )
+    plt.close(fig_blog)
+    print("Saved blog/experiment_03_catastrophic_failure.png")
+
+    slide_dir = blog_dir / "slides"
+    slide_dir.mkdir(parents=True, exist_ok=True)
+    slide_panels = [
+        ("exp03_gemini_fraction", plot_slide_gemini_fraction),
+        ("exp03_reward", plot_slide_reward),
+        ("exp03_cost", plot_slide_cost),
+    ]
+    for name, plot_fn in slide_panels:
+        fig_s = plot_fn(data)
+        fig_s.savefig(
+            slide_dir / f"{name}.png", bbox_inches="tight", dpi=150,
+        )
+        plt.close(fig_s)
+    print(f"Saved {len(slide_panels)} slide panels to blog/slides/")
 
 
 if __name__ == "__main__":

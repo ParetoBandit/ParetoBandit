@@ -42,12 +42,12 @@ Figure~\ref{fig:pareto} shows that ParetoBandit equipped with the {\tt BudgetPac
 \input{../experiments/01_stationary_budget_pacing/table_routing_metrics.tex}
 
 \paragraph{Routing evaluation metrics (Table~\ref{tab:routing_metrics}).}
-To quantify the Pareto dominance in terms standard in the LLM routing literature, Table~\ref{tab:routing_metrics} reports cost@$Q$\%\,qual, qual@$C$\%\,cost, AUCPC, and cost savings at 95\% quality.
-The pacer's advantage is most visible in the cost metrics:
-at 95\% of oracle quality, the pacer reaches the frontier at $\bpRmPacerCostAt95$/req versus $\bpRmStaticCostAt95$ for the static baseline---$2.7\times$ cheaper---and achieves a $\bpRmPacerSave95\%$ cost reduction versus $\bpRmStaticSave95\%$ for Static.
+All metrics use the \emph{per-prompt oracle} (always selecting the highest-quality model for each prompt; quality $\bpOracleReward$, cost $\bpOracleCost$/req) as the reference.
+The pacer's advantage is most visible at moderate quality thresholds:
+at 90\% of oracle quality, the pacer reaches the frontier at $\bpRmPacerCostAt90$/req versus $\bpRmStaticCostAt90$---$3.2\times$ cheaper.
+At 95\% of oracle quality (close to the unconstrained router's own performance), the gap narrows ($\bpRmPacerCostAt95$ vs.\ $\bpRmStaticCostAt95$), but the pacer still achieves $\bpRmPacerSave95\%$ cost savings relative to the oracle versus $\bpRmStaticSave95\%$ for Static.
 The normalised AUCPC confirms this advantage across the full cost range ($\bpRmPacerAUCPC$ vs.\ $\bpRmStaticAUCPC$), and a Wilcoxon signed-rank test on per-seed Pareto AUC rejects the null at $p = \bpDominancePValue$.
-By contrast, quality at a fixed cost fraction differs only modestly (qual@25\%\,cost: $\bpRmPacerQAt25$ vs.\ $\bpRmStaticQAt25$).
-This asymmetry reflects the concave geometry of the Pareto frontier: both methods reach a quality plateau quickly, so quality at a given cost is similar; but the pacer's tighter frontier achieves each quality threshold at dramatically lower cost.
+Quality at a fixed oracle-cost fraction shows a sharper separation at tight budgets (qual@25\%\,cost: $\bpRmPacerQAt25$ vs.\ $\bpRmStaticQAt25$) than at looser ones.
 
 \paragraph{Budget compliance.} The pacer's primary advantage is its ability to hit a target. For the six tightest targets, actual spend ranges from $0.97\times$ to $1.02\times$ of the budget---effectively perfect compliance. Figure~\ref{fig:model_mix} illustrates the resulting steady-state model allocation under a strict budget, dynamically balancing between Llama-3.1-8B and Mistral-Large-2512 to maximize quality. The loosest target ($B{=}\$0.015$) shows under-utilisation ($0.64\times$) because the unconstrained router's natural spend (\$0.0094/req) is already below this target; the pacer constrains spend \emph{from above} but never forces the router to spend more than its quality-optimal policy requires.
 

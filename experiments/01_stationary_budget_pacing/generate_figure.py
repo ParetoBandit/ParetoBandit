@@ -218,9 +218,11 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
             label="_nolegend_",
         )
 
-    oracle = data["results"][0]["mean_reward"] + (
-        data["results"][0]["mean_quality_gap"] / data["test_n"]
-    )
+    oracle = data.get("oracle_mean_reward")
+    if oracle is None:
+        oracle = data["results"][0]["mean_reward"] + (
+            data["results"][0]["mean_quality_gap"] / data["test_n"]
+        )
     bottom = min(pacer, key=lambda r: r["mean_reward"])
     top = max(pacer, key=lambda r: r["mean_reward"])
     for pt, va, offset, ha in [
@@ -268,7 +270,7 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
               framealpha=0.9)
 
     ax.set_title(
-        "Stationary Budget Pacing — Pareto Frontier (K=3)",
+        "ParetoBandit vs. Static Penalty — Pareto Frontier (K=3)",
         fontsize=15, fontweight="bold", pad=12,
     )
 

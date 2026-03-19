@@ -192,15 +192,22 @@ in the LLM routing literature~\cite{ong2024routellm,ding2024hybrid},
 Table~\ref{tab:routing_metrics} reports cost@$Q$\%\,qual,
 qual@$C$\%\,cost, AUCPC, and cost savings at 95\% quality for both
 methods.
-The cost-oriented metrics reveal the pacer's strongest advantage.
-At 95\% of unconstrained quality ($\bpStaticZeroReward$), the pacer
-reaches the Pareto frontier at $\bpRmPacerCostAt95$/req versus
-$\bpRmStaticCostAt95$ for the static baseline---a $2.7\times$ cost
-reduction.
-At the less stringent 90\% threshold the gap widens further:
-$\bpRmPacerCostAt90$/req versus $\bpRmStaticCostAt90$ ($5.4\times$).
-Aggregated as a cost saving at 95\% quality, the pacer achieves
-$\bpRmPacerSave95\%$ versus $\bpRmStaticSave95\%$ for Static.
+All thresholds are relative to the \emph{per-prompt oracle}
+(quality $\bpOracleReward$, cost $\bpOracleCost$/req), which
+always selects the highest-quality model for each prompt.
+
+The cost-oriented metrics reveal the pacer's strongest advantage
+at moderate quality thresholds.
+At 90\% of oracle quality, the pacer reaches the Pareto frontier at
+$\bpRmPacerCostAt90$/req versus $\bpRmStaticCostAt90$ for the static
+baseline---a $3.2\times$ cost reduction.
+At the more stringent 95\% threshold (which lies close to the
+unconstrained router's own performance of $\bpStaticZeroReward$),
+both methods converge: $\bpRmPacerCostAt95$ versus
+$\bpRmStaticCostAt95$.
+Aggregated as a cost saving at 95\% quality relative to the oracle
+cost, the pacer achieves $\bpRmPacerSave95\%$ versus
+$\bpRmStaticSave95\%$ for Static.
 The normalised AUCPC---integrated over the model-cost range
 $[\bpCheapestModelCost,\, \bpExpensiveModelCost]$---confirms this
 advantage across the full cost spectrum: $\bpRmPacerAUCPC$ versus
@@ -208,21 +215,18 @@ $\bpRmStaticAUCPC$.
 A Wilcoxon signed-rank test on per-seed Pareto AUC rejects the null
 at $p = \bpDominancePValue$.
 
-By contrast, the quality-oriented metrics show more modest
-separation.
-At 50\% of unconstrained cost the pacer achieves
-$\bpRmPacerQAt50$ versus $\bpRmStaticQAt50$; at 25\% cost the gap
-is $\bpRmPacerQAt25$ versus $\bpRmStaticQAt25$.
-This asymmetry---large cost differences, small quality
-differences---is a geometric consequence of the concave Pareto
-frontier.
-Both methods reach a quality plateau rapidly as cost increases,
-so quality at a fixed cost fraction is similar; but the pacer's
-tighter frontier means it achieves each quality threshold at
-dramatically lower cost.
-The cost@$Q$\%\,qual metrics capture this cleanly and are the
-headline numbers in routing papers such as
-RouteLLM~\cite{ong2024routellm} and Hybrid
+The quality-oriented metrics show a sharper separation at tight
+budgets.
+At 25\% of oracle cost the pacer achieves
+$\bpRmPacerQAt25$ versus $\bpRmStaticQAt25$; at 50\% cost the gap
+narrows ($\bpRmPacerQAt50$ versus $\bpRmStaticQAt50$).
+This pattern---pronounced cost savings at moderate quality levels
+and pronounced quality gains at tight cost levels---reflects the
+concave geometry of the Pareto frontier: both methods converge to
+a quality plateau near the oracle as cost increases, but the pacer's
+tighter frontier achieves each quality threshold at lower cost.
+The cost@$Q$\%\,qual metrics are the headline numbers in routing
+papers such as RouteLLM~\cite{ong2024routellm} and Hybrid
 LLM~\cite{ding2024hybrid}.
 
 \paragraph{Budget compliance (Table~\ref{tab:budget_compliance}).}

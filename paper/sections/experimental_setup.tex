@@ -126,8 +126,8 @@ We evaluate the systems using three primary metrics and four supplementary routi
 \noindent
 To facilitate comparison with the LLM routing literature, we additionally report four metrics evaluated on the Pareto frontier produced by each method (Table~\ref{tab:routing_metrics}):
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{cost@$Q$\%\,qual} ($\downarrow$): the cost on the Pareto frontier at $Q$\% of unconstrained (oracle) quality.  Measures how cheaply a method reaches a given quality threshold.
-  \item \textbf{qual@$C$\%\,cost} ($\uparrow$): the quality achieved at $C$\% of unconstrained cost.  Measures quality at a fixed cost fraction.
-  \item \textbf{Save@$Q$\%} ($\uparrow$): fractional cost reduction at $Q$\% of oracle quality relative to the unconstrained operating point, i.e.\ $1 - \text{cost@}Q / \text{cost}_{\text{oracle}}$.
+  \item \textbf{cost@$Q$\%\,qual} ($\downarrow$): the cost on the Pareto frontier at $Q$\% of per-prompt oracle quality (the reward obtained by always selecting the highest-quality model for each prompt).  Measures how cheaply a method reaches a given quality threshold.
+  \item \textbf{qual@$C$\%\,cost} ($\uparrow$): the quality achieved at $C$\% of per-prompt oracle cost.  Measures quality at a fixed cost fraction.
+  \item \textbf{Save@$Q$\%} ($\uparrow$): fractional cost reduction at $Q$\% of oracle quality relative to the oracle cost, i.e.\ $1 - \text{cost@}Q / \text{cost}_{\text{oracle}}$.
   \item \textbf{AUCPC} ($\uparrow$): the normalised Area Under the Cost--Performance Curve~\cite{ding2024hybrid}, integrated over the model-cost range $[\text{cheapest model cost},\, \text{most expensive model cost}]$ and scaled to $[0,1]$ using cheapest-model quality and oracle quality as anchors.
 \end{enumerate}

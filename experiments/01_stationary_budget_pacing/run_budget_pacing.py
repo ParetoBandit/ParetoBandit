@@ -335,6 +335,25 @@ def main() -> None:
         [f"${t:.6f}" for t in budget_targets],
     )
 
+    # Per-prompt oracle: always select the highest-quality model per prompt.
+    oracle_rewards_arr = np.array([
+        max(float(test.rewards[a][i]) for a in ARM_ORDER)
+        for i in range(test.n)
+    ])
+    oracle_best_arms = [
+        max(ARM_ORDER, key=lambda a, idx=i: float(test.rewards[a][idx]))
+        for i in range(test.n)
+    ]
+    oracle_costs_arr = np.array([
+        float(test.costs[oracle_best_arms[i]][i]) for i in range(test.n)
+    ])
+    oracle_mean_reward = float(np.mean(oracle_rewards_arr))
+    oracle_mean_cost = float(np.mean(oracle_costs_arr))
+    logger.info(
+        "  Per-prompt oracle: reward=%.4f  cost=$%.6f",
+        oracle_mean_reward, oracle_mean_cost,
+    )
+
     all_results: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
@@ -554,6 +573,8 @@ def main() -> None:
         "static_cost_penalties": STATIC_COST_PENALTIES,
         "online_n": online.n,
         "test_n": test.n,
+        "oracle_mean_reward": oracle_mean_reward,
+        "oracle_mean_cost": oracle_mean_cost,
         "results": all_results,
         "dominance_test": dominance_test,
     }

@@ -133,6 +133,7 @@ def add_derived_commands(
     cs: CommandSet,
     results: List[Dict[str, Any]],
     budget_targets: List[float],
+    data: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Add \\bp commands for derived quantities."""
     # Cheapest and most expensive model costs (budget targets)
@@ -152,6 +153,11 @@ def add_derived_commands(
     if s0:
         cs.reward("UnconstrainedReward", s0["mean_reward"], s0.get("se_reward"))
         cs.cost_sci("UnconstrainedCost", s0["mean_cost"])
+
+    # Per-prompt oracle
+    if data and "oracle_mean_reward" in data:
+        cs.reward("OracleReward", data["oracle_mean_reward"])
+        cs.cost_sci("OracleCost", data["oracle_mean_cost"])
 
     # Utilisation range for binding targets (0.95 <= util <= 1.05)
     binding_utils: List[float] = []
@@ -198,7 +204,7 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 
     add_static_commands(cs, results)
     add_pacer_commands(cs, results, budget_targets)
-    add_derived_commands(cs, results, budget_targets)
+    add_derived_commands(cs, results, budget_targets, data=data)
 
     dt = data.get("dominance_test")
     if dt is not None:
@@ -360,9 +366,15 @@ def compute_routing_metrics(
 
     - **Pareto AUC** (reused from the dominance test).
     - **AUCPC** (normalised to [0, 1] over the model-cost range).
-    - **cost@Q%**: cost on the Pareto hull at Q% of unconstrained quality.
-    - **quality@C%**: quality at C% of unconstrained cost.
-    - **CostSave@95%**: ``1 - cost@95% / ref_cost``.
+    - **cost@Q%**: cost on the Pareto hull at Q% of per-prompt oracle
+      quality.
+    - **quality@C%**: quality at C% of per-prompt oracle cost.
+    - **CostSave@95%**: ``1 - cost@95% / oracle_cost``.
+
+    The **per-prompt oracle** always selects the highest-quality model
+    for each prompt.  It serves as the quality ceiling (reward 1.0 ≡
+    oracle quality) and the cost reference (oracle cost = average cost
+    of the best-per-prompt model).
 
     Two sets of anchors are used:
 
@@ -370,14 +382,14 @@ def compute_routing_metrics(
       (``budget_targets[0]`` / ``budget_targets[-1]``) so that both
       methods are evaluated over the identical cost range with all
       sweep points included.  Quality anchors: cheapest-model quality
-      (pacer at tightest budget) and unconstrained oracle quality
-      (static lambda=0).
-    - **cost@Q / Q@C / Save** use the unconstrained operating point
-      (static lambda=0) as the reference for quality and cost
-      thresholds.
+      (pacer at tightest budget) and per-prompt oracle quality.
+    - **cost@Q / Q@C / Save** use the per-prompt oracle operating
+      point as the reference for quality and cost thresholds.
 
     Args:
         data: Full JSON dict from ``budget_pacing_results.json``.
+              Must contain ``oracle_mean_reward`` and
+              ``oracle_mean_cost`` (per-prompt oracle stats).
 
     Returns:
         Dict keyed by ``"static"``, ``"pacer"``, ``"_anchors"``.
@@ -395,20 +407,23 @@ def compute_routing_metrics(
         "Static lambda=0 and lambda=1 rows required for anchor points"
     )
 
-    # Reference for cost@Q and Q@C: unconstrained (oracle) operating point
-    ref_reward = s0["mean_reward"]
-    ref_cost = s0["mean_cost"]
+    oracle_reward = data["oracle_mean_reward"]
+    oracle_cost = data["oracle_mean_cost"]
+
+    # Reference for cost@Q and Q@C: per-prompt oracle
+    ref_reward = oracle_reward
+    ref_cost = oracle_cost
 
     # AUCPC cost anchors: true model-mean costs (symmetric for both methods)
     aucpc_cheap_cost = budget_targets[0]
     aucpc_frontier_cost = budget_targets[-1]
 
-    # AUCPC quality anchors: cheapest-model quality and oracle ceiling
+    # AUCPC quality anchors: cheapest-model quality and per-prompt oracle
     p_tightest = get_pacer_by_target(results, budget_targets[0])
     aucpc_cheap_reward = (
         p_tightest["mean_reward"] if p_tightest else s1["mean_reward"]
     )
-    aucpc_frontier_reward = s0["mean_reward"]
+    aucpc_frontier_reward = oracle_reward
 
     dt = data.get("dominance_test", {})
     out: Dict[str, Dict[str, Any]] = {}
@@ -611,10 +626,11 @@ def generate_routing_table(
         f"  cost-penalty baseline and the BudgetPacer ($K{{=}}3$, {n_seeds}~seeds).",
         r"  %",
         r"  \textbf{cost@$Q$\%\,qual}: cost on the Pareto frontier at $Q$\% of",
-        f"  unconstrained quality (${ref_q}$).",
-        r"  \textbf{qual@$C$\%\,cost}: quality at $C$\% of unconstrained cost",
+        f"  per-prompt oracle quality (${ref_q}$).",
+        r"  \textbf{qual@$C$\%\,cost}: quality at $C$\% of per-prompt oracle cost",
         f"  (${ref_c}$/req).",
-        r"  \textbf{Save@95\%}: fractional cost reduction at 95\% quality.",
+        r"  \textbf{Save@95\%}: fractional cost reduction at 95\% of oracle quality",
+        r"  relative to the oracle cost.",
         r"  \textbf{AUCPC}: normalised area under the cost--performance",
         r"  curve, integrated over the model-cost range",
         f"  $[{aucpc_lo},\\, {aucpc_hi}]$.",
