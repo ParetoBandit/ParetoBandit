@@ -132,6 +132,35 @@ greater quality uplift.
 The static penalty applies the same cost tax uniformly, forgoing
 this temporal budget allocation.
 
+\paragraph{Frontier coverage gap.}
+A striking asymmetry in Figure~\ref{fig:pareto_budget} is the
+\emph{range} of the two frontiers.
+The static baseline's lowest-cost point ($\lambda_s{=}1.0$)
+terminates at \$0.00037/req with 93\% Llama allocation, while
+the pacer extends to \$0.00003/req (99.9\% Llama)---a $12\times$
+gap in cost coverage.
+This is a structural limitation of the fixed-penalty formulation,
+not an artefact of the sweep granularity.
+The static penalty $\lambda_s \tilde{c}_a$ competes \emph{additively}
+with the LinUCB score (Eq.~\ref{eq:budget_ucb}): for any finite
+$\lambda_s$, there exist prompts where the exploration bonus or
+quality advantage of an expensive model exceeds the penalty, so the
+router still occasionally selects Mistral or Gemini.
+Even at $\lambda_s{=}1.0$---the strongest penalty in the sweep---7\%
+of traffic leaks to costlier models.
+Reaching the pacer's cost floor would require $\lambda_s \gg 1$, but
+determining \emph{which} value maps to a given dollar target is
+exactly the offline calibration exercise the pacer eliminates.
+The adaptive dual variable faces no such ceiling: when spend exceeds
+the target, $\lambda_t$ ratchets upward (bounded only by
+$\bar\lambda{=}5$) until the budget constraint is satisfied,
+driving allocation arbitrarily close to the cheapest arm.
+This coverage gap reinforces the Pareto dominance result above:
+the pacer not only achieves better quality--cost tradeoffs at
+overlapping operating points, but provides continuous access to a
+region of the cost spectrum that the static penalty cannot reach
+without impractical levels of offline search.
+
 At the unconstrained end (cost $> \$0.005$), the static baseline
 matches the pacer:
 $\lambda_s{=}0$ achieves the quality ceiling ($0.921$) because it
