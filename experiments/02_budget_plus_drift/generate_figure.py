@@ -56,7 +56,7 @@ BUDGET_NICE_LABELS: Dict[str, str] = {
 UNCONSTRAINED_COLOR = "#009E73"
 
 _PHASE_LABELS: List[str] = ["Normal", "Price Drop", "Restored"]
-_PHASE2_SHADE_COLOR = "#0072B2"
+_PHASE2_SHADE_COLOR = "#D55E00"
 
 
 def _load_results() -> Dict[str, Any]:
@@ -665,6 +665,13 @@ def main() -> None:
 
     slide_dir = blog_dir / "slides"
     slide_dir.mkdir(parents=True, exist_ok=True)
+
+    fig_slide = plot_adaptation_dynamics(data, figsize=(16, 12), font_scale=1.6)
+    fig_slide.savefig(
+        slide_dir / "exp02_stacked.png", bbox_inches="tight", dpi=150,
+    )
+    plt.close(fig_slide)
+
     slide_panels = [
         ("exp02_gemini_fraction", plot_slide_gemini_fraction),
         ("exp02_reward", plot_slide_reward),
@@ -676,7 +683,7 @@ def main() -> None:
             slide_dir / f"{name}.png", bbox_inches="tight", dpi=150,
         )
         plt.close(fig_s)
-    print(f"Saved {len(slide_panels)} slide panels to blog/slides/")
+    print("Saved slide panels + stacked to blog/slides/")
 
 
 if __name__ == "__main__":

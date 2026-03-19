@@ -653,6 +653,13 @@ def main() -> None:
 
     slide_dir = blog_dir / "slides"
     slide_dir.mkdir(parents=True, exist_ok=True)
+
+    fig_slide = plot_adaptation_dynamics(data, figsize=(16, 12), font_scale=1.6)
+    fig_slide.savefig(
+        slide_dir / "exp03_stacked.png", bbox_inches="tight", dpi=150,
+    )
+    plt.close(fig_slide)
+
     slide_panels = [
         ("exp03_gemini_fraction", plot_slide_gemini_fraction),
         ("exp03_reward", plot_slide_reward),
@@ -664,7 +671,7 @@ def main() -> None:
             slide_dir / f"{name}.png", bbox_inches="tight", dpi=150,
         )
         plt.close(fig_s)
-    print(f"Saved {len(slide_panels)} slide panels to blog/slides/")
+    print("Saved slide panels + stacked to blog/slides/")
 
 
 if __name__ == "__main__":
