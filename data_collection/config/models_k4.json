@@ -13,7 +13,7 @@
     {
       "model_id": "mistralai/mistral-large-2512",
       "display": "Mistral-Large-2512",
-      "description": "Mid tier: best value-per-quality in the portfolio.",
+      "description": "Mid-cost: best value-per-quality in the portfolio.",
       "input_cost_per_m": 0.5,
       "output_cost_per_m": 1.5,
       "context_length": 128000,

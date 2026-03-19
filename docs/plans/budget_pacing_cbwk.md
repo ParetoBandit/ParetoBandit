@@ -197,7 +197,7 @@ Follows the conventions in `tests/test_correctness_invariants.py` and `tests/tes
 **Fixtures:**
 
 - `sample_registry`: Reuse existing 2-model fixture (GPT-4o at $5/$15 per M, Gemma at $0.1/$0.1 per M) from `test_bandit_router.py`.
-- `three_model_registry`: Add a mid-tier model (e.g., Sonnet at $3/$15 per M) for richer pacing tests.
+- `three_model_registry`: Add a mid-cost model (e.g., Sonnet at $3/$15 per M) for richer pacing tests.
 - `make_router(budget_pacer=None)`: Helper that calls `BanditRouter.create(..., priors="none")` with optional pacer injection.
 
 #### T1a: BudgetPacer isolation tests (no router dependency)

@@ -450,6 +450,6 @@ print(textwrap.dedent("""
      queries while still escalating for genuinely hard ones.
   3. Billing and how-to traffic (65% of volume) routes almost entirely
      to Llama 8B / Mixtral, saving ~95% vs. always-frontier.
-  4. API debugging and data export queries route to mid-tier or frontier
+  4. API debugging and data export queries route to mid-cost or frontier
      models only when the quality difference justifies the cost.
 """))

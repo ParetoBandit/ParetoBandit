@@ -294,7 +294,7 @@ A supervised router requires a \emph{pre-collected evaluation dataset} for every
 A $K{=}3$ router onboards Gemini-2.5-Flash via \texttt{register\_model()} (dashed vertical line) with no warmup priors.
 \textbf{(a)}~Flash adoption trajectory: the windowed selection fraction rises from zero and stabilises within ${\sim}230$ steps across all budget tiers.
 Loose budgets reach ${\sim}38$\% Flash share; tight budgets plateau at ${\sim}14$\%.
-\textbf{(b)}~Full arm composition under the moderate budget: Flash primarily displaces Mistral-Large ($-22.9$\,pp), taking over the mid-tier quality niche at lower cost.
+\textbf{(b)}~Full arm composition under the moderate budget: Flash primarily displaces Mistral-Large ($-22.9$\,pp), taking over the mid-cost quality niche at lower cost.
 \textbf{(c)}~Cost compliance on log scale: ParetoBandit (solid) tracks each budget target (dotted) within ${\sim}2$\% across the full trajectory, while the Fixed Policy (dashed grey) exceeds all targets by 2--14$\times$.}
 \label{fig:model_onboarding}
 \end{figure*}

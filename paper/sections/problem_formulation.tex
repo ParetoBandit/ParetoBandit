@@ -7,7 +7,7 @@ We formalize LLM routing as an online decision-making problem under budget const
 
 The key premise of contextual routing is that \emph{no single model is universally best}---the optimal choice depends on the prompt.
 LLMs exhibit heterogeneous capabilities across prompt types: a budget model may handle straightforward factual look-ups as well as a frontier API, while only the frontier model produces acceptable responses on complex multi-step reasoning or nuanced creative writing.
-A context-free router that ignores prompt content must commit to a single, fixed traffic distribution (e.g., 70\% budget, 25\% mid-tier, 5\% frontier) regardless of prompt difficulty.
+A context-free router that ignores prompt content must commit to a single, fixed traffic distribution (e.g., 70\% budget, 25\% mid-cost, 5\% frontier) regardless of prompt difficulty.
 Under a budget constraint, this is wasteful: frontier calls are spent on easy prompts where a cheap model would suffice, while hard prompts that justify the $500{\times}$ cost premium receive frontier service no more often than easy ones.
 Conditioning on the prompt allows the router to learn \emph{which} prompt types each model excels at, reserving expensive calls for the prompts where they yield the largest quality gain and routing the rest to cheaper alternatives.
 This selective spending is what enables a contextual router to trace the quality--cost Pareto frontier---and it is impossible without a representation of the prompt that captures the task-level distinctions relevant to model selection.

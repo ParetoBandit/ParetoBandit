@@ -52,7 +52,7 @@ def synthetic_registry() -> dict:
     tiers = [
         ("cheap-fast/model-a",   0.10,  60.0, 0.20, 0.55),
         ("cheap-fast/model-b",   0.15,  55.0, 0.25, 0.60),
-        ("mid-tier/model-c",     2.00,  30.0, 0.80, 0.75),
+        ("mid-cost/model-c",     2.00,  30.0, 0.80, 0.75),
         ("premium/model-d",      10.0,  15.0, 1.50, 0.88),
         ("premium/model-e",      15.0,  10.0, 2.00, 0.92),
     ]

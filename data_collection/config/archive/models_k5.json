@@ -13,7 +13,7 @@
     {
       "model_id": "mistralai/mistral-large-2512",
       "display": "Mistral-Large-2512",
-      "description": "Mid tier: newest Mistral flagship at competitive pricing.",
+      "description": "Mid-cost: newest Mistral flagship at competitive pricing.",
       "input_cost_per_m": 0.5,
       "output_cost_per_m": 1.5,
       "context_length": 128000,
@@ -23,7 +23,7 @@
     {
       "model_id": "google/gemini-2.5-flash",
       "display": "Gemini-2.5-Flash",
-      "description": "Mid tier: near-flagship quality at value pricing.",
+      "description": "Mid-cost: near-flagship quality at value pricing.",
       "input_cost_per_m": 0.3,
       "output_cost_per_m": 2.5,
       "context_length": 1000000,

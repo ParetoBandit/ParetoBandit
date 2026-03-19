@@ -34,7 +34,7 @@ This scenario exercises three mechanisms:
 
 Expected dynamics:
     • The router converges to frontier models (GPT-4o, Claude Sonnet 4)
-      for complex legal reasoning, while using mid-tier models for
+      for complex legal reasoning, while using mid-cost models for
       routine tasks (formatting, summarisation).
     • After the legal specialist is onboarded at step 500, the router
       discovers its strength on contract analysis and clause extraction
@@ -474,7 +474,7 @@ print(textwrap.dedent(f"""
   ────────────────────────────
   1. With cost_penalty=0.0, the router optimises purely for quality.
      Frontier models (GPT-4o, Claude Sonnet 4) dominate for hard legal
-     reasoning, while mid-tier models handle routine summarisation.
+     reasoning, while mid-cost models handle routine summarisation.
   2. The newcomer ({NEWCOMER_INFO['display_name']}) was onboarded at
      step {ONBOARD_STEP} with a single register_model() call — no
      retraining, no downtime.

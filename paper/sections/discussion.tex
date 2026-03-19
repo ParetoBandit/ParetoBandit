@@ -93,7 +93,7 @@ This makes the rate-constraint formulation strictly preferable for open-ended pr
 Our experiments use an automated LLM judge that produces continuous, multi-dimensional scores---an ideal signal for $K{\geq}3$ routing, where the bandit must distinguish models whose average quality differs by only a few percentage points (e.g., $0.908$ vs.\ $0.921$ in our portfolio).
 
 In the specific context of LLM routing, binary feedback (thumbs-up/down) is insufficient for $K{\geq}3$ portfolios.
-The root cause is that modern LLMs at adjacent price tiers produce acceptable responses on the majority of prompts; a binary threshold therefore clusters frontier and mid-tier models into a single ``strong'' category, collapsing the multi-model problem to a $K{=}2$ strong-vs.-weak triage.
+The root cause is that modern LLMs at adjacent price tiers produce acceptable responses on the majority of prompts; a binary threshold therefore clusters frontier and mid-cost models into a single ``strong'' category, collapsing the multi-model problem to a $K{=}2$ strong-vs.-weak triage.
 We observe this directly in our portfolio: a natural binarisation threshold ($\tau{=}0.85$) causes the two stronger models to tie on $85.8\%$ of prompts, eliminating the router's ability to find quality within a budget.
 
 This structural limitation is widely reflected in the LLM routing literature.

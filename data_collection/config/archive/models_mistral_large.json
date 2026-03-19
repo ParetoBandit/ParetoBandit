@@ -3,7 +3,7 @@
     {
       "model_id": "mistralai/mistral-large-2512",
       "display": "Mistral-Large-2512",
-      "description": "Mid tier: newest Mistral flagship at competitive pricing.",
+      "description": "Mid-cost: newest Mistral flagship at competitive pricing.",
       "input_cost_per_m": 0.5,
       "output_cost_per_m": 1.5,
       "context_length": 128000,
