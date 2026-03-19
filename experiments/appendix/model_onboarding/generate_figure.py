@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Generate figures for the model onboarding appendix (K=3 → K=4).
+"""Generate the model onboarding appendix figure (K=3 → K=4).
 
 Reads ``results/model_onboarding_results.json`` and produces a
-publication-ready 1×3 panel figure:
+publication-ready 1×2 panel figure:
 
-  **(a)** Flash adoption trajectory across budget tiers.
-  **(b)** Full arm composition for the moderate-budget condition.
-  **(c)** Running average cost: ParetoBandit vs. Fixed Policy.
+  **(a)** Full arm composition for the moderate-budget condition.
+  **(b)** Cost compliance: ParetoBandit stays within budget despite onboarding.
 
 Usage:
     python experiments/appendix/model_onboarding/generate_figure.py
@@ -19,9 +18,11 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.transforms import blended_transform_factory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
@@ -55,17 +56,17 @@ BUDGET_COLORS: Dict[str, str] = {
     "tight": "#D55E00",
     "moderate": "#0072B2",
     "loose": "#CC79A7",
-    "unconstrained": "#009E73",
 }
 
 BUDGET_NICE: Dict[str, str] = {
     "tight": r"Tight ($B{=}\$3.0{\times}10^{-4}$)",
     "moderate": r"Moderate ($B{=}\$6.6{\times}10^{-4}$)",
     "loose": r"Loose ($B{=}\$1.9{\times}10^{-3}$)",
-    "unconstrained": "Unconstrained",
 }
 
-BUDGET_ORDER: List[str] = ["tight", "moderate", "loose", "unconstrained"]
+K4_ARMS: List[str] = list(ARM_SHORT.keys())
+
+_MILLI: float = 1_000.0
 
 
 def _load() -> Dict[str, Any]:
@@ -73,86 +74,54 @@ def _load() -> Dict[str, Any]:
         return json.load(f)
 
 
-def _onboarding_line(ax: plt.Axes, boundary: int) -> None:
-    """Draw a vertical dashed line at the onboarding boundary."""
-    ax.axvline(
-        boundary, color="black", linestyle="--",
-        linewidth=1.0, alpha=0.4, zorder=1,
-    )
-
-
-# ======================================================================
-# Panel (a): Flash adoption trajectory
-# ======================================================================
-
-
-def _panel_flash_adoption(
+def _add_phase_shading(
     ax: plt.Axes,
-    data: Dict[str, Any],
-    phase_boundary: int,
+    boundary: int,
+    *,
+    label_left: str = "Phase 1\n(K=3)",
+    label_right: str = "Phase 2\n(K=4, +Flash)",
 ) -> None:
-    """Windowed Flash selection fraction across budget tiers."""
-    traces = data["checkpoint_traces"]
+    """Shade the Phase 1 region gray and label the phase boundary.
 
-    for blabel in BUDGET_ORDER:
-        key = f"paretobandit_transfer_{blabel}"
-        if key not in traces:
-            continue
-        trace = traces[key]
-        steps = [c["step"] for c in trace]
-        flash_mean = [
-            c["windowed_mix_mean"].get(FLASH_ID, 0.0) for c in trace
-        ]
-        color = BUDGET_COLORS[blabel]
-        ls = "-." if blabel == "unconstrained" else "-"
-        lw = 1.8 if blabel == "unconstrained" else 2.2
-
-        has_per_seed = "per_seed_windowed_mix" in trace[0]
-        if has_per_seed:
-            matrix = np.array([
-                c["per_seed_windowed_mix"].get(FLASH_ID, [0.0])
-                for c in trace
-            ])
-            ci_lo, ci_hi = bootstrap_ci_series(matrix)
-        else:
-            flash_se = [
-                c["windowed_mix_se"].get(FLASH_ID, 0.0) for c in trace
-            ]
-            ci_lo = [m - s for m, s in zip(flash_mean, flash_se)]
-            ci_hi = [m + s for m, s in zip(flash_mean, flash_se)]
-
-        ax.plot(
-            steps, flash_mean,
-            color=color, linestyle=ls, linewidth=lw,
-            label=BUDGET_NICE[blabel], zorder=4,
-        )
-        ax.fill_between(
-            steps, ci_lo, ci_hi,
-            alpha=0.10, color=color, zorder=2,
-        )
-
-    ax.axhline(0.25, color="#888888", linestyle=":", linewidth=1.0,
-               alpha=0.5, zorder=1, label="Uniform 1/4")
-
-    _onboarding_line(ax, phase_boundary)
-    y_lo, y_hi = ax.get_ylim()
-    ax.text(
-        phase_boundary + 20, 0.02,
-        "onboard\nFlash", ha="left", va="bottom",
-        fontsize=7, fontstyle="italic", color="#555555",
+    Uses a blended transform (data-x, axes-y) so labels sit at a
+    consistent vertical position regardless of y-axis scale or limits.
+    """
+    ax.axvspan(0, boundary, alpha=0.06, color="#000000", zorder=0)
+    ax.axvline(
+        boundary,
+        color="black",
+        linestyle="--",
+        linewidth=1.2,
+        alpha=0.5,
+        zorder=1,
     )
-
-    ax.set_title("(a) Flash Adoption", fontsize=11, fontweight="bold", pad=8)
-    ax.set_xlabel("Step", fontsize=10)
-    ax.set_ylabel("Flash Windowed Fraction", fontsize=10)
-    ax.set_ylim(-0.02, 0.52)
-    ax.legend(fontsize=7.5, loc="upper left", framealpha=0.9)
-    ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=9)
+    trans = blended_transform_factory(ax.transData, ax.transAxes)
+    ax.text(
+        boundary - 30,
+        0.96,
+        label_left,
+        transform=trans,
+        ha="right",
+        va="top",
+        fontsize=9,
+        fontstyle="italic",
+        color="#555555",
+    )
+    ax.text(
+        boundary + 30,
+        0.96,
+        label_right,
+        transform=trans,
+        ha="left",
+        va="top",
+        fontsize=9,
+        fontstyle="italic",
+        color="#555555",
+    )
 
 
 # ======================================================================
-# Panel (b): Full arm composition (moderate budget)
+# Panel (a): Full arm composition (moderate budget)
 # ======================================================================
 
 
@@ -162,26 +131,26 @@ def _panel_arm_composition(
     phase_boundary: int,
     budget_label: str = "moderate",
 ) -> None:
-    """All four arms' windowed mix for one budget tier."""
+    """All four arms' windowed mix for one budget tier, Flash emphasized."""
     key = f"paretobandit_transfer_{budget_label}"
     trace = data["checkpoint_traces"][key]
-    arms = list(ARM_SHORT.keys())
-
     steps = [c["step"] for c in trace]
-
     has_per_seed = "per_seed_windowed_mix" in trace[0]
 
-    for arm_id in arms:
-        means = [
-            c["windowed_mix_mean"].get(arm_id, 0.0) for c in trace
-        ]
+    for arm_id in K4_ARMS:
+        means = [c["windowed_mix_mean"].get(arm_id, 0.0) for c in trace]
         color = ARM_COLORS[arm_id]
+        is_flash = arm_id == FLASH_ID
+        lw = 2.8 if is_flash else 1.5
+        alpha_ci = 0.14 if is_flash else 0.06
 
         if has_per_seed:
-            matrix = np.array([
-                c["per_seed_windowed_mix"].get(arm_id, [0.0])
-                for c in trace
-            ])
+            matrix = np.array(
+                [
+                    c["per_seed_windowed_mix"].get(arm_id, [0.0])
+                    for c in trace
+                ]
+            )
             ci_lo, ci_hi = bootstrap_ci_series(matrix)
         else:
             ses = [c["windowed_mix_se"].get(arm_id, 0.0) for c in trace]
@@ -189,30 +158,41 @@ def _panel_arm_composition(
             ci_hi = [m + s for m, s in zip(means, ses)]
 
         ax.plot(
-            steps, means,
-            color=color, linewidth=2.2, label=ARM_SHORT[arm_id], zorder=4,
+            steps,
+            means,
+            color=color,
+            linewidth=lw,
+            label=ARM_SHORT[arm_id],
+            zorder=5 if is_flash else 3,
         )
         ax.fill_between(
-            steps, ci_lo, ci_hi,
-            alpha=0.12, color=color, zorder=2,
+            steps, ci_lo, ci_hi, alpha=alpha_ci, color=color, zorder=2
         )
 
-    _onboarding_line(ax, phase_boundary)
+    ax.set_ylim(-0.02, 1.02)
+    _add_phase_shading(ax, phase_boundary)
 
     ax.set_title(
-        f"(b) Arm Mix — {BUDGET_NICE[budget_label]}",
-        fontsize=11, fontweight="bold", pad=8,
+        f"(a) Arm Composition — {budget_label.title()} Budget",
+        fontsize=13,
+        fontweight="bold",
+        pad=10,
     )
-    ax.set_xlabel("Step", fontsize=10)
-    ax.set_ylabel("Windowed Fraction", fontsize=10)
-    ax.set_ylim(-0.02, 1.02)
-    ax.legend(fontsize=8, loc="center right", framealpha=0.9)
+    ax.set_xlabel("Prompts Routed", fontsize=12)
+    ax.set_ylabel("Windowed Fraction", fontsize=12)
+    ax.legend(
+        fontsize=9.5,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=4,
+        framealpha=0.9,
+    )
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=9)
+    ax.tick_params(labelsize=10)
 
 
 # ======================================================================
-# Panel (c): Cost compliance
+# Panel (b): Cost compliance (milli-dollar linear scale)
 # ======================================================================
 
 
@@ -221,56 +201,57 @@ def _panel_cost_compliance(
     data: Dict[str, Any],
     phase_boundary: int,
 ) -> None:
-    """Running average cost for ParetoBandit (all budgets) vs Fixed Policy."""
+    """Running average cost on a linear milli-dollar scale with annotated
+    budget targets, showing onboarding does not disrupt compliance."""
     traces = data["checkpoint_traces"]
     budget_targets = data["budget_targets"]
 
-    # ParetoBandit traces
     for blabel in ["tight", "moderate", "loose"]:
         key = f"paretobandit_transfer_{blabel}"
         if key not in traces:
             continue
         trace = traces[key]
         steps = [c["step"] for c in trace]
-        costs = [c["cumulative_cost"] for c in trace]
+        costs_m = [c["cumulative_cost"] * _MILLI for c in trace]
         color = BUDGET_COLORS[blabel]
 
         ax.plot(
-            steps, costs,
-            color=color, linewidth=2.2, label=f"ParetoBandit ({blabel})",
+            steps,
+            costs_m,
+            color=color,
+            linewidth=2.2,
+            label=BUDGET_NICE[blabel],
             zorder=4,
         )
 
-        target = budget_targets[blabel]
+        target_m = budget_targets[blabel] * _MILLI
         ax.axhline(
-            target, color=color, linestyle=":", linewidth=1.0,
-            alpha=0.5, zorder=1,
+            target_m,
+            color=color,
+            linestyle=":",
+            linewidth=1.4,
+            alpha=0.7,
+            zorder=1,
         )
 
-    # Fixed Policy trace (same for all budgets — pick one)
-    fp_key = "fixed_uniform_moderate"
-    if fp_key in traces:
-        fp_trace = traces[fp_key]
-        fp_steps = [c["step"] for c in fp_trace]
-        fp_costs = [c["cumulative_cost"] for c in fp_trace]
-        ax.plot(
-            fp_steps, fp_costs,
-            color="#888888", linestyle="--", linewidth=2.0,
-            label="Fixed Policy (1/4)", zorder=3,
-        )
-
-    _onboarding_line(ax, phase_boundary)
+    _add_phase_shading(ax, phase_boundary)
 
     ax.set_title(
-        "(c) Cost Compliance",
-        fontsize=11, fontweight="bold", pad=8,
+        "(b) Cost Compliance", fontsize=13, fontweight="bold", pad=10
     )
-    ax.set_xlabel("Step", fontsize=10)
-    ax.set_ylabel("Avg Cost / Request ($)", fontsize=10)
-    ax.set_yscale("log")
-    ax.legend(fontsize=7.5, loc="center right", framealpha=0.9)
+    ax.set_xlabel("Prompts Routed", fontsize=12)
+    ax.set_ylabel(
+        r"Avg Cost / Request ($\times 10^{-3}$ USD)", fontsize=12
+    )
+    ax.legend(
+        fontsize=9.5,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=3,
+        framealpha=0.9,
+    )
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=9)
+    ax.tick_params(labelsize=10)
 
 
 # ======================================================================
@@ -283,18 +264,19 @@ def main() -> None:
     data = _load()
     phase_boundary = data["phase1_n"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 4.8))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.3))
 
-    _panel_flash_adoption(axes[0], data, phase_boundary)
-    _panel_arm_composition(axes[1], data, phase_boundary)
-    _panel_cost_compliance(axes[2], data, phase_boundary)
+    _panel_arm_composition(axes[0], data, phase_boundary)
+    _panel_cost_compliance(axes[1], data, phase_boundary)
 
     fig.suptitle(
         r"Model Onboarding: K=3 $\to$ K=4 (Gemini Flash)"
         r" — 20 seeds, 95% bootstrap CI",
-        fontsize=13, fontweight="bold", y=1.02,
+        fontsize=14,
+        fontweight="bold",
+        y=0.99,
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0.10, 1, 0.94])
 
     for fmt in ("pdf", "png"):
         out = RESULTS_DIR / f"model_onboarding.{fmt}"
