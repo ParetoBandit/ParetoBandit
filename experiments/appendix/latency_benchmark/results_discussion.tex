@@ -122,9 +122,22 @@ Because routing sits on the user-facing critical path while updates can be proce
     encoder forward pass required to produce the query embedding, so
     the true end-to-end decision latency is substantially higher.
 
-    The best published end-to-end routing latency comes from the
+    Among RL-based routers, PROTEUS~\cite{bhatti2026proteus} is the
+    only system to report end-to-end routing latency: $8.7$\,ms (p50)
+    for a single query on an A100 GPU, dropping to $2.6$\,ms with
+    batch-32 amortisation (DeBERTa-v3-small encoder, 22M parameters).
+    ParetoBandit achieves comparable end-to-end latency ($8.3$\,ms) on
+    \emph{CPU only}, without requiring a dedicated GPU for the routing
+    decision---a meaningful infrastructure advantage in production
+    deployments where GPUs are saturated by LLM inference.
+    ParetoBandit's routing decision itself ($22\,\mu$s) is
+    ${\sim}400\times$ faster than PROTEUS's per-query forward pass,
+    though the embedding step dominates both systems' end-to-end latency.
+
+    The best published end-to-end routing latency from a system-level
+    router comes from the
     vLLM Semantic Router~\cite{liu2026vllmsr}, a GPU-accelerated
-    system-level router that uses ModernBERT classifiers on an
+    system that uses ModernBERT classifiers on an
     AMD MI300X for domain classification, safety filtering, and PII
     detection.\footnote{The vLLM Semantic Router performs content
     classification for backend selection rather than quality-cost
@@ -133,8 +146,6 @@ Because routing sits on the user-facing critical path while updates can be proce
     It reports $9$--$14$\,ms per classifier for short prompts
     (${\leq}512$ tokens) and $22$\,ms end-to-end with three
     concurrent classifiers.
-    ParetoBandit's $22\,\mu$s routing decision is thus
-    ${\sim}400\times$ faster than the neural classification step alone.
 
     \textbf{End-to-end critical path (embedding included).}
     In production, ParetoBandit's critical path includes prompt embedding
@@ -181,8 +192,9 @@ Because routing sits on the user-facing critical path while updates can be proce
     ${<}\,40$\,ms~\cite{orqai2026}---higher overhead, consistent with
     a heavier classification pipeline.
 
-    \textbf{No peer-reviewed LLM router---bandit-based, classifier-based,
-    or RL-based---reports per-decision or end-to-end routing latency}
+    \textbf{Among peer-reviewed LLM routers, only PROTEUS reports
+    end-to-end routing latency; no bandit-based or classifier-based
+    router publishes this figure}
     (Table~\ref{tab:latency_comparison}).
     This decomposition, and the finding that the routing decision
     contributes $<$\,1\% of total overhead, is to our knowledge the
@@ -222,7 +234,7 @@ MixLLM~\cite{wang2025mixllm} & contextual bandits + MLP & --- & --- & --- \\
 RouteLLM~\cite{ong2024routellm} & BERT / MF / causal LLM & E2E & --- & GPU \\
 CSCR$^{\ddagger}$~\cite{shirkavand2025cscr} & $k$-NN via FAISS & lookup only & $\mu$s (claimed) & CPU \\
 HybridLLM~\cite{ding2024hybridllm} & BERT classifier & E2E & --- & GPU \\
-PROTEUS~\cite{bhatti2026proteus} & Lagrangian RL & E2E & --- & GPU \\
+PROTEUS~\cite{bhatti2026proteus} & Lagrangian RL (DeBERTa-v3) & E2E & $8.7$\,ms & A100 GPU \\
 OmniRouter~\cite{ma2025omnirouter} & constrained optimisation & E2E & --- & --- \\
 Lookahead~\cite{sun2025lookahead} & causal/masked LM predictor & E2E & --- & GPU \\
 \midrule
@@ -287,3 +299,7 @@ LLM call---effectively unmeasurable in production traces.
 In practical terms, \textbf{the routing decision is invisible to the
 end user}: the time spent selecting the optimal model is orders of magnitude
 smaller than the time spent waiting for that model to respond.
+PROTEUS achieves a similar end-to-end overhead ($8.7$\,ms, or $0.9\%$ of
+the fastest LLM call), but requires an A100 GPU for the DeBERTa-v3 forward
+pass; ParetoBandit matches this overhead on CPU alone, freeing GPU
+resources for LLM inference.
