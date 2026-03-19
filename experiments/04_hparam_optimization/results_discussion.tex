@@ -97,10 +97,9 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
 \centering
 \caption{%
   \textbf{$\epsilon$-constraint hyperparameter selection.}
-  AUC-only optimisation selects $\gamma{=}1.0$ for ParetoBandit
-  and $\gamma{=}0.997$ for Tabula Rasa---both near-stationary
-  configurations that maximise stationary AUC but degrade
-  adaptation under reward shift.
+  AUC-only optimisation selects $\gamma{=}1.0$ for both
+  variants---the maximally stationary configuration that
+  maximises AUC but degrades adaptation under reward shift.
   The $\epsilon$-constraint method ($\epsilon{=}0.25\%$) trades
   ${<}0.3\%$ AUC for lower Phase-2 regret by selecting
   $\gamma{=}0.995$ for both variants.
@@ -121,22 +120,20 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
   & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.931$ & --- \\
   & $\epsilon$-constr.\ & $0.10$ & $1000$ & $0.995$ & $0.929$ & $\mathbf{48.4}$ \\[3pt]
 \multirow{2}{*}{Tabula Rasa}
-  & AUC-only     & $0.25$ & ---    & $0.997$ & $0.929$ & --- \\
-  & $\epsilon$-constr.\ & $0.10$ & ---    & $0.995$ & $0.929$ & $\mathbf{49.0}$ \\
+  & AUC-only     & $1.00$ & ---    & $1.000$ & $0.929$ & --- \\
+  & $\epsilon$-constr.\ & $0.10$ & ---    & $0.995$ & $0.928$ & $\mathbf{49.0}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-AUC-only optimisation selects $\gamma{=}1.0$ for ParetoBandit
-and $\gamma{=}0.997$ for Tabula Rasa---both near-stationary
-configurations that maximise stationary AUC.
+AUC-only optimisation selects $\gamma{=}1.0$ for \emph{both}
+variants---the maximally stationary configuration.
 Section~\ref{sec:nonstationarity} shows that $\gamma{=}1.0$
-is catastrophic under drift; $\gamma{=}0.997$ (half-life $231$
-steps) offers limited protection.
+is catastrophic under drift.
 The $\epsilon$-constraint method instead selects $\gamma{=}0.995$
 for both variants (effective memory ${\sim}200$ steps),
 trading ${<}0.3\%$ budget-paced AUC ($0.931 \to 0.929$ and
-$0.929 \to 0.929$) for substantially lower Phase-2 regret
+$0.929 \to 0.928$) for substantially lower Phase-2 regret
 ($48.4$ and $49.0$).
 On the held-out test split the selected configurations achieve
 Pareto AUC of $\hpParetoBanditTestAUC$ (ParetoBandit) and
@@ -165,13 +162,13 @@ Two additional patterns merit attention:
     optimal $\alpha$ is non-stationary itself.
 
   \item \textbf{Tabula Rasa exploration decreases.}
-    AUC-only selects $\alpha{=}0.25$ for Tabula Rasa, while
-    $\epsilon$-constraint selects $\alpha{=}0.10$ ($2.5\times$ lower).
-    The lower $\alpha$ under $\epsilon$-constraint reflects
-    the reduced need for explicit exploration when forgetting
-    ($\gamma{=}0.995$) keeps the effective sample size
-    bounded---the router naturally re-explores as stale evidence
-    is discounted.
+    AUC-only selects $\alpha{=}1.0$ for Tabula Rasa, while
+    $\epsilon$-constraint selects $\alpha{=}0.10$ ($10\times$ lower).
+    Without forgetting ($\gamma{=}1.0$), the cold-start variant
+    needs aggressive exploration to overcome zero priors;
+    with forgetting ($\gamma{=}0.995$), the bounded effective
+    sample size naturally re-explores as stale evidence
+    is discounted, reducing the need for explicit exploration.
 \end{enumerate}
 %
 \noindent
@@ -204,13 +201,13 @@ that explicitly encodes the dual requirements of
 production routing---efficiency under stationarity and resilience
 under drift.
 The empirical result that single-objective tuning
-\emph{systematically} selects near-stationary $\gamma$ values
-($1.0$ for ParetoBandit, $0.997$ for Tabula Rasa) is itself a
-cautionary finding: any practitioner deploying a non-stationary
-bandit router who tunes via standard cross-validation will
-converge on a forgetting factor that offers minimal protection
-against distribution shift, despite this being the failure mode
-they are most likely to encounter in production.
+\emph{systematically} selects $\gamma{=}1.0$ for both variants
+is itself a cautionary finding: any practitioner deploying a
+non-stationary bandit router who tunes via standard
+cross-validation will converge on no forgetting at all,
+offering zero protection against distribution shift---despite
+this being the failure mode they are most likely to encounter
+in production.
 
 \paragraph{Practical implications.}
 From a deployment perspective, the protocol eliminates the need to
