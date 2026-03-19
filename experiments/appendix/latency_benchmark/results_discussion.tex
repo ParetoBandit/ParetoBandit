@@ -96,48 +96,194 @@ Because routing sits on the user-facing critical path while updates can be proce
     Sherman-Morrison eliminates per-route inversion ($O(d^2)$ vs.\ $O(d^3)$),
     and cached $\hat{\theta}_a$ reduces the expected-reward computation
     to a single $O(d)$ dot product per arm.
-  \item \textbf{Orders of magnitude faster than neural routing alternatives.}
-    Table~\ref{tab:latency_comparison} places ParetoBandit's overhead
-    alongside published latencies from representative LLM routing systems.
-    The fastest neural router in the literature---the GPU-accelerated
-    vLLM Semantic Router~\cite{liu2026vllmsr} using ModernBERT
-    classifiers on an AMD MI300X---reports $9$--$14$\,ms per classifier
-    for short prompts (${\leq}512$ tokens) and $22$\,ms end-to-end
-    with three concurrent classifiers.
-    ParetoBandit's $22\,\mu$s route latency is ${\sim}400\times$ faster
-    while requiring no GPU for the routing decision.
-    Even production AI gateways that perform \emph{no classification}---pure
-    L7 proxy overhead---add $1$--$30$\,ms of latency~\cite{konghq2025benchmark},
-    placing ParetoBandit's routing overhead beneath the noise floor of
-    the infrastructure it would be deployed alongside.
-    The only system claiming comparable latency is
-    CSCR~\cite{shirkavand2025cscr}, which reports ``microsecond'' $k$-NN
-    lookups via a FAISS index; however, this figure excludes the
-    contrastive encoder forward pass required to produce the query embedding,
-    so the true end-to-end routing latency is substantially higher.
+  \item \textbf{Comparison with published routing systems.}
+    Table~\ref{tab:latency_comparison} contextualises ParetoBandit's
+    overhead against published latencies from LLM routing systems,
+    AI gateways, and infrastructure baselines.
+    Two comparisons are relevant: (a)~the \emph{routing-decision}
+    overhead, which isolates the model-selection computation from the
+    shared embedding cost that all contextual routers pay, and
+    (b)~the \emph{end-to-end critical-path} latency a user
+    experiences before the LLM call begins.
+
+    \textbf{Routing-decision overhead.}
+    ParetoBandit's \texttt{route()} completes in $22\,\mu$s (p50)
+    on a single CPU core.
+    No other LLM routing system reports a comparable figure.
+    Among bandit-based LLM routers---LLM Bandit~\cite{li2025llmbandit},
+    BaRP~\cite{wang2025barp}, and MixLLM~\cite{wang2025mixllm}---none
+    publish per-decision latency, though all emphasise that routing
+    decisions should be ``lightweight''~\cite{li2025llmbandit}.
+    Classifier-based routers such as RouteLLM~\cite{ong2024routellm}
+    (BERT, causal LLM, or matrix-factorization classifiers) also do not
+    report routing-decision latency.
+    CSCR~\cite{shirkavand2025cscr} claims ``microsecond'' $k$-NN
+    lookups via a FAISS index, but this figure excludes the contrastive
+    encoder forward pass required to produce the query embedding, so
+    the true end-to-end decision latency is substantially higher.
+
+    The best published end-to-end routing latency comes from the
+    vLLM Semantic Router~\cite{liu2026vllmsr}, a GPU-accelerated
+    system-level router that uses ModernBERT classifiers on an
+    AMD MI300X for domain classification, safety filtering, and PII
+    detection.\footnote{The vLLM Semantic Router performs content
+    classification for backend selection rather than quality-cost
+    optimisation; we include it because it provides the only published
+    end-to-end neural routing latency on representative hardware.}
+    It reports $9$--$14$\,ms per classifier for short prompts
+    (${\leq}512$ tokens) and $22$\,ms end-to-end with three
+    concurrent classifiers.
+    ParetoBandit's $22\,\mu$s routing decision is thus
+    ${\sim}400\times$ faster than the neural classification step alone.
+
+    \textbf{End-to-end critical path (embedding included).}
+    In production, ParetoBandit's critical path includes prompt embedding
+    (MiniLM-L6-v2) and PCA projection before the \texttt{route()} call.
+    We benchmark this full pipeline on CPU (Apple M-series,
+    single-threaded, 100 iterations, 3-pass warmup):
+
+    \begin{center}
+    \small
+    \begin{tabular}{@{}l r r r r@{}}
+    \toprule
+    \textbf{Stage} & \textbf{p50} & \textbf{p95} & \textbf{\% of total} \\
+    \midrule
+    Embed (MiniLM-L6-v2, CPU) & $8.1$\,ms & $9.0$\,ms & $97.4\%$ \\
+    PCA + whitening            & $0.15$\,ms & $0.17$\,ms & $1.8\%$ \\
+    \texttt{route()}           & $0.058$\,ms & $0.069$\,ms & $0.7\%$ \\
+    \midrule
+    \textbf{Total E2E (CPU)}   & $\mathbf{8.3}$\,\textbf{ms} & $\mathbf{9.3}$\,\textbf{ms} & $100\%$ \\
+    \bottomrule
+    \end{tabular}
+    \end{center}
+
+    \noindent
+    The embedding step dominates at $97\%$ of total time; the routing
+    decision contributes $<$\,1\%.
+    This cost structure has a direct implication: \emph{the routing
+    algorithm is not the bottleneck}---prompt embedding is, and it is
+    a shared infrastructure expense that every contextual router must
+    pay.
+    RouteLLM, CSCR, LLM Bandit, and any other embedding-dependent
+    router face the same floor.
+    The vLLM Semantic Router avoids a separate embedding step by folding
+    it into the ModernBERT classification forward pass, but at a higher
+    total cost ($9$--$22$\,ms on GPU vs.\ $8.3$\,ms on CPU for
+    ParetoBandit).
+
+    Practitioner-reported latencies corroborate this picture.
+    NadirClaw, an open-source embedding-based LLM
+    router~\cite{nadirclaw2026}, reports $8$--$12$\,ms E2E using
+    sentence embeddings for tier classification---the same range as
+    ParetoBandit, confirming that the embedding cost dominates for
+    any system built on this architecture.
+    The commercial Orq.ai Auto Router reports
+    ${<}\,40$\,ms~\cite{orqai2026}---higher overhead, consistent with
+    a heavier classification pipeline.
+
+    \textbf{No peer-reviewed LLM router---bandit-based, classifier-based,
+    or RL-based---reports per-decision or end-to-end routing latency}
+    (Table~\ref{tab:latency_comparison}).
+    This decomposition, and the finding that the routing decision
+    contributes $<$\,1\% of total overhead, is to our knowledge the
+    first such analysis in the LLM routing literature.
+
+    With a GPU-hosted embedding model (${\sim}0.3$--$0.5$\,ms for
+    MiniLM-L6-v2), the total E2E critical path would drop to
+    ${\sim}0.5$--$1$\,ms---an order of magnitude below both neural
+    classification alternatives and the embedding-bound CPU floor.
 \end{enumerate}
 
 \begin{table}[h]
 \centering
-\caption{ParetoBandit routing latency compared with published
-LLM routing systems.  ParetoBandit operates on CPU only; neural
-classifiers require GPU co-location.  Gateway proxies perform no
-model-selection classification.  CSCR's ``microsecond'' figure
-covers only the $k$-NN index lookup, excluding the neural encoder
-forward pass.}
+\caption{Routing latency comparison across system types.
+\emph{Decision only} isolates the model-selection computation;
+\emph{E2E} includes prompt encoding.
+$\dagger$\,System-level router (domain/safety classification for
+backend selection, not quality-cost optimisation).
+$\ddagger$\,Reports only the $k$-NN index lookup, excluding the
+encoder forward pass.
+$\S$\,Practitioner-reported (not peer-reviewed).
+``---'' indicates latency was not reported.}
 \label{tab:latency_comparison}
 \small
-\begin{tabular}{@{}l l r l@{}}
+\begin{tabular}{@{}l l l r l@{}}
 \toprule
-\textbf{System} & \textbf{Router type} & \textbf{Latency} & \textbf{Hardware} \\
+\textbf{System} & \textbf{Category} & \textbf{Scope} & \textbf{Latency} & \textbf{HW} \\
 \midrule
-ParetoBandit ($d{=}26$) & LinUCB + Sherman-Morrison & $22\,\mu$s\,(route) & CPU \\
-CSCR~\cite{shirkavand2025cscr} & $k$-NN lookup only & $\mu$s (claimed) & CPU \\
-Portkey Gateway~\cite{portkey2025} & L7 proxy (no classification) & ${<}\,1$\,ms & Cloud \\
-Kong AI Gateway~\cite{konghq2025benchmark} & L7 proxy (no classification) & $24$\,ms\,(p95) & 16\,vCPU \\
-vLLM SR (1 classifier)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & $9$--$14$\,ms & MI300X GPU \\
-vLLM SR (3 classifiers)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & $22$\,ms & MI300X GPU \\
-vLLM SR (8K tokens)~\cite{liu2026vllmsr} & ModernBERT + compression & $50$\,ms & MI300X GPU \\
+\multicolumn{5}{@{}l}{\emph{Bandit-based LLM routers}} \\
+ParetoBandit & LinUCB + Sherman-Morrison & decision only & $22\,\mu$s & CPU \\
+ParetoBandit & \quad + MiniLM-L6 + PCA & E2E (CPU) & $8.3$\,ms & CPU \\
+LLM Bandit~\cite{li2025llmbandit} & contextual MAB & --- & --- & --- \\
+BaRP~\cite{wang2025barp} & contextual dueling bandits & --- & --- & --- \\
+MixLLM~\cite{wang2025mixllm} & contextual bandits + MLP & --- & --- & --- \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Classifier / embedding-based LLM routers}} \\
+RouteLLM~\cite{ong2024routellm} & BERT / MF / causal LLM & E2E & --- & GPU \\
+CSCR$^{\ddagger}$~\cite{shirkavand2025cscr} & $k$-NN via FAISS & lookup only & $\mu$s (claimed) & CPU \\
+HybridLLM~\cite{ding2024hybridllm} & BERT classifier & E2E & --- & GPU \\
+PROTEUS~\cite{bhatti2026proteus} & Lagrangian RL & E2E & --- & GPU \\
+OmniRouter~\cite{ma2025omnirouter} & constrained optimisation & E2E & --- & --- \\
+Lookahead~\cite{sun2025lookahead} & causal/masked LM predictor & E2E & --- & GPU \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Practitioner LLM routers$^{\S}$ (not peer-reviewed)}} \\
+NadirClaw$^{\S}$~\cite{nadirclaw2026} & sentence embed + classifier & E2E & $8$--$12$\,ms & CPU \\
+Orq.ai Auto Router$^{\S}$~\cite{orqai2026} & undisclosed (commercial) & E2E & ${<}\,40$\,ms & Cloud \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Neural system-level routers (not quality-cost LLM routers)}} \\
+vLLM SR$^{\dagger}$ (1 clf.)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & E2E & $9$--$14$\,ms & MI300X \\
+vLLM SR$^{\dagger}$ (3 clf.)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & E2E & $22$\,ms & MI300X \\
+vLLM SR$^{\dagger}$ (8K tok.)~\cite{liu2026vllmsr} & ModernBERT + compression & E2E & $50$\,ms & MI300X \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Infrastructure baselines (no model selection)}} \\
+Portkey Gateway~\cite{portkey2025} & L7 proxy & proxy only & ${<}\,1$\,ms & Cloud \\
+Kong AI Gateway~\cite{konghq2025benchmark} & L7 proxy & proxy only & $24$\,ms\,(p95) & 16\,vCPU \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\paragraph{Routing overhead relative to LLM inference.}
+The practical significance of routing latency depends on its magnitude relative
+to the LLM inference call it precedes.
+Table~\ref{tab:overhead_vs_inference} contextualises ParetoBandit's overhead
+against independently benchmarked production LLM API
+latencies~\cite{ganglani2026llmlatency}.
+
+\begin{table}[h]
+\centering
+\caption{ParetoBandit's routing overhead as a fraction of LLM inference
+latency across representative models and prompt
+lengths~\cite{ganglani2026llmlatency}.
+\emph{TTFT} = time to first token (streaming); \emph{Total} = full response
+latency.
+Routing overhead is the $8.3$\,ms end-to-end critical path (embedding +
+PCA + \texttt{route()}) on CPU.}
+\label{tab:overhead_vs_inference}
+\small
+\begin{tabular}{@{}l l r r r@{}}
+\toprule
+\textbf{LLM} & \textbf{Prompt} & \textbf{TTFT (ms)} & \textbf{Total (ms)}
+  & \textbf{Routing / Total} \\
+\midrule
+Claude Haiku 4.5 & short  & 639   & 952    & $0.87\%$ \\
+Claude Haiku 4.5 & medium & 597   & 3{,}954  & $0.21\%$ \\
+Gemini 2.5 Flash & medium & 730   & 1{,}729  & $0.48\%$ \\
+GPT-4.1          & short  & 889   & 1{,}770  & $0.47\%$ \\
+Claude Sonnet 4  & long   & 1{,}216 & 20{,}445 & $0.04\%$ \\
+GPT-4.1 Mini     & long   & 2{,}501 & 18{,}075 & $0.05\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Even against the fastest production model and shortest prompt (Claude Haiku
+4.5, 952\,ms total latency), ParetoBandit's full end-to-end routing pipeline
+adds $<$\,1\% overhead.
+For typical workloads (2--5\,s total latency), routing contributes
+0.2--0.4\%; for long-form generation (7--20\,s), the overhead drops below
+0.1\%.
+The \texttt{route()} decision alone ($22\,\mu$s) is $<$\,0.004\% of any
+LLM call---effectively unmeasurable in production traces.
+In practical terms, \textbf{the routing decision is invisible to the
+end user}: the time spent selecting the optimal model is orders of magnitude
+smaller than the time spent waiting for that model to respond.

@@ -149,7 +149,12 @@ Adopting either approach for LLM routing is appealing in principle but introduce
   \item \emph{Warm-start initialization.}
     Seeding LinUCB from offline data is a single matrix addition; transferring offline knowledge into a neural reward model requires careful pre-training or meta-learning to avoid catastrophic forgetting of the prior during online fine-tuning.
   \item \emph{Latency.}
-    LinUCB's $O(d^2)$ update and $O(Kd)$ selection complete in ${<}\,40\,\mu$s; neural forward and backward passes are orders of magnitude slower---the vLLM Semantic Router reports $9$--$14$\,ms per GPU-accelerated ModernBERT classifier even for short prompts~\cite{liu2026vllmsr}, roughly $400\times$ slower than ParetoBandit's route call---potentially conflicting with the sub-millisecond latency budget of a routing-critical path.
+    Our end-to-end decomposition (Appendix~\ref{sec:latency_benchmark}) shows that LinUCB's routing decision ($22\,\mu$s) contributes $<$\,1\% of the full critical-path latency (${\sim}8$\,ms on CPU); prompt embedding dominates at $97\%$.
+    This cost structure means a neural reward model would add its forward pass \emph{on top of} the shared embedding cost---the vLLM Semantic Router~\cite{liu2026vllmsr} reports $9$--$14$\,ms per GPU-accelerated classifier, and that figure \emph{is} the combined embed-and-classify cost.
+    ParetoBandit separates these concerns: the embedding is a shared infrastructure cost that every contextual router pays (RouteLLM, CSCR, LLM Bandit alike), while the routing math itself is effectively free.
+    Replacing that $22\,\mu$s decision with a neural forward-and-backward pass would increase routing-specific overhead by orders of magnitude without reducing the embedding bottleneck.
+    Relative to the LLM inference call itself, the full ${\sim}8$\,ms routing pipeline adds $<$\,1\% overhead even to the fastest production model (Claude Haiku 4.5 at 952\,ms~\cite{ganglani2026llmlatency}), and $<$\,0.2\% for typical workloads---the routing decision is invisible to the end user.
+    No peer-reviewed LLM router reports per-decision or end-to-end latency~\cite{ong2024routellm,li2025llmbandit,wang2025barp,wang2025mixllm,bhatti2026proteus}, making this decomposition---and the finding that routing math is negligible---a contribution in its own right.
 \end{enumerate}
 Investigating whether the empirical gains from nonlinear reward models justify these engineering costs---and designing forgetting and warm-start mechanisms that work without closed-form sufficient statistics---is a compelling direction for future work.
 

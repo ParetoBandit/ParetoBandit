@@ -720,3 +720,55 @@
   year={2025},
   note={Sub-millisecond hot-path latency; 122\,KB gateway footprint; $>$10B requests/month in production.}
 }
+
+% HybridLLM — early two-model routing with BERT classifier
+@inproceedings{ding2024hybridllm,
+  title={Hybrid {LLM}: Cost-Efficient and Quality-Aware Query Routing},
+  author={Ding, Dujian and Mallick, Ankur and Wang, Chi and Sim, Robert and Mukherjee, Subhabrata and Ruhle, Victor and Levi, Laks V.S. and Awadallah, Ahmed Hassan},
+  booktitle={International Conference on Learning Representations (ICLR)},
+  year={2024}
+}
+
+% OmniRouter — constrained optimisation for budget-aware routing
+@article{ma2025omnirouter,
+  title={{OmniRouter}: Budget and Performance Controllable Multi-{LLM} Routing},
+  author={Ma, Zitian and others},
+  journal={arXiv preprint arXiv:2502.20576},
+  year={2025}
+}
+
+% Lookahead Routing — predicts output representations for model selection
+@inproceedings{sun2025lookahead,
+  title={Lookahead Routing for Large Language Models},
+  author={Sun, Zijian and Xue, Hanling and Wang, Jie and Tu, Zhi-Xuan},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2025}
+}
+
+% NadirClaw — practitioner embedding-based LLM router (8-12 ms E2E)
+@misc{nadirclaw2026,
+  author={Amir, Dor},
+  title={{NadirClaw}: Open-Source {LLM} Router},
+  howpublished={\url{https://github.com/doramirdor/NadirClaw}},
+  year={2026},
+  note={Sentence-embedding-based tier router; 8--12\,ms E2E classification overhead reported.}
+}
+
+% Orq.ai Auto Router — commercial LLM routing (<40 ms overhead)
+@misc{orqai2026,
+  author={Pasquali, Arian},
+  title={Intelligent {LLM} Routing: How {Auto Router} Cuts Costs by 25--70\% While Preserving Quality},
+  howpublished={\url{https://router.orq.ai/blog/auto-router-intelligent-llm-routing}},
+  year={2026},
+  note={Commercial router; ${<}$40\,ms routing overhead per request.}
+}
+
+% LLM API latency benchmarks — independent TTFT and total latency measurements
+@misc{ganglani2026llmlatency,
+  author={Ganglani, Kunal},
+  title={{LLM API} Latency Benchmarks [2026]: 5 Models Compared},
+  howpublished={\url{https://kunalganglani.com/blog/llm-api-latency-benchmarks-2026}},
+  year={2026},
+  month={March},
+  note={Independent benchmark of five production {LLM} {API}s (GPT-4.1, GPT-4.1 Mini, Gemini 2.5 Flash, Claude Haiku 4.5, Claude Sonnet 4). Three prompt sizes, streaming {TTFT}, total latency, and throughput.}
+}
