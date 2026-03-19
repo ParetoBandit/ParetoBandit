@@ -104,7 +104,7 @@ def _add_phase_shading(
         ax.text(
             mid, 0.97, label,
             transform=trans, ha="center", va="top",
-            fontsize=8, fontstyle="italic", color="#555555",
+            fontsize=10, fontweight="bold", color="#333333",
         )
 
 
