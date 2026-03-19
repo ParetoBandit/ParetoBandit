@@ -120,14 +120,12 @@
 \label{fig:prior_mismatch_regret}
 \end{figure}
 
-\input{../experiments/appendix/model_onboarding/results_discussion.tex}
+\subsection{Model Onboarding: Supplementary Analysis}
+\label{appendix:model_onboarding}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{../experiments/appendix/model_onboarding/results/model_onboarding.pdf}
-\caption{\input{../experiments/appendix/model_onboarding/figure_caption.tex}}
-\label{fig:model_onboarding}
-\end{figure}
+This section provides supplementary analysis for the model onboarding experiment (Section~\ref{sec:exp4_model_onboarding}).
+Figure~\ref{fig:uncertainty_evolution} visualises the uncertainty dynamics that drive Flash's adoption: LinUCB's exploration bonus is proportional to each arm's uncertainty ($\mathrm{tr}(A_a^{-1})$), so the cold-started arm receives a massive selection advantage until observations shrink its confidence ellipsoid.
+The figure also illustrates the forgetting--budget pacer feedback loop for Gemini-Pro: under tight budgets, the expensive arm is rarely selected, geometric forgetting erodes its accumulated information, and uncertainty rises until the inflated UCB bonus triggers an exploratory selection---which briefly reduces uncertainty before the cycle repeats.
 
 \begin{figure}[t]
 \centering

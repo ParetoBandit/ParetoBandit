@@ -1,7 +1,7 @@
 \section{Results}
 \label{sec:results}
 
-We evaluate ParetoBandit across four escalating experiments, moving from stationary budget pacing to complex, non-stationary environments involving cost drift and catastrophic model failure.  Table~\ref{tab:main_results} summarises the headline budget compliance findings from Experiment~2.
+We evaluate ParetoBandit across five experiments, moving from stationary budget pacing through non-stationary cost drift and catastrophic failure to cold-start model onboarding and hyperparameter selection.  Table~\ref{tab:main_results} summarises the headline budget compliance findings from Experiment~2.
 
 \begin{table}[t]
 \centering
@@ -255,8 +255,54 @@ When Mistral is restored in Phase~3, the geometric forgetting factor ($\gamma{=}
 Phase~3 reward approaches but does not fully match Phase~1 levels within the 608-step phase length---consistent with the ${\sim}200$-step effective memory window requiring time to accumulate sufficient positive evidence for Mistral.
 The BudgetPacer tracks this transition smoothly, with $\lambda_t$ adjusting to maintain compliance as the traffic mix evolves.
 
+\subsection{Cold-Start Model Onboarding}
+\label{sec:exp4_model_onboarding}
+
+The experiments above assume a fixed $K{=}3$ portfolio.  In practice, providers release new models frequently---Gemini~2.5~Flash launched five months after Gemini~2.5~Pro, GPT-4o-mini arrived three months after GPT-4o---and platform teams need to integrate them without offline evaluation or policy retraining.
+We evaluate whether a single \texttt{register\_model()} call suffices to onboard a new model into a \emph{budget-constrained} router.
+
+\paragraph{Setup.}
+After Phase~1 online learning on the $K{=}3$ portfolio (validation split, $n{=}1{,}785$), Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with \emph{no warmup priors}---it receives only a neutral T-shirt prior ($A{=}\lambda I$, $b{=}0$), the coldest possible LinUCB initialisation.
+Phase~2 continues online on the $K{=}4$ test split ($n{=}1{,}824$), where Flash's rewards are judged by DeepSeek-R1 using the same continuous rubric as all other arms.
+Three budget targets are evaluated (tight, moderate, loose), plus an unconstrained ceiling (20~seeds).
+A Fixed Policy (uniform $1/4$) serves as the budget-oblivious baseline.
+
+\paragraph{Flash is discovered in every trial.}
+Across all 80 ParetoBandit trials (20~seeds $\times$ 4~budget tiers), Flash is first selected within ${\sim}210$ post-onboarding steps and reaches sustained adoption (windowed share ${>}10$\% for 50 consecutive steps) by step~${\sim}233$.
+LinUCB's exploration bonus---maximal for the uninformed arm ($\mathrm{tr}(A_a^{-1}) = d/\lambda = 26$ versus ${\sim}0.6$ for warm-started incumbents)---drives initial exploration, and the online learner quickly calibrates Flash's quality--cost profile from live traffic.
+
+\paragraph{Budget determines adoption speed, not whether adoption occurs.}
+At loose budgets, Flash reaches 38\% of traffic in the final 200 steps, exceeding the unconstrained ceiling (25\%).
+At tight budgets, the pacer limits Flash to 14\%, just above the sustained-adoption threshold---the router correctly identifies that Flash (blended \$1.40/M) is cheaper than Mistral (\$1.00/M) but more expensive than Llama (\$0.10/M), and allocates accordingly.
+
+\paragraph{Flash displaces the right arm.}
+Displacement analysis reveals economically rational behaviour (Figure~\ref{fig:model_onboarding}b):
+under budget pressure (tight and moderate), Flash takes share primarily from \textbf{Mistral-Large} ($-27.3$\,pp at tight, $-22.9$\,pp at moderate)---Flash offers Mistral-level quality at lower cost.
+Unconstrained, Flash displaces \textbf{Gemini-Pro} ($-20.8$\,pp)---the bandit identifies Flash as a near-Pro-quality alternative at $10\times$ lower cost.
+
+\paragraph{Budget compliance through portfolio expansion.}
+The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without any reconfiguration (Figure~\ref{fig:model_onboarding}c): ParetoBandit meets each budget target to within 1\% across both phases.
+The Fixed Policy (uniform~$1/4$), by contrast, exceeds all targets by 2--14$\times$ due to giving Gemini-Pro 25\% of traffic.
+
+\paragraph{No historical labeled data required.}
+A supervised router requires a \emph{pre-collected evaluation dataset} for every model in the portfolio: responses must be gathered on a representative prompt set, labeled by human annotators or an LLM judge, and the routing policy retrained on the expanded dataset---before the new model can receive any live traffic.  The bandit eliminates this offline data-collection campaign entirely.  It does require a reward signal, but that signal comes from the \emph{same} evaluation mechanism (judge, user ratings, or implicit behavioural composites; see Section~\ref{sec:discussion}) already serving the existing portfolio.  When exploration routes a prompt to the new model, the reward pipeline evaluates its response at zero marginal data-collection cost.  This distinction also avoids two risks inherent to offline evaluation: \emph{distribution mismatch}, where a curated eval set may not reflect the live prompt distribution, and \emph{dataset staleness}, where the eval ages as deployment patterns drift.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.65\textwidth]{../experiments/appendix/model_onboarding/results/model_onboarding.pdf}
+\caption{Model onboarding under budget constraints ($K{=}3 \to K{=}4$, 20~seeds, 95\% bootstrap CI).
+A $K{=}3$ router onboards Gemini-2.5-Flash via \texttt{register\_model()} (dashed vertical line) with no warmup priors.
+\textbf{(a)}~Flash adoption trajectory: the windowed selection fraction rises from zero and stabilises within ${\sim}230$ steps across all budget tiers.
+Loose budgets reach ${\sim}38$\% Flash share; tight budgets plateau at ${\sim}14$\%.
+\textbf{(b)}~Full arm composition under the moderate budget: Flash primarily displaces Mistral-Large ($-22.9$\,pp), taking over the mid-tier quality niche at lower cost.
+\textbf{(c)}~Cost compliance on log scale: ParetoBandit (solid) tracks each budget target (dotted) within ${\sim}2$\% across the full trajectory, while the Fixed Policy (dashed grey) exceeds all targets by 2--14$\times$.}
+\label{fig:model_onboarding}
+\end{figure*}
+
+Supplementary analysis, including uncertainty evolution during onboarding, is in Appendix~\ref{appendix:model_onboarding}.
+
 \subsection{Hyperparameter Selection via Epsilon-Constraint}
-\label{sec:exp4_hparam_sweep}
+\label{sec:exp5_hparam_sweep}
 
 Selecting hyperparameters ($\alpha$, $n_\mathit{eff}$, $\gamma$) for a non-stationary router poses a fundamental tension: standard cross-validation maximises stationary quality and selects $\gamma{=}1.0$ (no forgetting) for both variants, yet Section~\ref{sec:exp3_catastrophic_failure} showed that infinite memory fails to adapt under distribution shift.  The core idea of our resolution is simple: first, identify all hyperparameter settings that route well under normal (stationary) conditions; then, among those near-optimal settings, pick the one that adapts fastest when the environment changes---avoiding the trap of optimising purely for stationary performance, which would select settings that catastrophically fail under drift.  We formalise this with the \textbf{epsilon-constraint method}, a principled bi-objective selection procedure.
 
@@ -281,15 +327,3 @@ On the held-out test split the selected configurations achieve Pareto AUC of $\h
 \caption{Efficiency--adaptability tradeoff for ParetoBandit ($K{=}3$, PCA-25).  Each point is one ($\alpha$, $n_\mathit{eff}$, $\gamma$) configuration; colour encodes $\gamma$.  The green band marks the $\epsilon$-feasible region ($\geq$99.75\% of best AUC); 98 of 144 configurations pass.  The black star is the $\epsilon$-constraint winner; the red \textbf{X} is the AUC-only winner ($\gamma{=}1.0$), which suffers the highest Phase-2 regret.}
 \label{fig:epsilon_tradeoff}
 \end{figure}
-
-\subsection{Cold-Start Model Onboarding}
-\label{sec:model_onboarding_preview}
-
-The experiments above assume a fixed $K{=}3$ portfolio.  In practice, providers release new models frequently, and platform teams need to integrate them without offline evaluation or policy retraining.  In Appendix~\ref{appendix:model_onboarding} we evaluate this scenario: after Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added via a single \texttt{register\_model()} call with \emph{no warmup priors}---it receives only a neutral T-shirt prior ($A{=}\lambda I$, $b{=}0$), the coldest possible LinUCB initialisation.
-
-Despite this cold start, ParetoBandit discovers and adopts Flash in \emph{every} trial (80/80 across 20~seeds $\times$ 4~budget tiers), reaching sustained adoption within ${\sim}233$ post-onboarding steps.  LinUCB's exploration bonus---maximal for the uninformed arm---drives initial exploration, and the online learner quickly calibrates Flash's quality--cost profile from live traffic.  Crucially, the BudgetPacer maintains compliance throughout the portfolio expansion without any reconfiguration.  The displacement analysis reveals economically rational behaviour: under budget pressure, Flash takes share from Mistral-Large (similar quality, lower cost); unconstrained, it displaces Gemini-Pro (near-Pro quality at $10\times$ lower cost).
-
-\paragraph{No historical labeled data required.}
-A supervised router requires a \emph{pre-collected evaluation dataset} for every model in the portfolio: responses must be gathered on a representative prompt set, labeled by human annotators or an LLM judge, and the routing policy retrained on the expanded dataset---before the new model can receive any live traffic.  The bandit eliminates this offline data-collection campaign entirely.  It does require a reward signal, but that signal comes from the \emph{same} evaluation mechanism (judge, user ratings, or implicit behavioural composites; see Section~\ref{sec:discussion}) already serving the existing portfolio.  When exploration routes a prompt to the new model, the reward pipeline evaluates its response at zero marginal data-collection cost.  This distinction also avoids two risks inherent to offline evaluation: \emph{distribution mismatch}, where a curated eval set may not reflect the live prompt distribution, and \emph{dataset staleness}, where the eval ages as deployment patterns drift.  The bandit's ``training data'' is always the current production distribution, ensuring that the quality--cost profile it learns for the new model is representative from the start.
-
-Full results and figures are in Appendix~\ref{appendix:model_onboarding}.
