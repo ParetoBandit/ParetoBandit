@@ -141,10 +141,10 @@ exploration.
 \subsection{Budget Pacing under Cost Drift}
 \label{sec:exp3_cost_drift}
 
-We now introduce the most complex and realistic scenario: a three-phase cost drift while operating under strict budget constraints. The held-out test split ($n{=}1{,}824$) is partitioned into three equal phases ($3 \times 608$ steps). Phase~1 uses normal pricing; in Phase~2 Gemini-Pro's price drops to nearly zero; Phase~3 restores the original pricing, testing whether the BudgetPacer recovers its pre-drop routing behavior. We evaluate three budget regimes: Tight (\$0.0003/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
+We now introduce the most complex and realistic scenario: a three-phase cost drift while operating under strict budget constraints. The held-out test split ($n{=}1{,}824$) provides 1,216 unique prompts: 608 randomly-selected prompts for Phase~1 (normal pricing) and a disjoint set of 608 for Phase~2 (Gemini price drop to nearly zero). Phase~3 restores the original pricing and \emph{reuses the same 608 prompts as Phase~1}, making the P1-vs-P3 comparison a controlled within-subject design: any difference is attributable solely to the router's internal state (accumulated Phase~2 history), not prompt-sampling variability. With geometric forgetting $\gamma{=}0.995$, Phase~1 observations are down-weighted by $\gamma^{608}\approx 0.047$ by Phase~3, so the learner retains negligible memory of individual Phase~1 evaluations. The Fixed Policy (no online learning) serves as a null check---its P1 and P3 metrics are identical, confirming this control. We evaluate three budget regimes: Tight (\$0.0003/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
 
 \paragraph{Budget compliance is the key differentiator.}
-The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($\bdFixedTightPhaseOneRatio$ and $\bdFixedModPhaseOneRatio$) but massively over-spends at the loose budget ($\bdFixedLoosePhaseOneRatio$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it overshoots at tight ($\bdNaiveTightPhaseOneRatio$), near-tracks at moderate, but over-spends by $\bdNaiveLoosePhaseOneRatio$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
+The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($\bdFixedTightPhaseOneRatio$ and $\bdFixedModPhaseOneRatio$) but massively over-spends at the loose budget ($\bdFixedLoosePhaseOneRatio$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it overshoots at tight ($\bdNaiveTightPhaseOneRatio$) and moderate ($\bdNaiveModPhaseOneRatio$), and over-spends by $\bdNaiveLoosePhaseOneRatio$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
 To isolate the value of \emph{continuous} online tracking from merely reacting to a price change, we add a \textbf{Recalibrated Bandit}: identical to the Naive Bandit in Phase~1, but at each phase boundary its static penalty is re-tuned offline via a grid search on the validation split with the new phase's pricing. This is the strongest static-penalty baseline, granting oracle knowledge of both change points and two offline calibration passes. Even so, the Recalibrated Bandit inherits Phase~1 non-compliance and cannot track intra-phase spending dynamics (Table~\ref{tab:budget_compliance}).
 
 ParetoBandit is the only system that reliably hits the budget in Phase~1 ($\bdParetoBanditLoosePhaseOneUtil$ to $\bdParetoBanditTightPhaseOneUtil$ across all three targets; Table~\ref{tab:main_results}b). The BudgetPacer's primal-dual mechanism adjusts $\lambda_t$ continuously based on observed costs, providing closed-loop control that no static penalty---even with periodic recalibration---can replicate.
@@ -161,8 +161,9 @@ All three regimes show highly significant reward lifts ($\Delta{=}+0.025$ to $+0
 
 \paragraph{Recovering after price restoration (Phase~3).}
 When Gemini's original pricing is restored at step~1217, the BudgetPacer reverses course: $\lambda_t$ rises back toward Phase~1 levels as the cost EMA exceeds the budget target, and Gemini adoption drops to near-zero.
-At tight budget, $\lambda_t$ rises from $0.07$ to ${\sim}0.50$; at moderate from $0.04$ to ${\sim}0.31$; at loose from near-zero to ${\sim}0.06$ (Figure~\ref{fig:adaptation_dynamics}a).
-Budget compliance recovers to $\bdParetoBanditTightPhaseThreeRatio$, $\bdParetoBanditModPhaseThreeRatio$, and $\bdParetoBanditLoosePhaseThreeRatio$ across the three targets---within $1\%$ of the budget at all levels.
+At tight budget, $\lambda_t$ rises from $0.07$ to ${\sim}0.55$; at moderate from $0.04$ to ${\sim}0.36$; at loose from near-zero to ${\sim}0.09$ (Figure~\ref{fig:adaptation_dynamics}a).
+Phase~3 $\lambda_t$ does not exactly match Phase~1 values (e.g., tight: $0.55$ vs.\ $0.43$)---this asymmetry reflects the ramp-up transient from near-zero through the slack region and is consistent with the finite 608-step phase length.
+Budget compliance recovers to $\bdParetoBanditTightPhaseThreeRatio$, $\bdParetoBanditModPhaseThreeRatio$, and $\bdParetoBanditLoosePhaseThreeRatio$ across the three targets---within $2\%$ of the budget at all levels.
 No other condition achieves this round-trip compliance: the Recalibrated Bandit obtains a second oracle recalibration at the Phase~3 boundary yet still under-spends ($\bdRecalTightPhaseThreeRatio$--$\bdRecalLoosePhaseThreeRatio$), while the Naive Bandit cannot recover at moderate and loose budgets ($\bdNaiveModPhaseThreeRatio$ and $\bdNaiveLoosePhaseThreeRatio$).
 This Phase~3 recovery is the strongest evidence that the primal-dual mechanism provides genuine closed-loop budget control rather than merely reacting to favorable cost changes.
 
@@ -182,12 +183,15 @@ price restored (step~1217). $K{=}3$, 50~seeds, 95\% bootstrap CI.
 costs fall below target, then rises back toward Phase~1 levels in
 Phase~3 when original pricing is restored---demonstrating
 round-trip adaptation.
-\textbf{(b)}~Gemini selection fraction surges in Phase~2 (tight
-reaches ${\sim}72\%$) and returns to near-zero in Phase~3,
-mirroring the $\lambda_t$ signal.
+\textbf{(b)}~Gemini selection fraction (trailing 50-step windowed
+average) surges in Phase~2 (tight reaches ${\sim}72\%$) and returns
+to near-zero in Phase~3, mirroring the $\lambda_t$ signal.
 \textbf{(c)}~Windowed average cost per request (trailing 50~steps);
 dotted lines mark budget targets.
 All three regimes recover budget compliance in Phase~3.
+Phase~3 reuses Phase~1 prompts so that any P1-vs-P3 difference is
+attributable to the router's state, not prompt sampling; the Fixed
+Policy's identical P1/P3 traces confirm this control.
 See Table~\ref{tab:budget_compliance} for quantitative comparisons.}
 \label{fig:adaptation_dynamics}
 \end{figure*}
@@ -229,7 +233,7 @@ Loose        & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoo
 The tight target ($B{=}\$0.0003$/req) is the most instructive case because it transitions from \emph{binding} to \emph{slack} and back to \emph{binding} across the three phases.
 In Phase~1, $\lambda_t$ averages $0.43$, enforcing a Llama/Mistral mix; after the price drop, $\lambda_t$ decays to ${\sim}0.07$ as costs fall below target.
 The tight condition achieves the highest Gemini adoption ($72\%$) of any constrained condition.
-In Phase~3, when original pricing is restored, $\lambda_t$ rises to ${\sim}0.50$ and Gemini selection returns to near-zero, recovering budget compliance at $\bdParetoBanditTightPhaseThreeRatio$.
+In Phase~3, when original pricing is restored, $\lambda_t$ rises to ${\sim}0.55$ and Gemini selection returns to near-zero, recovering budget compliance at $\bdParetoBanditTightPhaseThreeRatio$.
 This full round-trip---binding $\to$ slack $\to$ binding---demonstrates that the primal-dual mechanism adapts in both directions without operator intervention.
 The tight budget also exhibits the largest reward lift ($\Delta{=}+0.069$) because its Phase~1 constraint was most binding, creating the most room for improvement when costs collapse.
 

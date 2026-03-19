@@ -12,18 +12,30 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
   **Train phase** (val split, 1,785 prompts): Online learning under normal
   pricing.  No evaluation metrics recorded.
 
-  **Evaluation phase** (holdout split, 1,824 prompts split into 3 × 608):
+  **Evaluation phase** (holdout split, 1,824 prompts → 1,216 unique used):
 
-    **Phase 1** (steps 1–608): Normal pricing.  Gemini-Pro is expensive;
-    the BudgetPacer raises λ_t to enforce the dollar budget.
+    **Phase 1** (steps 1–608): Normal pricing.  608 randomly-selected
+    holdout prompts.  Gemini-Pro is expensive; the BudgetPacer raises
+    λ_t to enforce the dollar budget.
 
-    **Phase 2** (steps 609–1216): **Gemini price drop** — pricing falls
-    to $0.10/$0.10 per million tokens.  λ_t should decline, allowing
-    more Gemini routing.
+    **Phase 2** (steps 609–1216): **Gemini price drop** — 608 *different*
+    holdout prompts with pricing reduced to $0.10/$0.10 per million tokens.
+    λ_t should decline, allowing more Gemini routing.
 
-    **Phase 3** (steps 1217–1824): **Price correction** — Gemini pricing
-    is restored to its original level.  The key question: does the pacer
-    re-raise λ_t and return to Phase 1-like routing?
+    **Phase 3** (steps 1217–1824): **Price correction** — the *same* 608
+    prompts as Phase 1 are re-used, with original Gemini pricing restored.
+    The key question: does the pacer re-raise λ_t and return to Phase 1-like
+    routing?
+
+  Phase 3 deliberately reuses Phase 1 prompts so that the P1-vs-P3
+  comparison is a controlled within-subject design: any difference between
+  the two phases is attributable solely to the router's internal state
+  (accumulated Phase 2 learning history), not prompt-sampling variability.
+  With geometric forgetting γ=0.995, Phase 1 observations are down-weighted
+  by γ^608 ≈ 0.047 by Phase 3, so the learner retains negligible memory
+  of individual Phase 1 evaluations.  The Fixed Policy (no online learning)
+  serves as a null check: its P1 and P3 metrics should be nearly identical,
+  confirming that any P1-vs-P3 gap in other conditions is algorithmic.
 
 Three budget targets (tight, moderate, loose) and four conditions
 (Fixed Policy, Naive Bandit, Recalibrated Bandit, ParetoBandit) plus
@@ -781,13 +793,15 @@ def main() -> None:
     test_all = _load_all(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
 
     logger.info("  Train (val): %d prompts — online learning, no eval", train_all.n)
-    logger.info("  Eval (holdout): %d prompts — 3 phases × %d", test_all.n, PHASE_N)
+    logger.info(
+        "  Eval (holdout): %d prompts — P1/P3 share %d, P2 uses %d different",
+        test_all.n, PHASE_N, PHASE_N,
+    )
 
     rng_global = np.random.default_rng(42)
     all_indices = rng_global.permutation(test_all.n)
     p1_idx = all_indices[:PHASE_N]
     p2_idx = all_indices[PHASE_N:2 * PHASE_N]
-    p3_idx = all_indices[2 * PHASE_N:3 * PHASE_N]
 
     phase1 = SplitData(
         prompts=[test_all.prompts[i] for i in p1_idx],
@@ -813,13 +827,10 @@ def main() -> None:
         GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
     )
 
-    # Phase 3 uses original pricing (same as Phase 1)
-    phase3 = SplitData(
-        prompts=[test_all.prompts[i] for i in p3_idx],
-        rewards={a: test_all.rewards[a][p3_idx] for a in ARM_ORDER},
-        costs={a: test_all.costs[a][p3_idx] for a in ARM_ORDER},
-        embeddings=test_all.embeddings[p3_idx],
-    )
+    # Phase 3 reuses Phase 1 prompts (with original pricing) so that the
+    # P1-vs-P3 comparison is strictly apples-to-apples: any difference is
+    # due to the router's internal state, not prompt sampling variability.
+    phase3 = phase1
 
     phase_boundaries = [PHASE_N, 2 * PHASE_N, 3 * PHASE_N]
 
@@ -965,7 +976,8 @@ def main() -> None:
         "experiment": "03_budget_plus_drift",
         "description": (
             "Three-phase cost drift: normal pricing → Gemini price drop → "
-            "pricing restored. Tests budget pacing adaptation in both directions."
+            "pricing restored (Phase 3 reuses Phase 1 prompts for "
+            "apples-to-apples P1-vs-P3 comparison)."
         ),
         "arm_order": ARM_ORDER,
         "arm_short": ARM_SHORT,

@@ -11,13 +11,18 @@
     Phase~3 when original pricing is restored---demonstrating
     round-trip adaptation.
     %
-    \textbf{(b)}~Gemini selection fraction surges in Phase~2
-    (tight budget reaches ${\sim}72\%$) and returns to near-zero in
-    Phase~3, mirroring the $\lambda_t$ signal.
+    \textbf{(b)}~Gemini selection fraction (trailing 50-step
+    windowed average) surges in Phase~2 (tight budget reaches
+    ${\sim}72\%$) and returns to near-zero in Phase~3, mirroring the
+    $\lambda_t$ signal.
     %
     \textbf{(c)}~Windowed average cost per request (trailing
     50~steps); dotted lines mark budget targets.
     All three regimes recover budget compliance in Phase~3.
+    Phase~3 reuses the same prompts as Phase~1 so that any
+    P1-vs-P3 difference is attributable to the router's internal
+    state, not prompt sampling; the Fixed Policy's identical P1/P3
+    traces confirm this control.
     See Table~\ref{tab:budget_compliance} for quantitative
     compliance comparisons with baselines.
     }

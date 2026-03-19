@@ -123,7 +123,6 @@ def test_exp03_single_seed_regression(
     all_indices = rng_global.permutation(test_split.n)
     p1_idx = all_indices[:phase_n]
     p2_idx = all_indices[phase_n:2 * phase_n]
-    p3_idx = all_indices[2 * phase_n:3 * phase_n]
 
     phase1 = SplitData(
         prompts=[test_split.prompts[i] for i in p1_idx],
@@ -148,12 +147,7 @@ def test_exp03_single_seed_regression(
         mod.GEMINI_NEW_INPUT_COST, mod.GEMINI_NEW_OUTPUT_COST,
     )
 
-    phase3 = SplitData(
-        prompts=[test_split.prompts[i] for i in p3_idx],
-        rewards={a: test_split.rewards[a][p3_idx] for a in arm_order},
-        costs={a: test_split.costs[a][p3_idx] for a in arm_order},
-        embeddings=test_split.embeddings[p3_idx],
-    )
+    phase3 = phase1
 
     budget_target = mod.BUDGET_TARGETS[1]  # moderate
     pacer = BudgetPacer(
