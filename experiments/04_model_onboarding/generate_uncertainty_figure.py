@@ -110,21 +110,23 @@ def main() -> None:
         phase_boundary, color="black", linestyle="--",
         linewidth=1.0, alpha=0.4, zorder=1,
     )
+    trans = ax.get_xaxis_transform()
     ax.text(
-        phase_boundary + 20, 70,
+        phase_boundary + 20, 0.99,
         "onboard\nFlash", ha="left", va="top",
+        transform=trans,
         fontsize=8, fontstyle="italic", color="#555555",
     )
 
     ax.set_yscale("log")
-    ax.set_xlabel("Step", fontsize=11)
+    ax.set_xlabel("Prompts Routed", fontsize=11)
     ax.set_ylabel(r"$\mathrm{tr}(A_a^{-1})$  (total uncertainty)", fontsize=11)
     ax.set_title(
         r"Uncertainty Evolution: Warm-Started Arms vs. Cold-Started Flash"
         f"\n({BUDGET_LABEL.title()} budget, 20 seeds, 95% bootstrap CI)",
         fontsize=11, fontweight="bold",
     )
-    ax.legend(fontsize=9, loc="upper right", framealpha=0.9)
+    ax.legend(fontsize=9, loc="upper left", framealpha=0.9)
     ax.grid(True, alpha=0.2, linewidth=0.5, which="both")
     ax.tick_params(labelsize=9)
 
