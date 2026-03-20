@@ -13,10 +13,11 @@
 shifts ${\sim}80\%$ of traffic to expensive Gemini-Pro when Mistral fails, while
 budget-constrained conditions remain near zero---forced to absorb the failure
 via cheaper Llama-8B.
-\textbf{(b)}~Windowed mean reward (trailing 50~steps): the Gemini gap in~(a)
-explains the quality gap---unconstrained recovers to ${\sim}0.9$ during failure
-while constrained conditions dip more because Llama is lower quality.
+\textbf{(b)}~Windowed mean reward (trailing 50~steps): the Naive Bandit
+(moderate, dashed grey) recovers reward comparably to ParetoBandit, but
+panel~(c) reveals this comes at runaway cost.
 \textbf{(c)}~Windowed average cost per request; dotted lines mark budget targets.
-All three budget regimes maintain compliance ($0.97$--$1.03\times$) throughout
-the failure, while unconstrained cost spikes.
-See Table~\ref{tab:failure_response} for quantitative comparisons across algorithms.
+ParetoBandit maintains compliance ($0.97$--$1.03\times$) throughout the
+failure, while the Naive Bandit's cost explodes and never recovers.
+See Table~\ref{tab:failure_response} for quantitative comparisons across
+all algorithms including the Forgetting Bandit ablation.

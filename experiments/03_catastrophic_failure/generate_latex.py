@@ -56,6 +56,7 @@ BUDGET_TABLE_DISPLAY: Dict[str, str] = {
 CONDITION_ORDER: tuple[str, ...] = (
     "Fixed Policy",
     "Naive Bandit",
+    "Forgetting Bandit",
     "ParetoBandit",
 )
 
@@ -84,6 +85,7 @@ def _short_name(condition: str, budget_label: str) -> str:
     cond_map = {
         "Fixed Policy": "Fixed",
         "Naive Bandit": "Naive",
+        "Forgetting Bandit": "Forget",
         "ParetoBandit": "ParetoBandit",
     }
     cond_short = cond_map.get(condition, condition.replace(" ", ""))
@@ -144,18 +146,19 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 cs.raw(f"{short}Phase{phase_name}Cost", fmt_cost_eng(mean_cost))
                 cs.num(f"{short}Phase{phase_name}Reward", mean_reward, digits=4)
 
-                if condition == "ParetoBandit":
-                    cs.num(
-                        f"ParetoBandit{short_budget}LambdaPhase{phase_name}",
-                        mean_lambda, digits=2,
-                    )
-
+                if condition in ("ParetoBandit", "Forgetting Bandit"):
                     arm_fracs = phase_data.get("arm_fractions") or {}
                     failure_arm_short = data["failure_arm_short"]
                     failure_frac = arm_fracs.get(failure_arm_short, 0.0)
                     cs.raw(
-                        f"ParetoBandit{short_budget}MistralPhase{phase_name}",
+                        f"{short}MistralPhase{phase_name}",
                         fmt_int(failure_frac * 100),
+                    )
+
+                if condition == "ParetoBandit":
+                    cs.num(
+                        f"ParetoBandit{short_budget}LambdaPhase{phase_name}",
+                        mean_lambda, digits=2,
                     )
 
             if condition == "ParetoBandit":
@@ -402,7 +405,7 @@ def main() -> None:
     cs = build_command_set(data)
 
     autogen_path = exp_dir / "_autogen.tex"
-    cs.write(autogen_path, header="Exp 02: catastrophic failure (3-phase)")
+    cs.write(autogen_path, header="Exp 03: catastrophic failure (3-phase)")
 
     table_path = exp_dir / "_autogen_table_failure_response.tex"
     table_content = generate_failure_response_table(data)

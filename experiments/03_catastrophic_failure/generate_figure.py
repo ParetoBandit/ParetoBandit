@@ -55,6 +55,9 @@ BUDGET_NICE_LABELS: Dict[str, str] = {
 }
 
 UNCONSTRAINED_COLOR = "#009E73"
+NAIVE_COLOR = "#999999"
+FORGET_COLOR = "#E69F00"
+BASELINE_BUDGET_LABEL = "moderate"
 
 _PHASE_LABELS: List[str] = [
     "Normal",
@@ -266,6 +269,36 @@ def plot_adaptation_dynamics(
             steps, ci_lo, ci_hi, alpha=0.15, color=color, zorder=2,
         )
 
+    naive_gem_key = _find_condition_key(conditions, "Naive Bandit", BASELINE_BUDGET_LABEL)
+    if naive_gem_key is not None:
+        steps_ng, fracs_ng, ci_lo_ng, ci_hi_ng = _extract_arm_fraction_with_ci(
+            conditions, naive_gem_key, GEMINI_ARM_SHORT, sqrt_n,
+        )
+        ax_gem.plot(
+            steps_ng, fracs_ng,
+            color=NAIVE_COLOR, linestyle="--", linewidth=1.8,
+            label=f"Naive Bandit ({BASELINE_BUDGET_LABEL})", zorder=3,
+        )
+        ax_gem.fill_between(
+            steps_ng, ci_lo_ng, ci_hi_ng,
+            alpha=0.10, color=NAIVE_COLOR, zorder=2,
+        )
+
+    forget_gem_key = _find_condition_key(conditions, "Forgetting Bandit", BASELINE_BUDGET_LABEL)
+    if forget_gem_key is not None:
+        steps_fg, fracs_fg, ci_lo_fg, ci_hi_fg = _extract_arm_fraction_with_ci(
+            conditions, forget_gem_key, GEMINI_ARM_SHORT, sqrt_n,
+        )
+        ax_gem.plot(
+            steps_fg, fracs_fg,
+            color=FORGET_COLOR, linestyle="--", linewidth=1.8,
+            label=f"Forgetting Bandit ({BASELINE_BUDGET_LABEL})", zorder=3,
+        )
+        ax_gem.fill_between(
+            steps_fg, ci_lo_fg, ci_hi_fg,
+            alpha=0.10, color=FORGET_COLOR, zorder=2,
+        )
+
     if "Unconstrained" in conditions:
         steps, fracs, ci_lo, ci_hi = _extract_arm_fraction_with_ci(
             conditions, "Unconstrained", GEMINI_ARM_SHORT, sqrt_n,
@@ -315,6 +348,44 @@ def plot_adaptation_dynamics(
         )
         ax_rwd.fill_between(
             steps, ci_lo, ci_hi, alpha=0.15, color=color, zorder=2,
+        )
+
+    naive_result = _extract_curve_with_ci(
+        conditions, "Naive Bandit", BASELINE_BUDGET_LABEL,
+        mean_field="mean_window_reward",
+        per_seed_field="per_seed_window_reward",
+        std_field="std_window_reward",
+        sqrt_n=sqrt_n,
+    )
+    if naive_result is not None:
+        steps_n, rewards_n, ci_lo_n, ci_hi_n = naive_result
+        ax_rwd.plot(
+            steps_n, rewards_n,
+            color=NAIVE_COLOR, linestyle="--", linewidth=1.8,
+            label=f"Naive Bandit ({BASELINE_BUDGET_LABEL})", zorder=3,
+        )
+        ax_rwd.fill_between(
+            steps_n, ci_lo_n, ci_hi_n,
+            alpha=0.10, color=NAIVE_COLOR, zorder=2,
+        )
+
+    forget_result = _extract_curve_with_ci(
+        conditions, "Forgetting Bandit", BASELINE_BUDGET_LABEL,
+        mean_field="mean_window_reward",
+        per_seed_field="per_seed_window_reward",
+        std_field="std_window_reward",
+        sqrt_n=sqrt_n,
+    )
+    if forget_result is not None:
+        steps_f, rewards_f, ci_lo_f, ci_hi_f = forget_result
+        ax_rwd.plot(
+            steps_f, rewards_f,
+            color=FORGET_COLOR, linestyle="--", linewidth=1.8,
+            label=f"Forgetting Bandit ({BASELINE_BUDGET_LABEL})", zorder=3,
+        )
+        ax_rwd.fill_between(
+            steps_f, ci_lo_f, ci_hi_f,
+            alpha=0.10, color=FORGET_COLOR, zorder=2,
         )
 
     if "Unconstrained" in conditions:
@@ -383,6 +454,44 @@ def plot_adaptation_dynamics(
             fontweight="bold", clip_on=False,
         )
 
+    naive_cost_result = _extract_curve_with_ci(
+        conditions, "Naive Bandit", BASELINE_BUDGET_LABEL,
+        mean_field="mean_window_cost",
+        per_seed_field="per_seed_window_cost",
+        std_field="std_window_cost",
+        sqrt_n=sqrt_n,
+    )
+    if naive_cost_result is not None:
+        steps_nc, costs_nc, ci_lo_nc, ci_hi_nc = naive_cost_result
+        ax_cost.plot(
+            steps_nc, costs_nc,
+            color=NAIVE_COLOR, linestyle="--", linewidth=1.8,
+            label=f"Naive Bandit ({BASELINE_BUDGET_LABEL})", zorder=3,
+        )
+        ax_cost.fill_between(
+            steps_nc, ci_lo_nc, ci_hi_nc,
+            alpha=0.10, color=NAIVE_COLOR, zorder=2,
+        )
+
+    forget_cost_result = _extract_curve_with_ci(
+        conditions, "Forgetting Bandit", BASELINE_BUDGET_LABEL,
+        mean_field="mean_window_cost",
+        per_seed_field="per_seed_window_cost",
+        std_field="std_window_cost",
+        sqrt_n=sqrt_n,
+    )
+    if forget_cost_result is not None:
+        steps_fc, costs_fc, ci_lo_fc, ci_hi_fc = forget_cost_result
+        ax_cost.plot(
+            steps_fc, costs_fc,
+            color=FORGET_COLOR, linestyle="--", linewidth=1.8,
+            label=f"Forgetting Bandit ({BASELINE_BUDGET_LABEL})", zorder=3,
+        )
+        ax_cost.fill_between(
+            steps_fc, ci_lo_fc, ci_hi_fc,
+            alpha=0.10, color=FORGET_COLOR, zorder=2,
+        )
+
     if "Unconstrained" in conditions:
         uc_result = _extract_curve_with_ci_direct(
             conditions["Unconstrained"]["curves"],
@@ -422,12 +531,12 @@ def plot_adaptation_dynamics(
     handles, labels = ax_gem.get_legend_handles_labels()
     fig.legend(
         handles, labels,
-        loc="lower center", ncol=min(len(labels), 4),
-        fontsize=9.5 * fs, framealpha=0.9,
+        loc="lower center", ncol=min(len(labels), 3),
+        fontsize=9.0 * fs, framealpha=0.9,
         bbox_to_anchor=(0.5, -0.005),
     )
 
-    fig.tight_layout(rect=[0, 0.05, 1, 1.0])
+    fig.tight_layout(rect=[0, 0.07, 1, 1.0])
     fig.subplots_adjust(hspace=0.15)
 
     return fig

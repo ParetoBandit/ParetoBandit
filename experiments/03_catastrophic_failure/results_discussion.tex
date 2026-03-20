@@ -1,9 +1,9 @@
-% Extended results discussion for Experiment 02: Catastrophic Model Failure.
+% Extended results discussion for Experiment 03: Catastrophic Model Failure.
 % This file provides a standalone narrative of the catastrophic failure
 % experiment results, suitable for inclusion in an appendix or supplementary
 % material if a more detailed treatment is needed.
 
-\subsection{Experiment~2: Catastrophic Failure --- Extended Discussion}
+\subsection{Experiment~3: Catastrophic Failure --- Extended Discussion}
 \label{appendix:catastrophic_failure_extended}
 
 The catastrophic failure experiment evaluates ParetoBandit's resilience
@@ -21,7 +21,7 @@ reusing Phase~1 prompts).  The model registry is \emph{not} mutated
 at boundaries; adaptation is driven purely by observed rewards.
 
 \paragraph{Key findings.}
-Three algorithm variants are compared at each of three budget targets
+Four algorithm variants are compared at each of three budget targets
 (Tight, Moderate, Loose), plus an unconstrained baseline (20~seeds):
 
 \begin{itemize}[nosep,leftmargin=*]
@@ -35,6 +35,17 @@ Three algorithm variants are compared at each of three budget targets
     at moderate budget, it overshoots by \cfNaiveModPhaseTwoRatio{}
     in Phase~2 and \cfNaiveModPhaseThreeRatio{} in Phase~3---a
     persistent, worsening budget violation.
+  \item \textbf{Forgetting Bandit ($\gamma{=}0.995$)} shares
+    ParetoBandit's forgetting factor but replaces the closed-loop
+    pacer with a static cost penalty.  It detects the failure faster
+    than the Naive Bandit (geometric forgetting down-weights stale
+    Phase~1 Mistral rewards), but budget compliance is \emph{worse}
+    because forgetting also erases the cost penalty's prior anchoring
+    effect.  At tight budget, the Forgetting Bandit overshoots by
+    \cfForgetTightPhaseTwoRatio{} in Phase~2 and
+    \cfForgetTightPhaseThreeRatio{} in Phase~3---confirming that
+    \textbf{the BudgetPacer, not forgetting, is responsible for
+    ParetoBandit's cost invariance}.
   \item \textbf{ParetoBandit ($\gamma{=}0.995$)} detects the failure,
     redistributes traffic (Mistral drops to
     \cfParetoBanditModMistralPhaseTwo\% at moderate budget), \emph{and}
@@ -45,12 +56,31 @@ Three algorithm variants are compared at each of three budget targets
 
 \paragraph{Budget compliance is the key differentiator.}
 ParetoBandit maintains budget ratios within $0.97$--$1.03\times$
-across all nine phase--budget combinations.  The Naive Bandit, despite
+across all twelve phase--budget combinations.  The Naive Bandit, despite
 recovering reward, violates the budget by up to
-\cfNaiveTightPhaseThreeRatio{} (tight, Phase~3).  This demonstrates
-that online learning alone is insufficient for budget-constrained
-non-stationary routing: the dual-variable mechanism is essential
-for maintaining cost invariance through disruptions.
+\cfNaiveTightPhaseThreeRatio{} (tight, Phase~3).  The Forgetting Bandit
+fares even worse: at tight budget, it reaches
+\cfForgetTightPhaseThreeRatio{} in Phase~3---geometric forgetting erases
+the cost penalty's anchoring effect, producing runaway spend toward
+expensive models.  This demonstrates that online learning alone---even
+with forgetting---is insufficient for budget-constrained non-stationary
+routing: the dual-variable mechanism is essential for maintaining cost
+invariance through disruptions.
+
+\paragraph{Phase~2 cost mechanism.}
+The pacer's closed-loop response to catastrophic failure involves an
+asymmetric shock: Mistral's cost drops to \$0 (the provider does not
+charge for failed requests) while its reward collapses.  In early
+Phase~2, residual Mistral traffic costs nothing, pulling the cost EMA
+below target and reducing $\lambda_t$.  The reward signal then drives
+traffic away from Mistral toward Gemini-Pro (expensive) and Llama-8B
+(cheap).  As the routing mix shifts, costs rise, the EMA climbs,
+$\lambda_t$ increases, and the pacer re-tightens.  This closed-loop
+rebalancing occurs \emph{within} the failure window, maintaining
+compliance even though the cost landscape changed abruptly.
+No other condition achieves this: the Naive and Forgetting Bandits
+shift traffic to expensive models without any mechanism to detect and
+correct the resulting overspend.
 
 \paragraph{Recovery dynamics.}
 When Mistral is restored in Phase~3, geometric forgetting

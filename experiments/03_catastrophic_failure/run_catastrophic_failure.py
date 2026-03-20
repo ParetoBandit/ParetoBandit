@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Experiment 02: Catastrophic Model Failure (Three-Phase).
+"""Experiment 03: Catastrophic Model Failure (Three-Phase).
 
 Demonstrates that ParetoBandit's BudgetPacer maintains cost-invariance
 ($/request) through a catastrophic model failure while the bandit
@@ -7,7 +7,7 @@ automatically redistributes traffic across the remaining K>2 models.
 
 Experimental setup
 ------------------
-The pipeline follows the train-then-evaluate design of Experiment 03.
+The pipeline follows the train-then-evaluate design of Experiment 02.
 
   **Train phase** (val split, 1,785 prompts): Online learning under
   normal conditions.  No evaluation metrics are recorded.  The router
@@ -38,7 +38,7 @@ The pipeline follows the train-then-evaluate design of Experiment 03.
 Registry handling
 -----------------
 The model registry is NOT mutated at phase boundaries.  Unlike the
-cost-drift scenario (Experiment 03), where pricing changes are
+cost-drift scenario (Experiment 02), where pricing changes are
 publicly announced, a model failure is an emergent event discovered
 through observed rewards.  The router's internal cost penalty
 continues to reflect Mistral's normal pricing; only the reward signal
@@ -46,7 +46,7 @@ drives adaptation.
 
 Conditions (per budget level)
 -----------------------------
-Three algorithm variants at each budget target, plus an unconstrained
+Four algorithm variants at each budget target, plus an unconstrained
 baseline:
 
   - **Fixed Policy**: warmup priors frozen, static cost penalty matched
@@ -55,6 +55,10 @@ baseline:
   - **Naive Bandit (γ=1.0)**: infinite memory, static cost penalty,
     online learning.  Detects failure but Phase 1 inertia slows both
     detection and recovery.
+  - **Forgetting Bandit (γ=0.995)**: same forgetting factor as
+    ParetoBandit, matched static cost penalty, no BudgetPacer.  Key
+    ablation: isolates the BudgetPacer's contribution to budget
+    compliance under failure.
   - **ParetoBandit (γ=0.995)**: geometric forgetting with BudgetPacer
     active.  Fast detection, redistribution, and budget maintenance.
   - **Unconstrained**: ParetoBandit without budget constraint (λ=0).
@@ -434,7 +438,7 @@ def _build_conditions(
     budget_label: str,
     matched_cp: float,
 ) -> List[Dict[str, Any]]:
-    """Build three conditions for a given budget target.
+    """Build four conditions for a given budget target.
 
     Parameters
     ----------
@@ -465,6 +469,14 @@ def _build_conditions(
             "cost_penalty": matched_cp,
             "warmup": True,
             "forgetting_factor": 1.0,
+            "online_learn": True,
+        },
+        {
+            "label": f"Forgetting Bandit ({budget_label})",
+            "budget_target": None,
+            "cost_penalty": matched_cp,
+            "warmup": True,
+            "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
             "online_learn": True,
         },
         {
@@ -822,7 +834,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     logger.info("\n" + "=" * 120)
     logger.info(
-        "EXPERIMENT 02: CATASTROPHIC FAILURE — Summary "
+        "EXPERIMENT 03: CATASTROPHIC FAILURE — Summary "
         "(3 phases: normal → failure → recovered)"
     )
     logger.info("=" * 120)
