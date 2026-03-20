@@ -49,7 +49,7 @@ Four conditions of increasing sophistication are compared in Experiment 02:
 Experiment 03 uses conditions 1, 2, and 4 with BudgetPacer integration.
 
 Full ablation details (Fast forgetting, Tabula Rasa, pacer variants) are in
-`appendix/forgetting_ablation/` and `appendix/forgetting_factor_sweep/`.
+`appendix/forgetting_factor_sweep/`.
 
 ## Dependencies
 
