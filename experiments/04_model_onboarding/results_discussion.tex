@@ -65,7 +65,7 @@ where Flash rewards are judged by DeepSeek-R1 using the same v3
 continuous rubric as all other arms.
 
 All conditions use the simulation-tuned hyperparameters from
-Experiments~02--03: $\alpha{=}0.1$, $n_{\mathrm{eff}}{=}10$,
+Experiments~02--03: $\alpha{=}0.1$, $n_{\mathrm{eff}}{=}1{,}000$,
 $\gamma{=}0.995$, consistent across all main-body experiments.
 
 Two Phase~2 strategies are compared per budget tier:
@@ -127,9 +127,11 @@ cost).
 At loose budgets, Flash reaches 38\% of traffic in the final 200
 steps, exceeding the unconstrained ceiling (25\%).
 At tight budgets, the pacer limits Flash to 14\%, just above the
-sustained-adoption threshold---the router correctly identifies
-that Flash (blended \$1.40/M) is cheaper than Mistral (\$1.00/M)
-but more expensive than Llama (\$0.10/M), and allocates accordingly.
+sustained-adoption threshold---the router discovers that Flash
+delivers higher quality than Mistral at a comparable per-request
+cost (despite Flash's higher per-token blended rate of \$1.40/M
+vs.\ Mistral's \$1.00/M, Flash's more concise generations keep
+per-request spend competitive), and allocates accordingly.
 
 \paragraph{Flash displaces the right arm.}
 Displacement analysis (early~200 vs.\ late~200 steps of Phase~2)
@@ -138,8 +140,10 @@ reveals a clear pattern:
   \item \textbf{Under budget pressure} (tight and moderate):
     Flash takes share primarily from \textbf{Mistral-Large}
     ($-27.3$\,pp at tight, $-22.9$\,pp at moderate).
-    This is economically rational: Flash offers Mistral-level quality
-    (${\sim}0.92$) at a lower blended cost (\$1.40 vs.\ \$1.00/M).
+    This is economically rational: Flash offers higher quality than
+    Mistral at a comparable per-request cost---Flash's per-token
+    blended rate (\$1.40/M) exceeds Mistral's (\$1.00/M), but its
+    more concise generations yield similar per-request spend.
   \item \textbf{Unconstrained:} Flash takes share from
     \textbf{Gemini-Pro} ($-20.8$\,pp).  Without cost pressure, the
     bandit uses Flash as a near-Pro-quality alternative at
@@ -147,7 +151,7 @@ reveals a clear pattern:
 \end{itemize}
 
 \paragraph{The BudgetPacer requires no reconfiguration.}
-Figure~\ref{fig:model_onboarding}(c) shows cost compliance
+Figure~\ref{fig:model_onboarding}(b) shows cost compliance
 throughout the trajectory.
 ParetoBandit meets each budget target to within 1\% across both
 phases, despite the portfolio expanding from K=3 to K=4
@@ -177,8 +181,8 @@ reconfiguration.  The bandit discovers the model's quality--cost
 niche from live traffic and the pacer auto-adjusts.
 
 \paragraph{Budget-quality Pareto improvement.}
-Flash is a Pareto-improving arm: it offers near-Pro quality at
-Mistral-level cost.  A static router would require human analysis
+Flash is a Pareto-improving arm: it offers near-Pro quality at a
+mid-tier per-request cost.  A static router would require human analysis
 to discover this; ParetoBandit identifies and exploits it
 automatically, shifting the portfolio's cost--quality frontier.
 

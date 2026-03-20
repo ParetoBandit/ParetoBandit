@@ -36,7 +36,7 @@ Conditions (per budget target)
 Hyperparameter note
 -------------------
   ``alpha``, ``prior_n_effective``, and ``forgetting_factor`` are taken
-  from ``BEST_K3_HPARAMS`` (Experiment 04 epsilon-constraint selection),
+  from ``BEST_K3_HPARAMS`` (Experiment 05 epsilon-constraint selection),
   ensuring consistency with the main paper's hyperparameter choices.
 
 Output: ``results/model_onboarding_results.json``
@@ -60,7 +60,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
@@ -221,16 +221,20 @@ def _load_k3(fs: FeatureService) -> SplitData:
 def _load_k4_eval(fs: FeatureService) -> SplitData:
     """Load the K=4 test split for Phase 2.
 
-    Falls back to val_k4 if test_k4 doesn't exist yet, so the experiment
-    structure can be tested before full data collection.
+    Raises:
+        FileNotFoundError: If ``test_k4.jsonl`` does not exist.  We
+            intentionally do *not* fall back to ``val_k4.jsonl`` because
+            Phase 1 uses ``val.jsonl`` — sharing the same prompt pool
+            across phases would constitute data leakage.
     """
-    path = TEST_K4_PATH if TEST_K4_PATH.exists() else VAL_K4_PATH
-    if not path.exists():
+    if not TEST_K4_PATH.exists():
         raise FileNotFoundError(
-            f"K=4 data not found at {TEST_K4_PATH} or {VAL_K4_PATH}. "
-            "Run collect_flash_canonical.py + merge_flash_into_splits.py first."
+            f"K=4 test split not found at {TEST_K4_PATH}. "
+            "Run collect_flash_canonical.py + merge_flash_into_splits.py first. "
+            "Note: val_k4.jsonl is NOT a valid substitute because Phase 1 "
+            "uses val.jsonl (same prompt pool → data leakage)."
         )
-    return load_split(path, fs, K4_ARMS)
+    return load_split(TEST_K4_PATH, fs, K4_ARMS)
 
 
 # ======================================================================
