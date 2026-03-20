@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import os
 import threading
 import time
 import uuid
@@ -28,24 +27,6 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 
-# Prevent tokenizers parallelism hangs (common with SentenceTransformers).
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    SentenceTransformer = None  # type: ignore[misc,assignment]
-
-try:
-    from pareto_bandit.cluster_detector import ClusterDetector
-except ImportError:
-    ClusterDetector = None  # Optional feature
-
-try:
-    import joblib
-except ImportError:
-    joblib = None
-
 # ---------------------------------------------------------------------------
 # Canonical modules — re-exported here for backward compatibility so that
 # ``from pareto_bandit.router import X`` continues to work for all consumers.
@@ -54,16 +35,6 @@ from pareto_bandit.policy import (  # noqa: F401 — re-exported
     DisjointLinUCBPolicy,
     BanditState,
     calibrate_priors,
-    _SMUpdateResult,
-    _argmax_random_tiebreak,
-    _inflate_variance,
-    _effective_staleness,
-    _sherman_morrison_update,
-    _safe_multivariate_normal,
-    _MAX_VAR_INFLATION_FACTOR,
-    _MAX_STALENESS_DT,
-    _REGULARIZATION_FLOOR_FRACTION,
-    _SM_DENOMINATOR_THRESHOLD,
     _OUTPUT_COST_MULTIPLIER,
 )
 from pareto_bandit.types import (  # noqa: F401 — re-exported
@@ -128,6 +99,7 @@ from pareto_bandit.family import (  # noqa: F401 — re-exported for backward co
     tetrachoric_corr,
     compute_correlation_families,
 )
+from pareto_bandit.costs import log_normalize_cost
 
 
 
@@ -139,25 +111,6 @@ class BanditRouter:
     """
     The primary entry point for routing.
     """
-    # --- VIRTUAL ANCHORS (Zero-Shot) ---
-    # Declarative semantic landmarks using natural language descriptions.
-    # Replaces the data-dependent "Anchor Cluster ID" system.
-    DEFAULT_VIRTUAL_ANCHORS = {
-        "coding": "Python code programming software engineering script development computer science",
-        "math": "mathematics arithmetic calculus equations reasoning proof algebra geometry",
-        "creative": "creative writing poetry fiction storytelling narrative prose",
-        "jokes": "humor jokes comedy funny wit sarcasm riddles",
-        "reasoning": "step-by-step reasoning logic puzzle analysis critical thinking deduction"
-    }
-    
-    # Heuristic seeds for generating a Complexity Vector if missing
-    HARD_REASONING_SEEDS = [
-        "complex mathematical proof", "advanced algorithmic optimization",
-        "system architecture design", "quantum physics derivation",
-        "intricate logic puzzle", "technical debugging",
-        "multi-step analytical reasoning", "scientific research analysis"
-    ]
-
     def __init__(
         self,
         model_registry: Dict[str, Dict[str, Any]],
@@ -224,7 +177,7 @@ class BanditRouter:
             base_dir = Path(__file__).parent
             models_path = base_dir / "config" / "models.json"
             if not models_path.exists():
-                logger.warning(f"Default models.json not found at {models_path}. Initializing with empty registry.")
+                logger.warning("Default models.json not found at %s. Initializing with empty registry.", models_path)
                 model_registry = {}
             else:
                 import json
@@ -256,20 +209,13 @@ class BanditRouter:
                 pca_path=pca_path,
                 allow_jit_training=True
             )
-            logger.info(f"Created default FeatureService with encoder={context_model}")
-        
-        # Backward-compatible aliases.  We avoid eagerly touching
-        # features.encoder / features.pca here — that would force a
-        # multi-GB download even for users who injected a lightweight
-        # FeatureService or use pre-computed vectors.
-        self._encoder_resolved = False
-        self._pca_resolved = False
+            logger.info("Created default FeatureService with encoder=%s", context_model)
         
         # Calculate dimension dynamically from feature service
         # Default is 33 (32 PCA + 1 bias) with pca_32.joblib
         embedding_dim = self.features.dimension
         
-        logger.debug(f"Feature dimensions: total={embedding_dim} (including bias)")
+        logger.debug("Feature dimensions: total=%d (including bias)", embedding_dim)
         
         # Initialize bandit with calculated dimension.
         # NOTE: Features are [PCA_0, ..., PCA_{d-2}, bias].  We apply PCA for
@@ -287,16 +233,13 @@ class BanditRouter:
             forgetting_factor=forgetting_factor,
         )
         
-        self._toxicity_scanner = None
-
-
         # ---------------------------------------------------------------------------
         # Context Storage (opt-in persistence)
         # ---------------------------------------------------------------------------
         # Default: EphemeralContextStore (RAM-only, no disk I/O)
         # For delayed feedback / RLHF: pass SqliteContextStore() explicitly
         self.context_store = context_store or EphemeralContextStore()
-        logger.info(f"Context store: {type(self.context_store).__name__}")
+        logger.info("Context store: %s", type(self.context_store).__name__)
 
         # ---------------------------------------------------------------------------
         # Production Stability: Bounded Log Buffer
@@ -312,10 +255,13 @@ class BanditRouter:
         self.log_index: Dict[str, RoutingLog] = {}
         # Lock to protect the logs/log_index pair from concurrent writes
         self._log_lock = threading.Lock()
-        self.model_priors: Dict[str, float] = {} 
-        
         # Feature name to index mapping for Progressive Registration
         self._feature_map = self._build_feature_map()
+        
+        # Thread-local storage for per-thread overrides (e.g. exploit mode).
+        # This avoids mutating shared bandit.alpha, which races with
+        # concurrent route() calls on other threads.
+        self._thread_local = threading.local()
         
         # Precompute market anchors to avoid redundant log calls in hot loop
         self._market_cost_floor = self.config.market_cost_floor
@@ -424,8 +370,6 @@ class BanditRouter:
         
         # --- Feature Service (SHARE: stateless, contains locks & GPU state) ---
         result.features = self.features
-        result._encoder_resolved = self._encoder_resolved
-        result._pca_resolved = self._pca_resolved
         
         # --- Bandit Policy (deepcopy: has its own __deepcopy__ for locks) ---
         result.bandit = copy.deepcopy(self.bandit, memo)
@@ -436,12 +380,10 @@ class BanditRouter:
         result.logs = copy.deepcopy(self.logs, memo)
         result.log_index = copy.deepcopy(self.log_index, memo)
         result._log_lock = threading.Lock()  # Fresh lock for clone
-        result.model_priors = copy.deepcopy(self.model_priors, memo)
-        
+        result._thread_local = threading.local()  # Fresh thread-local for clone
         # --- Scalar / Immutable Settings (direct copy) ---
         result.verbose_routing = self.verbose_routing
         result._feature_map = copy.deepcopy(self._feature_map, memo)
-        result._toxicity_scanner = None  # Lazy-init; don't share
 
         # --- Budget Pacer (deepcopy: has mutable EMA state) ---
         result.budget_pacer = copy.deepcopy(self.budget_pacer, memo)
@@ -451,8 +393,13 @@ class BanditRouter:
         result._market_cost_floor_log = self._market_cost_floor_log
         result._market_cost_range = self._market_cost_range
         
-        # --- Context Store (SHARE: DB connection, thread-safe) ---
-        result.context_store = self.context_store
+        # --- Context Store ---
+        # SqliteContextStore: SHARE (thread-safe DB connection, expensive to dup).
+        # EphemeralContextStore: DEEPCOPY (unprotected dict/deque, racy if shared).
+        if isinstance(self.context_store, EphemeralContextStore):
+            result.context_store = copy.deepcopy(self.context_store, memo)
+        else:
+            result.context_store = self.context_store
         
         return result
 
@@ -565,61 +512,42 @@ class BanditRouter:
         capabilities = kwargs.get("capabilities", [])
             
         if model_id in self.bandit.models:
-            logger.warning(f"[WARN] Model {model_id} already registered. Skipping.")
+            logger.warning("Model '%s' already registered. Skipping.", model_id)
             return
         
-        # 1. Initialize zero state (the canvas)
+        # 1. Build initial theta vector from T-shirt sizing + overrides
         weights = {}
-        bias = 0.0
-        
-        # 2. Apply T-Shirt Sizing (The Bias Term)
-        # Use Speed/Cost as prior for "Default Mode" when no warmup priors exist.
-        # NOTE: complexity_weight fields were removed when the feature pipeline
-        # was simplified to [PCA | bias].  T-shirt sizing now operates solely
-        # through the bias dimension.
         reg_config = self.config.registration
-        
+
         if speed == "fast":
             bias = reg_config.fast_bias
         elif speed == "slow":
             bias = reg_config.slow_bias
-        else:  # balanced
+        else:
             bias = reg_config.balanced_bias
-        
-        # 4. Apply Power User Overrides (Explicit Weights)
-        # If the user DOES know specifics, let them overwrite our guesses
+
         if initial_weights:
             for k, v in initial_weights.items():
                 weights[k] = v
-        
-        # 5. Compile into Theta Vector (The Math)
+
+        # 2. Compile theta vector
         dim = self.bandit.dim
         theta_vector = np.zeros(dim, dtype=np.float64)
-        
-        # Fill the bias term (explicit indexing)
         theta_vector[self.features.bias_index] = bias
-        
-        # Map dictionary keys to vector indices
         for feature_name, val in weights.items():
             if feature_name in self._feature_map:
-                idx = self._feature_map[feature_name]
-                theta_vector[idx] = val
+                theta_vector[self._feature_map[feature_name]] = val
             else:
-                logger.warning(f"Unknown feature '{feature_name}' in initial_weights. Skipping.")
-        
-        # 6. Initialize bandit arm with T-shirt prior
-        #
-        # All new models start with A = λI (identity-scaled precision) and
-        # b = λ·θ (prior encoding from T-shirt sizing / capabilities).
-        self.bandit.add_arm(model_id)
+                logger.warning("Unknown feature '%s' in initial_weights. Skipping.", feature_name)
 
-        # Inject T-shirt prior into arm-specific b vector
+        # 3. Initialize bandit arm: A = λI, b = λ·θ
+        self.bandit.add_arm(model_id)
         new_b = self.bandit.init_lambda * theta_vector
         with self.bandit._lock:
             self.bandit.b[model_id] = new_b
-            
-        # 8. Prepare registry entry (but don't publish yet)
-        # Use defaults from config if not provided
+            self.bandit._refresh_theta(model_id)
+
+        # 4. Build and publish registry entry
         if cost_usd is None:
             cost_usd = reg_config.default_cost_per_1m
         if latency_s is None:
@@ -647,7 +575,6 @@ class BanditRouter:
             "speed_profile": speed,
         }
         
-        # 9. Publish to registry — model is now fully initialized
         self.registry[model_id] = registry_entry
         
         boost_summary = ", ".join(f"{k}={v:.1f}" for k, v in list(weights.items())[:5])
@@ -655,18 +582,12 @@ class BanditRouter:
             boost_summary += "..."
         
         logger.info(
-            f"[OK] Registered {model_id} | "
-            f"Bias: {bias:.1f} | "
-            f"Boosts: {boost_summary} | "
-            f"Cost: ${cost_usd:.2f}/1M | "
-            f"Latency: {latency_s:.2f}s"
+            "Registered %s | Bias: %.1f | Boosts: %s | Cost: $%.2f/1M | Latency: %.2fs",
+            model_id, bias, boost_summary, cost_usd, latency_s,
         )
 
 
     # ---------------------------------------------------------------------------
-    # Tier 1 Safety: Fast Toxicity Heuristic
-    # ---------------------------------------------------------------------------
-    
     # Feature and Context Extraction (Delegated to FeatureService)
     # ---------------------------------------------------------------------------
     
@@ -780,11 +701,20 @@ class BanditRouter:
                 f"Ensure the priors were generated with the same encoder."
             )
 
-        # 2. Filter kwargs to only include those accepted by __init__
-        import inspect
-        sig = inspect.signature(cls.__init__)
-        valid_params = sig.parameters.keys()
-        init_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
+        # 2. Filter kwargs to only those accepted by __init__
+        _INIT_PARAMS = {
+            "feature_service", "context_model", "pca_path", "alpha",
+            "embedding_dim", "init_lambda", "forgetting_factor",
+            "context_store", "config", "verbose_routing", "cost_penalty",
+            "budget_pacer",
+        }
+        unknown = set(kwargs) - _INIT_PARAMS
+        if unknown:
+            logger.warning(
+                "create() ignoring unknown kwargs not accepted by __init__: %s",
+                sorted(unknown),
+            )
+        init_kwargs = {k: v for k, v in kwargs.items() if k in _INIT_PARAMS}
 
         # 3. Initialize the Router (Standard)
         router = cls(
@@ -794,7 +724,7 @@ class BanditRouter:
             **init_kwargs
         )
         
-        # 4. Load Priors from explicit path or shipped default
+        # 4. Resolve priors path (shipped default or explicit)
         if priors == "warmup" and warmup_path is None:
             from .config import DEFAULT_WARMUP_PRIORS_PATH
             if DEFAULT_WARMUP_PRIORS_PATH.exists():
@@ -805,260 +735,215 @@ class BanditRouter:
                     "falling back to cold-start.",
                     DEFAULT_WARMUP_PRIORS_PATH,
                 )
-        _priors_path_str = warmup_path or (priors if priors != "none" else None)
-        if isinstance(_priors_path_str, str) and (
-            _priors_path_str.endswith(".joblib") or "/" in _priors_path_str
+
+        priors_path_str = warmup_path or (priors if priors != "none" else None)
+        if isinstance(priors_path_str, str) and (
+            priors_path_str.endswith(".joblib") or "/" in priors_path_str
         ):
-            priors_path = Path(_priors_path_str)
-            if priors_path and priors_path.exists():
-                import joblib
-                warmup_data = joblib.load(priors_path)
-                # -----------------------------------------------------------------
-                # Feature-space compatibility: PCA whitening
-                # -----------------------------------------------------------------
-                # FeatureService may whiten PCA coordinates at runtime.  Warmup
-                # priors generated before whitening (or with whitening disabled)
-                # are in a different coordinate system.  For diagonal whitening
-                # x_new = D x_old, the sufficient statistics transform as:
-                #   A_new = D A_old D,   b_new = D b_old.
-                # We apply this conversion once at load time so users can keep
-                # older prior artifacts without silent scale mismatch.
-                try:
-                    scales = None
-                    if hasattr(router.features, "get_pca_whitening_scales"):
-                        scales = np.asarray(router.features.get_pca_whitening_scales(), dtype=np.float64)
-                    # Determine whether the router's *actual feature vectors*
-                    # are whitened (could be via PCA.whiten=True or external scaling).
-                    router_whitens = False
-                    if scales is not None and scales.shape[0] >= 2:
-                        router_whitens = not np.allclose(scales[:-1], 1.0)
-
-                    priors_whitened = bool(warmup_data.get("pca_whitened", False))
-                    if scales is not None and priors_whitened != router_whitens:
-                        if priors_whitened and not router_whitens:
-                            # Convert whitened priors -> unwhitened router space.
-                            scales = 1.0 / np.maximum(scales, 1e-12)
-                        # Else: unwhitened priors -> whitened router space uses scales as-is.
-                        warmup_data = dict(warmup_data)  # shallow copy to avoid mutating shared object
-                        A_map = warmup_data.get("A", {})
-                        b_map = warmup_data.get("b", {})
-                        if isinstance(A_map, dict) and isinstance(b_map, dict):
-                            A_new = {}
-                            b_new = {}
-                            for m in A_map:
-                                if m not in b_map:
-                                    continue
-                                A_m = np.asarray(A_map[m], dtype=np.float64)
-                                b_m = np.asarray(b_map[m], dtype=np.float64)
-                                if A_m.shape[0] == scales.shape[0] and A_m.shape[1] == scales.shape[0]:
-                                    A_new[m] = A_m * scales.reshape(-1, 1) * scales.reshape(1, -1)
-                                else:
-                                    A_new[m] = A_m
-                                if b_m.shape[0] == scales.shape[0]:
-                                    b_new[m] = b_m * scales
-                                else:
-                                    b_new[m] = b_m
-                            warmup_data["A"] = A_new
-                            warmup_data["b"] = b_new
-                            warmup_data["pca_whitened"] = router_whitens
-                            logger.info(
-                                "🔄 Converted warmup priors PCA whitening: "
-                                f"priors_whitened={priors_whitened} -> router_whitens={router_whitens}"
-                            )
-                except (KeyError, TypeError, ValueError, AttributeError, np.linalg.LinAlgError) as exc:
-                    logger.warning(
-                        f"Warmup priors whitening compatibility conversion failed: {exc}. "
-                        "Proceeding without conversion (may degrade performance)."
-                    )
-                # Guard against n=0 in warmup file (ZeroDivisionError).
-                # .get("n", 20000) protects against missing key, but not zero value.
-                n_warmup = max(warmup_data.get("n", 20000), 1)
-                scale = prior_n_effective / float(n_warmup)
-                
-                missing_models = []
-                for model_id in router.bandit.models:
-                    # Layer 1: Try Robust Offline Priors
-                    if (model_id in warmup_data.get("A", {})) and (model_id in warmup_data.get("b", {})):
-                        router.bandit.A[model_id] = warmup_data["A"][model_id] * scale
-                        router.bandit.b[model_id] = warmup_data["b"][model_id] * scale
-                    # Layer 2: Gap-Filling (Cascading Fallback)
-                    else:
-                        missing_models.append(model_id)
-                        model_data = router.registry.get(model_id, {})
-                        
-                        A_heuristic, b_heuristic = get_heuristic_prior(
-                            model_data=model_data,
-                            dim=router.bandit.dim,
-                            init_lambda=router.bandit.init_lambda,
-                            n_effective=prior_n_effective
-                        )
-                        router.bandit.A[model_id] = A_heuristic
-                        router.bandit.b[model_id] = b_heuristic
-                
-                if missing_models:
-                    logger.warning(
-                        f"[WARN] Warmup Partial Miss: {len(missing_models)} models not in joblib. "
-                        f"Applied heuristic initialization for: {missing_models}"
-                    )
-                else:
-                    logger.info("[OK] Warmup Complete: All models initialized from offline priors.")
-                
-                # =====================================================================
-                # POST-WARMUP REGULARIZATION: Bayesian Shrinkage Toward Zero
-                # =====================================================================
-                # We deliberately add λI to A without adjusting b.  Since
-                # θ = A⁻¹b, increasing A without increasing b shrinks θ toward
-                # the origin at rate O(λ / (λ + n_eff)), where n_eff is the
-                # effective sample count encoded in the warmup priors.
-                #
-                # This is intentional — NOT a bug:
-                #
-                #   1. Safety valve against mismatched priors.  The 80k offline
-                #      battle priors may come from a different traffic distribution
-                #      than the deployment environment.  Without shrinkage, a strong
-                #      but wrong prior could lock the router into suboptimal
-                #      selections for many rounds.
-                #
-                #   2. Online evidence always wins.  Each online observation adds
-                #      xx^T to A and reward·x to b, so the warmup's contribution
-                #      to θ naturally dilutes.  The post-warmup λI accelerates
-                #      this dilution, ensuring the system remains responsive.
-                #
-                #   3. Defense in depth.  The forgetting factor (γ) provides
-                #      exponential discounting of stale observations.
-                #
-                # Net effect: numerical stability + controlled prior decay.
-                # =====================================================================
-                for model_id in router.bandit.models:
-                    router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda
-                
-                # Single refresh_inverse_cache() after all A matrices are
-                # finalized.  Previously there were two calls — one before and one
-                # after the regularization loop — wasting O(K·d³) at startup.
-                router.bandit.refresh_inverse_cache()
-                logger.info(f"[OK] Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
+            priors_path = Path(priors_path_str)
+            if priors_path.exists():
+                cls._load_warmup_priors(router, priors_path, prior_n_effective)
             else:
-                logger.warning(f"[WARN] Priors file not found at {priors_path}. Using cold start.")
-
-        # =====================================================================
-        # LAYER 3: T-SHIRT SIZING INJECTION (Business Logic)
-        # =====================================================================
-        # Warm-Start Architecture:
-        # - Layer 1: User-supplied priors (if provided) → Already loaded above
-        # - Layer 2 (HERE): T-shirt sizing → Business logic on top of data
-        #
-        # This layer applies human-provided speed profile priors (fast/slow)
-        # *on top* of data-driven warmup priors, with proper confidence scaling.
-        #
-        # Why confidence scaling?
-        # After warmup, b[bias] might be ~1000 (from 80k battles).
-        # Naive: b[bias] += 0.5 → 1000.5 (0.05% change, negligible)
-        # Scaled: b[bias] += confidence × 0.5 → 1500 (50% change, meaningful)
-        #
-        # Mathematical justification:
-        # θ[bias] = b[bias] / A[bias, bias]
-        # To shift θ by Δ: b_new = b_old + A[bias, bias] × Δ
-        #
-        # Example:
-        # - Fast model (Mixtral): bias_shift = +0.5 → Encourage selection
-        # - Slow model (GPT-4): bias_shift = -0.5 → Reserve for hard tasks
-        reg_config = router.config.registration
-        bias_idx = router.features.bias_index
-        
-        logger.info("💉 Layer 3: Injecting T-Shirt Sizing biases into warmed-up state...")
-        
-        for model_id in router.bandit.models:
-            # Check model speed profile from registry
-            speed = router.registry.get(model_id, {}).get("speed_profile", "balanced")
-            
-            # Determine Shift Amount
-            bias_shift = 0.0
-            if speed == "fast":
-                bias_shift = reg_config.fast_bias      # e.g., +0.5
-            elif speed == "slow":
-                bias_shift = reg_config.slow_bias      # e.g., -0.5 or -1.0
-            
-            if abs(bias_shift) > 0.0:
-                # Correct matrix algebra for theta shift.
-                # To shift theta by delta * e_i (unit vector in dimension i):
-                #   b_new = b_old + delta * A[:, i]   (entire i-th column of A)
-                #
-                # Previously, only the diagonal element was used:
-                #   b[i] += A[i,i] * delta
-                # This missed off-diagonal contributions A[j,i] for j != i,
-                # leaking the bias shift into PCA dimensions proportional to
-                # A_inv[j, bias] — contaminating learned feature preferences.
-                injection_col = bias_shift * router.bandit.A[model_id][:, bias_idx]
-                router.bandit.b[model_id] += injection_col
-                
-                logger.debug(
-                    f"   - {model_id} ({speed}): Bias {bias_shift} "
-                    f"-> Added ||{np.linalg.norm(injection_col):.2f}|| to b-vector."
+                logger.warning(
+                    "Priors file not found at %s. Using cold start.", priors_path
                 )
 
-        # 6. Refresh inverse cache to be safe (though b-update doesn't strictly require it)
+        # 5. T-shirt sizing injection on top of warmup priors
+        cls._inject_tshirt_biases(router)
+
+        # 6. Calibrate priors (catches scale explosion before the adapter sees it)
         router.bandit.refresh_inverse_cache()
-        
-        # 6b. Calibrate priors on the canonical bandit state (catches scale
-        #     explosion from warmup or T-shirt sizing before the adapter sees it).
         calibrate_priors(router.bandit, target_max_pred=0.9)
 
         # 7. Load state if provided (overwrites any priors applied above)
         if state_path:
             router.load_state(state_path)
-                
+
         return router
 
+    # ------------------------------------------------------------------
+    # Factory helpers (extracted from create() for testability)
+    # ------------------------------------------------------------------
 
+    @staticmethod
+    def _align_whitening(
+        warmup_data: Dict[str, Any],
+        features: Any,
+    ) -> Dict[str, Any]:
+        """Align warmup priors to the router's PCA whitening convention.
 
+        For diagonal whitening ``x_new = D x_old`` the sufficient statistics
+        transform as ``A_new = D A_old D``, ``b_new = D b_old``.  This
+        conversion is applied once at load time so older prior artifacts
+        remain usable without silent scale mismatch.
 
-
-    # ---------------------------------------------------------------------------
-    # Self-Healing PCA (JIT Calibration)
-    # ---------------------------------------------------------------------------
-    
-    def _generate_synthetic_data(self, n: int = 1000) -> List[str]:
-        """Generate synthetic prompts for PCA calibration.
-
-        Delegates to :func:`pareto_bandit.utils.synthetic.generate_synthetic_prompts`.
-        """
-        from pareto_bandit.utils.synthetic import generate_synthetic_prompts
-
-        return generate_synthetic_prompts(n)
-    
-
-    # prune_arms removed - trusting UCB confidence bounds to naturally downweight bad models
-    # Bad models get minimal traffic (~0.001%) without explicit pruning
-
-
-    # _detect_difficulty_score removed - feature engineering should be done externally
-    # The router is now a pure "Decision Engine"
-
-
-
-
-
-
-    # -------------------------------------------------------------------------
-    # Helper Methods for route() - Atomicity Refactoring
-    # -------------------------------------------------------------------------
-    
-    def _build_routing_features(self, prompt: str | np.ndarray) -> Tuple[np.ndarray, str]:
-        """
-        Build context vector with embeddings, features, and anchors.
-        
         Args:
-            prompt: Input prompt (string or pre-embedded vector)
-            
+            warmup_data: Loaded warmup dictionary (mutated in-place).
+            features: FeatureService instance (checked for
+                ``get_pca_whitening_scales``).
+
         Returns:
-            Tuple of (context_vector, prompt_text)
+            The (possibly modified) warmup_data dict.
         """
-        prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
-        # Delegate to FeatureService (The Eyes)
-        x = self.features.extract_features(prompt)
-        return x, prompt_text
-    
-    
+        scales = None
+        if hasattr(features, "get_pca_whitening_scales"):
+            scales = np.asarray(features.get_pca_whitening_scales(), dtype=np.float64)
+
+        router_whitens = False
+        if scales is not None and scales.shape[0] >= 2:
+            router_whitens = not np.allclose(scales[:-1], 1.0)
+
+        priors_whitened = bool(warmup_data.get("pca_whitened", False))
+        if scales is None or priors_whitened == router_whitens:
+            return warmup_data
+
+        if priors_whitened and not router_whitens:
+            scales = 1.0 / np.maximum(scales, 1e-12)
+
+        warmup_data = dict(warmup_data)
+        A_map = warmup_data.get("A", {})
+        b_map = warmup_data.get("b", {})
+        if not (isinstance(A_map, dict) and isinstance(b_map, dict)):
+            return warmup_data
+
+        A_new: Dict[str, np.ndarray] = {}
+        b_new: Dict[str, np.ndarray] = {}
+        for m in A_map:
+            if m not in b_map:
+                continue
+            A_m = np.asarray(A_map[m], dtype=np.float64)
+            b_m = np.asarray(b_map[m], dtype=np.float64)
+            d = scales.shape[0]
+            A_new[m] = (
+                A_m * scales.reshape(-1, 1) * scales.reshape(1, -1)
+                if A_m.shape == (d, d) else A_m
+            )
+            b_new[m] = b_m * scales if b_m.shape[0] == d else b_m
+
+        warmup_data["A"] = A_new
+        warmup_data["b"] = b_new
+        warmup_data["pca_whitened"] = router_whitens
+        logger.info(
+            "Converted warmup priors PCA whitening: "
+            "priors_whitened=%s -> router_whitens=%s",
+            priors_whitened, router_whitens,
+        )
+        return warmup_data
+
+    @staticmethod
+    def _load_warmup_priors(
+        router: "BanditRouter",
+        priors_path: Path,
+        prior_n_effective: float,
+    ) -> None:
+        """Load offline warmup priors, align whitening, and regularize.
+
+        Mutates ``router.bandit`` in place.  Models present in the warmup
+        file receive scaled offline priors; missing models fall back to
+        heuristic initialization based on registry metadata.
+
+        Post-warmup regularization (``A += lambda * I`` without adjusting
+        ``b``) implements Bayesian shrinkage toward zero — a safety valve
+        against mismatched priors from a different traffic distribution.
+
+        Args:
+            router: Partially initialized router (bandit + registry ready).
+            priors_path: Path to a ``.joblib`` warmup priors artifact.
+            prior_n_effective: Effective sample count attributed to priors.
+        """
+        import joblib as _joblib
+
+        warmup_data = _joblib.load(priors_path)
+
+        try:
+            warmup_data = BanditRouter._align_whitening(warmup_data, router.features)
+        except (KeyError, TypeError, ValueError, AttributeError, np.linalg.LinAlgError) as exc:
+            logger.warning(
+                "Warmup priors whitening conversion failed: %s. "
+                "Proceeding without conversion (may degrade performance).",
+                exc,
+            )
+
+        n_warmup = max(warmup_data.get("n", 20000), 1)
+        scale = prior_n_effective / float(n_warmup)
+
+        missing_models: List[str] = []
+        for model_id in router.bandit.models:
+            if (model_id in warmup_data.get("A", {})) and (model_id in warmup_data.get("b", {})):
+                router.bandit.A[model_id] = warmup_data["A"][model_id] * scale
+                router.bandit.b[model_id] = warmup_data["b"][model_id] * scale
+            else:
+                missing_models.append(model_id)
+                A_h, b_h = get_heuristic_prior(
+                    model_data=router.registry.get(model_id, {}),
+                    dim=router.bandit.dim,
+                    init_lambda=router.bandit.init_lambda,
+                    n_effective=prior_n_effective,
+                )
+                router.bandit.A[model_id] = A_h
+                router.bandit.b[model_id] = b_h
+
+        if missing_models:
+            logger.warning(
+                "Warmup partial miss: %d models not in joblib. "
+                "Applied heuristic initialization for: %s",
+                len(missing_models), missing_models,
+            )
+        else:
+            logger.info("Warmup complete: all models initialized from offline priors.")
+
+        # Post-warmup regularization: A += lambda*I (Bayesian shrinkage).
+        # Shrinks theta toward zero at rate O(lambda / (lambda + n_eff)),
+        # preventing mismatched priors from locking in suboptimal selections.
+        reg_eye = np.eye(router.bandit.dim) * router.bandit.init_lambda
+        for model_id in router.bandit.models:
+            router.bandit.A[model_id] += reg_eye
+
+        router.bandit.refresh_inverse_cache()
+        logger.info(
+            "Applied post-warmup regularization (lambda=%.2f) from %s",
+            router.bandit.init_lambda, priors_path,
+        )
+
+    @staticmethod
+    def _inject_tshirt_biases(router: "BanditRouter") -> None:
+        """Inject T-shirt sizing speed-profile biases into warmed-up state.
+
+        Applies human-provided speed profile priors (fast/slow) *on top* of
+        data-driven warmup priors with proper confidence scaling.  To shift
+        theta by ``delta`` in the bias dimension ``i``, the correct update is
+        ``b += delta * A[:, i]`` (the full i-th column of A), which accounts
+        for off-diagonal covariance.
+
+        Args:
+            router: Router instance with bandit and registry already initialized.
+        """
+        reg_config = router.config.registration
+        bias_idx = router.features.bias_index
+
+        for model_id in router.bandit.models:
+            speed = router.registry.get(model_id, {}).get("speed_profile", "balanced")
+
+            if speed == "fast":
+                bias_shift = reg_config.fast_bias
+            elif speed == "slow":
+                bias_shift = reg_config.slow_bias
+            else:
+                bias_shift = 0.0
+
+            if abs(bias_shift) > 0.0:
+                injection_col = bias_shift * router.bandit.A[model_id][:, bias_idx]
+                router.bandit.b[model_id] += injection_col
+                logger.debug(
+                    "  %s (%s): bias_shift=%.2f, ||injection||=%.2f",
+                    model_id, speed, bias_shift, np.linalg.norm(injection_col),
+                )
+
+
+    # -------------------------------------------------------------------------
+    # Constraint Filtering and Logging Helpers
+    # -------------------------------------------------------------------------
+
     def _filter_by_constraints(
         self,
         candidates: List[str],
@@ -1225,8 +1110,9 @@ class BanditRouter:
         Returns:
             Tuple of (selected_model_id, routing_log).
         """
-        # Build features and apply constraints
-        x, prompt_text = self._build_routing_features(prompt)
+        # Extract features and derive prompt text for logging
+        prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
+        x = self._get_context_vector(prompt)
 
         # Budget pacing: compute effective cost ceiling and soft penalties.
         effective_max_cost = max_cost
@@ -1300,8 +1186,10 @@ class BanditRouter:
             cp = cp or {}
             for m, pen in extra_cost_penalties.items():
                 cp[m] = cp.get(m, 0.0) + pen
+        alpha_override = getattr(self._thread_local, "alpha_override", None)
         best_model, best_utility = self.bandit.select_arm(
-            x, candidates=filtered, cost_penalties=cp
+            x, candidates=filtered, cost_penalties=cp,
+            alpha_override=alpha_override,
         )
         
         total_weight = 1.0
@@ -1389,14 +1277,15 @@ class BanditRouter:
             from both in-memory log and persistent store), a warning is
             logged and the call is a no-op.
         """
-        # O(1) lookup via parallel index instead of O(N) linear scan
-        log = self.log_index.get(request_id)
+        # O(1) lookup via parallel index instead of O(N) linear scan.
+        with self._log_lock:
+            log = self.log_index.get(request_id)
         
         # Fallback to context_store for delayed feedback (RLHF)
         if log is None:
             context, model_id = self.context_store.get_context(request_id)
             if context is None:
-                logger.warning(f"Context not found for request_id={request_id}")
+                logger.warning("Context not found for request_id=%s", request_id)
                 return
             log = RoutingLog(
                 request_id=request_id, timestamp_s=time.time(),
@@ -1652,7 +1541,7 @@ class BanditRouter:
                 model_scores.append((model_id, score))
         
         # Sort by score (highest first) and take top-k
-        model_scores.sort(key=lambda x: x[1], reverse=True)
+        model_scores.sort(key=lambda item: item[1], reverse=True)
         top_models = [m[0] for m in model_scores[:top_k]]
         
         # Generate explanations for top-k models using cached coefficients
@@ -1689,24 +1578,24 @@ class BanditRouter:
     def exploit(self) -> Generator[None, None, None]:
         """Context manager for greedy exploitation (frozen policy evaluation).
 
-        Temporarily sets the bandit's ``alpha`` to 0 so that ``route()``
-        selects ``argmax(theta^T x)`` with no UCB exploration bonus.
+        Within this block, ``route()`` selects ``argmax(theta^T x)`` with no
+        UCB exploration bonus (alpha=0).
 
-        State is restored on exit (including after exceptions), analogous to
-        ``torch.no_grad()`` in PyTorch.
+        **Thread safety:** Uses ``threading.local()`` so concurrent threads
+        retain their own alpha.  Unlike the previous implementation that
+        mutated ``bandit.alpha`` (shared across threads), this version is
+        safe for multi-threaded deployments (e.g. FastAPI, gunicorn).
 
         Usage::
 
             with router.exploit():
                 model, log = router.route(x)
         """
-        saved_alpha = self.bandit.alpha
-        self.bandit.alpha = 0.0
-
+        self._thread_local.alpha_override = 0.0
         try:
             yield
         finally:
-            self.bandit.alpha = saved_alpha
+            self._thread_local.alpha_override = None
 
     def _calculate_absolute_penalty(self, cost_per_1k: float) -> float:
         """Stable 0.0-1.0 cost penalty via logarithmic market anchors.
@@ -1721,8 +1610,6 @@ class BanditRouter:
         Returns:
             Penalty in [0.0, 1.0].
         """
-        from pareto_bandit.costs import log_normalize_cost
-
         return log_normalize_cost(
             cost_per_1k,
             floor=self.config.market_cost_floor,

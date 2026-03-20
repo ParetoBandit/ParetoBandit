@@ -494,6 +494,8 @@ class FeatureService:
                 "encoder is not available.  Use encode_prompt() for text encoding."
             )
         if self._encoder is _ENCODER_NOT_LOADED:
+            import os
+            os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
             try:
                 from sentence_transformers import SentenceTransformer
             except ImportError as exc:
@@ -1073,19 +1075,17 @@ class FeatureService:
         }
         
         prompts = []
-        random.seed(42)  # Deterministic for reproducibility
+        rng = random.Random(42)
         
-        # Generate n prompts by sampling templates and filling placeholders
         archetype_keys = list(templates.keys())
         for _ in range(n_samples):
-            archetype = random.choice(archetype_keys)
-            template = random.choice(templates[archetype])
+            archetype = rng.choice(archetype_keys)
+            template = rng.choice(templates[archetype])
             
-            # Fill placeholders
             prompt = template
             for placeholder, values in fill_values.items():
                 if f"{{{placeholder}}}" in prompt:
-                    prompt = prompt.replace(f"{{{placeholder}}}", random.choice(values))
+                    prompt = prompt.replace(f"{{{placeholder}}}", rng.choice(values))
             
             prompts.append(prompt)
         

@@ -453,18 +453,35 @@ class DisjointLinUCBPolicy:
         to ``A = init_lambda * I``, ``b = 0``.  Time counters are zeroed
         so the policy re-explores as if no observations had been seen.
 
-        Thread-safe: acquires all per-model locks and the global lock.
+        Thread-safe: acquires per-model locks then the global lock,
+        matching the lock ordering used by ``update()`` to prevent deadlock.
         """
+        # Snapshot models under global lock to get a stable list.
         with self._lock:
-            for m in self.models:
-                with self.model_locks[m]:
-                    self.A[m] = np.eye(self.dim) * self.init_lambda
-                    self.b[m] = np.zeros(self.dim, dtype=np.float64)
-                    self.A_inv[m] = safe_inv(self.A[m])
+            models_snapshot = list(self.models)
+
+        # Prepare fresh state outside any lock.
+        eye = np.eye(self.dim) * self.init_lambda
+        fresh: Dict[str, tuple] = {}
+        for m in models_snapshot:
+            A_new = eye.copy()
+            b_new = np.zeros(self.dim, dtype=np.float64)
+            A_inv_new = safe_inv(A_new)
+            fresh[m] = (A_new, b_new, A_inv_new)
+
+        # Acquire per-model lock then global lock (same order as update()).
+        for m in models_snapshot:
+            with self.model_locks[m]:
+                with self._lock:
+                    A_new, b_new, A_inv_new = fresh[m]
+                    self.A[m] = A_new
+                    self.b[m] = b_new
+                    self.A_inv[m] = A_inv_new
                     self._refresh_theta(m)
                     self.last_update[m] = 0
                     self.last_played[m] = 0
                     self.regularization_floor[m] = self.init_lambda
+        with self._lock:
             self.t = 0
 
     def __deepcopy__(self, memo):
@@ -593,6 +610,7 @@ class DisjointLinUCBPolicy:
         x: np.ndarray,
         candidates: List[str] | None = None,
         cost_penalties: Dict[str, float] | None = None,
+        alpha_override: float | None = None,
     ) -> Tuple[str, float]:
         """Select the best arm (model) using Upper Confidence Bound (UCB).
 
@@ -624,6 +642,9 @@ class DisjointLinUCBPolicy:
             cost_penalties: Optional per-model cost penalty
                 ``{model_id: lambda * norm_cost}``.  Subtracted from UCB score
                 at selection time.
+            alpha_override: If not None, overrides ``self.alpha`` for this
+                call only.  Used by ``BanditRouter.exploit()`` for thread-safe
+                greedy evaluation without mutating shared state.
 
         Returns:
             Tuple of (best_model_id, best_score).
@@ -637,7 +658,7 @@ class DisjointLinUCBPolicy:
                 m: (self.theta[m], self.A_inv[m], self._effective_staleness(m))
                 for m in candidates
             }
-            alpha = self.alpha
+            alpha = alpha_override if alpha_override is not None else self.alpha
             gamma = self.gamma
 
         ucb_scores: Dict[str, float] = {}
@@ -1262,6 +1283,7 @@ class SlidingWindowLinUCBPolicy:
         x: np.ndarray,
         candidates: List[str] | None = None,
         cost_penalties: Dict[str, float] | None = None,
+        alpha_override: float | None = None,
     ) -> Tuple[str, float]:
         """Select the best arm using Upper Confidence Bound.
 
@@ -1277,6 +1299,8 @@ class SlidingWindowLinUCBPolicy:
             Eligible arms (``None`` → all).
         cost_penalties : dict[str, float] | None
             Per-model additive cost penalty subtracted from UCB score.
+        alpha_override : float | None
+            If not None, overrides ``self.alpha`` for this call only.
 
         Returns
         -------
@@ -1291,7 +1315,7 @@ class SlidingWindowLinUCBPolicy:
             snapshots = {
                 m: (self.theta[m], self.A_inv[m]) for m in candidates
             }
-            alpha = self.alpha
+            alpha = alpha_override if alpha_override is not None else self.alpha
 
         ucb_scores: Dict[str, float] = {}
         for m, (theta_m, A_inv_m) in snapshots.items():
