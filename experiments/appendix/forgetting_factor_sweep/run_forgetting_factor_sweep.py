@@ -18,7 +18,7 @@ Same two-phase reward-swap setup as Experiment 02a:
   - 20 seeds, K=3 portfolio, warmup priors
 
 Alpha and prior_n_effective are taken from ``BEST_K3_HPARAMS``
-(Experiment 04 epsilon-constraint selection) to ensure consistency
+(Experiment 05 epsilon-constraint selection) to ensure consistency
 with the main paper's hyperparameter choices.
 
 Usage::
@@ -101,23 +101,14 @@ CONDITIONS: List[Dict[str, Any]] = [
     {
         "label": f"γ={g}",
         "forgetting_factor": g,
-        "adaptive_gamma": False,
         "warmup": True,
         "alpha": ALPHA_WARMUP,
     }
     for g in GAMMA_VALUES
 ] + [
     {
-        "label": "Adaptive γ",
-        "forgetting_factor": 1.0,
-        "adaptive_gamma": True,
-        "warmup": True,
-        "alpha": ALPHA_WARMUP,
-    },
-    {
         "label": f"SW-UCB (W={SW_UCB_WINDOW})",
         "forgetting_factor": 1.0,
-        "adaptive_gamma": False,
         "warmup": False,
         "alpha": ALPHA_TABULA_RASA,
         "window_size": SW_UCB_WINDOW,
@@ -126,7 +117,6 @@ CONDITIONS: List[Dict[str, Any]] = [
     {
         "label": f"TR γ={g}",
         "forgetting_factor": g,
-        "adaptive_gamma": False,
         "warmup": False,
         "alpha": ALPHA_TABULA_RASA,
     }
@@ -177,7 +167,6 @@ def _create_router(
     feature_dim: int,
     *,
     forgetting_factor: float = 1.0,
-    adaptive_gamma: bool = False,
     warmup: bool = True,
     alpha: float = 0.25,
     window_size: int = 0,
@@ -191,9 +180,7 @@ def _create_router(
     feature_dim : int
         Context vector dimensionality.
     forgetting_factor : float
-        Fixed forgetting factor (ignored when adaptive_gamma=True).
-    adaptive_gamma : bool
-        Enable the dual-EMA adaptive forgetting mechanism.
+        Geometric forgetting factor (1.0 = stationary).
     warmup : bool
         Whether to load warmup priors (False = Tabula Rasa).
     alpha : float
@@ -216,11 +203,8 @@ def _create_router(
         warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
         prior_n_effective=PRIOR_N_EFFECTIVE,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=COST_PENALTY,
         forgetting_factor=forgetting_factor,
-        policy="disjoint",
-        adaptive_gamma=adaptive_gamma,
     )
     if window_size > 0:
         router.bandit = SlidingWindowLinUCBPolicy(
@@ -250,7 +234,7 @@ def _evaluate_condition(
     Parameters
     ----------
     condition : dict
-        Must contain ``label``, ``forgetting_factor``, ``adaptive_gamma``.
+        Must contain ``label``, ``forgetting_factor``.
     phase1, phase2_online : SplitData
         Phase 1 (normal) and Phase 2 (swapped) online data.
     registry : dict
@@ -281,7 +265,6 @@ def _evaluate_condition(
             registry,
             feature_dim,
             forgetting_factor=condition["forgetting_factor"],
-            adaptive_gamma=condition.get("adaptive_gamma", False),
             warmup=condition.get("warmup", True),
             alpha=condition.get("alpha", ALPHA_WARMUP),
             window_size=condition.get("window_size", 0),
@@ -348,7 +331,6 @@ def _evaluate_condition(
     return {
         "label": label,
         "forgetting_factor": condition["forgetting_factor"],
-        "adaptive_gamma": condition.get("adaptive_gamma", False),
         "effective_half_life": half_life,
         "mean_regret": float(total_arr.mean()),
         "se_regret": float(total_arr.std(ddof=1) / np.sqrt(N_SEEDS)),

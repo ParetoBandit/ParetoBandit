@@ -6,7 +6,6 @@ function of the forgetting factor γ, with:
 
 - Total regret on the primary y-axis (line + error bars)
 - Phase 1 and Phase 2 regret as stacked bars
-- The adaptive-γ result shown as a horizontal reference band
 - Effective half-life annotated on the secondary x-axis
 
 Usage::
@@ -45,13 +44,7 @@ def plot_gamma_sweep(data: Dict[str, Any]) -> plt.Figure:
     -------
     plt.Figure
     """
-    fixed_results = [r for r in data["results"] if not r["adaptive_gamma"]]
-    adaptive_result = next(
-        (r for r in data["results"] if r["adaptive_gamma"]),
-        None,
-    )
-
-    fixed_results.sort(key=lambda r: r["forgetting_factor"])
+    fixed_results = sorted(data["results"], key=lambda r: r["forgetting_factor"])
 
     gammas = [r["forgetting_factor"] for r in fixed_results]
     labels = [r["label"] for r in fixed_results]
@@ -89,19 +82,6 @@ def plot_gamma_sweep(data: Dict[str, Any]) -> plt.Figure:
             [tot - se, tot - se],
             [tot + se, tot + se],
             alpha=0.15, color="black", zorder=4,
-        )
-
-    if adaptive_result is not None:
-        adaptive_y = adaptive_result["mean_regret"]
-        adaptive_se = adaptive_result["se_regret"]
-        ax.axhline(
-            adaptive_y, color="#CC79A7", linestyle="--",
-            linewidth=2.2, label=f"Adaptive γ ({adaptive_y:.1f}±{adaptive_se:.1f})",
-            zorder=4,
-        )
-        ax.axhspan(
-            adaptive_y - adaptive_se, adaptive_y + adaptive_se,
-            alpha=0.12, color="#CC79A7", zorder=2,
         )
 
     for i, tot in enumerate(totals):

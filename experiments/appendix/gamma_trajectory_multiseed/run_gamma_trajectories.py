@@ -9,7 +9,7 @@ individual seed traces to demonstrate cross-seed consistency.
 
 Only the adaptive-gamma condition is evaluated (the figure's focus).
 All other hyperparameters (alpha, n_eff) are taken from
-``BEST_K3_HPARAMS`` (Experiment 04 epsilon-constraint selection).
+``BEST_K3_HPARAMS`` (Experiment 05 epsilon-constraint selection).
 
 Protocol
 --------
@@ -177,8 +177,6 @@ def _create_router(
         use_corralling=False,
         cost_penalty=COST_PENALTY,
         forgetting_factor=1.0,
-        policy="disjoint",
-        adaptive_gamma=True,
     )
 
 

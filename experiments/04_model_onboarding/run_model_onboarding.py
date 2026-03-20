@@ -277,9 +277,7 @@ def _create_router(
         use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=FORGETTING_FACTOR,
-        policy="disjoint",
         budget_pacer=budget_pacer,
-        adaptive_gamma=False,
     )
 
 

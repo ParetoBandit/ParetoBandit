@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main paper: Epsilon-Constraint Hyperparameter Selection (Experiment 04).
+"""Main paper: Epsilon-Constraint Hyperparameter Selection (Experiment 05).
 
 Produces the results for Section~\\ref{sec:hparam_sweep} of the main
 paper, which presents the multi-objective framework and key insights.
@@ -128,6 +128,7 @@ VARIANTS: List[str] = ["paretobandit", "tabula_rasa", "sw_ucb"]
 PCA_DIM: int = 25
 GAMMA_VALUES: List[float] = [0.995, 0.997, 0.999, 1.0]
 SEED_OFFSET_VAL: int = 0
+SEED_OFFSET_NONSTAT_VAL: int = 2000
 SEED_OFFSET_TEST: int = 1000
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
@@ -355,11 +356,8 @@ def _simulate_bandit(
         warmup_path=warmup_path if use_warmup else None,
         prior_n_effective=n_eff if use_warmup else 1.0,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=gamma,
-        policy="disjoint",
-        adaptive_gamma=False,
         budget_pacer=None,
     )
     if window_size > 0:
@@ -449,11 +447,8 @@ def _simulate_budget_paced(
         warmup_path=warmup_path if use_warmup else None,
         prior_n_effective=n_eff if use_warmup else 1.0,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=gamma,
-        policy="disjoint",
-        adaptive_gamma=False,
         budget_pacer=pacer,
     )
     if window_size > 0:
@@ -639,11 +634,8 @@ def _simulate_nonstationary_regret(
         warmup_path=warmup_path if use_warmup else None,
         prior_n_effective=n_eff if use_warmup else 1.0,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=gamma,
-        policy="disjoint",
-        adaptive_gamma=False,
         budget_pacer=None,
     )
     if window_size > 0:
@@ -974,7 +966,7 @@ def main() -> None:
             n_eff=n_eff,
             gamma=gamma,
             n_seeds=N_SEEDS,
-            seed_offset=SEED_OFFSET_VAL,
+            seed_offset=SEED_OFFSET_NONSTAT_VAL,
             window_size=ws,
         )
         elapsed = time.time() - t_cfg
@@ -1256,6 +1248,7 @@ def main() -> None:
             ],
             "n_seeds": N_SEEDS,
             "seed_offset_val": SEED_OFFSET_VAL,
+            "seed_offset_nonstat_val": SEED_OFFSET_NONSTAT_VAL,
             "seed_offset_test": SEED_OFFSET_TEST,
         },
         "val_fixed_auc": round(val_fixed_auc, 6),

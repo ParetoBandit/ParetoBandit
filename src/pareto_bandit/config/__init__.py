@@ -147,7 +147,7 @@ DEFAULT_PACER_EMA_ALPHA: float = 0.05
 
 DEFAULT_NONSTAT_COST_PENALTY: float = 0.20
 """Cost penalty weight used across all non-stationary experiments (02, 03,
-appendix forgetting sweep, appendix gamma trajectory, appendix adaptive gamma).
+appendix forgetting sweep, appendix gamma trajectory).
 """
 
 # ==============================================================================
@@ -179,13 +179,13 @@ K3_BUDGET_TARGETS: List[float] = [3.0e-4, 6.62e-4, 1.87e-3]
 K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 
 # ==============================================================================
-# Best K=3 Hyperparameters (Exp 04 epsilon-constraint, 3-split disjoint)
+# Best K=3 Hyperparameters (Exp 05 epsilon-constraint, 3-split disjoint)
 # ==============================================================================
 #
 # Protocol: priors from train.jsonl (offline only) → val.jsonl split into
 # disjoint burn-in (first 1/3) + eval (remaining 2/3) for selection →
 # report on test.jsonl (burn-in on full val, eval on test).
-# Per-seed budget-paced Pareto AUC (10 seeds) with fixed-model endpoints
+# Per-seed budget-paced Pareto AUC (20 seeds) with fixed-model endpoints
 # and cost range anchored to arm cost extremes.
 # Source of truth: experiments/05_hparam_optimization/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
