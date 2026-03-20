@@ -18,6 +18,14 @@ cost_penalty sweep on the K=3 portfolio under stationary conditions.
   ``target_avg_spend_usd``.  The Pareto frontier (mean_reward vs. mean_cost)
   is the common evaluation surface; both methods trace a curve on the same
   axes regardless of their internal parameterisation.
+- *Sweep point selection*:  The pacer's budget targets are log-spaced
+  between the cheapest and most expensive model's empirical mean costs
+  (computed from the online/val split), giving the pacer sweep points
+  that are optimally distributed across its operating range.  The static
+  baseline uses predetermined penalty values.  This asymmetry slightly
+  favours the pacer's Pareto coverage; however, the static baseline's
+  9-point sweep (including aggressive penalties up to 5.0) is dense
+  enough to trace its achievable frontier accurately.
 - *Pacer hyperparameters*:  ``lr`` and ``lambda_max`` are fixed to defaults
   chosen before inspecting results.  A sensitivity analysis over these
   is deferred to Experiment 04.
@@ -28,6 +36,13 @@ For each condition × seed the script:
   3. Evaluates on the holdout/test split (shuffled).
   4. Tracks per-step reward, cost, model selection, lambda_t, and budget
      compliance diagnostics.
+
+**Online evaluation protocol:**  Both methods continue learning during
+the test phase (standard for bandit regret evaluation).  Each prompt
+is routed *before* its reward is observed, so there is no look-ahead;
+the bandit's LinUCB parameters and the pacer's dual variable update
+after every routing decision, including test-phase decisions.  This
+matches the deployment scenario where the router never stops learning.
 
 Produces a JSON results file consumed by ``generate_figure.py``.
 
@@ -87,7 +102,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 WARMUP_HPARAMS: Dict[str, Any] = BEST_K3_HPARAMS
 
-STATIC_COST_PENALTIES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0]
+STATIC_COST_PENALTIES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0, 2.0, 5.0]
 
 PACER_LR = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX = DEFAULT_PACER_LAMBDA_MAX

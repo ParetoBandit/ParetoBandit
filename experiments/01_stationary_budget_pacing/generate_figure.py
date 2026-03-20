@@ -79,18 +79,11 @@ def _pareto_front(
 ) -> tuple[List[float], List[float]]:
     """Return the upper-left Pareto frontier from (cost, reward) points.
 
-    Sorts by cost ascending, then greedily keeps points whose reward
-    exceeds the running maximum.
+    Delegates to :func:`utils.pareto.pareto_hull` for consistency with
+    all other Pareto computations in the experiment suite.
     """
-    pairs = sorted(zip(costs, rewards), key=lambda p: p[0])
-    front_c, front_r = [], []
-    best = -np.inf
-    for c, r in pairs:
-        if r >= best - 1e-12:
-            front_c.append(c)
-            front_r.append(r)
-            best = r
-    return front_c, front_r
+    from utils.pareto import pareto_hull
+    return pareto_hull(costs, rewards)
 
 
 def _dollar_fmt(x: float, _pos: Any = None) -> str:

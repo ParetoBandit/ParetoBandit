@@ -108,6 +108,18 @@ def add_static_commands(cs: CommandSet, results: List[Dict[str, Any]]) -> None:
         cs.reward("StaticHalfReward", s05["mean_reward"], s05.get("se_reward"))
         cs.cost_sci("StaticHalfCost", s05["mean_cost"])
 
+    # λ_s = 2.0
+    s2 = get_static_by_penalty(results, 2.0)
+    if s2:
+        cs.reward("StaticTwoReward", s2["mean_reward"], s2.get("se_reward"))
+        cs.cost_sci("StaticTwoCost", s2["mean_cost"])
+
+    # λ_s = 5.0
+    s5 = get_static_by_penalty(results, 5.0)
+    if s5:
+        cs.reward("StaticFiveReward", s5["mean_reward"], s5.get("se_reward"))
+        cs.cost_sci("StaticFiveCost", s5["mean_cost"])
+
 
 def add_pacer_commands(
     cs: CommandSet,

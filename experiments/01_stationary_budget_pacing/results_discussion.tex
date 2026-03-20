@@ -86,6 +86,11 @@ under stationary conditions.
 The router learns online on the validation split
 ($n{=}1{,}785$; 32~NLP benchmarks) and is evaluated on a held-out
 test split ($n{=}1{,}824$) across 20~seeds.
+Following standard bandit regret evaluation protocol, both methods
+continue learning during the test phase: each prompt is routed
+\emph{before} its reward is observed (no look-ahead), and the
+bandit parameters update after every decision, matching
+the production deployment where the router never stops learning.
 Warmup priors are trained on a disjoint training split
 ($n_{\mathrm{eff}}{=}1{,}000$, $\alpha{=}0.1$, disjoint LinUCB,
 $\gamma{=}0.995$; selected via joint epsilon-constraint tuning,
@@ -104,8 +109,10 @@ systems~\cite{ong2024routellm,wang2025barp}.
 Two conditions are compared:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Static cost penalty:}
-    Fixed $\lambda_s \in \{0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0\}$,
+    Fixed $\lambda_s \in \{0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0, 2.0, 5.0\}$,
     no pacer.  Each value produces one (cost, reward) point.
+    The aggressive values ($\lambda_s \geq 2$) demonstrate the
+    diminishing returns of static penalties at the low-cost end.
   \item \textbf{BudgetPacer (adaptive):}
     Seven log-spaced targets from the cheapest model's empirical mean
     cost (\$0.000029/req) to the most expensive (\$0.0150/req),

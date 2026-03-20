@@ -19,11 +19,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from pareto_bandit.config import BEST_K3_HPARAMS, K3_ARM_ORDER
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+from pareto_bandit.config import (
+    BEST_K3_HPARAMS,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
+    K3_ARM_ORDER,
+)
 
 from helpers import assert_metrics_match, load_reference, save_reference
 
 REFERENCE_NAME = "exp01_seed3000_cp020"
+REFERENCE_NAME_PACER = "exp01_seed3000_pacer"
 SEED = 3000
 
 
@@ -119,6 +126,68 @@ def test_exp01_single_seed_regression(
         reference = load_reference(REFERENCE_NAME)
     except FileNotFoundError:
         path = save_reference(REFERENCE_NAME, actual)
+        pytest.fail(
+            f"Reference generated at {path}.  Review the values and "
+            "re-run to validate.",
+        )
+
+    assert_metrics_match(actual, reference)
+
+
+@pytest.mark.experiment
+@pytest.mark.slow
+def test_exp01_single_seed_pacer_regression(
+    val_split,
+    test_split,
+    model_registry,
+    feature_dim,
+):
+    """Run one seed with BudgetPacer (mid-range target) and compare to pinned reference.
+
+    Exercises the dual-variable update path that the static-penalty test above
+    does not cover.  Uses the median of the empirical per-model mean costs as
+    the budget target so the pacer operates in its binding regime.
+    """
+    import numpy as np
+
+    mod = _import_exp01()
+
+    per_model_means = [
+        float(np.mean(val_split.costs[m])) for m in K3_ARM_ORDER
+    ]
+    target = float(np.median(per_model_means))
+
+    pacer = BudgetPacer(
+        target_avg_spend_usd=target,
+        mode=PacingMode.ADAPTIVE,
+        lr=DEFAULT_PACER_LR,
+        lambda_max=DEFAULT_PACER_LAMBDA_MAX,
+    )
+
+    trial = mod._run_trial(
+        val_split,
+        test_split,
+        model_registry,
+        feature_dim,
+        condition="pacer_regression",
+        budget_pacer=pacer,
+        target_spend=target,
+        seed=SEED,
+    )
+
+    actual: Dict[str, Any] = {
+        "mean_reward": trial.mean_reward,
+        "mean_cost": trial.mean_cost,
+        "cumulative_quality_gap": trial.cumulative_quality_gap,
+        "model_fractions": trial.model_fractions,
+        "final_lambda": trial.final_lambda,
+        "budget_utilization": trial.budget_utilization,
+    }
+
+    try:
+        reference = load_reference(REFERENCE_NAME_PACER)
+    except FileNotFoundError:
+        path = save_reference(REFERENCE_NAME_PACER, actual)
         pytest.fail(
             f"Reference generated at {path}.  Review the values and "
             "re-run to validate.",
