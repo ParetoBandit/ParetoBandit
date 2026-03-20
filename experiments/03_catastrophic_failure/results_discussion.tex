@@ -82,6 +82,81 @@ No other condition achieves this: the Naive and Forgetting Bandits
 shift traffic to expensive models without any mechanism to detect and
 correct the resulting overspend.
 
+\paragraph{Figure traces (Figure~\ref{fig:catastrophic_failure}).}
+The three panels overlay five conditions: ParetoBandit at three
+budget levels (solid coloured), the Naive Bandit and Forgetting
+Bandit at moderate budget (dashed grey and orange), and the
+unconstrained baseline (dash-dot green).  We discuss each
+condition's expected behaviour across all panels.
+
+\emph{Panel~(a): Gemini-Pro selection fraction.}
+Under normal Phase~1 pricing, Gemini-Pro is the most expensive arm
+($\tilde{c}{=}0.67$).  Budget-constrained conditions therefore show
+near-zero Gemini adoption: the static penalty or dual variable
+penalises Gemini's cost.  The unconstrained baseline, free of cost
+pressure, selects Gemini when UCB exploration favours it.
+When Mistral fails in Phase~2, all learning conditions redirect
+traffic---but \emph{not} toward Gemini.  At moderate budget, the
+static penalty ($\lambda_s{=}0.30$) still penalises Gemini
+(whose pricing is unchanged), so the Naive Bandit and Forgetting
+Bandit shift traffic primarily to Llama-8B (the only cheap,
+functioning arm).  ParetoBandit also routes mostly to Llama at
+tight budget, while at loose budget residual Gemini adoption
+increases modestly because $\lambda_t$ is low.
+The unconstrained baseline shifts ${\sim}80\%$ of traffic to
+Gemini---the highest-quality surviving arm---driving the cost
+spike visible in panel~(c).
+In Phase~3, Gemini adoption returns to near Phase~1 levels for all
+constrained conditions.  The unconstrained baseline retains elevated
+Gemini selection because its routing is quality-dominated.
+
+\emph{Panel~(b): Windowed mean reward.}
+Phase~1 reward is stable across conditions (${\sim}0.87$--$0.92$).
+At the Phase~2 boundary, all conditions suffer an initial reward
+trough as residual Mistral traffic returns garbage (reward
+$\to\cfFailureReward$).  The depth of this trough depends on how
+much Mistral traffic remains:
+the \textbf{Fixed Policy} (not shown; see table) suffers the
+deepest drop because it cannot divert any Mistral traffic;
+the \textbf{unconstrained baseline} recovers fastest because it
+freely shifts to high-quality Gemini;
+\textbf{ParetoBandit} recovers within ${\sim}\cfParetoBanditModAdaptSteps$ steps
+but must route to cheaper arms (primarily Llama), producing a lower
+steady-state reward than unconstrained;
+the \textbf{Naive Bandit} (grey dashed) recovers reward comparably
+to ParetoBandit because it also diverts from Mistral, but at
+unchecked cost;
+the \textbf{Forgetting Bandit} (orange dashed) recovers faster
+than the Naive Bandit because geometric forgetting discounts stale
+Phase~1 Mistral rewards, enabling quicker re-routing.
+In Phase~3, all adaptive conditions recover toward Phase~1 reward
+levels.  The Forgetting Bandit recovers slightly faster than the
+Naive Bandit because Phase~2 failure observations fade within the
+${\sim}200$-step effective memory window.
+
+\emph{Panel~(c): Windowed cost.}
+This panel exposes the critical difference.  ParetoBandit's cost
+traces hug the budget target lines throughout all three phases:
+the BudgetPacer continuously adjusts $\lambda_t$ to absorb the
+Phase~2 cost shock (see Phase~2 cost mechanism above).
+The Naive Bandit's cost (grey dashed) explodes in Phase~2: as
+traffic shifts from zero-cost failed Mistral to expensive
+Gemini/Llama, the static penalty cannot tighten, and cost
+rises to $\cfNaiveModPhaseTwoRatio$ of the moderate target.
+Worse, the cost continues to climb in Phase~3
+($\cfNaiveModPhaseThreeRatio$) because infinite memory retains
+the Phase~2 routing mix.
+The Forgetting Bandit's cost (orange dashed) shows a similar
+pattern: already overshooting in Phase~1
+($\cfForgetModPhaseOneRatio$), spiking in Phase~2
+($\cfForgetModPhaseTwoRatio$), and worsening in Phase~3
+($\cfForgetModPhaseThreeRatio$).  Forgetting accelerates
+failure detection but also erases the cost penalty's anchoring
+effect, producing runaway spend toward expensive models.
+The unconstrained baseline (dash-dot green) sits far above all
+constrained conditions, confirming that it operates without any
+cost regard.
+
 \paragraph{Recovery dynamics.}
 When Mistral is restored in Phase~3, geometric forgetting
 ($\gamma{=}\cfGamma$) allows re-discovery via UCB exploration

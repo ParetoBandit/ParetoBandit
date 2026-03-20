@@ -275,7 +275,7 @@ static penalties cannot replicate.
 % ADAPTATION DYNAMICS
 % =====================================================================
 
-\paragraph{Why show the dual variable.}
+\paragraph{Dual-variable mechanism.}
 The dual variable $\lambda_t$ is the central internal signal of the
 BudgetPacer: it acts as a learned, time-varying ``price of cost''
 that modulates the score of every arm at every step
@@ -283,16 +283,15 @@ that modulates the score of every arm at every step
 When $\lambda_t$ is high, the router penalizes expensive arms
 heavily; when $\lambda_t$ drops toward zero, cost is effectively
 ignored and the router optimizes for quality alone.
-Plotting $\lambda_t$ therefore exposes the \emph{mechanism} by
-which the pacer adapts---not just the outcome (routing mix, cost)
-but the control signal that produces it.
-This is important because, unlike static cost penalties, $\lambda_t$
-is never manually tuned: it emerges from the interaction between
-the primal routing decisions and the dual budget feedback.
-Observing its trajectory lets us verify that the adaptation is
-smooth, timely, and regime-appropriate.
+Unlike static cost penalties, $\lambda_t$ is never manually tuned:
+it emerges from the interaction between the primal routing decisions
+and the dual budget feedback.
+Understanding its trajectory is essential for interpreting the
+routing mix (Figure~\ref{fig:exp02_adaptation}a) and budget
+compliance (Figure~\ref{fig:exp02_adaptation}c), because $\lambda_t$
+is the causal mechanism that drives both.
 
-\paragraph{Lambda adaptation (Figure~\ref{fig:exp02_adaptation}a).}
+\paragraph{Lambda adaptation.}
 The dual variable $\lambda_t$ responds directly to the cost EMA,
 and all three budget regimes show the same qualitative Phase~2
 response: $\lambda_t$ decays as post-drop costs fall below target.
@@ -344,7 +343,7 @@ This asymmetry reflects the ramp-up transient---the dual update must
 raise $\lambda_t$ from near-zero through the slack region---and is
 consistent with the finite phase length (608 steps).
 
-\paragraph{Gemini adoption (Figure~\ref{fig:exp02_adaptation}b).}
+\paragraph{Gemini adoption (Figure~\ref{fig:exp02_adaptation}a).}
 All three budget regimes show substantial Gemini adoption in Phase~2.
 At \textbf{tight} budget, Gemini selection surges from
 ${\sim}\bdParetoBanditTightGeminiPhaseOne\%$ to
@@ -379,7 +378,61 @@ $\bdParetoBanditLooseGeminiPhaseThree\%$.
 The symmetric reversal confirms that the routing mix is driven by
 the dual variable rather than by stale arm statistics.
 
-\paragraph{Quality cost decomposition.}
+\paragraph{Baseline traces in Figure~\ref{fig:exp02_adaptation}.}
+The Naive Bandit and Forgetting Bandit at moderate budget are
+overlaid in all three panels to make the cost-control contrast
+visually explicit.
+
+\emph{Panel~(a): Gemini-Pro fraction.}
+Both baselines show near-zero Gemini selection in Phase~1.  Under
+normal pricing, Gemini's high normalized cost ($\tilde{c}{=}0.67$)
+makes it unattractive at any matched static penalty: the
+penalty-adjusted score consistently favours the Mistral/Llama mix.
+After the Phase~2 price drop (Gemini $\tilde{c}\to 0$), both
+baselines shift toward Gemini, but with different speeds.
+The \textbf{Naive Bandit} ($\gamma{=}1.0$) shifts gradually:
+infinite memory retains all Phase~1 observations where Gemini was
+penalised, and the learner must accumulate enough Phase~2 evidence
+to overcome the Phase~1 anchor before Gemini's UCB exceeds
+Mistral's.
+The \textbf{Forgetting Bandit} ($\gamma{=}0.995$) shifts faster:
+geometric forgetting down-weights Phase~1 observations within
+${\sim}200$ steps, so the learner discovers post-drop Gemini more
+quickly.
+In Phase~3, when pricing is restored, both traces decline---but
+the Naive Bandit is slower to revert (Phase~2 pro-Gemini evidence
+is never discounted), while the Forgetting Bandit reverts faster
+as Phase~2 observations fade.
+
+\emph{Panel~(b): Windowed mean reward.}
+All conditions benefit from the Phase~2 price drop because Gemini
+is both cheap and high-quality post-drop.  The Forgetting Bandit
+achieves a higher Phase~2 reward than ParetoBandit at moderate
+budget because it adopts Gemini more aggressively without cost
+constraint.  The Naive Bandit's reward improvement is more modest,
+limited by its slower Gemini uptake.
+However, panel~(c) reveals the cost of this reward: both baselines
+pay for their Gemini adoption with uncontrolled spend.
+
+\emph{Panel~(c): Windowed cost.}
+The critical panel.  In Phase~1, the Forgetting Bandit's cost trace
+sits far above the moderate budget target---already overshooting at
+$\bdForgetModPhaseOneRatio$---because geometric forgetting has eroded
+the cost penalty's anchoring effect.
+The Naive Bandit sits closer to target in Phase~1
+($\bdNaiveModPhaseOneRatio$), anchored by its full history.
+In Phase~2, both traces drop sharply as cheap Gemini traffic
+dominates.
+In Phase~3, when normal pricing resumes, both traces spike above
+target: the Forgetting Bandit reaches $\bdForgetModPhaseThreeRatio$
+and the Naive Bandit $\bdNaiveModPhaseThreeRatio$---neither has a
+feedback mechanism to re-tighten cost control.
+ParetoBandit's traces, by contrast, hug the budget target lines
+throughout all three phases, visually demonstrating the closed-loop
+advantage.
+
+\paragraph{Quality cost decomposition
+(Figure~\ref{fig:exp02_adaptation}b).}
 The unconstrained baseline shares ParetoBandit's $\gamma{=}0.995$ but
 removes the budget pacer, isolating the pacer's quality impact.
 In Phase~2, the unconstrained baseline achieves reward $0.928$,
