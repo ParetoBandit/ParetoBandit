@@ -48,6 +48,7 @@ CONDITION_ORDER: tuple[str, ...] = (
     "Fixed Policy",
     "Naive Bandit",
     "Recalibrated",
+    "Forgetting Bandit",
     "ParetoBandit",
 )
 
@@ -76,6 +77,7 @@ def _short_name(condition: str, budget_label: str) -> str:
         "Fixed Policy": "Fixed",
         "Naive Bandit": "Naive",
         "Recalibrated": "Recal",
+        "Forgetting Bandit": "Forget",
         "ParetoBandit": "ParetoBandit",
     }
     cond_short = cond_map.get(condition, condition.replace(" ", ""))
@@ -209,7 +211,7 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
     lines = [
         r"\begin{table}[t]",
         r"\centering",
-        r"\caption{Budget compliance under cost drift (Experiment~3,",
+        r"\caption{Budget compliance under cost drift (Experiment~2,",
         rf"{data['n_seeds']}~seeds, three phases).  Each cell shows realised average cost",
         r"as a multiple of the budget target ($1.00\times$ = perfect).",
         r"\textbf{Bold} marks values within $5\%$ of $1.00\times$.",
@@ -253,9 +255,10 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
             cell_p3 = _format_ratio_cell(ratios[2], is_paretobandit)
 
             line_end = r"\\[3pt]" if cond_idx == len(CONDITION_ORDER) - 1 else r"\\"
+            n_conds = len(CONDITION_ORDER)
             if cond_idx == 0:
                 row = (
-                    f"\\multirow{{4}}{{*}}{{{budget_display} (${target_str}$)}}"
+                    f"\\multirow{{{n_conds}}}{{*}}{{{budget_display} (${target_str}$)}}"
                     f"  & {cond_display}        & {cell_p1} & {cell_p2} & {cell_p3} {line_end}"
                 )
             else:
@@ -284,7 +287,7 @@ def main() -> None:
     cs = build_command_set(data)
 
     autogen_path = exp_dir / "_autogen.tex"
-    cs.write(autogen_path, header="Exp 03: budget + cost drift (3-phase)")
+    cs.write(autogen_path, header="Exp 02: budget + cost drift (3-phase)")
 
     table_path = exp_dir / "_autogen_table_budget_compliance.tex"
     table_content = generate_budget_compliance_table(data)

@@ -322,6 +322,35 @@ class BanditRouter:
         self._market_cost_floor_log = np.log(self.config.market_cost_floor)
         self._market_cost_range = self.config.cost_range_log
 
+    def update_model_pricing(self, model_id: str, **pricing_fields: float) -> None:
+        """Update pricing for a model and recompute derived cost fields.
+
+        Use this when simulating or reacting to mid-stream price changes
+        (e.g., a provider price drop).  The method updates the specified
+        fields, clears the stale ``blended_cost_per_m``, and re-resolves
+        costs for the entire registry.
+
+        Parameters
+        ----------
+        model_id : str
+            Model identifier that must already exist in ``self.registry``.
+        **pricing_fields : float
+            Pricing fields to set (e.g., ``input_cost_per_m=0.10``,
+            ``output_cost_per_m=0.10``).
+
+        Raises
+        ------
+        KeyError
+            If *model_id* is not in the registry.
+        """
+        if model_id not in self.registry:
+            raise KeyError(f"Model '{model_id}' not in registry")
+        entry = self.registry[model_id]
+        for key, value in pricing_fields.items():
+            entry[key] = value
+        entry.pop("blended_cost_per_m", None)
+        self._resolve_registry_costs()
+
     def _resolve_registry_costs(self) -> None:
         """Ensure every model in ``self.registry`` has a ``blended_cost_per_m``.
 

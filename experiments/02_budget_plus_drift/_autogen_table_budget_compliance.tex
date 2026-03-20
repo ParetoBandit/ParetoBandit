@@ -1,6 +1,6 @@
 \begin{table}[t]
 \centering
-\caption{Budget compliance under cost drift (Experiment~3,
+\caption{Budget compliance under cost drift (Experiment~2,
 20~seeds, three phases).  Each cell shows realised average cost
 as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
@@ -15,17 +15,20 @@ Phase~1 and recovers compliance in Phase~3 after the price is restored.}
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
-\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy        & $0.51\times$ & $0.89\times^{\dagger}$ & $0.51\times$ \\
+\multirow{5}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy        & $0.51\times$ & $0.89\times^{\dagger}$ & $0.51\times$ \\
   & Naive Bandit        & $1.52\times$ & $0.89\times^{\dagger}$ & $1.11\times$ \\
   & Recalibrated        & $1.52\times$ & $\mathbf{0.99\times}$ & $0.66\times$ \\
+  & Forgetting Bandit        & $5.76\times$ & $0.85\times^{\dagger}$ & $6.71\times$ \\
   & \textbf{ParetoBandit}        & $\mathbf{1.00\times}$ & $\mathbf{0.95\times}$ & $\mathbf{1.01\times}$ \\[3pt]
-\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy        & $0.46\times$ & $0.40\times^{\dagger}$ & $0.46\times$ \\
+\multirow{5}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy        & $0.46\times$ & $0.40\times^{\dagger}$ & $0.46\times$ \\
   & Naive Bandit        & $1.16\times$ & $0.40\times^{\dagger}$ & $0.89\times$ \\
   & Recalibrated        & $1.16\times$ & $0.45\times^{\dagger}$ & $\mathbf{0.99\times}$ \\
+  & Forgetting Bandit        & $3.32\times$ & $0.40\times^{\dagger}$ & $4.81\times$ \\
   & \textbf{ParetoBandit}        & $\mathbf{0.99\times}$ & $\mathbf{0.53\times}^{\dagger}$ & $\mathbf{1.02\times}$ \\[3pt]
-\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy        & $2.70\times$ & $0.14\times^{\dagger}$ & $2.70\times$ \\
+\multirow{5}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy        & $2.70\times$ & $0.14\times^{\dagger}$ & $2.70\times$ \\
   & Naive Bandit        & $2.74\times$ & $0.14\times^{\dagger}$ & $2.98\times$ \\
   & Recalibrated        & $2.74\times$ & $0.19\times^{\dagger}$ & $\mathbf{1.02\times}$ \\
+  & Forgetting Bandit        & $3.30\times$ & $0.16\times^{\dagger}$ & $4.02\times$ \\
   & \textbf{ParetoBandit}        & $\mathbf{0.97\times}$ & $\mathbf{0.19\times}^{\dagger}$ & $\mathbf{1.00\times}$ \\[3pt]
 \bottomrule
 \end{tabular}

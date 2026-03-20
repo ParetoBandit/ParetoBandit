@@ -1,7 +1,7 @@
 % Section: Budget Pacing Under Cost Drift
 % Include from paper/sections/results.tex
 
-\subsection{Budget Pacing Under Cost Drift (Figure~\ref{fig:exp03_adaptation})}
+\subsection{Budget Pacing Under Cost Drift (Figure~\ref{fig:exp02_adaptation})}
 \label{sec:budget_drift}
 
 \paragraph{Motivation.}
@@ -90,11 +90,11 @@ adapt \emph{automatically}, without operator intervention, and
 whether it does so while maintaining budget compliance.
 
 \paragraph{Why these baselines.}
-We select four conditions that isolate the contribution of each
+We select five conditions that isolate the contribution of each
 cost-control mechanism.  Each adds exactly one capability:
 
 \noindent
-Per target, four conditions represent increasing levels of
+Per target, five conditions represent increasing levels of
 routing sophistication, each using warmup priors:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (offline):}
@@ -121,6 +121,15 @@ routing sophistication, each using warmup priors:
     static-penalty baseline in our comparison.
     It answers the question: ``if we re-tuned the cost weight
     whenever prices change, would that be enough?''
+  \item \textbf{Forgetting Bandit ($\gamma{=}0.995$):}
+    Same matched static cost penalty as the Naive Bandit, but with
+    the same forgetting factor as ParetoBandit ($\gamma{=}0.995$).
+    No budget pacer.  This is the key ablation: it shares
+    ParetoBandit's learning dynamics (forgetting + priors) but
+    relies on a static cost penalty instead of the primal-dual
+    mechanism.  Any gap between this condition and ParetoBandit
+    is attributable \emph{solely to the BudgetPacer}, not to
+    differences in the forgetting schedule.
   \item \textbf{ParetoBandit (Pacer + $\gamma{=}0.995$):}
     Warmup priors with jointly-tuned forgetting and the
     primal-dual BudgetPacer targeting the dollar budget directly.
@@ -131,7 +140,7 @@ routing sophistication, each using warmup priors:
 \noindent
 An \textbf{unconstrained ParetoBandit} baseline (same $\gamma{=}0.995$,
 same priors, no budget pacer, $\lambda_s{=}0$) is included in
-every panel of Figure~\ref{fig:exp03_adaptation}.
+every panel of Figure~\ref{fig:exp02_adaptation}.
 Because it shares the forgetting factor with ParetoBandit, any gap
 between a constrained curve and this baseline is attributable solely
 to budget enforcement---not to differences in the learning dynamics.
@@ -180,20 +189,23 @@ targeting}:
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
-\multirow{4}{*}{Tight ($\$3.0 \times 10^{-4}$)}
+\multirow{5}{*}{Tight ($\$3.0 \times 10^{-4}$)}
   & Fixed Policy     & \bdFixedTightPhaseOneCost & $\bdFixedTightPhaseOneRatio$ \\
   & Naive Bandit     & \bdNaiveTightPhaseOneCost & $\bdNaiveTightPhaseOneRatio$ \\
   & Recalibrated     & \bdRecalTightPhaseOneCost & $\bdRecalTightPhaseOneRatio$ \\
+  & Forgetting Bandit & \bdForgetTightPhaseOneCost & $\bdForgetTightPhaseOneRatio$ \\
   & \textbf{ParetoBandit} & \textbf{\bdParetoBanditTightPhaseOneCost} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ \\[3pt]
-\multirow{4}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
+\multirow{5}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
   & Fixed Policy     & \bdFixedModPhaseOneCost & $\bdFixedModPhaseOneRatio$ \\
   & Naive Bandit     & \bdNaiveModPhaseOneCost & $\bdNaiveModPhaseOneRatio$ \\
   & Recalibrated     & \bdRecalModPhaseOneCost & $\bdRecalModPhaseOneRatio$ \\
+  & Forgetting Bandit & \bdForgetModPhaseOneCost & $\bdForgetModPhaseOneRatio$ \\
   & \textbf{ParetoBandit} & \textbf{\bdParetoBanditModPhaseOneCost} & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ \\[3pt]
-\multirow{4}{*}{Loose ($\$1.9 \times 10^{-3}$)}
+\multirow{5}{*}{Loose ($\$1.9 \times 10^{-3}$)}
   & Fixed Policy     & \bdFixedLoosePhaseOneCost & $\bdFixedLoosePhaseOneRatio$ \\
   & Naive Bandit     & \bdNaiveLoosePhaseOneCost & $\bdNaiveLoosePhaseOneRatio$ \\
   & Recalibrated     & \bdRecalLoosePhaseOneCost & $\bdRecalLoosePhaseOneRatio$ \\
+  & Forgetting Bandit & \bdForgetLoosePhaseOneCost & $\bdForgetLoosePhaseOneRatio$ \\
   & \textbf{ParetoBandit} & \textbf{\bdParetoBanditLoosePhaseOneCost} & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}$ \\
 \bottomrule
 \end{tabular}
@@ -204,7 +216,7 @@ The \textbf{Ratio} column shows Phase~1 cost as a multiple of the
 budget target.  The Recalibrated Bandit is identical to the Naive
 Bandit in Phase~1 (recalibration occurs at the Phase~2 boundary),
 so their Phase~1 costs match by construction.
-Three failure modes emerge:
+Four failure modes emerge:
 
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy under-spends} ($0.46$--$0.51\times$).
@@ -232,6 +244,24 @@ Three failure modes emerge:
     Any production scenario where budget compliance matters from
     deployment onward---rather than only after a price change---cannot
     be addressed by periodic offline recalibration.
+
+  \item \textbf{Forgetting Bandit is the worst offender}
+    ($\bdForgetLoosePhaseOneRatio$--$\bdForgetTightPhaseOneRatio$).
+    This condition shares ParetoBandit's $\gamma{=}0.995$ but replaces
+    the closed-loop pacer with a static cost penalty.
+    Geometric forgetting actively \emph{undermines} open-loop cost
+    control: as the learner down-weights early observations where the
+    static penalty successfully steered routing toward cheaper arms,
+    it ``forgets'' the penalty's implicit constraint and drifts toward
+    expensive, high-quality models.
+    At tight budget the Forgetting Bandit over-spends by
+    $\bdForgetTightPhaseOneRatio$ in Phase~1---far worse than the
+    Naive Bandit ($\bdNaiveTightPhaseOneRatio$), which retains all
+    history and is therefore partially anchored by early cheap-arm
+    selections.
+    This ablation is critical: it confirms that \textbf{the
+    BudgetPacer---not the forgetting factor---is responsible for
+    ParetoBandit's budget compliance}.
 \end{itemize}
 
 \noindent
@@ -262,7 +292,7 @@ the primal routing decisions and the dual budget feedback.
 Observing its trajectory lets us verify that the adaptation is
 smooth, timely, and regime-appropriate.
 
-\paragraph{Lambda adaptation (Figure~\ref{fig:exp03_adaptation}a).}
+\paragraph{Lambda adaptation (Figure~\ref{fig:exp02_adaptation}a).}
 The dual variable $\lambda_t$ responds directly to the cost EMA,
 and all three budget regimes show the same qualitative Phase~2
 response: $\lambda_t$ decays as post-drop costs fall below target.
@@ -314,7 +344,7 @@ This asymmetry reflects the ramp-up transient---the dual update must
 raise $\lambda_t$ from near-zero through the slack region---and is
 consistent with the finite phase length (608 steps).
 
-\paragraph{Gemini adoption (Figure~\ref{fig:exp03_adaptation}b).}
+\paragraph{Gemini adoption (Figure~\ref{fig:exp02_adaptation}b).}
 All three budget regimes show substantial Gemini adoption in Phase~2.
 At \textbf{tight} budget, Gemini selection surges from
 ${\sim}\bdParetoBanditTightGeminiPhaseOne\%$ to
@@ -371,7 +401,7 @@ $+\bdParetoBanditTightRewardLift$) confirms that the forgetting
 factor enables the router to capitalise on the new cost landscape
 rather than remaining anchored to stale Phase~1 statistics.
 
-\paragraph{Budget compliance (Figure~\ref{fig:exp03_adaptation}c).}
+\paragraph{Budget compliance (Figure~\ref{fig:exp02_adaptation}c).}
 
 \begin{center}
 \small
@@ -490,12 +520,16 @@ of the target---the only condition to achieve compliance in all
 three phases.  By contrast, the Recalibrated Bandit (which
 re-tunes its penalty at the Phase~3 boundary) reaches only
 $\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$ at
-tight and moderate budgets, while the Naive Bandit's Phase~3
-compliance is erratic ($\bdNaiveModPhaseThreeRatio$--$\bdNaiveLoosePhaseThreeRatio$).
+tight and moderate budgets, the Naive Bandit's Phase~3
+compliance is erratic ($\bdNaiveModPhaseThreeRatio$--$\bdNaiveLoosePhaseThreeRatio$),
+and the Forgetting Bandit's compliance is worst of all
+($\bdForgetTightPhaseThreeRatio$--$\bdForgetLoosePhaseThreeRatio$),
+confirming that geometric forgetting without closed-loop cost
+control amplifies---rather than corrects---spending drift.
 
 \begin{table}[t]
 \centering
-\caption{Budget compliance under cost drift (Experiment~3,
+\caption{Budget compliance under cost drift (Experiment~2,
 20~seeds, three phases).  Each cell shows realised average cost
 as a multiple of the budget target ($1.00\times$ = perfect).
 \textbf{Bold} marks values within $5\%$ of $1.00\times$.
@@ -511,20 +545,23 @@ in Phase~3 after pricing is restored.}
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
-\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}
+\multirow{5}{*}{Tight ($\$3.0{\times}10^{-4}$)}
   & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio^{\dagger}$ & $\bdFixedTightPhaseThreeRatio$ \\
   & Naive Bandit        & $\bdNaiveTightPhaseOneRatio$ & $\bdNaiveTightPhaseTwoRatio^{\dagger}$ & $\bdNaiveTightPhaseThreeRatio$ \\
   & Recalibrated        & $\bdRecalTightPhaseOneRatio$ & $\bdRecalTightPhaseTwoRatio$ & $\bdRecalTightPhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetTightPhaseOneRatio$ & $\bdForgetTightPhaseTwoRatio^{\dagger}$ & $\bdForgetTightPhaseThreeRatio$ \\
   & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\mathbf{\bdParetoBanditTightPhaseTwoRatio}$ & $\mathbf{\bdParetoBanditTightPhaseThreeRatio}$ \\[3pt]
-\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
+\multirow{5}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
   & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ & $\bdFixedModPhaseThreeRatio$ \\
   & Naive Bandit        & $\bdNaiveModPhaseOneRatio$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ & $\bdNaiveModPhaseThreeRatio$ \\
   & Recalibrated        & $\bdRecalModPhaseOneRatio$ & $\bdRecalModPhaseTwoRatio^{\dagger}$ & $\bdRecalModPhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetModPhaseOneRatio$ & $\bdForgetModPhaseTwoRatio^{\dagger}$ & $\bdForgetModPhaseThreeRatio$ \\
   & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & $\bdParetoBanditModPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditModPhaseThreeRatio}$ \\[3pt]
-\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}
+\multirow{5}{*}{Loose ($\$1.9{\times}10^{-3}$)}
   & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoosePhaseTwoRatio^{\dagger}$ & $\bdFixedLoosePhaseThreeRatio$ \\
   & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio^{\dagger}$ & $\bdNaiveLoosePhaseThreeRatio$ \\
   & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio^{\dagger}$ & $\bdRecalLoosePhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetLoosePhaseOneRatio$ & $\bdForgetLoosePhaseTwoRatio^{\dagger}$ & $\bdForgetLoosePhaseThreeRatio$ \\
   & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}$ & $\bdParetoBanditLoosePhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditLoosePhaseThreeRatio}$ \\
 \bottomrule
 \end{tabular}
@@ -533,7 +570,8 @@ in Phase~3 after pricing is restored.}
 \paragraph{Synthesis.}
 This experiment demonstrates that
 \textbf{static cost penalties---even with periodic offline
-recalibration---cannot substitute for principled budget pacing}:
+recalibration or geometric forgetting---cannot substitute for
+principled budget pacing}:
 \begin{itemize}[nosep,leftmargin=*]
   \item The \textbf{Fixed Policy} under-spends the budget by
     ${\sim}2\times$ in Phase~1 because it cannot refine its reward
@@ -552,6 +590,24 @@ recalibration---cannot substitute for principled budget pacing}:
     $\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$
     compliance at tight and moderate budgets---better than the Naive
     Bandit but far from target.
+  \item The \textbf{Forgetting Bandit} ($\gamma{=}0.995$, same
+    learning dynamics as ParetoBandit, no pacer) is the critical
+    ablation: it isolates the BudgetPacer's contribution by
+    controlling for the forgetting factor.
+    Forgetting \emph{worsens} budget compliance: at tight budget
+    the Forgetting Bandit over-spends by
+    $\bdForgetTightPhaseOneRatio$ in Phase~1 and
+    $\bdForgetTightPhaseThreeRatio$ in Phase~3---far worse than the
+    Naive Bandit ($\bdNaiveTightPhaseOneRatio$ /
+    $\bdNaiveTightPhaseThreeRatio$), which retains full history.
+    The mechanism is clear: geometric forgetting down-weights
+    earlier observations where the static cost penalty steered
+    routing toward cheap arms; without a feedback loop to
+    re-tighten the penalty, the learner drifts toward expensive,
+    high-quality models.
+    This confirms that \textbf{ParetoBandit's budget compliance
+    is entirely attributable to the primal-dual pacer, not to
+    the forgetting factor.}
   \item \textbf{ParetoBandit} is the only condition that achieves
     precise Phase~1 budget compliance
     ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$ target)
@@ -566,6 +622,11 @@ recalibration---cannot substitute for principled budget pacing}:
     condition achieves compliance in all three phases---this
     demonstrates that the primal-dual mechanism adapts symmetrically
     to both cost decreases and cost increases.
+    The Forgetting Bandit's Phase~3 compliance
+    ($\bdForgetTightPhaseThreeRatio$--$\bdForgetLoosePhaseThreeRatio$)
+    is \emph{worse} than Phase~1, confirming that forgetting
+    without closed-loop cost control produces a runaway spend
+    trajectory.
   \item All three budget regimes demonstrate consistent
     \textbf{dual-variable dynamics} that follow from the Lagrangian
     structure: when post-drop costs fall below target, $\lambda_t$

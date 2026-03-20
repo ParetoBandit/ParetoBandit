@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Experiment 03: Budget Pacing Under Cost Drift (Three-Phase).
+"""Experiment 02: Budget Pacing Under Cost Drift (Three-Phase).
 
 A three-phase experiment that tests whether the BudgetPacer adapts its
 routing behavior in both directions when model pricing changes and is
@@ -37,9 +37,11 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
   serves as a null check: its P1 and P3 metrics should be nearly identical,
   confirming that any P1-vs-P3 gap in other conditions is algorithmic.
 
-Three budget targets (tight, moderate, loose) and four conditions
-(Fixed Policy, Naive Bandit, Recalibrated Bandit, ParetoBandit) plus
-an unconstrained baseline are tested.
+Three budget targets (tight, moderate, loose) and five conditions
+(Fixed Policy, Naive Bandit, Recalibrated Bandit, Forgetting Bandit,
+ParetoBandit) plus an unconstrained baseline are tested.  The
+Forgetting Bandit (γ=0.995, same static penalty, no pacer) isolates
+the BudgetPacer's contribution from the forgetting factor.
 
 Usage:
     python experiments/02_budget_plus_drift/run_budget_cost_drift.py
@@ -404,22 +406,22 @@ def _run_three_phase_trial(
     for t in range(n_total):
         # Phase 2 boundary: apply price drop
         if t == p2_boundary and not registry_phase2_applied:
-            gemini_reg = router.registry[GEMINI_ID]
-            gemini_reg["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
-            gemini_reg["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
-            gemini_reg.pop("blended_cost_per_m", None)
-            router._resolve_registry_costs()
+            router.update_model_pricing(
+                GEMINI_ID,
+                input_cost_per_m=GEMINI_NEW_INPUT_COST,
+                output_cost_per_m=GEMINI_NEW_OUTPUT_COST,
+            )
             registry_phase2_applied = True
             if phase2_cost_penalty is not None:
                 router.cost_penalty = phase2_cost_penalty
 
         # Phase 3 boundary: restore original pricing
         if t == p3_boundary and not registry_phase3_applied:
-            gemini_reg = router.registry[GEMINI_ID]
-            gemini_reg["input_cost_per_m"] = original_gemini_input
-            gemini_reg["output_cost_per_m"] = original_gemini_output
-            gemini_reg.pop("blended_cost_per_m", None)
-            router._resolve_registry_costs()
+            router.update_model_pricing(
+                GEMINI_ID,
+                input_cost_per_m=original_gemini_input,
+                output_cost_per_m=original_gemini_output,
+            )
             registry_phase3_applied = True
             if phase3_cost_penalty is not None:
                 router.cost_penalty = phase3_cost_penalty
@@ -536,11 +538,11 @@ def _calibrate_phase_cp(
         for cp_candidate in candidates:
             router = copy.deepcopy(base_router)
 
-            gemini_reg = router.registry[GEMINI_ID]
-            gemini_reg["input_cost_per_m"] = gemini_input
-            gemini_reg["output_cost_per_m"] = gemini_output
-            gemini_reg.pop("blended_cost_per_m", None)
-            router._resolve_registry_costs()
+            router.update_model_pricing(
+                GEMINI_ID,
+                input_cost_per_m=gemini_input,
+                output_cost_per_m=gemini_output,
+            )
             router.cost_penalty = cp_candidate
 
             costs: List[float] = []
@@ -584,7 +586,7 @@ def _build_conditions(
     recalibrated_phase2_cp: float,
     recalibrated_phase3_cp: float,
 ) -> List[Dict[str, Any]]:
-    """Build four conditions for a given budget target.
+    """Build five conditions for a given budget target.
 
     Parameters
     ----------
@@ -634,6 +636,16 @@ def _build_conditions(
             "online_learn": True,
             "phase2_cost_penalty": recalibrated_phase2_cp,
             "phase3_cost_penalty": recalibrated_phase3_cp,
+        },
+        {
+            "label": f"Forgetting Bandit ({budget_label})",
+            "budget_target": None,
+            "cost_penalty": matched_cp,
+            "warmup": True,
+            "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
+            "online_learn": True,
+            "phase2_cost_penalty": None,
+            "phase3_cost_penalty": None,
         },
         {
             "label": f"ParetoBandit ({budget_label})",
@@ -1023,7 +1035,7 @@ def main() -> None:
     # Summary
     # ------------------------------------------------------------------
     logger.info("\n" + "=" * 120)
-    logger.info("EXPERIMENT 03: BUDGET + COST DRIFT — Summary (3 phases: normal → price-drop → restored)")
+    logger.info("EXPERIMENT 02: BUDGET + COST DRIFT — Summary (3 phases: normal → price-drop → restored)")
     logger.info("=" * 120)
     logger.info(
         "  %-35s  %8s  %8s  %8s  %8s  %8s  %8s",
