@@ -193,48 +193,47 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 # is flat across d in [6, 25], validating this design choice.
 
 BEST_K3_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.10,
+    "alpha": 0.01,
     "pca_components": 25,
-    "prior_n_effective": 1000.0,
-    "forgetting_factor": 0.995,
+    "prior_n_effective": 5000.0,
+    "forgetting_factor": 0.997,
 }
 """Best K=3 ParetoBandit config (warmup priors, PCA-25, disjoint LinUCB).
 
 Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9289, test BP AUC = 0.9248.
-Geometric forgetting (gamma=0.995, effective memory ~200 steps) is jointly
-optimal with moderate exploration (alpha=0.10) and meaningful priors
-(n_eff=1000).  This configuration balances stationary quality with
-non-stationary adaptability; see Experiments 02-04 for the empirical
-justification.
+lowest Phase 2 regret).  Val BP AUC = 0.9265, test BP AUC = 0.9225.
+Moderate forgetting (gamma=0.997, effective memory ~333 steps) with minimal
+exploration (alpha=0.01) and strong priors (n_eff=5000).  Warmup priors
+buffer the AUC loss from forgetting, enabling the epsilon-constraint method
+to trade stationary quality for non-stationary adaptability.
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
     "alpha": 0.10,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 0.995,
+    "forgetting_factor": 1.0,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
 Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9284, test BP AUC = 0.9247.
-Geometric forgetting (gamma=0.995, effective memory ~200 steps) matches the
-ParetoBandit selection; moderate exploration (alpha=0.10) provides sufficient
-re-exploration budget after distribution shifts.
+lowest Phase 2 regret).  Val BP AUC = 0.9260, test BP AUC = 0.9235.
+Without warmup priors, forgetting imposes a steep AUC penalty (~0.9% at
+gamma=0.995) that exceeds the epsilon tolerance.  The constraint forces
+gamma=1.0 (no forgetting), revealing that cold-start variants cannot
+simultaneously maintain stationary quality and non-stationary adaptability.
 """
 
 BEST_K3_SW_UCB_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.10,
+    "alpha": 0.05,
     "pca_components": 25,
-    "window_size": 100,
+    "window_size": 50,
 }
 """Best K=3 SW-UCB config (cold start, PCA-25, sliding-window forgetting).
 
 Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9290, test BP AUC = 0.9257.
-A window of W=100 retains fewer observations than ParetoBandit's effective
-memory (~200 steps at gamma=0.995), enabling faster adaptation at the cost
-of slightly higher variance.  Moderate exploration (alpha=0.10) matches the
-other two variants, confirming that the original alpha=0.01 was suboptimal.
+lowest Phase 2 regret).  Val BP AUC = 0.9265, test BP AUC = 0.9224.
+A small window (W=50) with low exploration (alpha=0.05) is the only SW-UCB
+configuration that survives the AUC constraint (2/30 feasible).  Like
+Tabula Rasa, the cold-start penalty restricts the viable parameter space.
 """

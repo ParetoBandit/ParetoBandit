@@ -8,20 +8,13 @@ Run from the experiment directory: python generate_latex.py
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import Any, Dict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
-from utils.latex_gen import CommandSet, fmt_int, fmt_num
-
-
-def load_json(path: Path) -> Dict[str, Any]:
-    """Load JSON file and return parsed data."""
-    with open(path, "r") as f:
-        return json.load(f)
+from utils.latex_gen import CommandSet, fmt_int, fmt_num, load_json
 
 
 def format_alpha(val: float) -> str:
@@ -94,6 +87,7 @@ def build_command_set(
     bg_auc = auc_only.get("paretobandit", {})
     if bg_auc:
         cs.raw("AUCOnlyAlpha", format_alpha(bg_auc["alpha"]))
+        cs.raw("AUCOnlyNeff", fmt_int(bg_auc["n_eff"]))
         cs.raw("AUCOnlyGamma", format_gamma(bg_auc["gamma"]))
         cs.num("AUCOnlyAUC", bg_auc["val_pareto_auc"], digits=3)
 
@@ -148,7 +142,7 @@ def main() -> None:
     cs = build_command_set(sweep_data, best_data)
 
     autogen_path = exp_dir / "_autogen.tex"
-    cs.write(autogen_path, header="Exp 04: hyperparameter optimization")
+    cs.write(autogen_path, header="Exp 05: hyperparameter optimization")
 
 
 if __name__ == "__main__":

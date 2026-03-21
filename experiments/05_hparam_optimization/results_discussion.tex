@@ -11,7 +11,7 @@ $\gamma$---interact non-trivially with the stationarity of the
 deployment environment.
 Standard cross-validation assumes i.i.d.\ data and optimises a
 single stationary metric (e.g., reward or Pareto AUC), which
-systematically selects $\gamma{=}1.0$ (infinite memory)
+selects near-stationary forgetting ($\gamma \geq 0.999$)
 because forgetting \emph{always} hurts stationary performance.
 However, $\gamma{=}1.0$ fails catastrophically under distribution
 shift: as shown in Section~\ref{sec:nonstationarity}, the
@@ -64,8 +64,8 @@ $\gamma \in \{0.995, 0.997, 0.999, 1.0\}$):
   \item \textbf{Primary objective} (efficiency):
     Maximise budget-paced Pareto AUC on the validation split, computed
     by sweeping log-spaced budget targets with the BudgetPacer
-    active, building per-seed Pareto frontiers (with fixed-model
-    endpoints), and averaging AUC across 10~seeds.
+    active, building per-seed Pareto frontiers from the bandit's
+    empirical routing points, and averaging AUC across 20~seeds.
 
   \item \textbf{Constraint}:
     Retain only configurations whose budget-paced AUC is within
@@ -77,7 +77,7 @@ $\gamma \in \{0.995, 0.997, 0.999, 1.0\}$):
     cumulative regret under a synthetic reward/cost swap
     (identical to the non-stationary protocol of
     Section~\ref{sec:reward_shift}, averaged over all
-    $\binom{K}{2}$ arm-pair swaps and 10~seeds).
+    $\binom{K}{2}$ arm-pair swaps and 20~seeds).
 \end{enumerate}
 %
 This formulation gives budget-pacing \emph{priority}---no
@@ -97,15 +97,19 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
 \centering
 \caption{%
   \textbf{$\epsilon$-constraint hyperparameter selection.}
-  AUC-only optimisation selects $\gamma{=}1.0$ for both
-  variants---the maximally stationary configuration that
-  maximises AUC but degrades adaptation under reward shift.
-  The $\epsilon$-constraint method ($\epsilon{=}0.25\%$) trades
-  ${<}0.3\%$ AUC for lower Phase-2 regret by selecting
-  $\gamma{=}0.995$ for both variants.
-  Metrics: budget-paced Pareto AUC (val, 10~seeds) and Phase-2
+  AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting)
+  for both variants.
+  For ParetoBandit, the $\epsilon$-constraint method
+  ($\epsilon{=}0.25\%$) trades ${\sim}0.2\%$ AUC for moderate
+  forgetting ($\gamma{=}0.997$) and stronger priors
+  ($\neff{=}5{,}000$), lowering Phase-2 regret.
+  For Tabula Rasa, the constraint \emph{binds}: forgetting
+  imposes too steep an AUC penalty without priors, so the
+  selected configuration coincides with the AUC-only winner.
+  Feasible sets: 32/144 (ParetoBandit), 4/24 (Tabula Rasa).
+  Metrics: budget-paced Pareto AUC (val, 20~seeds) and Phase-2
   cumulative regret (val, averaged over all arm-pair swaps,
-  10~seeds).%
+  20~seeds).%
 }
 \label{tab:hparam_selection}
 \small
@@ -117,24 +121,32 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
   & \textbf{BP AUC} & \textbf{P2 Regret} \\
 \midrule
 \multirow{2}{*}{ParetoBandit}
-  & AUC-only     & $0.01$ & $1000$ & $1.000$ & $0.931$ & --- \\
-  & $\epsilon$-constr.\ & $0.10$ & $1000$ & $0.995$ & $0.929$ & $\mathbf{48.4}$ \\[3pt]
+  & AUC-only     & $0.01$ & $1$       & $1.000$ & $0.929$ & --- \\
+  & $\epsilon$-constr.\ & $0.01$ & $5{,}000$ & $0.997$ & $0.926$ & $\mathbf{48.2}$ \\[3pt]
 \multirow{2}{*}{Tabula Rasa}
-  & AUC-only     & $1.00$ & ---    & $1.000$ & $0.929$ & --- \\
-  & $\epsilon$-constr.\ & $0.10$ & ---    & $0.995$ & $0.928$ & $\mathbf{49.0}$ \\
+  & AUC-only     & $0.10$ & ---    & $1.000$ & $0.926$ & --- \\
+  & $\epsilon$-constr.\ & $0.10$ & ---    & $1.000$ & $0.926$ & $54.4$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-AUC-only optimisation selects $\gamma{=}1.0$ for \emph{both}
-variants---the maximally stationary configuration.
-Section~\ref{sec:nonstationarity} shows that $\gamma{=}1.0$
-is catastrophic under drift.
-The $\epsilon$-constraint method instead selects $\gamma{=}0.995$
-for both variants (effective memory ${\sim}200$ steps),
-trading ${<}0.3\%$ budget-paced AUC ($0.931 \to 0.929$ and
-$0.929 \to 0.928$) for substantially lower Phase-2 regret
-($48.4$ and $49.0$).
+AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
+both variants.
+Section~\ref{sec:nonstationarity} shows that no forgetting is
+catastrophic under drift.
+For ParetoBandit, the $\epsilon$-constraint method selects
+$\gamma{=}0.997$ (effective memory ${\sim}333$ steps) with strong
+priors ($\neff{=}5{,}000$), trading ${\sim}0.2\%$ budget-paced
+AUC ($0.929 \to 0.926$) for substantially lower Phase-2 regret
+($48.2$).
+For Tabula Rasa, however, the constraint \emph{binds}: without
+warmup priors, forgetting imposes a steep AUC penalty
+(${\sim}0.9\%$ at $\gamma{=}0.995$) that exceeds the
+$\epsilon{=}0.25\%$ tolerance, leaving only 4 of 24
+configurations feasible---all with $\gamma \geq 0.997$.
+The AUC-only winner ($\alpha{=}0.10$, $\gamma{=}1.0$) happens
+to have the lowest regret among those four, so the
+$\epsilon$-constraint method returns the same configuration.
 On the held-out test split the selected configurations achieve
 Pareto AUC of $\hpParetoBanditTestAUC$ (ParetoBandit) and
 $\hpTabulaTestAUC$ (Tabula Rasa) versus $\hpFixedTestAUC$ for the
@@ -142,33 +154,37 @@ fixed-model envelope---deltas of $\hpParetoBanditTestDelta\%$ and
 $\hpTabulaTestDelta\%$, both within one standard deviation of
 seed variance ($\pm\hpParetoBanditTestStd$ and
 $\pm\hpTabulaTestStd$).
-The val-selected hyperparameters thus transfer to test without
-statistically significant degradation, consistent with the
-$\epsilon$-constraint design which permits up to $0.25\%$ AUC
-sacrifice in exchange for adaptation capability.
 
-Two additional patterns merit attention:
+Two patterns merit attention:
 
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Exploration increases for ParetoBandit.}
-    AUC-only selects $\alpha{=}0.01$ (minimal exploration),
-    while $\epsilon$-constraint selects $\alpha{=}0.1$
-    ($10\times$ higher).
-    Under non-stationarity, the router must re-explore arms whose
-    quality may have changed; a higher exploration coefficient
-    accelerates this re-discovery.
-    This is consistent with findings in the online hyperparameter
-    tuning literature~\cite{kang2024cdt}, which observes that the
-    optimal $\alpha$ is non-stationary itself.
+  \item \textbf{Warmup priors are a prerequisite for the
+    adaptability trade-off.}
+    Only ParetoBandit can afford forgetting: its warmup priors
+    provide a high-quality initial policy that buffers the AUC loss
+    from discounting stale evidence, keeping the AUC within the
+    $\epsilon$ tolerance.
+    Without priors, Tabula Rasa must learn a 25-dimensional policy
+    from scratch under budget pacing; any forgetting discards
+    hard-won observations and precipitates a disproportionate AUC
+    drop.
+    This asymmetry demonstrates that the supervised initialization
+    (Section~\ref{sec:warmup}) is not merely a convenience but a
+    \emph{structural enabler} of the non-stationary adaptation
+    mechanism.
 
-  \item \textbf{Tabula Rasa exploration decreases.}
-    AUC-only selects $\alpha{=}1.0$ for Tabula Rasa, while
-    $\epsilon$-constraint selects $\alpha{=}0.10$ ($10\times$ lower).
-    Without forgetting ($\gamma{=}1.0$), the cold-start variant
-    needs aggressive exploration to overcome zero priors;
-    with forgetting ($\gamma{=}0.995$), the bounded effective
-    sample size naturally re-explores as stale evidence
-    is discounted, reducing the need for explicit exploration.
+  \item \textbf{The epsilon-constraint method shifts prior strength,
+    not exploration.}
+    For ParetoBandit, AUC-only selects $\neff{=}1$ (minimal priors)
+    with $\gamma{=}1.0$; the $\epsilon$-constraint method raises
+    $\neff$ to $5{,}000$ (the grid maximum) while introducing
+    forgetting ($\gamma{=}0.997$).
+    Stronger priors compensate for the AUC cost of forgetting,
+    enabling the router to ``afford'' discounting stale evidence.
+    Exploration ($\alpha{=}0.01$) remains unchanged,
+    suggesting that the prior/forgetting axis---not the
+    exploration axis---is the operative lever for balancing
+    efficiency and adaptability in the warm-start regime.
 \end{enumerate}
 %
 \noindent
@@ -201,13 +217,18 @@ that explicitly encodes the dual requirements of
 production routing---efficiency under stationarity and resilience
 under drift.
 The empirical result that single-objective tuning
-\emph{systematically} selects $\gamma{=}1.0$ for both variants
-is itself a cautionary finding: any practitioner deploying a
-non-stationary bandit router who tunes via standard
-cross-validation will converge on no forgetting at all,
+selects $\gamma{=}1.0$ (no forgetting) for \emph{all} variants
+is itself a cautionary finding: any practitioner who tunes via
+standard cross-validation will converge on no forgetting,
 offering zero protection against distribution shift---despite
 this being the failure mode they are most likely to encounter
 in production.
+More strikingly, for cold-start variants the
+$\epsilon$-constraint method \emph{also} selects $\gamma{=}1.0$
+because forgetting is too costly without prior knowledge.
+This reveals a fundamental asymmetry: the multi-objective
+protocol can only unlock non-stationary robustness when warmup
+priors cushion the stationary cost of forgetting.
 
 \paragraph{Practical implications.}
 From a deployment perspective, the protocol eliminates the need to

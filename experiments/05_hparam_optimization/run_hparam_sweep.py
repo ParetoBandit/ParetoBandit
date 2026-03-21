@@ -497,7 +497,7 @@ def compute_budget_paced_pareto_auc(
       1. Burn in on ``burnin_data`` (disjoint from both priors and eval),
          then evaluate for every budget target with BudgetPacer.
       2. Build the Pareto frontier from the resulting (mean_cost,
-         mean_reward) points *plus* fixed-model endpoints.
+         mean_reward) points.
       3. Compute the seed's Pareto AUC.
 
     Cost range is anchored to fixed-model extremes (same as the
@@ -551,8 +551,8 @@ def compute_budget_paced_pareto_auc(
             bt_reward_accum[bt].append(mr)
             bt_cost_accum[bt].append(mc)
 
-        all_c = seed_costs + fixed_costs
-        all_r = seed_rewards + fixed_rewards
+        all_c = seed_costs
+        all_r = seed_rewards
         per_seed_auc.append(pareto_auc(all_c, all_r, cost_lo, cost_hi))
 
     mean_auc = float(np.mean(per_seed_auc))
