@@ -314,12 +314,21 @@ class FeatureService:
         )
         if _using_nondefault_encoder and pca_path is None:
             raise ValueError(
-                f"Custom encoder '{encoder_model}' requires a PCA artifact "
-                f"trained with the same model.  Generate one with:\n\n"
-                f"    from pareto_bandit.calibration import train_pca\n"
-                f"    pca = train_pca(prompts, encoder_model='{encoder_model}', "
-                f"output_path='my_pca.joblib')\n\n"
-                f"Then pass pca_path='my_pca.joblib' to FeatureService."
+                f"Encoder '{encoder_model}' differs from the default "
+                f"('{DEFAULT_CONTEXT_MODEL}'), so the shipped PCA artifact "
+                f"is incompatible.  Options:\n\n"
+                f"  1. Generate a matching PCA artifact:\n"
+                f"       from pareto_bandit import train_pca\n"
+                f"       train_pca(prompts, encoder_model='{encoder_model}', "
+                f"output_path='my_pca.joblib')\n"
+                f"     Then pass pca_path='my_pca.joblib'.\n\n"
+                f"  2. Use a custom_encoder callable instead (skips PCA):\n"
+                f"       fs = FeatureService(\n"
+                f"           custom_encoder=my_encode_fn,\n"
+                f"           embedding_dim=768,\n"
+                f"       )\n"
+                f"       router = BanditRouter(registry, feature_service=fs)\n\n"
+                f"  3. Pass pca_path to an artifact you have already generated."
             )
 
         if pca_path is None and custom_encoder is None:

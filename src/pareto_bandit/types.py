@@ -113,9 +113,31 @@ class RouterConfig:
 
     # Cost Normalization Anchors (Logarithmic Market Width)
     market_cost_floor: float = 0.0001
-    """$/1k tokens — captures cheapest model."""
-    market_cost_ceiling: float = 0.04
-    """$/1k tokens — slightly above most expensive."""
+    """$/1k tokens — captures cheapest model (e.g. Llama-3.1-8B hosted)."""
+    market_cost_ceiling: float = 0.10
+    """$/1k tokens — covers expensive reasoning models (o1-pro, Opus).
+
+    If your most expensive model exceeds this ceiling, increase it so that
+    ``log_normalize_cost`` does not saturate at 1.0 for all premium models.
+    """
+
+    # ---------------------------------------------------------------------------
+    # Reward Range (configurable for custom reward signals)
+    # ---------------------------------------------------------------------------
+    reward_min: float = 0.0
+    """Lower bound for reward clamping.  Rewards below this are clipped.
+    Default 0.0 matches the [0, 1] convention used by LLM-as-judge scores
+    and binary thumbs-up/down signals."""
+
+    reward_max: float = 1.0
+    """Upper bound for reward clamping.  Rewards above this are clipped.
+    Default 1.0.  Set to a different range (e.g. ``reward_min=-1,
+    reward_max=1``) for preference-pair rewards or other scales.
+
+    The LinUCB policy learns in whatever scale you provide; just be
+    consistent between ``process_feedback`` / ``update`` calls and any
+    offline priors you load.
+    """
 
     # ---------------------------------------------------------------------------
     # RESILIENCE DEFAULTS: Pessimistic Fallbacks (Fail-Operational Design)

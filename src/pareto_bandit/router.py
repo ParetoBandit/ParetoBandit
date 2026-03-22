@@ -108,8 +108,38 @@ from pareto_bandit.costs import log_normalize_cost
 # ---------------------------------------------------------------------------
 
 class BanditRouter:
-    """
-    The primary entry point for routing.
+    """Contextual bandit router that learns to select the best LLM per request.
+
+    **Quick start with your own models** (no warmup priors needed)::
+
+        registry = {
+            "gpt-4o": {
+                "input_cost_per_m": 2.50,
+                "output_cost_per_m": 10.00,
+                "time_to_first_token_seconds": 0.8,
+            },
+            "llama-3-70b": {
+                "input_cost_per_m": 0.50,
+                "output_cost_per_m": 0.50,
+                "time_to_first_token_seconds": 0.3,
+            },
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        model, log = router.route("Explain quantum computing")
+        # ... get response, compute reward ...
+        router.process_feedback(log.request_id, reward=0.85)
+
+    The router supports three initialization modes via ``create()``:
+
+    - ``priors="warmup"`` (default): Loads shipped offline priors for the
+      K=3 paper portfolio.  Models not in the prior file receive heuristic
+      initialization automatically.
+    - ``priors="none"``: Clean cold-start with identity covariance.
+      Recommended when using entirely custom model portfolios.
+    - ``priors="path/to/custom.joblib"``: Load your own offline priors
+      generated via :func:`pareto_bandit.generate_warmup_priors`.
+
+    See :meth:`create` and :meth:`register_model` for full details.
     """
     def __init__(
         self,
@@ -119,10 +149,10 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         pca_path: Path | str | None = None,
         # Bandit parameters (The Brain)
-        alpha: float = 0.1,
+        alpha: float = 0.01,
         embedding_dim: int = 384,
         init_lambda: float = 1.0,
-        forgetting_factor: float = 1.0,
+        forgetting_factor: float = 0.997,
         context_store: ContextStore | None = None,
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
@@ -435,6 +465,8 @@ class BanditRouter:
         cost_usd: float | None = None,
         latency_s: float | None = None,
         blended_cost_per_m: float | None = None,
+        input_cost_per_m: float | None = None,
+        output_cost_per_m: float | None = None,
         initial_weights: Optional[Dict[str, float]] = None,
         strict_kwargs: Optional[bool] = None,
         **kwargs,
@@ -458,37 +490,49 @@ class BanditRouter:
         **Power User Override:**
             initial_weights={"complexity_score": 3.0} for explicit control
 
+        **Cost specification** (in order of precedence):
+
+        1. ``input_cost_per_m`` + ``output_cost_per_m`` — exact per-token
+           costs; blended cost is derived as their average.
+        2. ``blended_cost_per_m`` — single blended rate; input/output are
+           back-derived assuming the 3:1 output/input heuristic.
+        3. ``cost_usd`` (legacy) — treated as input cost; output is estimated
+           as ``cost_usd * 3``.
+        4. None — falls back to ``RegistrationConfig.default_cost_per_1m``.
+
         Args:
             model_id: Unique model identifier
             speed: T-shirt speed profile ("fast", "balanced", "slow")
-            cost_usd: Input cost in $/M tokens (used with output estimate to
-                     derive blended cost if ``blended_cost_per_m`` is not set)
+            cost_usd: *Deprecated — prefer* ``input_cost_per_m`` *+*
+                ``output_cost_per_m``.  Input cost in $/M tokens.
             latency_s: Time-to-first-token in seconds
             blended_cost_per_m: Weighted average cost in $/M tokens for hard
-                              constraint filtering.  If not provided, derived
-                              from ``cost_usd`` (treated as input, output
-                              estimated as 3x input).
+                constraint filtering.
+            input_cost_per_m: Input token cost in $/M tokens.
+            output_cost_per_m: Output token cost in $/M tokens.
             initial_weights: Explicit feature weight overrides for power users
             strict_kwargs: Override for unknown-kwarg validation. If ``None``,
-                          uses ``RouterConfig.registration_strict_kwargs``.
+                uses ``RouterConfig.registration_strict_kwargs``.
             **kwargs: Accepted for backward compatibility (e.g. ``capabilities``).
-                     Unknown keys raise ``TypeError`` in strict mode.
+                Unknown keys raise ``TypeError`` in strict mode.
 
         Raises:
-            MissingCostError: If ``blended_cost_per_m`` is None and ``cost_usd``
-                            is also None (cannot derive a blended cost).
+            MissingCostError: If no cost information can be resolved.
+            ValueError: If only one of ``input_cost_per_m`` /
+                ``output_cost_per_m`` is provided without the other.
 
         Examples:
-            # Local Llama: Fast and general purpose
+            # Exact pricing (preferred)
+            router.register_model("gpt-4o", speed="balanced",
+                                  input_cost_per_m=2.50,
+                                  output_cost_per_m=10.00)
+
+            # Single blended rate
             router.register_model("llama-3-8b", speed="fast",
                                   blended_cost_per_m=0.2)
 
-            # Specialist: Slow but great at coding
-            router.register_model("deepseek-coder", speed="slow",
-                                  blended_cost_per_m=2.0)
-
-            # Mystery model: No information
-            router.register_model("model-x", speed="balanced", blended_cost_per_m=5.0)
+            # Mystery model: No information (pessimistic defaults)
+            router.register_model("model-x")
         """
         strict_mode = (
             self.config.registration_strict_kwargs
@@ -507,6 +551,17 @@ class BanditRouter:
                 "Ignoring unknown register_model kwargs for '%s': %s",
                 model_id,
                 unknown_list,
+            )
+
+        # Validate: both or neither of input/output must be provided
+        _have_input = input_cost_per_m is not None
+        _have_output = output_cost_per_m is not None
+        if _have_input != _have_output:
+            raise ValueError(
+                f"register_model('{model_id}'): provide both input_cost_per_m "
+                f"and output_cost_per_m, or neither. "
+                f"Got input_cost_per_m={input_cost_per_m}, "
+                f"output_cost_per_m={output_cost_per_m}."
             )
 
         capabilities = kwargs.get("capabilities", [])
@@ -547,28 +602,40 @@ class BanditRouter:
             self.bandit.b[model_id] = new_b
             self.bandit._refresh_theta(model_id)
 
-        # 4. Build and publish registry entry
-        if cost_usd is None:
-            cost_usd = reg_config.default_cost_per_1m
+        # 4. Resolve costs (precedence: explicit pair > blended > cost_usd > default)
         if latency_s is None:
             latency_s = reg_config.default_latency_s
 
-        if blended_cost_per_m is None:
-            # cost_usd is guaranteed non-None here: the block above falls back to
-            # reg_config.default_cost_per_1m when not explicitly provided.
-            output_est = cost_usd * _OUTPUT_COST_MULTIPLIER
-            blended_cost_per_m = (cost_usd + output_est) / 2.0
+        if input_cost_per_m is not None and output_cost_per_m is not None:
+            # Tier 1: Exact per-token costs provided
+            final_input = float(input_cost_per_m)
+            final_output = float(output_cost_per_m)
+            final_blended = (final_input + final_output) / 2.0
+        elif blended_cost_per_m is not None:
+            # Tier 2: Single blended rate; back-derive input/output
+            final_blended = float(blended_cost_per_m)
+            if cost_usd is not None:
+                final_input = float(cost_usd)
+                final_output = 2.0 * final_blended - final_input
+            else:
+                final_input = final_blended
+                final_output = final_blended
+        elif cost_usd is not None:
+            # Tier 3: Legacy cost_usd (input price); estimate output via multiplier
+            final_input = float(cost_usd)
+            final_output = final_input * _OUTPUT_COST_MULTIPLIER
+            final_blended = (final_input + final_output) / 2.0
         else:
-            # Back-derive output cost from the caller-provided blended cost
-            # so that _get_normalized_cost (which reads input/output from the
-            # registry) stays consistent with the blended figure.
-            output_est = 2.0 * blended_cost_per_m - cost_usd
+            # Tier 4: No cost info — pessimistic defaults
+            final_input = reg_config.default_cost_per_1m
+            final_output = reg_config.default_cost_per_1m * _OUTPUT_COST_MULTIPLIER
+            final_blended = (final_input + final_output) / 2.0
 
         registry_entry = {
-            "cost_per_1m_tokens": cost_usd,
-            "input_cost_per_m": cost_usd,
-            "output_cost_per_m": output_est,
-            "blended_cost_per_m": float(blended_cost_per_m),
+            "cost_per_1m_tokens": final_input,
+            "input_cost_per_m": final_input,
+            "output_cost_per_m": final_output,
+            "blended_cost_per_m": final_blended,
             "time_to_first_token_seconds": latency_s,
             "median_latency_s": latency_s,
             "capabilities": capabilities,
@@ -582,8 +649,10 @@ class BanditRouter:
             boost_summary += "..."
         
         logger.info(
-            "Registered %s | Bias: %.1f | Boosts: %s | Cost: $%.2f/1M | Latency: %.2fs",
-            model_id, bias, boost_summary, cost_usd, latency_s,
+            "Registered %s | Bias: %.1f | Boosts: %s | "
+            "Cost: in=$%.2f out=$%.2f blend=$%.2f /1M | Latency: %.2fs",
+            model_id, bias, boost_summary,
+            final_input, final_output, final_blended, latency_s,
         )
 
 
@@ -655,37 +724,89 @@ class BanditRouter:
         model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         priors: str = "warmup",
-        prior_n_effective: float = 5000.0,
+        prior_n_effective: float = 1163.9,
         **kwargs
     ) -> "BanditRouter":
         """Factory method to create a fully initialized router.
 
         Args:
-            model_registry: Dictionary of model configurations.
+            model_registry: Dictionary of model configurations.  Each key is
+                a model ID; each value is a dict with cost/latency metadata.
+                Required keys: ``input_cost_per_m``, ``output_cost_per_m``.
+                Optional: ``time_to_first_token_seconds``, ``speed_profile``,
+                ``initial_quality``, ``capabilities``.
+                When ``None``, loads the shipped K=3 paper portfolio from
+                ``config/models.json``.
             context_model: Model to use for embedding generation.
-            priors: Prior initialization strategy. ``"warmup"`` (default) loads
-                the shipped K=3 warmup priors for an informed cold-start.
-                ``"none"`` starts with standard LinUCB cold-start (identity
-                covariance + quality-based bias).  Pass a path to a ``.joblib``
-                file to load custom priors generated via
-                :func:`generate_warmup_priors`.
+            priors: Prior initialization strategy:
+
+                - ``"warmup"`` (default): Loads shipped K=3 warmup priors.
+                  Models not in the prior file receive heuristic
+                  initialization based on ``initial_quality``.
+                - ``"none"``: Clean cold-start (identity covariance +
+                  quality-based bias).  Recommended for custom portfolios.
+                - ``"path/to/priors.joblib"``: Load custom offline priors
+                  generated via :func:`generate_warmup_priors`.
+
             prior_n_effective: Effective sample count attributed to loaded
                 priors.  Controls how strongly the offline priors are trusted:
-                ``scale = prior_n_effective / n_warmup`` where ``n_warmup`` is
-                the number of samples the priors were trained on.  Default
-                5000.0 with 80k warmup data gives scale = 6.25%, meaning the
-                priors contribute as if they were 5000 real observations.
+                ``scale = prior_n_effective / A[-1,-1]`` where ``A[-1,-1]``
+                is the total precision mass in the bias direction of the
+                warmup precision matrix (``lambda + sum(weights)``), not the
+                raw number of training samples.  Default 1163.9, derived from
+                the T_adapt-constrained Pareto knee-point selection
+                (Experiment 05) with ``gamma=0.997`` and ``T_adapt=500``
+                via ``n_eff = (gamma^{-T_adapt} - 1) / (1 - gamma)``.
                 Higher values trust priors more (slower adaptation); lower
                 values trust them less (faster override by online evidence).
-            **kwargs: Additional arguments passed to __init__ or prior loading
+            **kwargs: Additional arguments passed to __init__ or prior loading.
+                Notable: ``config`` (:class:`RouterConfig`) to customise
+                reward range, cost anchors, etc.
         
         Returns:
             Fully initialized BanditRouter instance
+
+        Examples:
+            Bring your own models (BYOM) — cold-start with custom fleet::
+
+                registry = {
+                    "gpt-4o": {
+                        "input_cost_per_m": 2.50,
+                        "output_cost_per_m": 10.00,
+                        "time_to_first_token_seconds": 0.8,
+                    },
+                    "claude-sonnet": {
+                        "input_cost_per_m": 3.00,
+                        "output_cost_per_m": 15.00,
+                    },
+                }
+                router = BanditRouter.create(
+                    model_registry=registry,
+                    priors="none",
+                )
+
+            Custom reward scale (e.g. preference pairs in [-1, 1])::
+
+                from pareto_bandit.types import RouterConfig
+                router = BanditRouter.create(
+                    model_registry=registry,
+                    priors="none",
+                    config=RouterConfig(reward_min=-1.0, reward_max=1.0),
+                )
+
+            Add a model at runtime::
+
+                router.register_model(
+                    "deepseek-v3",
+                    input_cost_per_m=0.27,
+                    output_cost_per_m=1.10,
+                    speed="fast",
+                )
         """
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
         warmup_path = kwargs.pop("warmup_path", None)
-        alpha = kwargs.pop("alpha", 0.1)
+        alpha = kwargs.pop("alpha", 0.01)
 
         # 2a. Guard: custom encoder with explicit warmup priors path
         #     must have matching priors (encoder embedding space must match)
@@ -864,14 +985,39 @@ class BanditRouter:
                 exc,
             )
 
-        n_warmup = max(warmup_data.get("n", 20000), 1)
-        scale = prior_n_effective / float(n_warmup)
-
         missing_models: List[str] = []
         for model_id in router.bandit.models:
             if (model_id in warmup_data.get("A", {})) and (model_id in warmup_data.get("b", {})):
-                router.bandit.A[model_id] = warmup_data["A"][model_id] * scale
-                router.bandit.b[model_id] = warmup_data["b"][model_id] * scale
+                # A[-1,-1] gives the total precision weight in the bias
+                # direction: lambda + sum(w_i) (regularization + data).
+                # This is a proxy for prior strength, not a raw observation
+                # count — it automatically accounts for importance weights
+                # and regularization used during warmup generation.
+                warmup_eff_strength = warmup_data["A"][model_id][-1, -1]
+                scale = prior_n_effective / max(float(warmup_eff_strength), 1.0)
+                
+                # Original matrices
+                A_orig = warmup_data["A"][model_id]
+                b_orig = warmup_data["b"][model_id]
+                
+                # Scale data covariance and target
+                A_scaled = A_orig * scale
+                b_scaled = b_orig * scale
+                
+                # True prior mean (from offline data)
+                # We use safe_inv because A might be singular if n_warmup is small or data is degenerate
+                try:
+                    theta_true = np.linalg.solve(A_orig, b_orig)
+                except np.linalg.LinAlgError:
+                    theta_true = np.linalg.pinv(A_orig) @ b_orig
+                    
+                router.bandit.A[model_id] = A_scaled
+                
+                # We will add init_lambda * I to A below, so we must add init_lambda * theta_true to b 
+                # to prevent Bayesian shrinkage from pulling the mean to zero.
+                # The user expects the confidence (n_eff) to change the variance, not the mean!
+                router.bandit.b[model_id] = b_scaled + router.bandit.init_lambda * theta_true
+                
             else:
                 missing_models.append(model_id)
                 A_h, b_h = get_heuristic_prior(
@@ -892,9 +1038,11 @@ class BanditRouter:
         else:
             logger.info("Warmup complete: all models initialized from offline priors.")
 
-        # Post-warmup regularization: A += lambda*I (Bayesian shrinkage).
-        # Shrinks theta toward zero at rate O(lambda / (lambda + n_eff)),
-        # preventing mismatched priors from locking in suboptimal selections.
+        # Post-warmup regularization: A += lambda*I
+        # We explicitly preserve the prior mean (via b_scaled + lambda * theta_true)
+        # to ensure that quality differences remain properly scaled against the cost penalty.
+        # Adding lambda*I guarantees numerical stability and smooths out extreme
+        # singular values from degenerate offline data.
         reg_eye = np.eye(router.bandit.dim) * router.bandit.init_lambda
         for model_id in router.bandit.models:
             router.bandit.A[model_id] += reg_eye
@@ -1303,7 +1451,15 @@ class BanditRouter:
             )
             return
 
-        reward = float(np.clip(reward, 0.0, 1.0))
+        r_min, r_max = self.config.reward_min, self.config.reward_max
+        if reward < r_min or reward > r_max:
+            logger.warning(
+                "process_feedback: reward=%.4f outside [%.4f, %.4f] for "
+                "request_id=%s; clamping. Adjust RouterConfig.reward_min / "
+                "reward_max if your reward scale differs.",
+                reward, r_min, r_max, request_id,
+            )
+        reward = float(np.clip(reward, r_min, r_max))
 
         # Use cached context vector to avoid re-encoding
         x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
@@ -1373,8 +1529,15 @@ class BanditRouter:
             ValueError: If *context* is an ``np.ndarray`` with wrong dimension.
             KeyError: If *model_id* is not registered.
         """
-        # Clamp reward to [0, 1] (same as process_feedback)
-        reward = float(np.clip(reward, 0.0, 1.0))
+        r_min, r_max = self.config.reward_min, self.config.reward_max
+        if reward < r_min or reward > r_max:
+            logger.warning(
+                "update: reward=%.4f outside [%.4f, %.4f] for model '%s'; "
+                "clamping. Adjust RouterConfig.reward_min / reward_max if "
+                "your reward scale differs.",
+                reward, r_min, r_max, model_id,
+            )
+        reward = float(np.clip(reward, r_min, r_max))
         x = self.features.extract_features(context)
         
         self.bandit.update(model_id, x, reward, weight, advance_time=advance_time)
@@ -1422,36 +1585,28 @@ class BanditRouter:
         context_vector: np.ndarray,
         threshold: float = 0.01
     ) -> Dict[str, float]:
-        """
-        Feature Contribution Analysis: Why did LinUCB pick this model?
-        
-        This method provides mathematical transparency into the router's decision-making
-        by decomposing the model's score into individual feature contributions.
-        
-        **Mathematical Foundation:**
-        LinUCB computes a score as: score = θ^T · x
-        This method shows which features in x contributed most to the final score.
-        
-        **Use Case:**
-        Instead of guessing "Did it pick Claude Opus because of code?", you can inspect:
-        ```
-        explanation = router.explain_decision("claude-opus", context_vector)
-        # Returns: {"PCA_0": +0.8, "PCA_5": +0.3, "bias": +0.2}
-        ```
-        
-        This tells you that PCA_0 (which might capture "mathematical reasoning") 
-        contributed +0.8 to the score, making Opus the winner.
-        
+        """Decompose the **mean reward prediction** ``θ^T x`` into per-feature contributions.
+
+        **Scope — mean prediction only.**  This method decomposes ``θ^T x``
+        (the learned quality estimate).  It does **not** include the UCB
+        exploration bonus (``α √(x^T A⁻¹ x)``) or cost penalties
+        (``−λ_c · norm_cost``), both of which affect the actual routing
+        decision via ``select_arm()``.  During cold start or high-exploration
+        phases, the exploration bonus may dominate the mean; during
+        budget-constrained routing, the cost penalty may be decisive.  Use
+        this method to understand the *learned quality signal* for a model,
+        not to fully explain why a particular model was selected.
+
         Args:
-            model_id: The model to explain (e.g., "claude-opus")
-            context_vector: The context vector for the prompt
-            threshold: Minimum absolute contribution to include (default: 0.01)
-                      Filters out noise from features with negligible impact
-        
+            model_id: The model to explain (e.g., "claude-opus").
+            context_vector: The context vector for the prompt.
+            threshold: Minimum absolute contribution to include (default 0.01).
+                Filters out noise from features with negligible impact.
+
         Returns:
-            Dictionary mapping feature names to their contribution scores
-            Sorted by absolute contribution (highest to lowest)
-            
+            Dictionary mapping feature names to their contribution scores,
+            sorted by absolute contribution (highest to lowest).
+
         Example:
             >>> prompt = "Solve the integral of x^2"
             >>> x = router._get_context_vector(prompt)
@@ -1494,31 +1649,25 @@ class BanditRouter:
         top_k: int = 3,
         threshold: float = 0.01
     ) -> Dict[str, Dict[str, float]]:
-        """
-        Explain why the router selected a model over alternatives.
-        
-        This is a convenience wrapper that:
-        1. Extracts the context vector from the prompt
-        2. Shows feature contributions for the top-k models
-        
-        **Use Case:**
-        Instead of manually extracting context vectors, you can directly:
-        ```
-        explanations = router.explain_selection(
-            "Prove Fermat's Last Theorem", 
-            top_k=3
-        )
-        # Returns feature contributions for top 3 models
-        ```
-        
+        """Decompose the mean reward prediction for the top-*k* models by ``θ^T x``.
+
+        Convenience wrapper that extracts the context vector and returns
+        per-feature contributions for the models with the highest learned
+        quality estimate.
+
+        **Scope — mean prediction only.**  Rankings are by ``θ^T x`` (the
+        learned quality estimate) and do not reflect the exploration bonus
+        or cost penalties used by the actual routing decision.  See
+        :meth:`explain_decision` for details on what is and is not included.
+
         Args:
-            prompt: Input prompt text
-            top_k: Number of top models to explain (default: 3)
-            threshold: Minimum absolute contribution to include (default: 0.01)
-        
+            prompt: Input prompt text.
+            top_k: Number of top models to explain (default 3).
+            threshold: Minimum absolute contribution to include (default 0.01).
+
         Returns:
-            Dictionary mapping model_id -> feature contributions
-            
+            Dictionary mapping model_id to per-feature contribution dict.
+
         Example:
             >>> explanations = router.explain_selection("Debug this Python code", top_k=2)
             >>> for model, features in explanations.items():
@@ -1627,6 +1776,14 @@ class BanditRouter:
         corrects any residual mis-pricing through online learning.  Exact
         per-request costs are handled by ``_estimate_cost`` and the
         ``BudgetPacer`` feedback loop.
+
+        Note: the 1:1 blend here differs from the 1:3 ratio used in
+        ``_estimate_cost()`` (via ``_OUTPUT_COST_MULTIPLIER``) and in
+        ``register_model()``.  The distinction is intentional — this method
+        produces a model-level *ranking signal* for the UCB penalty, while
+        ``_estimate_cost()`` produces a per-request *dollar amount* for
+        budget tracking.  See ``_OUTPUT_COST_MULTIPLIER`` in
+        ``pareto_bandit.policy`` for the output-cost heuristic.
         """
         m_data = self.registry.get(model_id, {})
         default_cost = self.config.default_missing_cost_per_m

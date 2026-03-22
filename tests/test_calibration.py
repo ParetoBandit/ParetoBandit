@@ -133,7 +133,7 @@ class TestGenerateWarmupPriors:
 
 class TestFeatureServiceGuard:
     def test_blocks_custom_encoder_without_pca(self):
-        with pytest.raises(ValueError, match="Custom encoder"):
+        with pytest.raises(ValueError, match="differs from the default"):
             FeatureService(encoder_model="sentence-transformers/all-mpnet-base-v2")
 
     def test_allows_default_encoder_without_pca(self):
@@ -158,7 +158,7 @@ class TestRouterCreateGuard:
     def test_blocks_custom_encoder_without_warmup(self):
         from pareto_bandit.router import BanditRouter
 
-        with pytest.raises(ValueError, match="Custom encoder"):
+        with pytest.raises(ValueError, match="differs from the default"):
             BanditRouter.create(
                 context_model="sentence-transformers/all-mpnet-base-v2",
             )
