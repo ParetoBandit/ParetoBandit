@@ -22,8 +22,8 @@ We ask: \emph{can a budget-paced router provide a continuous
 specify a dollar budget and automatically achieve it?}
 
 \paragraph{Algorithm.}
-We formulate the problem as a \emph{Contextual Bandit with Knapsacks}
-(CBwK)~\cite{agrawal2014bandits} and solve it via a primal-dual scheme.
+We adapt the Primal-Dual decomposition of the \emph{Contextual Bandit with Knapsacks}
+(CBwK) framework~\cite{agrawal2014bandits} to a per-request rate constraint suited for open-ended deployment (see Section~\ref{sec:problem} for the theoretical status of this adaptation).
 At each step $t$ the router selects model $a_t$ by maximising a
 budget-augmented utility:
 \begin{equation}
