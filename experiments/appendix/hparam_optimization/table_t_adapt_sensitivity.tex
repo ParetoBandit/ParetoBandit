@@ -1,0 +1,35 @@
+\begin{table}[htbp]
+\centering
+\caption{%
+  \textbf{$T_{\text{adapt}}$ sensitivity analysis.}
+  The Pareto knee-point selection is repeated for
+  $T_{\text{adapt}} \in \{250, 500, 1000\}$, re-deriving
+  $n_{\text{eff}}$ from $\gamma$ at each value.
+  The selected $\alpha$ is perfectly invariant.
+  $\gamma$ shifts by exactly one grid step per doubling of
+  $T_{\text{adapt}}$ (a monotonic consequence of the coupling
+  formula, not a random fluctuation).
+  Budget-paced Pareto AUC is effectively flat across all
+  three horizons ($\Delta < 0.05\%$).
+  Grid: $\alpha \in \{0.01, \ldots, 1.0\}$
+  ($\hpGridAlpha$~values) $\times$
+  $\gamma \in \{0.994, \ldots, 1.0\}$ ($\hpGridGamma$~values),
+  val split, 20~seeds.%
+}
+\label{tab:t_adapt_sensitivity}
+\small
+\begin{tabular}{@{}rccccr@{}}
+\toprule
+$\boldsymbol{T_{\text{adapt}}}$
+  & $\boldsymbol{\alpha}$
+  & $\boldsymbol{\gamma}$
+  & $\boldsymbol{n_{\text{eff}}}$
+  & \textbf{BP AUC\,$\uparrow$}
+  & \textbf{P2 Reward\,$\uparrow$} \\
+\midrule
+$250$  & $\hpSens250Alpha$  & $\hpSens250Gamma$  & $\hpSens250Neff$  & $\hpSens250AUC$  & $\hpSens250P2$ \\
+$500$  & $\hpSens500Alpha$  & $\hpSens500Gamma$  & $\hpSens500Neff$  & $\hpSens500AUC$  & $\hpSens500P2$ \\
+$1000$ & $\hpSens1000Alpha$ & $\hpSens1000Gamma$ & $\hpSens1000Neff$ & $\hpSens1000AUC$ & $\hpSens1000P2$ \\
+\bottomrule
+\end{tabular}
+\end{table}

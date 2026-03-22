@@ -1,0 +1,250 @@
+{
+  "experiment": "t_adapt_sensitivity",
+  "description": "Pareto knee-point selection repeated for multiple T_adapt values to verify stability.  Uses the same grid, data splits, seeds, and evaluation protocol as run_hparam_sweep.py.",
+  "t_adapt_values": [
+    250,
+    500,
+    1000
+  ],
+  "grid": {
+    "alpha_values": [
+      0.01,
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      1.0
+    ],
+    "gamma_values": [
+      0.994,
+      0.995,
+      0.996,
+      0.997,
+      0.998,
+      0.999,
+      1.0
+    ],
+    "pca_dim": 25,
+    "n_seeds": 20
+  },
+  "val_fixed_auc": 0.929248,
+  "per_t_adapt": {
+    "250": {
+      "t_adapt": 250,
+      "alpha": 0.01,
+      "n_eff": 324.8,
+      "gamma": 0.998,
+      "val_pareto_auc": 0.927732,
+      "val_phase2_reward": 0.6966,
+      "pareto_frontier": [
+        {
+          "alpha": 0.05,
+          "n_eff": 583.7,
+          "gamma": 0.994,
+          "val_pareto_auc": 0.920232,
+          "phase2_reward": 0.7347,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 583.7,
+          "gamma": 0.994,
+          "val_pareto_auc": 0.925359,
+          "phase2_reward": 0.7328,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 430.9,
+          "gamma": 0.996,
+          "val_pareto_auc": 0.925674,
+          "phase2_reward": 0.721,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 373.1,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.926006,
+          "phase2_reward": 0.716,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 324.8,
+          "gamma": 0.998,
+          "val_pareto_auc": 0.927732,
+          "phase2_reward": 0.6966,
+          "is_knee": true
+        },
+        {
+          "alpha": 0.05,
+          "n_eff": 284.2,
+          "gamma": 0.999,
+          "val_pareto_auc": 0.927791,
+          "phase2_reward": 0.6591,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 250.0,
+          "gamma": 1.0,
+          "val_pareto_auc": 0.928168,
+          "phase2_reward": 0.5782,
+          "is_knee": false
+        }
+      ]
+    },
+    "500": {
+      "t_adapt": 500,
+      "alpha": 0.01,
+      "n_eff": 1163.9,
+      "gamma": 0.997,
+      "val_pareto_auc": 0.92725,
+      "val_phase2_reward": 0.7167,
+      "pareto_frontier": [
+        {
+          "alpha": 0.05,
+          "n_eff": 3211.3,
+          "gamma": 0.994,
+          "val_pareto_auc": 0.921393,
+          "phase2_reward": 0.7376,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 3211.3,
+          "gamma": 0.994,
+          "val_pareto_auc": 0.925352,
+          "phase2_reward": 0.7363,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 2251.8,
+          "gamma": 0.995,
+          "val_pareto_auc": 0.925418,
+          "phase2_reward": 0.7339,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 1604.7,
+          "gamma": 0.996,
+          "val_pareto_auc": 0.926358,
+          "phase2_reward": 0.7262,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 1163.9,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.92725,
+          "phase2_reward": 0.7167,
+          "is_knee": true
+        },
+        {
+          "alpha": 0.05,
+          "n_eff": 860.5,
+          "gamma": 0.998,
+          "val_pareto_auc": 0.927306,
+          "phase2_reward": 0.6925,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 860.5,
+          "gamma": 0.998,
+          "val_pareto_auc": 0.927966,
+          "phase2_reward": 0.6916,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 500.0,
+          "gamma": 1.0,
+          "val_pareto_auc": 0.927986,
+          "phase2_reward": 0.5571,
+          "is_knee": false
+        }
+      ]
+    },
+    "1000": {
+      "t_adapt": 1000,
+      "alpha": 0.01,
+      "n_eff": 13509.5,
+      "gamma": 0.996,
+      "val_pareto_auc": 0.927418,
+      "val_phase2_reward": 0.7181,
+      "pareto_frontier": [
+        {
+          "alpha": 0.01,
+          "n_eff": 68297.7,
+          "gamma": 0.994,
+          "val_pareto_auc": 0.926452,
+          "phase2_reward": 0.736,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 29857.3,
+          "gamma": 0.995,
+          "val_pareto_auc": 0.927094,
+          "phase2_reward": 0.7298,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 13509.5,
+          "gamma": 0.996,
+          "val_pareto_auc": 0.927418,
+          "phase2_reward": 0.7181,
+          "is_knee": true
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 6392.1,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.92744,
+          "phase2_reward": 0.7016,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 3201.9,
+          "gamma": 0.998,
+          "val_pareto_auc": 0.927866,
+          "phase2_reward": 0.6728,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.1,
+          "n_eff": 1719.6,
+          "gamma": 0.999,
+          "val_pareto_auc": 0.927972,
+          "phase2_reward": 0.6157,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 1719.6,
+          "gamma": 0.999,
+          "val_pareto_auc": 0.928018,
+          "phase2_reward": 0.6129,
+          "is_knee": false
+        }
+      ]
+    }
+  },
+  "stability": {
+    "selected_gammas": {
+      "250": 0.998,
+      "500": 0.997,
+      "1000": 0.996
+    },
+    "gamma_range": 0.002,
+    "gamma_grid_step": 0.001,
+    "within_one_grid_step": false
+  },
+  "stable": false
+}

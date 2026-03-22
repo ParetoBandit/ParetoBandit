@@ -1,0 +1,59 @@
+% Discussion: T_adapt Sensitivity Analysis
+% Include from appendix section
+
+\paragraph{$T_{\text{adapt}}$ sensitivity.}
+A natural concern is whether the selected configuration is sensitive
+to the anchor value $T_{\text{adapt}}{=}\hpTAdapt$, which was set to
+approximately match the catastrophic-failure phase length.
+To test robustness, we repeat the full Pareto knee-point selection
+for $T_{\text{adapt}} \in \{250, 500, 1000\}$---a $4{\times}$ range
+that spans reaction times from rapid detection to conservative
+adaptation (Table~\ref{tab:t_adapt_sensitivity}).
+
+Three observations support robustness:
+%
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{$\alpha$ is perfectly stable.}
+    The exploration coefficient is $\hpSens500Alpha$ at every
+    $T_{\text{adapt}}$.  This is expected: $\alpha$ governs the
+    exploration--exploitation balance, which is orthogonal to the
+    adaptation horizon.  The coupling formula only links
+    $n_{\text{eff}}$ and $\gamma$; $\alpha$ is selected independently
+    on the Pareto surface.
+
+  \item \textbf{$\gamma$ varies monotonically by one grid step per
+    $T_{\text{adapt}}$ doubling.}
+    The selected forgetting factors---$\hpSens250Gamma$ ($T{=}250$),
+    $\hpSens500Gamma$ ($T{=}500$), $\hpSens1000Gamma$
+    ($T{=}1000$)---form a smooth, monotonically decreasing sequence.
+    This is a direct consequence of the coupling formula:
+    a larger $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$ for
+    the same $\gamma$, creating a heavier prior that needs more
+    aggressive forgetting (lower $\gamma$) to maintain the same
+    balance between stationary AUC and failure resilience on the
+    Pareto frontier.
+    The shift is mechanical, not stochastic---adjacent
+    $T_{\text{adapt}}$ values select adjacent $\gamma$ values.
+
+  \item \textbf{Budget-paced Pareto AUC is effectively flat.}
+    The AUC varies by less than $0.05\%$ across the three horizons
+    ($\hpSens250AUC$ to $\hpSens500AUC$), well within the standard
+    error of the mean across seeds.
+    This means the stationary routing quality of the selected
+    configuration is insensitive to $T_{\text{adapt}}$ within a
+    $4{\times}$ range.
+    Phase-2 reward increases modestly with $T_{\text{adapt}}$
+    ($\hpSens250P2 \to \hpSens500P2 \to \hpSens1000P2$), reflecting
+    the heavier prior's advantage in the post-failure recovery period.
+\end{enumerate}
+%
+In summary, the Pareto knee-point selection identifies essentially
+the same operating region of the $(\alpha, \gamma)$ space regardless
+of the exact $T_{\text{adapt}}$ anchor.
+The variation in $\gamma$ is a predictable, one-grid-step mechanical
+shift rather than an erratic sensitivity, and the routing quality
+(AUC) is invariant.
+A practitioner can set $T_{\text{adapt}}$ based on their operational
+requirement---shortest acceptable reaction time to a model
+degradation---without risk of materially altering the selected
+configuration.

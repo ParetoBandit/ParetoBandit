@@ -1,0 +1,354 @@
+{
+  "selection_method": "pareto_knee_point",
+  "t_adapt": 500,
+  "best_per_variant_val": {
+    "paretobandit": {
+      "alpha": 0.01,
+      "n_eff": 1163.9,
+      "gamma": 0.997,
+      "pca_dim": 25,
+      "val_pareto_auc": 0.92725,
+      "val_phase2_reward": 0.7167,
+      "selection_method": "pareto_knee_point",
+      "t_adapt": 500
+    },
+    "tabula_rasa": {
+      "alpha": 0.01,
+      "n_eff": 1.0,
+      "gamma": 0.994,
+      "pca_dim": 25,
+      "val_pareto_auc": 0.922891,
+      "val_phase2_reward": 0.7308,
+      "selection_method": "pareto_knee_point",
+      "t_adapt": 500
+    }
+  },
+  "auc_only_best": {
+    "paretobandit": {
+      "alpha": 0.01,
+      "n_eff": 500.0,
+      "gamma": 1.0,
+      "val_pareto_auc": 0.927986
+    },
+    "tabula_rasa": {
+      "alpha": 0.05,
+      "n_eff": 1.0,
+      "gamma": 1.0,
+      "val_pareto_auc": 0.926795
+    }
+  },
+  "pareto_frontiers": {
+    "paretobandit": [
+      {
+        "alpha": 0.05,
+        "n_eff": 3211.3,
+        "gamma": 0.994,
+        "val_pareto_auc": 0.921393,
+        "phase2_reward": 0.7376,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 3211.3,
+        "gamma": 0.994,
+        "val_pareto_auc": 0.925352,
+        "phase2_reward": 0.7363,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 2251.8,
+        "gamma": 0.995,
+        "val_pareto_auc": 0.925418,
+        "phase2_reward": 0.7339,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 1604.7,
+        "gamma": 0.996,
+        "val_pareto_auc": 0.926358,
+        "phase2_reward": 0.7262,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 1163.9,
+        "gamma": 0.997,
+        "val_pareto_auc": 0.92725,
+        "phase2_reward": 0.7167,
+        "is_knee": true
+      },
+      {
+        "alpha": 0.05,
+        "n_eff": 860.5,
+        "gamma": 0.998,
+        "val_pareto_auc": 0.927306,
+        "phase2_reward": 0.6925,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 860.5,
+        "gamma": 0.998,
+        "val_pareto_auc": 0.927966,
+        "phase2_reward": 0.6916,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 500.0,
+        "gamma": 1.0,
+        "val_pareto_auc": 0.927986,
+        "phase2_reward": 0.5571,
+        "is_knee": false
+      }
+    ],
+    "tabula_rasa": [
+      {
+        "alpha": 0.1,
+        "n_eff": 1.0,
+        "gamma": 0.994,
+        "val_pareto_auc": 0.916493,
+        "phase2_reward": 0.7339,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.01,
+        "n_eff": 1.0,
+        "gamma": 0.994,
+        "val_pareto_auc": 0.922891,
+        "phase2_reward": 0.7308,
+        "is_knee": true
+      },
+      {
+        "alpha": 0.05,
+        "n_eff": 1.0,
+        "gamma": 0.998,
+        "val_pareto_auc": 0.924473,
+        "phase2_reward": 0.6759,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.05,
+        "n_eff": 1.0,
+        "gamma": 0.999,
+        "val_pareto_auc": 0.924985,
+        "phase2_reward": 0.5719,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.1,
+        "n_eff": 1.0,
+        "gamma": 1.0,
+        "val_pareto_auc": 0.926111,
+        "phase2_reward": 0.5265,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.05,
+        "n_eff": 1.0,
+        "gamma": 1.0,
+        "val_pareto_auc": 0.926795,
+        "phase2_reward": 0.4701,
+        "is_knee": false
+      }
+    ]
+  },
+  "cross_arm_validation": {
+    "paretobandit": {
+      "Llama-8B": {
+        "phase2_reward": 0.7893,
+        "phase2_reward_std": 0.1373,
+        "phase1_reward_diag": 0.8951
+      },
+      "Mistral-Large": {
+        "phase2_reward": 0.7167,
+        "phase2_reward_std": 0.0172,
+        "phase1_reward_diag": 0.8951
+      },
+      "Gemini-Pro": {
+        "phase2_reward": 0.8915,
+        "phase2_reward_std": 0.0097,
+        "phase1_reward_diag": 0.8951
+      }
+    },
+    "tabula_rasa": {
+      "Llama-8B": {
+        "phase2_reward": 0.752,
+        "phase2_reward_std": 0.1621,
+        "phase1_reward_diag": 0.8548
+      },
+      "Mistral-Large": {
+        "phase2_reward": 0.727,
+        "phase2_reward_std": 0.0717,
+        "phase1_reward_diag": 0.8565
+      },
+      "Gemini-Pro": {
+        "phase2_reward": 0.8663,
+        "phase2_reward_std": 0.0594,
+        "phase1_reward_diag": 0.8589
+      }
+    }
+  },
+  "cross_arm_validation_test": {
+    "paretobandit": {
+      "Llama-8B": {
+        "phase2_reward": 0.7845,
+        "phase2_reward_std": 0.1503,
+        "phase1_reward_diag": 0.8935
+      },
+      "Mistral-Large": {
+        "phase2_reward": 0.7401,
+        "phase2_reward_std": 0.02,
+        "phase1_reward_diag": 0.8935
+      },
+      "Gemini-Pro": {
+        "phase2_reward": 0.8914,
+        "phase2_reward_std": 0.0157,
+        "phase1_reward_diag": 0.8935
+      }
+    },
+    "tabula_rasa": {
+      "Llama-8B": {
+        "phase2_reward": 0.7898,
+        "phase2_reward_std": 0.1655,
+        "phase1_reward_diag": 0.8835
+      },
+      "Mistral-Large": {
+        "phase2_reward": 0.7562,
+        "phase2_reward_std": 0.0383,
+        "phase1_reward_diag": 0.8653
+      },
+      "Gemini-Pro": {
+        "phase2_reward": 0.8823,
+        "phase2_reward_std": 0.0446,
+        "phase1_reward_diag": 0.8749
+      }
+    }
+  },
+  "test_per_variant": {
+    "paretobandit": {
+      "alpha": 0.01,
+      "n_eff": 1163.9,
+      "gamma": 0.997,
+      "selection_method": "pareto_knee_point",
+      "test_pareto_auc": 0.921822,
+      "test_pareto_auc_std": 0.001189,
+      "test_fixed_auc": 0.925342,
+      "test_delta_pct": -0.38,
+      "test_sweep": [
+        {
+          "budget_target": 2.889075600143318e-05,
+          "mean_reward": 0.7931,
+          "mean_cost": 2.9e-05,
+          "std_reward": 0.0,
+          "std_cost": 0.0
+        },
+        {
+          "budget_target": 8.184374759356997e-05,
+          "mean_reward": 0.812292,
+          "mean_cost": 8.2e-05,
+          "std_reward": 0.002821,
+          "std_cost": 1e-06
+        },
+        {
+          "budget_target": 0.00023185267356201064,
+          "mean_reward": 0.85626,
+          "mean_cost": 0.000233,
+          "std_reward": 0.003522,
+          "std_cost": 9e-06
+        },
+        {
+          "budget_target": 0.0006568084162616665,
+          "mean_reward": 0.889898,
+          "mean_cost": 0.000639,
+          "std_reward": 0.006051,
+          "std_cost": 1.4e-05
+        },
+        {
+          "budget_target": 0.0018606526681124438,
+          "mean_reward": 0.91765,
+          "mean_cost": 0.001687,
+          "std_reward": 0.003631,
+          "std_cost": 4.5e-05
+        },
+        {
+          "budget_target": 0.005270986585492709,
+          "mean_reward": 0.924475,
+          "mean_cost": 0.004595,
+          "std_reward": 0.001314,
+          "std_cost": 0.00024
+        },
+        {
+          "budget_target": 0.014932018243162547,
+          "mean_reward": 0.928799,
+          "mean_cost": 0.010986,
+          "std_reward": 0.001422,
+          "std_cost": 0.00061
+        }
+      ]
+    },
+    "tabula_rasa": {
+      "alpha": 0.01,
+      "n_eff": 1.0,
+      "gamma": 0.994,
+      "selection_method": "pareto_knee_point",
+      "test_pareto_auc": 0.921601,
+      "test_pareto_auc_std": 0.002785,
+      "test_fixed_auc": 0.925342,
+      "test_delta_pct": -0.404,
+      "test_sweep": [
+        {
+          "budget_target": 2.889075600143318e-05,
+          "mean_reward": 0.793131,
+          "mean_cost": 2.9e-05,
+          "std_reward": 8e-05,
+          "std_cost": 0.0
+        },
+        {
+          "budget_target": 8.184374759356997e-05,
+          "mean_reward": 0.80388,
+          "mean_cost": 8.5e-05,
+          "std_reward": 0.00884,
+          "std_cost": 7e-06
+        },
+        {
+          "budget_target": 0.00023185267356201064,
+          "mean_reward": 0.828457,
+          "mean_cost": 0.000228,
+          "std_reward": 0.029273,
+          "std_cost": 1e-05
+        },
+        {
+          "budget_target": 0.0006568084162616665,
+          "mean_reward": 0.881873,
+          "mean_cost": 0.000561,
+          "std_reward": 0.046865,
+          "std_cost": 5e-05
+        },
+        {
+          "budget_target": 0.0018606526681124438,
+          "mean_reward": 0.907269,
+          "mean_cost": 0.000834,
+          "std_reward": 0.033954,
+          "std_cost": 0.00047
+        },
+        {
+          "budget_target": 0.005270986585492709,
+          "mean_reward": 0.910598,
+          "mean_cost": 0.002142,
+          "std_reward": 0.027946,
+          "std_cost": 0.001959
+        },
+        {
+          "budget_target": 0.014932018243162547,
+          "mean_reward": 0.922999,
+          "mean_cost": 0.007576,
+          "std_reward": 0.005304,
+          "std_cost": 0.005892
+        }
+      ]
+    }
+  }
+}
