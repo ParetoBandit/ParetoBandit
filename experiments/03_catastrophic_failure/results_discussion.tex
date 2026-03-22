@@ -35,7 +35,7 @@ Four algorithm variants are compared at each of three budget targets
     at moderate budget, it overshoots by \cfNaiveModPhaseTwoRatio{}
     in Phase~2 and \cfNaiveModPhaseThreeRatio{} in Phase~3---a
     persistent, worsening budget violation.
-  \item \textbf{Forgetting Bandit ($\gamma{=}0.995$)} shares
+  \item \textbf{Forgetting Bandit ($\gamma{=}0.997$)} shares
     ParetoBandit's forgetting factor but replaces the closed-loop
     pacer with a static cost penalty.  It detects the failure faster
     than the Naive Bandit (geometric forgetting down-weights stale
@@ -46,7 +46,7 @@ Four algorithm variants are compared at each of three budget targets
     \cfForgetTightPhaseThreeRatio{} in Phase~3---confirming that
     \textbf{the BudgetPacer, not forgetting, is responsible for
     ParetoBandit's cost invariance}.
-  \item \textbf{ParetoBandit ($\gamma{=}0.995$)} detects the failure,
+  \item \textbf{ParetoBandit ($\gamma{=}0.997$)} detects the failure,
     redistributes traffic (Mistral drops to
     \cfParetoBanditModMistralPhaseTwo\% at moderate budget), \emph{and}
     maintains budget compliance: \cfParetoBanditModPhaseOneRatio,
@@ -165,3 +165,23 @@ approaches but does not fully match Phase~1 levels within the
 608-step phase---consistent with the ${\sim}200$-step effective
 memory window requiring time to accumulate sufficient positive
 evidence.
+
+\paragraph{Phase~3 within-subject design.}
+Phase~3 deliberately reuses the same prompts as Phase~1 so that the
+P1-vs-P3 comparison is a controlled within-subject design: any
+performance difference is attributable solely to the router's internal
+state, not prompt-sampling variability.
+A potential concern is that the bandit's sufficient statistics already
+contain Phase~1 observations of these exact feature vectors, giving
+Phase~3 a ``warm-cache'' advantage over evaluation on fresh prompts.
+Three considerations mitigate this:
+(i)~under $\gamma{=}\cfGamma$, each Phase~1 observation has decayed to
+effective weight $\gamma^{1216} \approx 0.026$ by the start of Phase~3,
+so 97\% of the Phase~1 information has been forgotten;
+(ii)~LinUCB maintains a $d$-dimensional $\theta$ vector per arm learned
+from \emph{all} observations---re-encountering the same PCA feature
+vector provides no per-prompt advantage, as the model generalises over
+the feature distribution rather than memorising individual contexts;
+(iii)~all five conditions receive identical Phase~3 prompts, so any
+residual warm-cache effect is a controlled confound that does not affect
+relative comparisons between algorithms.

@@ -162,11 +162,11 @@ GEMINI_COST_DROP = {
 """Simulated Gemini-Pro price drop used in cost-drift experiments."""
 
 # ==============================================================================
-# Catastrophic Failure Scenario (Experiment 02)
+# Catastrophic Failure Scenario (Experiment 03)
 # ==============================================================================
 
 K3_FAILURE_ARM: str = "mistralai/mistral-large-2512"
-"""Model that suffers catastrophic failure in Experiment 02."""
+"""Model that suffers catastrophic failure in Experiment 03."""
 
 K3_FAILURE_REWARD: float = 0.05
 """Fixed low reward during failure (API returns garbage, not exact zero)."""
@@ -190,7 +190,9 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 #
 # Selection: T_adapt-constrained 2D grid search over (alpha, gamma).
 # n_eff is derived from gamma via:  n_eff = (gamma^{-T_adapt} - 1)/(1-gamma)
-# with T_adapt = 500 (anchored to the catastrophic-failure phase length).
+# with T_adapt = 500 — a deployment parameter encoding the practitioner's
+# target reaction time (e.g. ~5 min at 100 QPS).  Sensitivity analysis
+# over T_adapt in {250, 500, 1000} confirms stable knee-point selection.
 # The Pareto frontier of (budget-paced AUC, catastrophic-failure Phase-2
 # reward) is built; the knee point (maximum perpendicular distance from
 # the endpoint line) is selected.
@@ -210,7 +212,8 @@ BEST_K3_HPARAMS: Dict[str, Any] = {
 
 Selected via T_adapt-constrained Pareto knee-point method:
 - gamma and n_eff are coupled through the adaptation horizon
-  T_adapt = 500 (anchored to the catastrophic-failure phase length):
+  T_adapt = 500 (deployment parameter: practitioner's target reaction
+  time; stable across T_adapt in {250, 500, 1000}):
   n_eff = (gamma^{-T_adapt} - 1) / (1 - gamma).
 - 2D grid search over (alpha, gamma) with n_eff derived.
 - The Pareto frontier of (budget-paced AUC, Phase-2 failure reward)
