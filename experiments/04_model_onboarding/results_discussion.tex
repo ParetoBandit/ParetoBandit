@@ -11,7 +11,8 @@ GPT-4o---and platform teams need to incorporate them without
 disrupting cost compliance or quality.
 This section evaluates whether a single API call,
 \texttt{register\_model()}, suffices to onboard a new model into a
-\emph{budget-constrained} router.
+\emph{budget-constrained} router---and whether the router correctly
+\emph{rejects} models that are inferior or too expensive.
 
 \subsubsection{Why Care?}
 
@@ -60,14 +61,47 @@ After Phase~1 online learning on the validation split ($n{=}1{,}785$),
 \texttt{register\_model()} adds Gemini-2.5-Flash as a fourth arm
 with \texttt{speed="fast"} and its published pricing
 (input: \$0.30/M, output: \$2.50/M, blended: \$1.40/M).
-Phase~2 continues online on the K=4 test split ($n{=}1{,}824$),
+Phase~2 continues online on the K=4 test split ($n{=}1{,}793$),
 where Flash rewards are judged by DeepSeek-R1 using the same v3
 continuous rubric as all other arms.
 
-All conditions use the simulation-tuned hyperparameters from
-Experiments~02--03: $\alpha{=}0.1$, $n_{\mathrm{eff}}{=}1{,}000$,
-$\gamma{=}0.995$, consistent across all main-body experiments.
+\paragraph{Forced exploration (burn-in).}
+With $\alpha{=}0.01$ and strong K=3 warmup priors
+($n_\mathit{eff}{=}1{,}163.9$), the UCB exploration bonus for a
+cold-start arm is too small to trigger natural exploration: Flash
+starts with $A{=}I$, $b{=}0$ ($\theta{=}0$), and
+$\alpha\sqrt{x^\top A^{-1} x}$ cannot compete with K=3 arms' learned
+predictions (${\sim}0.5$--$0.7$).
+To address this, the first 20 Phase~2 prompts are routed
+unconditionally to Flash (forced exploration).
+This guarantees the bandit collects real observations before UCB
+selection takes over.
+After burn-in, the algorithm has enough data to discriminate: a
+good model's $\theta$ is competitive and UCB adopts; a bad model's
+$\theta$ is low and UCB rejects.
+Forced exploration is standard in the contextual bandit literature
+(cf.\ ``forced exploration at decaying rate'' in LLM routing,
+arXiv~2602.02061).
 
+All conditions use the epsilon-constraint-tuned hyperparameters from
+Experiment~05: $\alpha{=}0.01$,
+$n_{\mathrm{eff}}{=}1{,}163.9$, $\gamma{=}0.997$.
+
+\paragraph{Onboarding scenarios.}
+Three scenarios test whether the router \emph{discriminates} rather
+than blindly adopting every new model:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Good \& Cheap} (baseline): Flash as collected---high
+    quality, low cost.  Expected: adopted.
+  \item \textbf{Good \& Expensive}: Flash costs scaled $10\times$.
+    Expected: suppressed under tight budgets by the pacer, partially
+    adopted when unconstrained.
+  \item \textbf{Bad \& Cheap}: Flash rewards scaled $0.5\times$.
+    Expected: explored during burn-in, then rejected once the bandit
+    learns the low reward.
+\end{itemize}
+
+\paragraph{Strategies.}
 Two Phase~2 strategies are compared per budget tier:
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (uniform 1/4):}
@@ -75,7 +109,8 @@ Two Phase~2 strategies are compared per budget tier:
     The simplest possible onboarding strategy---no routing
     intelligence, no budget awareness.
   \item \textbf{ParetoBandit (transfer):}
-    Phase~1 posteriors carry over; Flash gets a T-shirt prior.
+    Phase~1 posteriors carry over; Flash gets a T-shirt prior
+    plus 20-prompt forced burn-in.
     BudgetPacer continues without reconfiguration.
 \end{itemize}
 
@@ -89,122 +124,100 @@ ceiling.  Results: 20~seeds (9000--9019).
 
 \subsubsection{Results (Figure~\ref{fig:model_onboarding})}
 
+\paragraph{(a) Good \& Cheap: Flash is adopted across all budget tiers.}
+
 \begin{center}
 \small
-\begin{tabular}{@{}llrrrl@{}}
+\begin{tabular}{@{}llrrr@{}}
 \toprule
 \textbf{Strategy} & \textbf{Budget} &
   \textbf{Reward} & \textbf{Cost (\$/req)} &
-  \textbf{Flash \%} & \textbf{Compliant?} \\
+  \textbf{Flash \%} \\
 \midrule
 Fixed Policy & any
-  & 0.893 & \$4.10\text{e-}3 & 25.1\% & No (2--14$\times$) \\
+  & 0.894 & \$4.06\text{e-}3 & 25.1\% \\
 \midrule
 ParetoBandit & tight
-  & 0.857 & \$3.00\text{e-}4 & 13.8\% & \checkmark \\
+  & 0.866 & \$3.00\text{e-}4 & 8.6\% \\
 ParetoBandit & moderate
-  & 0.886 & \$6.60\text{e-}4 & 22.6\% & \checkmark \\
+  & 0.899 & \$6.52\text{e-}4 & 12.9\% \\
 ParetoBandit & loose
-  & 0.911 & \$1.82\text{e-}3 & 30.6\% & \checkmark \\
+  & 0.918 & \$1.69\text{e-}3 & 15.9\% \\
 ParetoBandit & unconstrained
-  & 0.923 & \$7.59\text{e-}3 & 21.0\% & --- \\
+  & 0.929 & \$1.05\text{e-}2 & 13.3\% \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{Flash is discovered in every seed.}
-Across all 80 ParetoBandit trials (20~seeds $\times$ 4~budget tiers),
-Flash is first selected within ${\sim}210$ post-onboarding steps and
-reaches sustained adoption (windowed share $>10$\% for 50
-consecutive steps) by step~${\sim}233$.
-Under the unconstrained ceiling, Flash stabilises at
-$21.0 \pm 1.0$\% of traffic---comparable to its uniform-1/4 share
-but \emph{contextually allocated} (the bandit routes Flash to
-prompts where it matches Gemini-Pro quality at 10$\times$ lower
-cost).
+\noindent
+Flash achieves sustained adoption ($>10$\% windowed share for 50
+consecutive post-washout steps) in 20/20~seeds across all budget
+tiers.
+Under the loose budget, Flash stabilises at $10.2$\% of late-phase
+traffic; even under the tight budget, it maintains $4.4$\%.
+The Fixed Policy spends \$4.06e-3 per request---exceeding the tight
+budget by $13.5\times$ and the loose budget by $2.2\times$---while
+ParetoBandit stays within target at every tier.
 
-\paragraph{Budget determines adoption speed, not whether adoption occurs.}
-At loose budgets, Flash reaches 38\% of traffic in the final 200
-steps, exceeding the unconstrained ceiling (25\%).
-At tight budgets, the pacer limits Flash to 14\%, just above the
-sustained-adoption threshold---the router discovers that Flash
-delivers higher quality than Mistral at a comparable per-request
-cost (despite Flash's higher per-token blended rate of \$1.40/M
-vs.\ Mistral's \$1.00/M, Flash's more concise generations keep
-per-request spend competitive), and allocates accordingly.
+\paragraph{(b) Good \& Expensive: the BudgetPacer correctly suppresses
+costly models.}
+When Flash costs are scaled $10\times$ (\$3.00/M input,
+\$25.00/M output), the pacer's hard ceiling filter and soft cost
+penalty correctly identify it as expensive.
+Under tight and moderate budgets, Flash never achieves sustained
+adoption (0/20~seeds).
+Under loose budgets, Flash partially recovers ($6.1$\% final share,
+sustained in 20/20~seeds), and when unconstrained, it reaches
+$7.3$\%---demonstrating that the pacer, not the bandit's quality
+estimate, drives the suppression.
 
-\paragraph{Flash displaces the right arm.}
-Displacement analysis (early~200 vs.\ late~200 steps of Phase~2)
-reveals a clear pattern:
-\begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Under budget pressure} (tight and moderate):
-    Flash takes share primarily from \textbf{Mistral-Large}
-    ($-27.3$\,pp at tight, $-22.9$\,pp at moderate).
-    This is economically rational: Flash offers higher quality than
-    Mistral at a comparable per-request cost---Flash's per-token
-    blended rate (\$1.40/M) exceeds Mistral's (\$1.00/M), but its
-    more concise generations yield similar per-request spend.
-  \item \textbf{Unconstrained:} Flash takes share from
-    \textbf{Gemini-Pro} ($-20.8$\,pp).  Without cost pressure, the
-    bandit uses Flash as a near-Pro-quality alternative at
-    $10\times$ lower cost.
-\end{itemize}
-
-\paragraph{The BudgetPacer requires no reconfiguration.}
-Figure~\ref{fig:model_onboarding}(b) shows cost compliance
-throughout the trajectory.
-ParetoBandit meets each budget target to within 1\% across both
-phases, despite the portfolio expanding from K=3 to K=4
-mid-trajectory.
-The dual variable $\lambda_t$ adjusts smoothly: when Flash's
-lower cost reduces the running average spend, $\lambda_t$ relaxes,
-freeing budget for contextual exploration.
+\paragraph{(c) Bad \& Cheap: the bandit correctly rejects low-quality models.}
+With rewards halved, Flash's $\theta$ after burn-in is
+uncompetitive.
+In every seed and every budget tier, Flash's final share drops
+to exactly $0.0$\%: the 20-prompt burn-in costs
+${\sim}1$\% of Phase~2 steps, after which UCB never selects Flash
+again.
+This confirms that forced exploration is self-limiting: a bad model
+incurs bounded $O(N)$ regret during burn-in and is permanently
+rejected once the posterior stabilises.
 
 \paragraph{Fixed Policy: budget-oblivious baseline.}
 The uniform-1/4 baseline highlights the cost of ignoring budget
 constraints.
-By giving Gemini-Pro 25\% of traffic, it spends \$4.10e-3 per
-request---exceeding the tight budget by 14$\times$ and even the
-loose budget by 2$\times$.
-It achieves a reward of 0.893, which ParetoBandit nearly matches
-at moderate budgets (0.886) and exceeds at loose budgets (0.911)
-while spending 6$\times$ and 2$\times$ less.
+In the Good \& Cheap scenario, it spends \$4.06e-3 per
+request---exceeding the tight budget by $13.5\times$.
+In the Bad \& Cheap scenario, giving 25\% of traffic to a
+half-quality model drags overall reward to 0.779, compared to
+ParetoBandit's 0.925 (unconstrained).
+In the Good \& Expensive scenario, the Fixed Policy's cost
+balloons to \$6.07e-3 per request.
 
 \subsubsection{Practical Implications}
 
 \paragraph{One API call, zero downtime.}
 At moderate and loose budgets---the regime of most production
 deployments---onboarding a new model into ParetoBandit requires a
-single call to \texttt{register\_model()} with the model's pricing.
+single call to \texttt{register\_model()} with the model's pricing,
+plus a brief forced-exploration period (20~prompts, ${\sim}1$\% of
+traffic).
 No offline evaluation, no policy retraining, no budget
 reconfiguration.  The bandit discovers the model's quality--cost
 niche from live traffic and the pacer auto-adjusts.
 
-\paragraph{Budget-quality Pareto improvement.}
-Flash is a Pareto-improving arm: it offers near-Pro quality at a
-mid-tier per-request cost.  A static router would require human analysis
-to discover this; ParetoBandit identifies and exploits it
-automatically, shifting the portfolio's cost--quality frontier.
+\paragraph{Discrimination, not blind adoption.}
+The three-scenario design demonstrates that ParetoBandit does not
+simply absorb every new model.
+Good models are adopted, expensive models are budget-gated, and bad
+models are rejected---all from the same \texttt{register\_model()}
+call with no scenario-specific tuning.
 
 \paragraph{Tight budgets require deliberate exploration.}
 Under tight budget constraints, the pacer's exploration budget is
-limited, slowing (but not preventing) Flash adoption.
+limited, slowing Flash adoption.
+The Good \& Expensive scenario shows that tight budgets
+can effectively block an expensive newcomer (0/20~seeds sustain),
+while loose budgets permit partial adoption.
 Practitioners running at very tight margins who want to onboard an
 expensive newcomer should temporarily increase the budget target to
 allow initial exploration, then tighten once the bandit calibrates.
-
-\subsubsection{Uncertainty Evolution: Warm-Start vs.\ Cold-Start (Figure~\ref{fig:uncertainty_evolution})}
-
-To visualise the mechanism driving Flash's adoption, Figure~\ref{fig:uncertainty_evolution} plots $\mathrm{tr}(A_a^{-1})$---a scalar summary of each arm's total uncertainty---across both phases.
-Lower values indicate more accumulated information and tighter confidence bounds; higher values indicate greater uncertainty and larger UCB exploration bonuses.
-
-At initialisation, the three warm-started arms begin with $\mathrm{tr}(A_a^{-1}) \approx 0.6$, reflecting the $n_\mathit{eff}{=}1{,}000$ pseudo-observations encoded in their warmup priors.
-When Flash is registered at the Phase~2 boundary, it starts at $\mathrm{tr}(A_a^{-1}) = d/\lambda = 26$---the isotropic prior $A = \lambda I$ with no prior information.
-This ${\sim}40{\times}$ uncertainty gap between Flash and the incumbents is the direct cause of LinUCB's exploration burst: the UCB bonus $\alpha\sqrt{x^\top A_a^{-1} x}$ is proportional to the arm's uncertainty, so Flash receives a massive selection advantage until observations shrink its confidence ellipsoid.
-Within ${\sim}300$ Phase~2 steps, Flash's uncertainty converges to the level of the warm-started arms, at which point its selection rate stabilises and reflects its learned quality--cost profile rather than exploration pressure.
-
-The figure also reveals an instructive side effect for Gemini-Pro, the most expensive arm.
-Under budget constraints, Gemini-Pro is rarely selected ($<2\%$ of Phase~2 traffic at the moderate and tight targets).
-Because geometric forgetting continuously decays $A_a$ with each step the arm goes unplayed, Gemini-Pro's uncertainty \emph{rises} over time---the router progressively ``forgets'' what it knows about an arm it can no longer afford to play.
-The sawtooth pattern reflects the interplay: uncertainty accumulates during long idle periods, occasionally triggering an exploratory selection when the inflated UCB bonus overcomes the budget penalty, which briefly reduces uncertainty before the cycle repeats.
-This is a concrete illustration of the forgetting--budget pacer feedback loop discussed in the design rationale (Section~\ref{sec:methodology}): forgetting inflates confidence, which drives exploration, which incurs cost, which drives up $\lambda_t$, which suppresses the expensive arm again.

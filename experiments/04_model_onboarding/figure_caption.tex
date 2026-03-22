@@ -9,14 +9,20 @@
 
 \textbf{Model onboarding under budget constraints (K=3 $\to$ K=4).}
 A K=3 router (Llama-8B, Mistral-Large, Gemini-Pro) learns on 1{,}785
-prompts with warmup priors, then onboards Gemini-2.5-Flash as a fourth arm
-via \texttt{register\_model()} (dashed vertical line).
-Phase~2 continues online on the K=4 test split (1{,}824 prompts).
-\textbf{(a)}~Arm composition under the moderate budget: Flash
-primarily displaces Mistral-Large ($-22.9$\,pp), taking over the
-mid-cost quality niche.  Flash rises from zero after onboarding and
-stabilises within ${\sim}230$ steps.
-\textbf{(b)}~Cost compliance: ParetoBandit (solid) tracks each budget
-target (dotted) within ${\sim}2$\% across the full trajectory,
-despite the portfolio expanding from K=3 to K=4 mid-run.
+validation prompts with warmup priors, then onboards Gemini-2.5-Flash
+as a fourth arm via \texttt{register\_model()} (dashed vertical line).
+The first 20 Phase~2 prompts are routed unconditionally to Flash
+(forced exploration; dotted orange line), after which UCB selection
+takes over on the K=4 test split (1{,}793 prompts).
+Each panel overlays Flash's windowed fraction across four budget
+regimes.
+\textbf{(a)}~Good \& Cheap (baseline rewards and costs): Flash is
+adopted across all budgets, reaching ${\sim}10$\% share under loose
+constraints.
+\textbf{(b)}~Good \& Expensive (costs scaled $10\times$): the
+BudgetPacer suppresses Flash under tight and moderate budgets but
+permits partial adoption (${\sim}6$\%) when unconstrained.
+\textbf{(c)}~Bad \& Cheap (rewards scaled $0.5\times$): the bandit
+correctly rejects Flash in every seed and budget tier, with final
+share dropping to 0\% after burn-in.
 95\% bootstrap CI across 20~seeds.

@@ -3,7 +3,7 @@
 
 Demonstrates that ParetoBandit can incorporate a newly released model
 (Gemini-2.5-Flash) into a running K=3 portfolio while the BudgetPacer
-maintains cost compliance.
+maintains cost compliance — and correctly *rejects* inferior models.
 
 Experimental setup
 ------------------
@@ -16,20 +16,54 @@ Experimental setup
   Gemini-2.5-Flash as a fourth arm.  The router continues online learning
   on the K=4 test split, where Flash rewards are available.
 
+Forced exploration (burn-in)
+----------------------------
+  With ``alpha=0.01`` and strong K=3 warmup priors
+  (``prior_n_effective=1163.9``), the UCB exploration bonus for a
+  cold-start arm is too small to trigger natural exploration.  Flash
+  starts with ``A=I, b=0`` (``theta=0``), and ``alpha * sqrt(x' A_inv x)``
+  cannot compete with K=3 arms' learned predictions (~0.5–0.7).
+
+  To address this, the first ``BURNIN_PULLS`` prompts of Phase 2 are
+  routed unconditionally to Flash (forced exploration).  This guarantees
+  the bandit collects real observations before UCB selection takes over.
+  After burn-in, the algorithm has enough data to discriminate:
+
+  - Good model → ``theta_flash`` is competitive → UCB adopts
+  - Bad model → ``theta_flash`` is low → UCB rejects
+
+  The exploration cost is bounded at O(N) regret regardless of Flash
+  quality.  Forced exploration is a standard strategy in the contextual
+  bandit literature (cf. "forced exploration at decaying rate" in LLM
+  routing, arXiv 2602.02061).
+
+Onboarding scenarios
+--------------------
+  Three scenarios test whether the router *discriminates* rather than
+  blindly adopting every new model:
+
+  - **good_cheap** (default): Flash as collected — high quality, low cost.
+    Expected: adopted and displaces expensive alternatives.
+  - **bad_cheap**: Flash rewards scaled to 0.5×.  Expected: explored
+    during burn-in then suppressed once the bandit learns the low reward.
+  - **good_expensive**: Flash costs scaled to 10×.  Expected: suppressed
+    under tight budgets by the pacer, partially adopted when unconstrained.
+
 Key questions
 -------------
   1. Does Flash get explored despite the budget constraint?
   2. Which arm does Flash displace (if any)?
   3. Does the pacer maintain budget compliance after onboarding?
   4. Does ParetoBandit onboarding outperform simpler strategies?
+  5. Does the router correctly *reject* a bad or expensive new model?
 
-Conditions (per budget target)
-------------------------------
+Conditions (per budget target, per scenario)
+--------------------------------------------
   - **Fixed Policy (uniform 1/4)**: No routing intelligence — equal
     allocation across all K=4 arms.  Simplest possible onboarding
     strategy.
   - **ParetoBandit (transfer)**: Phase 1 posteriors carry over; Flash gets
-    a T-shirt prior via ``register_model()``.
+    a T-shirt prior via ``register_model()`` plus forced burn-in.
   - **ParetoBandit (unconstrained)**: Same as transfer but without budget
     pacer — quality ceiling reference.
 
@@ -45,6 +79,7 @@ Usage
 -----
     python experiments/04_model_onboarding/run_model_onboarding.py
     python experiments/04_model_onboarding/run_model_onboarding.py --fast
+    python experiments/04_model_onboarding/run_model_onboarding.py --scenario bad_cheap
 """
 from __future__ import annotations
 
@@ -135,9 +170,67 @@ FLASH_BLENDED_COST_PER_M: float = (
 VAL_K4_PATH = OFFLINE_DATASET_DIR / "val_k4.jsonl"
 TEST_K4_PATH = OFFLINE_DATASET_DIR / "test_k4.jsonl"
 
+# Forced exploration burn-in for newly onboarded arms.
+# Routes the first N Phase 2 prompts unconditionally to Flash so the
+# bandit collects real observations before UCB selection kicks in.
+# With alpha=0.01 and strong K=3 priors (n_eff=1163.9), the UCB
+# exploration bonus alone is too small to trigger natural exploration
+# of a cold-start arm.  20 pulls is ~4% of the test set (~460 prompts).
+BURNIN_PULLS: int = 20
+
 # Sustained-adoption thresholds
 SUSTAINED_THRESHOLD: float = 0.10
 SUSTAINED_HOLD_STEPS: int = 50
+
+# ======================================================================
+# Onboarding scenarios (reward / cost scaling for Flash in Phase 2)
+# ======================================================================
+
+ONBOARDING_SCENARIOS: Dict[str, Dict[str, float]] = {
+    "good_cheap": {"reward_scale": 1.0, "cost_scale": 1.0},
+    "bad_cheap": {"reward_scale": 0.5, "cost_scale": 1.0},
+    "good_expensive": {"reward_scale": 1.0, "cost_scale": 10.0},
+}
+
+SCENARIO_LABELS: Dict[str, str] = {
+    "good_cheap": "Good & Cheap (baseline)",
+    "bad_cheap": "Bad & Cheap (negative)",
+    "good_expensive": "Good & Expensive (cost negative)",
+}
+
+
+def _apply_scenario(
+    eval_k4: SplitData,
+    *,
+    reward_scale: float = 1.0,
+    cost_scale: float = 1.0,
+) -> SplitData:
+    """Return a view of *eval_k4* with Flash rewards/costs scaled.
+
+    K=3 arm arrays are shared (not copied).  Only the Flash arrays
+    are duplicated and scaled, keeping memory overhead minimal.
+
+    Args:
+        eval_k4: Original K=4 evaluation split.
+        reward_scale: Multiplicative factor for Flash rewards.
+        cost_scale: Multiplicative factor for Flash costs.
+
+    Returns:
+        New ``SplitData`` with modified Flash data.
+    """
+    if reward_scale == 1.0 and cost_scale == 1.0:
+        return eval_k4
+
+    new_rewards = dict(eval_k4.rewards)
+    new_costs = dict(eval_k4.costs)
+    new_rewards[FLASH_ID] = eval_k4.rewards[FLASH_ID] * reward_scale
+    new_costs[FLASH_ID] = eval_k4.costs[FLASH_ID] * cost_scale
+    return SplitData(
+        prompts=eval_k4.prompts,
+        rewards=new_rewards,
+        costs=new_costs,
+        embeddings=eval_k4.embeddings,
+    )
 
 
 def _snapshot_trace_A_inv(router: "BanditRouter", arms: List[str]) -> Dict[str, float]:
@@ -190,6 +283,7 @@ class TrialResult:
     seed: int
     n_phase1: int
     n_phase2: int
+    n_burnin: int
     phase1_reward: float
     phase1_cost: float
     phase1_regret: float
@@ -274,7 +368,6 @@ def _create_router(
         warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
         prior_n_effective=PRIOR_N_EFFECTIVE,
         alpha=ALPHA,
-        use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=FORGETTING_FACTOR,
         budget_pacer=budget_pacer,
@@ -292,7 +385,12 @@ def _compute_sustained_step(
     hold: int = SUSTAINED_HOLD_STEPS,
 ) -> Optional[int]:
     """Return the 1-indexed step where Flash share first exceeds *threshold*
-    and remains above it for *hold* consecutive checkpoints.
+    and remains above it for *hold* consecutive steps.
+
+    When forced exploration (burn-in) is used, callers should pre-slice
+    ``windowed_history`` to exclude the burn-in period **and** the
+    subsequent washout window (``n_burnin + WINDOW_SIZE`` entries) so
+    the metric reflects organic UCB-driven adoption only.
 
     Args:
         windowed_history: Flash windowed-mix value at each step (not just
@@ -301,7 +399,8 @@ def _compute_sustained_step(
         hold: Number of consecutive steps above threshold.
 
     Returns:
-        The 1-indexed step of the first qualifying window, or ``None``.
+        The 1-indexed step within the provided history of the first
+        qualifying window, or ``None``.
     """
     run = 0
     for i, share in enumerate(windowed_history):
@@ -338,6 +437,7 @@ def _run_trial(
     budget_label: str,
     budget_target: float,
     seed: int,
+    cost_scale: float = 1.0,
 ) -> TrialResult:
     """Run one K=3 train → onboard Flash → K=4 eval trial.
 
@@ -352,6 +452,9 @@ def _run_trial(
         budget_label: Budget tier name.
         budget_target: Dollar budget target per request (0 = unconstrained).
         seed: Random seed.
+        cost_scale: Multiplicative factor for Flash's registry cost.
+            Ensures the router's hard ceiling filter and soft cost
+            penalties see the scenario-scaled price, not the original.
 
     Returns:
         Complete trial result with per-step checkpoints and adoption
@@ -413,12 +516,21 @@ def _run_trial(
 
     # ── Onboard Gemini Flash ──────────────────────────────────────────
     if strategy == STRATEGY_BANDITGPT_TRANSFER:
+        scaled_input = FLASH_INPUT_COST_PER_M * cost_scale
+        scaled_output = FLASH_OUTPUT_COST_PER_M * cost_scale
+        scaled_blended = FLASH_BLENDED_COST_PER_M * cost_scale
         router.register_model(
             FLASH_ID,
             speed="fast",
-            cost_usd=FLASH_INPUT_COST_PER_M,
-            blended_cost_per_m=FLASH_BLENDED_COST_PER_M,
+            cost_usd=scaled_input,
+            blended_cost_per_m=scaled_blended,
         )
+        if cost_scale != 1.0:
+            router.update_model_pricing(
+                FLASH_ID,
+                input_cost_per_m=scaled_input,
+                output_cost_per_m=scaled_output,
+            )
 
     # ── Phase 2: K=4 evaluation ───────────────────────────────────────
     p2_cum_reward, p2_cum_cost, p2_cum_regret = 0.0, 0.0, 0.0
@@ -437,10 +549,22 @@ def _run_trial(
     eval_order = rng.permutation(eval_k4.n)
     n2 = eval_k4.n
 
+    n_burnin = BURNIN_PULLS if strategy == STRATEGY_BANDITGPT_TRANSFER else 0
+
     for step_idx, i in enumerate(eval_order):
         # ── Model selection depends on strategy ───────────────────────
         if strategy == STRATEGY_FIXED_UNIFORM:
             model = rng.choice(K4_ARMS)
+        elif strategy == STRATEGY_BANDITGPT_TRANSFER and step_idx < n_burnin:
+            # Forced exploration: guarantee Flash receives real observations
+            # before UCB selection takes over.
+            model = FLASH_ID
+            x = eval_k4.embeddings[i]
+            reward_val = float(eval_k4.rewards[FLASH_ID][i])
+            cost_val = float(eval_k4.costs[FLASH_ID][i])
+            router.update(FLASH_ID, x, reward_val, advance_time=True)
+            if router.budget_pacer is not None:
+                router.budget_pacer.observe(cost_val)
         else:
             model, log = router.route(eval_k4.embeddings[i])
             log.cost_usd = float(eval_k4.costs[model][i])
@@ -511,8 +635,17 @@ def _run_trial(
         {a: p2_arm_counts[a] / n2 for a in K4_ARMS} if n2 > 0 else {}
     )
 
-    # Sustained adoption
-    flash_sustained = _compute_sustained_step(flash_windowed_history)
+    # Sustained adoption — skip burn-in + window washout so the metric
+    # only reflects organic UCB-driven adoption, not the forced exploration
+    # residue that lingers in the sliding window for WINDOW_SIZE steps.
+    washout = n_burnin + WINDOW_SIZE
+    if washout < len(flash_windowed_history):
+        clean_history = flash_windowed_history[washout:]
+        flash_sustained = _compute_sustained_step(clean_history)
+        if flash_sustained is not None:
+            flash_sustained += washout  # convert back to Phase 2 step (1-indexed)
+    else:
+        flash_sustained = None
 
     # Flash final share: last *late_window_size* steps
     late_total = sum(late_arm_counts.values()) or 1
@@ -532,6 +665,7 @@ def _run_trial(
         seed=seed,
         n_phase1=train_k3.n,
         n_phase2=n2,
+        n_burnin=n_burnin,
         phase1_reward=phase1_reward,
         phase1_cost=phase1_cost,
         phase1_regret=phase1_regret,
@@ -599,6 +733,7 @@ def _aggregate_trials(
         "budget_label": trials[0].budget_label,
         "budget_target": trials[0].budget_target,
         "n_seeds": n,
+        "n_burnin": trials[0].n_burnin,
         "phase1_reward": _stat([t.phase1_reward for t in trials]),
         "phase1_cost": _stat([t.phase1_cost for t in trials]),
         "phase1_regret": _stat([t.phase1_regret for t in trials]),
@@ -711,10 +846,16 @@ def _aggregate_checkpoints(
 # ======================================================================
 
 
-def _print_summary(all_summaries: Dict[str, Dict[str, Any]]) -> None:
+def _print_summary(
+    all_summaries: Dict[str, Dict[str, Any]],
+    scenario_name: str = "",
+) -> None:
     """Print formatted results table."""
     print("\n" + "=" * 90)
-    print("APPENDIX: MODEL ONBOARDING UNDER BUDGET CONSTRAINTS (K=3 → K=4)")
+    header = "APPENDIX: MODEL ONBOARDING UNDER BUDGET CONSTRAINTS (K=3 → K=4)"
+    if scenario_name:
+        header += f"  [{scenario_name.upper()}]"
+    print(header)
     print("=" * 90)
 
     for key, summary in all_summaries.items():
@@ -795,46 +936,9 @@ def _print_summary(all_summaries: Dict[str, Dict[str, Any]]) -> None:
 # ======================================================================
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--n-seeds", type=int, default=N_SEEDS,
-        help=f"Number of seeds (default: {N_SEEDS}).",
-    )
-    parser.add_argument(
-        "--fast", action="store_true",
-        help="Quick run with 3 seeds for debugging.",
-    )
-    args = parser.parse_args()
-
-    n_seeds = 3 if args.fast else args.n_seeds
-    t0 = time.time()
-
-    # ── Load data ─────────────────────────────────────────────────────
-    logger.info("Loading data...")
-    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
-    # only .transform() is called during evaluation (no leakage).
-    fs = FeatureService()
-    feature_dim = fs.dimension
-
-    train_k3 = _load_k3(fs)
-    eval_k4 = _load_k4_eval(fs)
-    logger.info("  K=3 val (Phase 1): %d prompts", train_k3.n)
-    logger.info("  K=4 eval (Phase 2): %d prompts", eval_k4.n)
-
-    registry_k3 = build_model_registry(K3_ARMS)
-
-    # ── Build condition matrix ─────────────────────────────────────────
-    #
-    # For each budget tier we run:
-    #   1. Fixed Policy (uniform 1/4)  — simplest onboarding baseline
-    #   2. ParetoBandit (transfer)        — the system under test
-    # Plus one unconstrained ParetoBandit run as a quality ceiling.
+def _build_conditions() -> List[Dict[str, Any]]:
+    """Build the condition matrix (budget tiers x strategies + unconstrained)."""
     conditions: List[Dict[str, Any]] = []
-
     for budget_label, budget_target in zip(BUDGET_LABELS, BUDGET_TARGETS):
         conditions.append({
             "condition": f"Fixed Policy ({budget_label})",
@@ -848,15 +952,31 @@ def main() -> None:
             "budget_label": budget_label,
             "budget_target": budget_target,
         })
-
     conditions.append({
         "condition": "ParetoBandit (unconstrained)",
         "strategy": STRATEGY_BANDITGPT_TRANSFER,
         "budget_label": "unconstrained",
         "budget_target": 0.0,
     })
+    return conditions
 
-    all_results: Dict[str, List[TrialResult]] = {}
+
+def _run_scenario(
+    scenario_name: str,
+    scenario_cfg: Dict[str, float],
+    conditions: List[Dict[str, Any]],
+    train_k3: SplitData,
+    eval_k4_base: SplitData,
+    registry_k3: Dict[str, Any],
+    feature_dim: int,
+    n_seeds: int,
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
+    """Run all conditions under one onboarding scenario.
+
+    Returns:
+        Tuple of (summaries_dict, checkpoint_traces_dict).
+    """
+    eval_k4 = _apply_scenario(eval_k4_base, **scenario_cfg)
     all_summaries: Dict[str, Dict[str, Any]] = {}
     all_checkpoint_traces: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -865,8 +985,8 @@ def main() -> None:
         trials: List[TrialResult] = []
 
         logger.info(
-            "\n%s [%s] (%d seeds)",
-            cond["condition"], cond["strategy"], n_seeds,
+            "\n[%s] %s [%s] (%d seeds)",
+            scenario_name, cond["condition"], cond["strategy"], n_seeds,
         )
         for s in range(n_seeds):
             seed = SEED_OFFSET + s
@@ -878,6 +998,7 @@ def main() -> None:
                 budget_label=cond["budget_label"],
                 budget_target=cond["budget_target"],
                 seed=seed,
+                cost_scale=scenario_cfg.get("cost_scale", 1.0),
             )
             trials.append(result)
 
@@ -887,21 +1008,84 @@ def main() -> None:
                 flash_pct, result.phase2_reward, result.phase2_cost,
             )
 
-        all_results[key] = trials
         all_summaries[key] = _aggregate_trials(trials)
         all_checkpoint_traces[key] = _aggregate_checkpoints(trials)
+
+    return all_summaries, all_checkpoint_traces
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--n-seeds", type=int, default=N_SEEDS,
+        help=f"Number of seeds (default: {N_SEEDS}).",
+    )
+    parser.add_argument(
+        "--fast", action="store_true",
+        help="Quick run with 3 seeds for debugging.",
+    )
+    parser.add_argument(
+        "--scenario", type=str, default=None,
+        choices=list(ONBOARDING_SCENARIOS.keys()),
+        help="Run a single scenario (default: all).",
+    )
+    args = parser.parse_args()
+
+    n_seeds = 3 if args.fast else args.n_seeds
+    t0 = time.time()
+
+    # ── Load data ─────────────────────────────────────────────────────
+    logger.info("Loading data...")
+    fs = FeatureService()
+    feature_dim = fs.dimension
+
+    train_k3 = _load_k3(fs)
+    eval_k4_base = _load_k4_eval(fs)
+    logger.info("  K=3 val (Phase 1): %d prompts", train_k3.n)
+    logger.info("  K=4 eval (Phase 2): %d prompts", eval_k4_base.n)
+
+    registry_k3 = build_model_registry(K3_ARMS)
+    conditions = _build_conditions()
+
+    # ── Determine which scenarios to run ───────────────────────────────
+    if args.scenario is not None:
+        scenarios_to_run = {args.scenario: ONBOARDING_SCENARIOS[args.scenario]}
+    else:
+        scenarios_to_run = ONBOARDING_SCENARIOS
+
+    # ── Run all scenarios ──────────────────────────────────────────────
+    all_scenario_results: Dict[str, Dict[str, Any]] = {}
+
+    for scenario_name, scenario_cfg in scenarios_to_run.items():
+        logger.info(
+            "\n" + "=" * 70 + "\nSCENARIO: %s  (reward_scale=%.1f, cost_scale=%.1f)\n" + "=" * 70,
+            scenario_name, scenario_cfg["reward_scale"], scenario_cfg["cost_scale"],
+        )
+        summaries, traces = _run_scenario(
+            scenario_name, scenario_cfg, conditions,
+            train_k3, eval_k4_base, registry_k3, feature_dim, n_seeds,
+        )
+        all_scenario_results[scenario_name] = {
+            "summaries": summaries,
+            "checkpoint_traces": traces,
+        }
+        _print_summary(summaries, scenario_name)
 
     elapsed = time.time() - t0
 
     # ── Export ─────────────────────────────────────────────────────────
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    payload = {
+    payload: Dict[str, Any] = {
         "experiment": "model_onboarding_k3_to_k4",
         "flash_model": FLASH_ID,
         "n_seeds": n_seeds,
         "phase1_n": train_k3.n,
-        "phase2_n": eval_k4.n,
+        "phase2_n": eval_k4_base.n,
+        "burnin_pulls": BURNIN_PULLS,
         "k3_arms": K3_ARMS,
         "k4_arms": K4_ARMS,
         "hparams": {
@@ -913,17 +1097,25 @@ def main() -> None:
         },
         "budget_targets": dict(zip(BUDGET_LABELS, BUDGET_TARGETS)),
         "strategies": [STRATEGY_FIXED_UNIFORM, STRATEGY_BANDITGPT_TRANSFER],
-        "summaries": all_summaries,
-        "checkpoint_traces": all_checkpoint_traces,
+        "onboarding_scenarios": {
+            name: {"reward_scale": cfg["reward_scale"], "cost_scale": cfg["cost_scale"]}
+            for name, cfg in scenarios_to_run.items()
+        },
+        "scenarios": all_scenario_results,
         "wall_time_s": round(elapsed, 1),
     }
+
+    # Backward compatibility: expose good_cheap at the top level so
+    # existing figure scripts continue to work without modification.
+    if "good_cheap" in all_scenario_results:
+        payload["summaries"] = all_scenario_results["good_cheap"]["summaries"]
+        payload["checkpoint_traces"] = all_scenario_results["good_cheap"]["checkpoint_traces"]
 
     json_path = RESULTS_DIR / "model_onboarding_results.json"
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2, default=str)
     logger.info("Results saved to %s", json_path)
 
-    _print_summary(all_summaries)
     logger.info("\nTotal wall time: %.1f s", elapsed)
 
 
