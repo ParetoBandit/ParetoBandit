@@ -179,7 +179,7 @@ K3_BUDGET_TARGETS: List[float] = [3.0e-4, 6.62e-4, 1.87e-3]
 K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 
 # ==============================================================================
-# Best K=3 Hyperparameters (Exp 05 epsilon-constraint, 3-split disjoint)
+# Best K=3 Hyperparameters (Exp 05: T_adapt-constrained Pareto knee-point)
 # ==============================================================================
 #
 # Protocol: priors from train.jsonl (offline only) → val.jsonl split into
@@ -187,6 +187,14 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 # report on test.jsonl (burn-in on full val, eval on test).
 # Per-seed budget-paced Pareto AUC (20 seeds) with fixed-model endpoints
 # and cost range anchored to arm cost extremes.
+#
+# Selection: T_adapt-constrained 2D grid search over (alpha, gamma).
+# n_eff is derived from gamma via:  n_eff = (gamma^{-T_adapt} - 1)/(1-gamma)
+# with T_adapt = 500 (anchored to the catastrophic-failure phase length).
+# The Pareto frontier of (budget-paced AUC, catastrophic-failure Phase-2
+# reward) is built; the knee point (maximum perpendicular distance from
+# the endpoint line) is selected.
+#
 # Source of truth: experiments/05_hparam_optimization/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
@@ -195,45 +203,42 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 BEST_K3_HPARAMS: Dict[str, Any] = {
     "alpha": 0.01,
     "pca_components": 25,
-    "prior_n_effective": 5000.0,
+    "prior_n_effective": 1163.9,
     "forgetting_factor": 0.997,
 }
 """Best K=3 ParetoBandit config (warmup priors, PCA-25, disjoint LinUCB).
 
-Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9265, test BP AUC = 0.9225.
-Moderate forgetting (gamma=0.997, effective memory ~333 steps) with minimal
-exploration (alpha=0.01) and strong priors (n_eff=5000).  Warmup priors
-buffer the AUC loss from forgetting, enabling the epsilon-constraint method
-to trade stationary quality for non-stationary adaptability.
+Selected via T_adapt-constrained Pareto knee-point method:
+- gamma and n_eff are coupled through the adaptation horizon
+  T_adapt = 500 (anchored to the catastrophic-failure phase length):
+  n_eff = (gamma^{-T_adapt} - 1) / (1 - gamma).
+- 2D grid search over (alpha, gamma) with n_eff derived.
+- The Pareto frontier of (budget-paced AUC, Phase-2 failure reward)
+  is built across all configs; the knee point (maximum perpendicular
+  distance from the endpoint line) is selected.
+- Cross-arm validation confirms the selected config generalises to
+  failure of all K arms (not just the tuning arm, Mistral).
+- Source: experiments/05_hparam_optimization/results/best_hparams.json
+Val BP AUC = 0.9273, val P2 reward = 0.7167.
+Test BP AUC = 0.9218 (delta = -0.38%).
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.10,
+    "alpha": 0.01,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 1.0,
+    "forgetting_factor": 0.995,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
-Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9260, test BP AUC = 0.9235.
-Without warmup priors, forgetting imposes a steep AUC penalty (~0.9% at
-gamma=0.995) that exceeds the epsilon tolerance.  The constraint forces
-gamma=1.0 (no forgetting), revealing that cold-start variants cannot
-simultaneously maintain stationary quality and non-stationary adaptability.
-"""
-
-BEST_K3_SW_UCB_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.05,
-    "pca_components": 25,
-    "window_size": 50,
-}
-"""Best K=3 SW-UCB config (cold start, PCA-25, sliding-window forgetting).
-
-Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
-lowest Phase 2 regret).  Val BP AUC = 0.9265, test BP AUC = 0.9224.
-A small window (W=50) with low exploration (alpha=0.05) is the only SW-UCB
-configuration that survives the AUC constraint (2/30 feasible).  Like
-Tabula Rasa, the cold-start penalty restricts the viable parameter space.
+Selected via T_adapt-constrained Pareto knee-point method (same protocol
+as ParetoBandit but with n_eff=1.0, no warmup priors).
+- Val BP AUC = 0.9257, val P2 reward = 0.7137.
+- Test BP AUC = 0.9216 (delta = -0.41%).
+Unlike the prior epsilon-constraint protocol (which locked Tabula Rasa to
+gamma=1.0), the knee-point method selects gamma=0.995 — the cold-start
+variant *can* afford forgetting when the selection criterion is a balanced
+trade-off rather than a hard AUC floor.  However, stationary AUC and
+failure resilience both remain lower than ParetoBandit, confirming that
+warmup priors provide a structural advantage for non-stationary adaptation.
 """

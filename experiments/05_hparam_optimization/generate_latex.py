@@ -19,8 +19,6 @@ from utils.latex_gen import CommandSet, fmt_int, fmt_num, load_json
 
 def format_alpha(val: float) -> str:
     """Format alpha for LaTeX: 0.1 -> '0.10', 0.01 -> '0.01'."""
-    if val >= 0.1:
-        return f"{val:.2f}"
     return f"{val:.2f}"
 
 
@@ -42,35 +40,46 @@ def build_command_set(
     best_val = best_data.get("best_per_variant_val", {})
     auc_only = best_data.get("auc_only_best", {})
     test_per = best_data.get("test_per_variant", {})
+    cross_arm = best_data.get("cross_arm_validation", {})
 
     # -------------------------------------------------------------------------
-    # Grid dimensions
+    # Grid dimensions and T_adapt
     # -------------------------------------------------------------------------
     alpha_vals = grid.get("alpha_values", [])
-    n_eff_vals = grid.get("n_eff_values", [])
     gamma_vals = grid.get("gamma_values", [])
-    epsilon = grid.get("epsilon", 0.05)
+    t_adapt = grid.get("t_adapt", best_data.get("t_adapt", 500))
 
     cs.raw("GridAlpha", str(len(alpha_vals)))
-    cs.raw("GridNeff", str(len(n_eff_vals)))
     cs.raw("GridGamma", str(len(gamma_vals)))
-    cs.raw("Epsilon", str(epsilon))
+    cs.raw("TAdapt", str(t_adapt))
+    cs.raw("SelectionMethod", "pareto\\_knee\\_point")
 
     # -------------------------------------------------------------------------
-    # ParetoBandit selected config (best_per_variant_val)
+    # ParetoBandit selected config (knee-point)
     # -------------------------------------------------------------------------
-    bg_best = best_val.get("paretobandit", {})
-    if bg_best:
-        cs.raw("ParetoBanditAlpha", format_alpha(bg_best["alpha"]))
-        cs.raw("ParetoBanditNeff", fmt_int(bg_best["n_eff"]))
-        cs.raw("ParetoBanditGamma", format_gamma(bg_best["gamma"]))
-        cs.num("ParetoBanditAUC", bg_best["val_pareto_auc"], digits=3)
-        cs.num("ParetoBanditRegret", bg_best["val_phase2_regret"], digits=1)
-    bg_test = test_per.get("paretobandit", {})
-    if bg_test:
-        cs.num("ParetoBanditTestAUC", bg_test["test_pareto_auc"], digits=4)
-        cs.num("ParetoBanditTestStd", bg_test["test_pareto_auc_std"], digits=4)
-        cs.num("ParetoBanditTestDelta", bg_test["test_delta_pct"], digits=2)
+    pb_best = best_val.get("paretobandit", {})
+    if pb_best:
+        cs.raw("ParetoBanditAlpha", format_alpha(pb_best["alpha"]))
+        cs.raw("ParetoBanditNeff", fmt_int(pb_best["n_eff"]))
+        cs.raw("ParetoBanditGamma", format_gamma(pb_best["gamma"]))
+        cs.num("ParetoBanditAUC", pb_best["val_pareto_auc"], digits=3)
+        cs.num("ParetoBanditP2Reward", pb_best["val_phase2_reward"], digits=4)
+
+    pb_test = test_per.get("paretobandit", {})
+    if pb_test:
+        cs.num("ParetoBanditTestAUC", pb_test["test_pareto_auc"], digits=4)
+        cs.num("ParetoBanditTestStd", pb_test["test_pareto_auc_std"], digits=4)
+        cs.num("ParetoBanditTestDelta", pb_test["test_delta_pct"], digits=2)
+
+    # -------------------------------------------------------------------------
+    # Tabula Rasa selected config (knee-point)
+    # -------------------------------------------------------------------------
+    tr_best = best_val.get("tabula_rasa", {})
+    if tr_best:
+        cs.raw("TabulaAlpha", format_alpha(tr_best["alpha"]))
+        cs.raw("TabulaGamma", format_gamma(tr_best["gamma"]))
+        cs.num("TabulaAUC", tr_best["val_pareto_auc"], digits=3)
+        cs.num("TabulaP2Reward", tr_best["val_phase2_reward"], digits=4)
 
     tr_test = test_per.get("tabula_rasa", {})
     if tr_test:
@@ -78,38 +87,21 @@ def build_command_set(
         cs.num("TabulaTestStd", tr_test["test_pareto_auc_std"], digits=4)
         cs.num("TabulaTestDelta", tr_test["test_delta_pct"], digits=2)
 
-    if bg_test:
-        cs.num("FixedTestAUC", bg_test["test_fixed_auc"], digits=4)
+    # -------------------------------------------------------------------------
+    # Fixed-model baseline (test)
+    # -------------------------------------------------------------------------
+    if pb_test:
+        cs.num("FixedTestAUC", pb_test["test_fixed_auc"], digits=4)
 
     # -------------------------------------------------------------------------
     # ParetoBandit AUC-only config
     # -------------------------------------------------------------------------
-    bg_auc = auc_only.get("paretobandit", {})
-    if bg_auc:
-        cs.raw("AUCOnlyAlpha", format_alpha(bg_auc["alpha"]))
-        cs.raw("AUCOnlyNeff", fmt_int(bg_auc["n_eff"]))
-        cs.raw("AUCOnlyGamma", format_gamma(bg_auc["gamma"]))
-        cs.num("AUCOnlyAUC", bg_auc["val_pareto_auc"], digits=3)
-
-    # -------------------------------------------------------------------------
-    # AUC sacrifice: (auc_only - selected) / auc_only * 100
-    # -------------------------------------------------------------------------
-    if bg_auc and bg_best:
-        auc_only_val = bg_auc["val_pareto_auc"]
-        selected_val = bg_best["val_pareto_auc"]
-        if auc_only_val > 0:
-            sacrifice_pct = (auc_only_val - selected_val) / auc_only_val * 100
-            cs.num("AUCSacrifice", sacrifice_pct, digits=2)
-
-    # -------------------------------------------------------------------------
-    # Tabula Rasa selected config
-    # -------------------------------------------------------------------------
-    tr_best = best_val.get("tabula_rasa", {})
-    if tr_best:
-        cs.raw("TabulaAlpha", format_alpha(tr_best["alpha"]))
-        cs.raw("TabulaGamma", format_gamma(tr_best["gamma"]))
-        cs.num("TabulaAUC", tr_best["val_pareto_auc"], digits=3)
-        cs.num("TabulaRegret", tr_best["val_phase2_regret"], digits=1)
+    pb_auc = auc_only.get("paretobandit", {})
+    if pb_auc:
+        cs.raw("AUCOnlyAlpha", format_alpha(pb_auc["alpha"]))
+        cs.raw("AUCOnlyNeff", fmt_int(pb_auc["n_eff"]))
+        cs.raw("AUCOnlyGamma", format_gamma(pb_auc["gamma"]))
+        cs.num("AUCOnlyAUC", pb_auc["val_pareto_auc"], digits=3)
 
     # -------------------------------------------------------------------------
     # Tabula Rasa AUC-only config
@@ -119,6 +111,38 @@ def build_command_set(
         cs.raw("TabulaAUCOnlyAlpha", format_alpha(tr_auc["alpha"]))
         cs.raw("TabulaAUCOnlyGamma", format_gamma(tr_auc["gamma"]))
         cs.num("TabulaAUCOnlyAUC", tr_auc["val_pareto_auc"], digits=3)
+
+    # -------------------------------------------------------------------------
+    # AUC sacrifice: (auc_only - selected) / auc_only * 100
+    # -------------------------------------------------------------------------
+    if pb_auc and pb_best:
+        auc_only_val = pb_auc["val_pareto_auc"]
+        selected_val = pb_best["val_pareto_auc"]
+        if auc_only_val > 0:
+            sacrifice_pct = (auc_only_val - selected_val) / auc_only_val * 100
+            cs.num("AUCSacrifice", sacrifice_pct, digits=2)
+
+    # -------------------------------------------------------------------------
+    # Cross-arm validation (Phase-2 reward per failed arm)
+    # -------------------------------------------------------------------------
+    pb_cross = cross_arm.get("paretobandit", {})
+    for short_name, key_suffix in [
+        ("Llama-8B", "Llama"),
+        ("Mistral-Large", "Mistral"),
+        ("Gemini-Pro", "Gemini"),
+    ]:
+        arm_data = pb_cross.get(short_name, {})
+        if arm_data:
+            cs.num(
+                f"CrossArm{key_suffix}P2",
+                arm_data["phase2_reward"],
+                digits=4,
+            )
+            cs.num(
+                f"CrossArm{key_suffix}Std",
+                arm_data["phase2_reward_std"],
+                digits=4,
+            )
 
     return cs
 
