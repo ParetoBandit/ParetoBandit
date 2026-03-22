@@ -201,17 +201,16 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
                     continue
                 exceeds_tr = val > tr_val
                 fontweight = "bold" if exceeds_tr else "normal"
-                color = "white" if val > (vmin + vmax) / 2 else "black"
                 ax.text(
                     ni, qi, f"{val:.1f}\n±{se:.1f}",
-                    ha="center", va="center", fontsize=8,
-                    fontweight=fontweight, color=color,
+                    ha="center", va="center", fontsize=11,
+                    fontweight=fontweight, color="black",
                 )
 
         # Tabula Rasa reference annotation
         ax.text(
             n_neffs - 0.5, -0.6,
-            f"TR = {tr_val:.1f}",
+            f"Tabula Rasa = {tr_val:.1f}",
             ha="right", va="center", fontsize=9,
             fontstyle="italic", color=COLORS["Tabula Rasa"],
         )

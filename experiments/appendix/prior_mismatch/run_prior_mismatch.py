@@ -378,7 +378,6 @@ def _create_router(
         warmup_path=str(priors_path) if use_warmup else None,
         prior_n_effective=prior_n_effective,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=forgetting_factor,
     )
@@ -585,11 +584,23 @@ def _build_conditions(
 # ======================================================================
 
 
-def _paired_ttest(
+BOOTSTRAP_N: int = 10_000
+"""Number of bootstrap resamples for paired CIs."""
+
+BOOTSTRAP_SEED: int = 42
+
+
+def _paired_tests(
     per_seed_a: List[float],
     per_seed_b: List[float],
-) -> Dict[str, float]:
-    """Two-sided paired t-test on per-seed terminal regret.
+) -> Dict[str, Any]:
+    """Wilcoxon signed-rank test + bootstrap CI on paired per-seed regret.
+
+    The Wilcoxon test is rank-based and does not assume normality or
+    equal variance in the paired differences — appropriate here because
+    Tabula Rasa exhibits 15-40x higher seed-to-seed variance than warmup
+    conditions.  Bootstrap CIs provide a distribution-free interval for
+    the mean difference.
 
     Parameters
     ----------
@@ -599,8 +610,8 @@ def _paired_ttest(
     Returns
     -------
     dict
-        ``{"t_stat": float, "p_value": float, "delta_mean": float,
-        "ci_lo": float, "ci_hi": float}``.
+        Wilcoxon statistic and p-value, mean/median differences, and
+        bootstrap 95% CI for the mean difference.
     """
     from scipy import stats
 
@@ -608,18 +619,36 @@ def _paired_ttest(
     b = np.array(per_seed_b)
     diffs = a - b
     n = len(diffs)
-    t_stat, p_val = stats.ttest_rel(a, b)
+
     delta_mean = float(np.mean(diffs))
-    se_diff = float(np.std(diffs, ddof=1) / np.sqrt(n))
-    t_crit = stats.t.ppf(0.975, df=n - 1)
-    ci_lo = delta_mean - t_crit * se_diff
-    ci_hi = delta_mean + t_crit * se_diff
+    delta_median = float(np.median(diffs))
+
+    # Wilcoxon signed-rank (two-sided)
+    nonzero_diffs = diffs[diffs != 0]
+    if len(nonzero_diffs) < 2:
+        w_stat, w_pval = float("nan"), 1.0
+    else:
+        w_stat, w_pval = stats.wilcoxon(nonzero_diffs, alternative="two-sided")
+
+    # Bootstrap CI for mean difference (BCa not needed; percentile is
+    # sufficient with 10K resamples and n=20 paired observations).
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    boot_means = np.empty(BOOTSTRAP_N)
+    for i in range(BOOTSTRAP_N):
+        idx = rng.integers(0, n, size=n)
+        boot_means[i] = np.mean(diffs[idx])
+    ci_lo = float(np.percentile(boot_means, 2.5))
+    ci_hi = float(np.percentile(boot_means, 97.5))
+
     return {
-        "t_stat": float(t_stat),
-        "p_value": float(p_val),
+        "wilcoxon_stat": float(w_stat),
+        "wilcoxon_p": float(w_pval),
         "delta_mean": delta_mean,
-        "ci_95_lo": float(ci_lo),
-        "ci_95_hi": float(ci_hi),
+        "delta_median": delta_median,
+        "bootstrap_ci_95_lo": ci_lo,
+        "bootstrap_ci_95_hi": ci_hi,
+        "bootstrap_n": BOOTSTRAP_N,
+        "n_seeds": n,
     }
 
 
@@ -704,23 +733,29 @@ def main() -> None:
             agg["mean_reward"]["mean"],
         )
 
-    # --- Paired t-tests: each warmup condition vs Tabula Rasa ---
+    # --- Wilcoxon + bootstrap CIs: each warmup condition vs Tabula Rasa ---
     logger.info("\n--- Statistical Tests (vs Tabula Rasa) ---")
+    logger.info("  Wilcoxon signed-rank + bootstrap 95%% CI (n_boot=%d)", BOOTSTRAP_N)
     tr_seeds = all_results["Tabula Rasa"]["per_seed_regret"]
-    pairwise_tests: Dict[str, Dict[str, float]] = {}
+    tr_se = all_results["Tabula Rasa"]["total_regret"]["se"]
+    logger.info("  Tabula Rasa SE=%.1f (warmup SEs ≤ 1.1)", tr_se)
+    pairwise_tests: Dict[str, Dict[str, Any]] = {}
     for label, agg in all_results.items():
         if label == "Tabula Rasa":
             continue
-        test = _paired_ttest(agg["per_seed_regret"], tr_seeds)
+        test = _paired_tests(agg["per_seed_regret"], tr_seeds)
         pairwise_tests[label] = test
-        sig = "***" if test["p_value"] < 0.001 else (
-            "**" if test["p_value"] < 0.01 else (
-                "*" if test["p_value"] < 0.05 else "ns"
+        sig = "***" if test["wilcoxon_p"] < 0.001 else (
+            "**" if test["wilcoxon_p"] < 0.01 else (
+                "*" if test["wilcoxon_p"] < 0.05 else "ns"
             )
         )
         logger.info(
-            "  %-35s  delta=%+.1f  p=%.4f  %s",
-            label, test["delta_mean"], test["p_value"], sig,
+            "  %-35s  Δmean=%+.1f  Δmed=%+.1f  "
+            "CI=[%+.1f, %+.1f]  W p=%.4f  %s",
+            label, test["delta_mean"], test["delta_median"],
+            test["bootstrap_ci_95_lo"], test["bootstrap_ci_95_hi"],
+            test["wilcoxon_p"], sig,
         )
 
     # --- Save results ---

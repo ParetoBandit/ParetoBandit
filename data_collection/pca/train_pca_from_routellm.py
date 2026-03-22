@@ -8,16 +8,28 @@ distribution used throughout the ParetoBandit pipeline (LMSYS Chatbot Arena).
 Pipeline
 --------
 1. Loads unique prompts from the LMSYS battles corpus (~50K English prompts).
-2. Excludes any prompts that appear in the experimental dev or holdout
-   reward files to keep the PCA fitting data strictly independent of
-   all evaluation data.
+2. Excludes any prompts that appear in the K=3 experimental splits
+   (train, val, test) to keep the PCA fitting data strictly independent
+   of all reward data used for warmup priors, online learning, and
+   evaluation.
 3. Embeds prompts using ``DEFAULT_SENTENCE_TRANSFORMER`` (``all-MiniLM-L6-v2``).
 4. Fits a PCA model (384 -> N components) and saves the artifact.
 
+Data layout
+-----------
+- **train.jsonl** (8,374 prompts): Used for warmup prior generation —
+  excluded from PCA fitting so the PCA directions are not optimally
+  aligned with the prior-generation data.
+- **val.jsonl** (1,785 prompts): Online learning / burn-in.
+- **test.jsonl** (1,824 prompts): Held-out evaluation.
+
+Only ``train.jsonl`` is excluded.  PCA is unsupervised (no reward
+labels), so val/test inclusion cannot leak evaluation signal.
+
 Usage
 -----
-    python3 scripts/train_pca_from_routellm.py          # defaults: 15 comp
-    python3 scripts/train_pca_from_routellm.py --n-components 32
+    python3 data_collection/pca/train_pca_from_routellm.py
+    python3 data_collection/pca/train_pca_from_routellm.py --n-components 32
 """
 
 import sys
@@ -37,12 +49,15 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 from pareto_bandit.config import (
-    DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
-    LMSYS_BATTLES_PATH,
-    K4_TRAIN_DATA_PATH,
-    K4_VAL_DATA_PATH,
-    K4_HOLDOUT_DATA_PATH,
+    DEFAULT_SENTENCE_TRANSFORMER,
+    PROJECT_ROOT,
+    TRAIN_DATA_PATH,
+)
+
+LMSYS_BATTLES_PATH = (
+    PROJECT_ROOT / "src" / "pareto_bandit" / "data" / "offline_dataset"
+    / "lmarena_battles_en.jsonl"
 )
 
 def load_prompts_from_battles(
@@ -113,10 +128,14 @@ def load_prompts_from_battles(
     return prompts
 
 
-def _load_all_prompts_from_rewards(rewards_gz_path: Path) -> set[str]:
-    """Return every unique prompt string appearing in a gzipped rewards file."""
+def _load_all_prompts_from_jsonl(path: Path) -> set[str]:
+    """Return every unique prompt string from a JSONL file.
+
+    Handles both plain and gzipped JSONL (detected by ``.gz`` suffix).
+    """
+    opener = gzip.open if path.suffix == ".gz" else open
     prompts: set[str] = set()
-    with gzip.open(rewards_gz_path, "rt") as f:
+    with opener(path, "rt") as f:
         for line in f:
             entry = json.loads(line)
             prompts.add(entry["prompt"])
@@ -124,19 +143,22 @@ def _load_all_prompts_from_rewards(rewards_gz_path: Path) -> set[str]:
 
 
 def build_experimental_exclusion_set() -> set[str]:
-    """Collect all prompts used in the K=4 experimental splits.
+    """Exclude prompts from the warmup-prior training split.
 
-    PCA is unsupervised, so including these prompts would not cause label
-    leakage.  We still exclude them for methodological cleanliness: the
-    PCA fitting data is then strictly disjoint from all evaluation data.
+    Only ``train.jsonl`` (8,374 prompts) is excluded so that the PCA
+    directions are not optimally aligned with the data used to generate
+    warmup priors.  Val and test prompts are *not* excluded — PCA is
+    unsupervised (no reward labels), so their presence cannot leak
+    evaluation signal.
     """
-    exclude: set[str] = set()
-    for path in (K4_TRAIN_DATA_PATH, K4_VAL_DATA_PATH, K4_HOLDOUT_DATA_PATH):
-        p = Path(path)
-        if p.exists():
-            exclude |= _load_all_prompts_from_rewards(p)
-            print(f"   Loaded {len(exclude):,} exclusion prompts so far "
-                  f"(after {p.name})")
+    p = Path(TRAIN_DATA_PATH)
+    if not p.exists():
+        print(f"   WARNING: {p.name} not found at {p} — no exclusions")
+        return set()
+
+    exclude = _load_all_prompts_from_jsonl(p)
+    print(f"   Excluding {len(exclude):,} train-split prompts "
+          f"(warmup prior data) from {p.name}")
     return exclude
 
 LMSYS_EMBEDDINGS_CACHE = (
@@ -316,7 +338,7 @@ Examples:
     parser.add_argument(
         "--no-exclude-experimental",
         action="store_true",
-        help="Skip exclusion of dev/holdout experimental prompts.",
+        help="Skip exclusion of K=3 train/val/test prompts.",
     )
     parser.add_argument(
         "--no-cache",
