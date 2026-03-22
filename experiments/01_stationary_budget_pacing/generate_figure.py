@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Generate figures for Experiment 01: Stationary Budget Pacing.
 
-Reads ``results/budget_pacing_results.json`` and produces two
-publication-ready figures:
+Reads ``results/budget_pacing_results.json`` and produces a publication-ready
+three-panel figure (``budget_pacing.{pdf,png}``) communicating the router's
+core value proposition:
 
-1. **Pareto frontier** (``pareto_frontier.{pdf,png}``):
-   Quality (mean reward) vs. cost, comparing the BudgetPacer adaptive
-   curve against the static ``cost_penalty`` baseline.
+    **Panel A — "What you get for your money"**
+    Quality (mean reward) as a function of budget target, with fixed
+    single-model baselines as horizontal reference lines.  Shows that the
+    router smoothly interpolates between cheap/low-quality and
+    expensive/high-quality models.
 
-2. **Model-mix dynamics** (``model_mix.{pdf,png}``):
-   Grouped bar chart of model selection fractions as a function of
-   budget target / cost-penalty setting.
+    **Panel B — "The budget actually works"**
+    Realized cost vs. budget target (45-degree = perfect compliance).
+    Demonstrates that the pacer respects the operator's budget.
+
+    **Panel C — "How it allocates"**
+    Stacked area showing the model mix at each budget level.
 
 Usage:
     python experiments/01_stationary_budget_pacing/generate_figure.py
@@ -21,7 +27,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import matplotlib
 matplotlib.use("Agg")
@@ -34,17 +40,10 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from utils.bootstrap import bootstrap_ci
 
-# ======================================================================
-# Paths
-# ======================================================================
-
 RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_FILE = RESULTS_DIR / "budget_pacing_results.json"
 
-# ======================================================================
 # Colorblind-safe palette (Wong, Nature Methods 2011)
-# ======================================================================
-
 CB_BLUE = "#0072B2"
 CB_ORANGE = "#E69F00"
 CB_RED = "#D55E00"
@@ -64,30 +63,13 @@ MODEL_SHORT: Dict[str, str] = {
     "google/gemini-2.5-pro": "Gemini-2.5-Pro",
 }
 
-# ======================================================================
-# Helpers
-# ======================================================================
-
 
 def _load_results() -> Dict[str, Any]:
     with open(RESULTS_FILE) as f:
         return json.load(f)
 
 
-def _pareto_front(
-    costs: List[float], rewards: List[float],
-) -> tuple[List[float], List[float]]:
-    """Return the upper-left Pareto frontier from (cost, reward) points.
-
-    Delegates to :func:`utils.pareto.pareto_hull` for consistency with
-    all other Pareto computations in the experiment suite.
-    """
-    from utils.pareto import pareto_hull
-    return pareto_hull(costs, rewards)
-
-
 def _dollar_fmt(x: float, _pos: Any = None) -> str:
-    """Format x as dollar string for tick labels."""
     if x >= 0.01:
         return f"${x:.3f}"
     if x >= 0.001:
@@ -95,279 +77,279 @@ def _dollar_fmt(x: float, _pos: Any = None) -> str:
     return f"${x:.5f}"
 
 
-# ======================================================================
-# Figure 1: Pareto Frontier
-# ======================================================================
-
-
-def _ci_errorbars(
-    rows: List[Dict[str, Any]],
-    field: str,
-) -> Tuple[List[float], List[float]]:
-    """Compute asymmetric error bar half-widths from bootstrap CI or SE.
-
-    Returns (lo_err, hi_err) suitable for ``ax.errorbar(..., yerr=...)``.
-    """
-    means = [r[f"mean_{field}"] for r in rows]
+def _bootstrap_errorbars(
+    rows: List[Dict[str, Any]], field: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute asymmetric bootstrap CI half-widths for errorbar plotting."""
+    means = np.array([r[f"mean_{field}"] for r in rows])
+    lo_errs = np.zeros(len(rows))
+    hi_errs = np.zeros(len(rows))
     per_seed_key = f"per_seed_{field}s"
-    se_key = f"se_{field}"
-
-    lo_errs: List[float] = []
-    hi_errs: List[float] = []
     for i, r in enumerate(rows):
         if per_seed_key in r:
             ci_lo, ci_hi = bootstrap_ci(np.array(r[per_seed_key]))
-            lo_errs.append(means[i] - ci_lo)
-            hi_errs.append(ci_hi - means[i])
+            lo_errs[i] = means[i] - ci_lo
+            hi_errs[i] = ci_hi - means[i]
         else:
-            se = r[se_key]
-            lo_errs.append(se)
-            hi_errs.append(se)
+            se = r.get(f"se_{field}", 0.0)
+            lo_errs[i] = se
+            hi_errs[i] = se
     return lo_errs, hi_errs
 
 
-def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
-    """Quality-cost Pareto frontier: BudgetPacer vs. static baseline."""
+def plot_budget_pacing(data: Dict[str, Any]) -> plt.Figure:
+    """Three-panel budget-paced routing figure.
+
+    Panel A: Quality vs budget target with fixed-model references.
+    Panel B: Budget compliance (realized cost vs target).
+    Panel C: Model mix (stacked bars) across budget levels.
+    """
     results = data["results"]
     arm_order = data["arm_order"]
 
-    static = [r for r in results if r["method"] == "static"]
-    pacer = [r for r in results if r["method"] == "pacer"]
-
-    s_costs = [r["mean_cost"] for r in static]
-    s_rewards = [r["mean_reward"] for r in static]
-    s_err_r_lo, s_err_r_hi = _ci_errorbars(static, "reward")
-    s_err_c_lo, s_err_c_hi = _ci_errorbars(static, "cost")
-
-    p_costs = [r["mean_cost"] for r in pacer]
-    p_rewards = [r["mean_reward"] for r in pacer]
-    p_err_r_lo, p_err_r_hi = _ci_errorbars(pacer, "reward")
-    p_err_c_lo, p_err_c_hi = _ci_errorbars(pacer, "cost")
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    sf_c, sf_r = _pareto_front(s_costs, s_rewards)
-    pf_c, pf_r = _pareto_front(p_costs, p_rewards)
-
-    ax.plot(
-        sf_c, sf_r,
-        color=CB_GRAY, linestyle="--", linewidth=2.0,
-        marker="s", markersize=6, markerfacecolor="white",
-        markeredgecolor=CB_GRAY, markeredgewidth=1.5,
-        label="Static cost penalty", zorder=4,
-    )
-    ax.errorbar(
-        s_costs, s_rewards,
-        xerr=[s_err_c_lo, s_err_c_hi],
-        yerr=[s_err_r_lo, s_err_r_hi],
-        fmt="none", ecolor=CB_GRAY, alpha=0.4, capsize=3, zorder=3,
+    fixed = [r for r in results if r["method"] == "fixed_model"]
+    pacer = sorted(
+        [r for r in results if r["method"] == "pacer"],
+        key=lambda r: r["target_spend"],
     )
 
-    ax.plot(
-        pf_c, pf_r,
-        color=CB_BLUE, linestyle="-", linewidth=2.5,
-        marker="o", markersize=7, markerfacecolor="white",
-        markeredgecolor=CB_BLUE, markeredgewidth=2.0,
-        label="BudgetPacer (adaptive)", zorder=6,
+    targets = np.array([r["target_spend"] for r in pacer])
+    rewards = np.array([r["mean_reward"] for r in pacer])
+    costs = np.array([r["mean_cost"] for r in pacer])
+
+    r_err_lo, r_err_hi = _bootstrap_errorbars(pacer, "reward")
+    c_err_lo, c_err_hi = _bootstrap_errorbars(pacer, "cost")
+
+    fig = plt.figure(figsize=(16, 5.2))
+    gs = fig.add_gridspec(
+        1, 3, width_ratios=[1.25, 1.0, 1.0],
+        wspace=0.40, left=0.05, right=0.97, top=0.88, bottom=0.15,
     )
-    ax.errorbar(
-        p_costs, p_rewards,
-        xerr=[p_err_c_lo, p_err_c_hi],
-        yerr=[p_err_r_lo, p_err_r_hi],
+    ax_a = fig.add_subplot(gs[0])
+    ax_b = fig.add_subplot(gs[1])
+    ax_c = fig.add_subplot(gs[2])
+
+    # ══════════════════════════════════════════════════════════════════
+    # Panel A: Quality vs Budget Target
+    # ══════════════════════════════════════════════════════════════════
+
+    ax_a.plot(
+        costs, rewards,
+        color=CB_BLUE, linewidth=2.5, marker="o", markersize=7,
+        markerfacecolor="white", markeredgecolor=CB_BLUE,
+        markeredgewidth=2.0, zorder=6,
+    )
+    ax_a.errorbar(
+        costs, rewards,
+        yerr=[r_err_lo, r_err_hi],
         fmt="none", ecolor=CB_BLUE, alpha=0.4, capsize=3, zorder=5,
     )
 
     for r in pacer:
-        util = r.get("budget_utilization", 0)
+        util = r.get("budget_utilization", 0.0)
         if 0.95 <= util <= 1.05:
-            marker_color = CB_GREEN
+            mc = CB_GREEN
         elif util < 0.95:
-            marker_color = CB_ORANGE
+            mc = CB_ORANGE
         else:
-            marker_color = CB_RED
-        ax.plot(
+            mc = CB_RED
+        ax_a.plot(
             r["mean_cost"], r["mean_reward"],
-            "o", markersize=7, markerfacecolor=marker_color,
+            "o", markersize=7, markerfacecolor=mc,
             markeredgecolor=CB_BLUE, markeredgewidth=1.5, zorder=7,
         )
 
-    # Shade the dominance region between the two Pareto frontiers.
-    # Interpolate both curves onto a shared log-spaced grid so
-    # fill_between can highlight where adaptive > static.
-    overlap_lo = max(min(sf_c), min(pf_c))
-    overlap_hi = min(max(sf_c), max(pf_c))
-    if overlap_lo < overlap_hi:
-        x_shared = np.geomspace(overlap_lo, overlap_hi, 200)
-        static_interp = np.interp(
-            np.log(x_shared), np.log(sf_c), sf_r,
+    for r in fixed:
+        mid = r.get("model_id", "")
+        short = MODEL_SHORT.get(mid, mid.split("/")[-1])
+        color = MODEL_COLORS.get(mid, CB_GRAY)
+        ax_a.plot(
+            r["mean_cost"], r["mean_reward"],
+            marker="*", markersize=14, markerfacecolor=color,
+            markeredgecolor="black", markeredgewidth=0.8,
+            zorder=10, linestyle="none",
         )
-        pacer_interp = np.interp(
-            np.log(x_shared), np.log(pf_c), pf_r,
-        )
-        ax.fill_between(
-            x_shared, static_interp, pacer_interp,
-            where=pacer_interp >= static_interp,
-            color=CB_BLUE, alpha=0.10, zorder=2,
-            label="_nolegend_",
-        )
-
-    oracle = data.get("oracle_mean_reward")
-    if oracle is None:
-        oracle = data["results"][0]["mean_reward"] + (
-            data["results"][0]["mean_quality_gap"] / data["test_n"]
-        )
-    bottom = min(pacer, key=lambda r: r["mean_reward"])
-    top = max(pacer, key=lambda r: r["mean_reward"])
-    for pt, va, offset, ha in [
-        (bottom, "bottom", (42, 10), "left"),
-        (top, "top", (-20, -34), "center"),
-    ]:
-        gap_pct = (oracle - pt["mean_reward"]) / oracle * 100
-        ax.annotate(
-            f"{gap_pct:.1f}% gap to oracle",
-            xy=(pt["mean_cost"], pt["mean_reward"]),
-            xytext=offset, textcoords="offset points",
-            fontsize=11, fontweight="bold", fontstyle="italic",
-            color="#1a1a1a",
-            ha=ha, va=va,
-            arrowprops=dict(
-                arrowstyle="-", color="0.35", lw=1.0,
-            ),
+        x_off, y_off = 8, 0
+        va = "center"
+        if "gemini" in mid.lower():
+            x_off, y_off = -8, 6
+        elif "mistral" in mid.lower():
+            x_off, y_off = -10, 0
+        elif "llama" in mid.lower():
+            x_off, y_off = 8, -2
+        ax_a.annotate(
+            short,
+            xy=(r["mean_cost"], r["mean_reward"]),
+            xytext=(x_off, y_off), textcoords="offset points",
+            fontsize=10, color=color, fontweight="bold",
+            fontstyle="italic", va=va, ha="left" if x_off > 0 else "right",
         )
 
-    ax.set_xlabel("Mean Cost per Request (USD)", fontsize=13)
-    ax.set_ylabel("Mean Reward", fontsize=13)
-    ax.set_xscale("log")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_dollar_fmt))
-    ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=11)
+    gemini = next(r for r in fixed if "gemini" in r.get("model_id", ""))
+    target_q = 0.90 * gemini["mean_reward"]
+    annot_r = next(
+        (r for r in pacer if r["mean_reward"] >= target_q), pacer[-1],
+    )
+    quality_pct = annot_r["mean_reward"] / gemini["mean_reward"] * 100
+    cost_pct = annot_r["mean_cost"] / gemini["mean_cost"] * 100
+    ax_a.annotate(
+        f"{quality_pct:.0f}% of Gemini quality\nat {cost_pct:.0f}% of its cost",
+        xy=(annot_r["mean_cost"], annot_r["mean_reward"]),
+        xytext=(85, -30), textcoords="offset points",
+        fontsize=11, fontweight="bold", fontstyle="italic",
+        color="#1a1a1a", ha="center",
+        arrowprops=dict(arrowstyle="->", color="0.35", lw=1.2),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                  edgecolor="0.7", alpha=0.9),
+    )
+
+    y_lo = min(r["mean_reward"] for r in fixed) - 0.015
+    y_hi = max(r["mean_reward"] for r in fixed) + 0.015
+    ax_a.set_ylim(y_lo, y_hi)
+    ax_a.set_xlabel("Cost per Request (USD)", fontsize=13)
+    ax_a.set_ylabel("Mean Quality", fontsize=13)
+    ax_a.set_xscale("log")
+    ax_a.xaxis.set_major_formatter(mticker.FuncFormatter(_dollar_fmt))
+    ax_a.grid(True, alpha=0.15, linewidth=0.5)
+    ax_a.tick_params(labelsize=11)
+    ax_a.set_title("(a)  Quality vs. Budget", fontsize=14, fontweight="bold",
+                    pad=8)
 
     from matplotlib.lines import Line2D
-    legend_elements = [
-        Line2D([0], [0], color=CB_GRAY, linestyle="--", marker="s",
-               markerfacecolor="white", markeredgecolor=CB_GRAY,
-               markersize=6, linewidth=2,
-               label=r"Static $\lambda$"),
-        Line2D([0], [0], color=CB_BLUE, linestyle="-", marker="o",
+    legend_a = [
+        Line2D([0], [0], color=CB_BLUE, linewidth=2.5, marker="o",
                markerfacecolor="white", markeredgecolor=CB_BLUE,
-               markersize=7, linewidth=2.5,
-               label=r"Adaptive $\lambda$ (BudgetPacer)"),
+               markersize=7, label="ParetoBandit"),
+        Line2D([0], [0], color="none", marker="*", markerfacecolor=CB_GRAY,
+               markeredgecolor="black", markersize=12,
+               label="Fixed single-model"),
         Line2D([0], [0], color="none", marker="o", markerfacecolor=CB_GREEN,
                markeredgecolor=CB_BLUE, markersize=7,
-               label="On-target (0.95–1.05×)"),
+               label="On-budget (0.95–1.05×)"),
         Line2D([0], [0], color="none", marker="o", markerfacecolor=CB_ORANGE,
                markeredgecolor=CB_BLUE, markersize=7,
-               label="Under-target (<0.95×)"),
+               label="Under-budget (<0.95×)"),
     ]
-    ax.legend(handles=legend_elements, fontsize=10, loc="lower right",
-              framealpha=0.9)
+    ax_a.legend(handles=legend_a, fontsize=9, loc="lower right",
+                framealpha=0.9, ncol=1)
 
-    ax.set_title(
-        "ParetoBandit vs. Static Penalty — Pareto Frontier (K=3)",
-        fontsize=15, fontweight="bold", pad=12,
+    # ══════════════════════════════════════════════════════════════════
+    # Panel B: Budget Compliance
+    # ══════════════════════════════════════════════════════════════════
+
+    diag_range = np.geomspace(targets.min() * 0.5, targets.max() * 2.0, 100)
+    ax_b.plot(
+        diag_range, diag_range,
+        color=CB_GRAY, linestyle="--", linewidth=1.0, alpha=0.6,
+        label="Perfect compliance", zorder=3,
+    )
+    ax_b.fill_between(
+        diag_range, diag_range * 0.95, diag_range * 1.05,
+        color=CB_GREEN, alpha=0.35, label="±5% band", zorder=2,
     )
 
-    fig.tight_layout()
-    return fig
+    for r in pacer:
+        util = r.get("budget_utilization", 0.0)
+        if 0.95 <= util <= 1.05:
+            mc = CB_GREEN
+        elif util < 0.95:
+            mc = CB_ORANGE
+        else:
+            mc = CB_RED
+        ax_b.plot(
+            r["target_spend"], r["mean_cost"],
+            "o", markersize=9, markerfacecolor=mc,
+            markeredgecolor=CB_BLUE, markeredgewidth=1.5, zorder=6,
+        )
+        ha = "left"
+        x_off, y_off = 7, 0
+        ax_b.annotate(
+            f"{util:.2f}×",
+            xy=(r["target_spend"], r["mean_cost"]),
+            xytext=(x_off, y_off), textcoords="offset points",
+            fontsize=11, color="0.3", ha=ha, va="center",
+        )
 
+    ax_b.errorbar(
+        targets, costs,
+        yerr=[c_err_lo, c_err_hi],
+        fmt="none", ecolor=CB_BLUE, alpha=0.4, capsize=3, zorder=5,
+    )
 
-# ======================================================================
-# Figure 2: Model-Mix Dynamics
-# ======================================================================
+    ax_b.set_xlabel("Budget Target ($/request)", fontsize=13)
+    ax_b.set_ylabel("Realized Cost ($/request)", fontsize=13)
+    ax_b.set_xscale("log")
+    ax_b.set_yscale("log")
+    ax_b.xaxis.set_major_formatter(mticker.FuncFormatter(_dollar_fmt))
+    ax_b.yaxis.set_major_formatter(mticker.FuncFormatter(_dollar_fmt))
+    shared_lim = (targets.min() * 0.6, targets.max() * 3.5)
+    ax_b.set_xlim(shared_lim)
+    ax_b.set_ylim(shared_lim)
+    ax_b.grid(True, alpha=0.15, linewidth=0.5)
+    ax_b.tick_params(labelsize=11)
+    ax_b.set_title("(b)  Budget Compliance", fontsize=14,
+                    fontweight="bold", pad=8)
+    ax_b.legend(fontsize=9, loc="upper left", framealpha=0.9)
 
+    # ══════════════════════════════════════════════════════════════════
+    # Panel C: Model Mix (stacked bars)
+    # ══════════════════════════════════════════════════════════════════
 
-def plot_model_mix(data: Dict[str, Any]) -> plt.Figure:
-    """Grouped bar chart of model selection fractions."""
-    results = data["results"]
-    arm_order = data["arm_order"]
-
-    static = [r for r in results if r["method"] == "static"]
-    pacer = [r for r in results if r["method"] == "pacer"]
-
-    all_rows = static + pacer
-    n = len(all_rows)
-
-    fig, ax = plt.subplots(figsize=(max(10, n * 0.9), 5.5))
-
-    x = np.arange(n)
-    bar_width = 0.7
-    bottom = np.zeros(n)
+    x_pos = np.arange(len(pacer))
+    bottom = np.zeros(len(pacer))
+    bar_width = 0.65
 
     for model in arm_order:
-        fracs = [r["model_fractions"].get(model, 0) for r in all_rows]
+        fracs = np.array([
+            r["model_fractions"].get(model, 0.0) for r in pacer
+        ])
         color = MODEL_COLORS.get(model, CB_GRAY)
         short = MODEL_SHORT.get(model, model.split("/")[-1])
-        ax.bar(x, fracs, bar_width, bottom=bottom, label=short,
-               color=color, edgecolor="white", linewidth=0.5)
-        bottom += np.array(fracs)
+        ax_c.bar(
+            x_pos, fracs, bar_width, bottom=bottom,
+            label=short, color=color, edgecolor="white", linewidth=0.5,
+        )
+        bottom += fracs
 
-    labels = []
-    for r in all_rows:
-        if r["method"] == "static":
-            labels.append(f"cp={r['cost_penalty']:.2f}")
+    budget_labels = []
+    for r in pacer:
+        t = r["target_spend"]
+        if t >= 0.001:
+            budget_labels.append(f"${t:.4f}")
         else:
-            t = r["target_spend"]
-            labels.append(f"${t:.4f}" if t >= 0.001 else f"${t:.1e}")
+            budget_labels.append(f"${t:.1e}")
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=9)
-    ax.set_ylabel("Selection Fraction", fontsize=12)
-    ax.set_ylim(0, 1.05)
-    ax.grid(axis="y", alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=10)
+    ax_c.set_xticks(x_pos)
+    ax_c.set_xticklabels(budget_labels, rotation=45, ha="right", fontsize=9.5)
+    ax_c.set_xlabel("Budget Target ($/request)", fontsize=13)
+    ax_c.set_ylabel("Selection Fraction", fontsize=13)
+    ax_c.set_ylim(0, 1.05)
+    ax_c.grid(axis="y", alpha=0.15, linewidth=0.5)
+    ax_c.tick_params(labelsize=11)
+    ax_c.set_title("(c)  Model Allocation", fontsize=14,
+                    fontweight="bold", pad=8)
+    ax_c.legend(fontsize=10, loc="center left", framealpha=0.9,
+                bbox_to_anchor=(0.0, 0.5))
 
-    divider_x = len(static) - 0.5
-    ax.axvline(divider_x, color="black", linestyle="--", linewidth=1.0, alpha=0.4)
-    y_text = 1.02
-    ax.text(divider_x / 2, y_text, "Static cost penalty",
-            ha="center", fontsize=9, fontstyle="italic", color=CB_GRAY,
-            transform=ax.get_xaxis_transform())
-    ax.text((divider_x + n) / 2, y_text, "BudgetPacer (adaptive)",
-            ha="center", fontsize=9, fontstyle="italic", color=CB_BLUE,
-            transform=ax.get_xaxis_transform())
-
-    ax.legend(fontsize=10, loc="upper right", framealpha=0.9)
-
-    cost_ax = ax.twiny()
-    cost_ax.set_xlim(ax.get_xlim())
-    cost_ax.set_xticks(x)
-    cost_labels = [f"${r['mean_cost']:.4f}" if r['mean_cost'] >= 0.001
-                   else f"${r['mean_cost']:.1e}" for r in all_rows]
-    cost_ax.set_xticklabels(cost_labels, rotation=45, ha="left", fontsize=7,
-                            color=CB_GRAY)
-    cost_ax.set_xlabel("Realized Mean Cost / Request", fontsize=9, color=CB_GRAY)
-    cost_ax.tick_params(labelsize=7, colors=CB_GRAY)
-
-    ax.set_title(
-        "Model Selection Mix Under Budget Constraints (K=3)",
-        fontsize=14, fontweight="bold", pad=45,
+    fig.suptitle(
+        "Budget-Paced LLM Routing (K=3)",
+        fontsize=17, fontweight="bold",
     )
 
-    fig.tight_layout()
     return fig
-
-
-# ======================================================================
-# Main
-# ======================================================================
 
 
 def main() -> None:
     data = _load_results()
 
-    figures = {
-        "pareto_frontier": plot_pareto(data),
-        "model_mix": plot_model_mix(data),
-    }
+    fig = plot_budget_pacing(data)
 
-    for name, fig in figures.items():
-        for fmt in ("pdf", "png"):
-            out = RESULTS_DIR / f"{name}.{fmt}"
-            fig.savefig(out, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        print(f"  Saved {name}.{{pdf,png}}")
-
-    print(f"\nAll figures written to {RESULTS_DIR}/")
+    for fmt in ("pdf", "png"):
+        out = RESULTS_DIR / f"budget_pacing.{fmt}"
+        fig.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved budget_pacing.{{pdf,png}}")
+    print(f"\nFigures written to {RESULTS_DIR}/")
 
 
 if __name__ == "__main__":

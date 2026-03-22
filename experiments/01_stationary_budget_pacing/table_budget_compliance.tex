@@ -1,109 +1,50 @@
 \begin{table}[htbp]
 \centering
-\caption{Budget compliance diagnostics for the BudgetPacer (adaptive mode)
-  and the static cost-penalty baseline ($K{=}3$, 20~seeds).
+\caption{Budget-paced routing results ($K{=}3$, 20~seeds).
   %
-  \emph{Utilisation} = mean realised cost / target $B$;
-  values near $1.0\times$ indicate the pacer is hitting the target.
-  $\lambda_{q50}$: median dual variable over the test phase;
-  $\lambda_{\mathrm{final}}$: value at the last test step.
-  Reward values report mean $\pm$ 1\,SE across seeds.
-  %
-  The static baseline has no target; its cost is determined implicitly
-  by the penalty weight $\lambda_s$.
-  %
-  \textbf{Key finding:}  For all binding targets
-  ($B \leq \bpBindingThresholdCost$/req), utilisation is \bpUtilBindingLow--\bpUtilBindingHigh.
-  At the loosest target the router under-spends because the dual variable
-  decays to zero---the pacer constrains from above but never inflates
-  cost.
+  \emph{\% Gemini Qual.}: mean reward as a percentage of
+  Gemini-2.5-Pro's quality.
+  \emph{Savings}: cost reduction relative to always calling
+  Gemini-2.5-Pro.
+  \emph{Util.}:\ mean realised cost / target $B$;
+  bold values indicate binding targets
+  (\bpUtilBindingLow--\bpUtilBindingHigh).
+  $\lambda_{q50}$: median dual variable over the test phase.
+  Fixed models are single-model baselines (no routing).
 }
 \label{tab:budget_compliance}
 \small
-\begin{tabular}{@{}llrrrcrrr@{}}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-\textbf{Method}
-  & \textbf{Setting}
+\textbf{Budget}
   & \textbf{Reward}
-  & \textbf{Cost (\$/req)}
-  & \textbf{QGap}
+  & \textbf{Cost}
+  & \textbf{\% Gemini}
+  & \textbf{Savings}
   & \textbf{Util.}
   & \textbf{$\lambda_{q50}$}
-  & \textbf{$\lambda_{\mathrm{f}}$}
+  \\
+  &
+  &
+  & \textbf{Qual.}
+  & \textbf{vs Gemini}
+  &
+  &
   \\
 \midrule
-\multicolumn{8}{@{}l}{\textit{Static cost penalty (no budget target)}} \\[2pt]
-Static & $\lambda_s{=}0.00$ & $0.921 \pm 0.0004$ & $\$0.00942$ & $76.5$
-  & ---
-  & ---
-  & ---
-    \\
-Static & $\lambda_s{=}0.05$ & $0.920 \pm 0.0004$ & $\$0.00738$ & $78.6$
-  & ---
-  & ---
-  & ---
-    \\
-Static & $\lambda_s{=}0.10$ & $0.917 \pm 0.0006$ & $\$0.00545$ & $85.3$
-  & ---
-  & ---
-  & ---
-    \\
-Static & $\lambda_s{=}0.20$ & $0.909 \pm 0.0005$ & $\$0.00277$ & $99.1$
-  & ---
-  & ---
-  & ---
-    \\
-Static & $\lambda_s{=}0.30$ & $0.897 \pm 0.0006$ & $\$0.00177$ & $120.3$
-  & ---
-  & ---
-  & ---
-    \\
-Static & $\lambda_s{=}0.50$ & $0.849 \pm 0.001$ & $\$0.00106$ & $208.5$
-  & ---
-  & ---
-  & ---
-    \\
-Static & $\lambda_s{=}1.00$ & $0.804 \pm 0.0003$ & $\$0.000369$ & $290.6$
-  & ---
-  & ---
-  & ---
-    \\[4pt]
-\multicolumn{8}{@{}l}{\textit{BudgetPacer (adaptive, $\eta{=}0.05$, $\alpha_{\mathrm{ema}}{=}0.05$, $\bar\lambda{=}5$)}} \\[2pt]
-Pacer & $B{=}\$2.9{\times}10^{-5}$ & $0.793 \pm 0.00004$ & $\$0.0000297$ & $310.2$
-  & $\mathbf{1.02\times}$
-  & $4.19$
-  & $4.18$
-  \\
-Pacer & $B{=}\$8.3{\times}10^{-5}$ & $0.813 \pm 0.0004$ & $\$0.0000827$ & $274.8$
-  & $\mathbf{1.00\times}$
-  & $0.73$
-  & $0.76$
-  \\
-Pacer & $B{=}\$2.3{\times}10^{-4}$ & $0.855 \pm 0.0006$ & $\$0.000234$ & $197.2$
-  & $\mathbf{1.00\times}$
-  & $0.43$
-  & $0.43$
-  \\
-Pacer & $B{=}\$6.6{\times}10^{-4}$ & $0.884 \pm 0.001$ & $\$0.000658$ & $144.9$
-  & $\mathbf{0.99\times}$
-  & $0.19$
-  & $0.20$
-  \\
-Pacer & $B{=}\$1.9{\times}10^{-3}$ & $0.908 \pm 0.0009$ & $\$0.00182$ & $100.7$
-  & $\mathbf{0.97\times}$
-  & $0.03$
-  & $0.06$
-  \\
-Pacer & $B{=}\$5.3{\times}10^{-3}$ & $0.917 \pm 0.0005$ & $\$0.00481$ & $84.4$
-  & $0.91\times$
-  & $0.00$
-  & $0.01$
-  \\
-Pacer & $B{=}\$1.5{\times}10^{-2}$ & $0.922 \pm 0.0004$ & $\$0.00955$ & $75.5$
-  & $0.64\times$
-  & $0.00$
-  & $0.00$
-  \\
+\multicolumn{7}{@{}l}{\textit{Fixed single-model baselines}} \\[2pt]
+Llama-3.1-8B & $0.793$ & $\$2.9{\times}10^{-5}$ & $85.1\%$ & $99.8\%$ & --- & ---  \\
+Mistral-Large & $0.923$ & $\$5.3{\times}10^{-4}$ & $99.0\%$ & $96.5\%$ & --- & ---  \\
+Gemini-2.5-Pro & $0.932$ & $\$1.5{\times}10^{-2}$ & $100.0\%$ & $0.0\%$ & --- & ---  \\
+\\[-4pt]
+\multicolumn{7}{@{}l}{\textit{BudgetPacer (adaptive)}} \\[2pt]
+$B{=}\$2.9{\times}10^{-5}$ & $0.793 \pm 0.00003$ & $\$2.9{\times}10^{-5}$ & $85.1\%$ & $99.8\%$ & $\mathbf{0.98\times}$ & $2.81$  \\
+$B{=}\$8.3{\times}10^{-5}$ & $0.814 \pm 0.0005$ & $\$8.3{\times}10^{-5}$ & $87.3\%$ & $99.5\%$ & $\mathbf{1.00\times}$ & $0.57$  \\
+$B{=}\$2.3{\times}10^{-4}$ & $0.858 \pm 0.0006$ & $\$2.3{\times}10^{-4}$ & $92.0\%$ & $98.5\%$ & $\mathbf{1.00\times}$ & $0.40$  \\
+$B{=}\$6.6{\times}10^{-4}$ & $0.897 \pm 0.002$ & $\$6.5{\times}10^{-4}$ & $96.2\%$ & $95.7\%$ & $\mathbf{0.98\times}$ & $0.16$  \\
+$B{=}\$1.9{\times}10^{-3}$ & $0.917 \pm 0.0007$ & $\$1.7{\times}10^{-3}$ & $98.4\%$ & $88.7\%$ & $0.92\times$ & $0.01$  \\
+$B{=}\$5.3{\times}10^{-3}$ & $0.924 \pm 0.0003$ & $\$4.8{\times}10^{-3}$ & $99.1\%$ & $68.6\%$ & $0.90\times$ & $0.00$  \\
+$B{=}\$1.5{\times}10^{-2}$ & $0.929 \pm 0.0003$ & $\$1.1{\times}10^{-2}$ & $99.7\%$ & $26.8\%$ & $0.74\times$ & $0.00$  \\
 \bottomrule
 \end{tabular}
 \end{table}

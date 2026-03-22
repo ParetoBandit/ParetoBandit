@@ -1,47 +1,37 @@
 \begin{figure*}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{../experiments/01_stationary_budget_pacing/results/pareto_frontier.pdf}
-    \caption{Budget-constrained routing under stationary conditions
-    ($K{=}3$: \texttt{Llama-3.1-8B}, \texttt{Mistral-Large-2512},
-    \texttt{Gemini-2.5-Pro}; 20~seeds, 95\% bootstrap CI error bars).
+    \includegraphics[width=\linewidth]{../experiments/01_stationary_budget_pacing/results/budget_pacing.pdf}
+    \caption{Budget-paced LLM routing under stationary conditions
+    ($K{=}3$: Llama-3.1-8B, Mistral-Large, Gemini-2.5-Pro;
+    20~seeds, 95\% bootstrap CI).
     %
-    The \textbf{BudgetPacer} (blue, solid) implements a primal-dual
-    Contextual Bandit with Knapsacks
-    (CBwK)~\cite{agrawal2014bandits} that accepts a
-    dollar-denominated budget target $B$ and adaptively tunes a
-    Lagrange multiplier $\lambda_t$ via projected gradient ascent on
-    an EMA-smoothed cost signal
-    (Eq.~\ref{eq:dual_update}).
-    $\lambda_t$ simultaneously tightens a hard cost ceiling
-    (filtering out models whose unit price exceeds
-    $p_{\max}/(1 + \kappa\lambda_t)$)
-    and injects a soft per-model penalty
-    $\lambda_t \cdot \tilde{c}_m$ into the LinUCB~\cite{li2010contextual}
-    score, where $\tilde{c}_m \in [0,1]$ is the log-normalized cost.
-    %
-    The \textbf{static cost penalty} baseline (gray, dashed) applies a
-    fixed dimensionless weight $\lambda_s \in \{0, 0.05, \ldots, 1.0\}$
-    to the same normalized cost; each point on the curve requires an
-    offline sweep to identify the $\lambda_s$ that achieves a given
-    dollar spend.
-    %
-    Marker fill indicates budget compliance for pacer points:
+    \textbf{(a)~Quality vs.\ budget.}
+    Each fixed model is a single operating point (star) at its
+    inherent (cost, quality) coordinate.
+    The ParetoBandit router (blue curve) traces a continuous
+    quality--cost frontier by dynamically mixing models:
+    it achieves \bpAnnotQualPct\% of Gemini-2.5-Pro quality at
+    only \bpAnnotCostPct\% of its cost---an operating point
+    no single model can reach.
+    Marker fill indicates budget compliance:
     \textcolor[HTML]{009E73}{\textbf{green}} = on-target
     ($0.95$--$1.05\times$),
     \textcolor[HTML]{E69F00}{\textbf{orange}} = under-target
     ($< 0.95\times$).
     %
-    The pacer achieves near-perfect budget compliance
-    (utilisation $0.97$--$1.02\times$) for the five tightest targets
-    while matching or exceeding the static baseline's reward at
-    comparable cost.
-    At the loosest target the pacer under-spends because the
-    unconstrained router's natural mean cost
-    (\$0.0094/req) is below the target---the dual variable correctly
-    decays to $\lambda_t \approx 0$ and the router operates
-    unconstrained.
-    Quantitative routing metrics (cost@$Q$\%\,qual, qual@$C$\%\,cost,
-    AUCPC, Save@95\%) are reported in Table~\ref{tab:routing_metrics}.
+    \textbf{(b)~Budget compliance.}
+    Realized cost vs.\ budget target; the dashed diagonal
+    marks perfect compliance ($1.00\times$).
+    For all binding targets the pacer achieves
+    \bpUtilBindingLow--\bpUtilBindingHigh\ utilization.
+    The loosest target under-spends (\bpLoosestUtil) because the
+    router's unconstrained mean cost is already below that target.
+    %
+    \textbf{(c)~Model allocation.}
+    At tight budgets the router routes nearly all traffic through
+    Llama-3.1-8B; as budget increases, Mistral-Large enters the mix,
+    and at loose budgets Gemini-2.5-Pro dominates---a smooth,
+    principled transition driven by the dual variable $\lambda_t$.
     }
-    \label{fig:pareto_budget}
+    \label{fig:budget_pacing}
 \end{figure*}

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Experiment 01: Stationary Budget Pacing — Pareto frontier comparison.
+"""Experiment 01: Stationary Budget Pacing.
 
-Compares BudgetPacer (ADAPTIVE mode, various targets) against a static
-cost_penalty sweep on the K=3 portfolio under stationary conditions.
+Evaluates BudgetPacer (ADAPTIVE mode) across a sweep of dollar-denominated
+budget targets on the K=3 portfolio under stationary conditions.  Reference
+points are three fixed single-model policies and a uniform-random router.
 
 **Methodological notes:**
 
@@ -10,34 +11,25 @@ cost_penalty sweep on the K=3 portfolio under stationary conditions.
   offline dataset (the same costs used for Pareto metrics), not the router's
   heuristic token-count estimate.  This mirrors production, where the billing
   system provides exact costs.
-- *Forgetting factor*:  ``ff = 0.995`` — selected jointly with alpha and
+- *Forgetting factor*:  ``ff = 0.997`` — selected jointly with alpha and
   n_eff via the epsilon-constraint hyperparameter sweep.  Mild forgetting
   is applied consistently across all experiments for a fair comparison.
-- *Knob asymmetry*:  The static baseline sweeps a dimensionless
-  ``cost_penalty`` weight, while the pacer sweeps a dollar-denominated
-  ``target_avg_spend_usd``.  The Pareto frontier (mean_reward vs. mean_cost)
-  is the common evaluation surface; both methods trace a curve on the same
-  axes regardless of their internal parameterisation.
 - *Sweep point selection*:  The pacer's budget targets are log-spaced
   between the cheapest and most expensive model's empirical mean costs
   (computed from the online/val split), giving the pacer sweep points
-  that are optimally distributed across its operating range.  The static
-  baseline uses predetermined penalty values.  This asymmetry slightly
-  favours the pacer's Pareto coverage; however, the static baseline's
-  9-point sweep (including aggressive penalties up to 5.0) is dense
-  enough to trace its achievable frontier accurately.
+  that are optimally distributed across its operating range.
 - *Pacer hyperparameters*:  ``lr`` and ``lambda_max`` are fixed to defaults
   chosen before inspecting results.  A sensitivity analysis over these
   is deferred to Experiment 04.
 
-For each condition × seed the script:
+For each budget target × seed the script:
   1. Creates a router with K=3 warmup priors.
   2. Online-learns on the validation split (shuffled).
   3. Evaluates on the holdout/test split (shuffled).
   4. Tracks per-step reward, cost, model selection, lambda_t, and budget
      compliance diagnostics.
 
-**Online evaluation protocol:**  Both methods continue learning during
+**Online evaluation protocol:**  The router continues learning during
 the test phase (standard for bandit regret evaluation).  Each prompt
 is routed *before* its reward is observed, so there is no look-ahead;
 the bandit's LinUCB parameters and the pacer's dual variable update
@@ -80,8 +72,6 @@ from pareto_bandit.config import (
 from pareto_bandit.feature_service import FeatureService
 from pareto_bandit.router import BanditRouter
 from pareto_bandit.storage import EphemeralContextStore
-from scipy.stats import wilcoxon
-from utils.pareto import pareto_auc
 from utils.simulation import SplitData, build_model_registry, load_split
 
 logging.basicConfig(
@@ -101,8 +91,6 @@ SEED_OFFSET = 3000
 RESULTS_DIR = Path(__file__).parent / "results"
 
 WARMUP_HPARAMS: Dict[str, Any] = BEST_K3_HPARAMS
-
-STATIC_COST_PENALTIES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0, 2.0, 5.0]
 
 PACER_LR = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX = DEFAULT_PACER_LAMBDA_MAX
@@ -235,10 +223,11 @@ def _run_trial(
         cost = float(test.costs[model][i])
         unconstrained_oracle = max(float(test.rewards[a][i]) for a in ARM_ORDER)
 
+        lam = budget_pacer.lambda_t if budget_pacer is not None else 0.0
+
         log.cost_usd = cost
         router.process_feedback(log.request_id, reward=reward)
 
-        lam = budget_pacer.lambda_t if budget_pacer is not None else 0.0
         steps.append(StepRecord(
             model=model, reward=reward, cost=cost,
             unconstrained_oracle=unconstrained_oracle, lambda_t=lam,
@@ -372,79 +361,98 @@ def main() -> None:
     all_results: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
-    # Condition A: Static cost_penalty sweep (no pacer)
+    # Baseline: Fixed single-model policies (always pick one model)
     # ------------------------------------------------------------------
-    logger.info("\n=== Static cost_penalty sweep ===")
-    for cp in STATIC_COST_PENALTIES:
-        seed_trials: List[TrialResult] = []
-        for s in range(N_SEEDS):
-            seed = SEED_OFFSET + s
-            trial = _run_trial(
-                online, test, registry, feature_dim,
-                condition=f"static_cp{cp:.2f}",
-                cost_penalty=cp,
-                seed=seed,
-            )
-            seed_trials.append(trial)
-
-        per_seed_rewards = [t.mean_reward for t in seed_trials]
-        per_seed_costs = [t.mean_cost for t in seed_trials]
-
-        mean_reward = float(np.mean(per_seed_rewards))
-        mean_cost = float(np.mean(per_seed_costs))
-        mean_quality_gap = float(np.mean([t.cumulative_quality_gap for t in seed_trials]))
-        se_reward = float(np.std(per_seed_rewards, ddof=1) / np.sqrt(N_SEEDS))
-        se_cost = float(np.std(per_seed_costs, ddof=1) / np.sqrt(N_SEEDS))
-
-        avg_fracs = {}
-        for m in ARM_ORDER:
-            avg_fracs[m] = float(np.mean([t.model_fractions[m] for t in seed_trials]))
-
+    logger.info("\n=== Fixed single-model baselines ===")
+    for m in ARM_ORDER:
+        m_reward = float(np.mean(test.rewards[m]))
+        m_cost = float(np.mean(test.costs[m]))
+        per_seed_r = [float(np.mean(test.rewards[m])) for _ in range(N_SEEDS)]
+        per_seed_c = [float(np.mean(test.costs[m])) for _ in range(N_SEEDS)]
         row: Dict[str, Any] = {
-            "method": "static",
-            "cost_penalty": cp,
+            "method": "fixed_model",
+            "model_id": m,
+            "cost_penalty": 0.0,
             "target_spend": None,
-            "mean_reward": mean_reward,
-            "se_reward": se_reward,
-            "mean_cost": mean_cost,
-            "se_cost": se_cost,
-            "mean_quality_gap": mean_quality_gap,
-            "model_fractions": avg_fracs,
-            "per_seed_rewards": [float(v) for v in per_seed_rewards],
-            "per_seed_costs": [float(v) for v in per_seed_costs],
+            "mean_reward": m_reward,
+            "se_reward": 0.0,
+            "mean_cost": m_cost,
+            "se_cost": 0.0,
+            "mean_quality_gap": float(np.mean(oracle_rewards_arr)) - m_reward,
+            "model_fractions": {a: (1.0 if a == m else 0.0) for a in ARM_ORDER},
+            "per_seed_rewards": per_seed_r,
+            "per_seed_costs": per_seed_c,
         }
         all_results.append(row)
         logger.info(
-            "  cp=%.2f  reward=%.4f±%.4f  cost=$%.6f±$%.6f  qgap=%.1f",
-            cp, mean_reward, se_reward, mean_cost, se_cost, mean_quality_gap,
+            "  %-20s  reward=%.4f  cost=$%.6f",
+            m.split("/")[-1], m_reward, m_cost,
         )
 
     # ------------------------------------------------------------------
-    # Condition B: BudgetPacer ADAPTIVE sweep
+    # Baseline: Random router (uniform 1/K, no learning)
+    # ------------------------------------------------------------------
+    logger.info("\n=== Random router (uniform 1/K) ===")
+    per_seed_rand_rewards: List[float] = []
+    per_seed_rand_costs: List[float] = []
+    for s in range(N_SEEDS):
+        rng = np.random.default_rng(SEED_OFFSET + s)
+        choices = rng.choice(ARM_ORDER, size=test.n)
+        rewards_s = np.array([
+            float(test.rewards[choices[i]][i]) for i in range(test.n)
+        ])
+        costs_s = np.array([
+            float(test.costs[choices[i]][i]) for i in range(test.n)
+        ])
+        per_seed_rand_rewards.append(float(np.mean(rewards_s)))
+        per_seed_rand_costs.append(float(np.mean(costs_s)))
+
+    rand_reward = float(np.mean(per_seed_rand_rewards))
+    rand_cost = float(np.mean(per_seed_rand_costs))
+    se_rand_r = float(np.std(per_seed_rand_rewards, ddof=1) / np.sqrt(N_SEEDS))
+    se_rand_c = float(np.std(per_seed_rand_costs, ddof=1) / np.sqrt(N_SEEDS))
+    rand_row: Dict[str, Any] = {
+        "method": "random",
+        "cost_penalty": 0.0,
+        "target_spend": None,
+        "mean_reward": rand_reward,
+        "se_reward": se_rand_r,
+        "mean_cost": rand_cost,
+        "se_cost": se_rand_c,
+        "mean_quality_gap": float(np.mean(oracle_rewards_arr)) - rand_reward,
+        "model_fractions": {a: 1.0 / len(ARM_ORDER) for a in ARM_ORDER},
+        "per_seed_rewards": [float(v) for v in per_seed_rand_rewards],
+        "per_seed_costs": [float(v) for v in per_seed_rand_costs],
+    }
+    all_results.append(rand_row)
+    logger.info(
+        "  reward=%.4f±%.4f  cost=$%.6f±$%.6f",
+        rand_reward, se_rand_r, rand_cost, se_rand_c,
+    )
+
+    # ------------------------------------------------------------------
+    # BudgetPacer ADAPTIVE sweep
     # ------------------------------------------------------------------
     logger.info("\n=== BudgetPacer ADAPTIVE sweep ===")
     for target in budget_targets:
-        pacer = BudgetPacer(
-            target_avg_spend_usd=target,
-            mode=PacingMode.ADAPTIVE,
-            lr=PACER_LR,
-            lambda_max=PACER_LAMBDA_MAX,
-        )
-
         seed_trials = []
-        record_first_seed = True
         for s in range(N_SEEDS):
             seed = SEED_OFFSET + s
+            pacer = BudgetPacer(
+                target_avg_spend_usd=target,
+                mode=PacingMode.ADAPTIVE,
+                lr=PACER_LR,
+                lambda_max=PACER_LAMBDA_MAX,
+            )
             trial = _run_trial(
                 online, test, registry, feature_dim,
                 condition=f"pacer_target{target:.8f}",
                 budget_pacer=pacer,
                 target_spend=target,
                 seed=seed,
-                record_per_step=record_first_seed,
+                record_per_step=(s == 0),
             )
             seed_trials.append(trial)
-            record_first_seed = False
 
         per_seed_rewards = [t.mean_reward for t in seed_trials]
         per_seed_costs = [t.mean_cost for t in seed_trials]
@@ -499,79 +507,6 @@ def main() -> None:
         )
 
     # ------------------------------------------------------------------
-    # Pareto dominance test (paired Wilcoxon across seeds)
-    # ------------------------------------------------------------------
-    fixed_test_costs = [float(np.mean(test.costs[m])) for m in ARM_ORDER]
-    fixed_test_rewards = [float(np.mean(test.rewards[m])) for m in ARM_ORDER]
-    cost_lo = min(fixed_test_costs)
-    cost_hi = max(fixed_test_costs)
-
-    static_rows = [r for r in all_results if r["method"] == "static"]
-    pacer_rows = [r for r in all_results if r["method"] == "pacer"]
-
-    per_seed_static_auc: List[float] = []
-    per_seed_pacer_auc: List[float] = []
-    for s in range(N_SEEDS):
-        s_costs = (
-            [r["per_seed_costs"][s] for r in static_rows] + fixed_test_costs
-        )
-        s_rewards = (
-            [r["per_seed_rewards"][s] for r in static_rows] + fixed_test_rewards
-        )
-        per_seed_static_auc.append(
-            pareto_auc(s_costs, s_rewards, cost_lo, cost_hi),
-        )
-
-        p_costs = (
-            [r["per_seed_costs"][s] for r in pacer_rows] + fixed_test_costs
-        )
-        p_rewards = (
-            [r["per_seed_rewards"][s] for r in pacer_rows] + fixed_test_rewards
-        )
-        per_seed_pacer_auc.append(
-            pareto_auc(p_costs, p_rewards, cost_lo, cost_hi),
-        )
-
-    pacer_auc_arr = np.array(per_seed_pacer_auc)
-    static_auc_arr = np.array(per_seed_static_auc)
-    auc_diff = pacer_auc_arr - static_auc_arr
-
-    wilcoxon_stat, wilcoxon_p = wilcoxon(
-        per_seed_pacer_auc, per_seed_static_auc, alternative="greater",
-    )
-
-    dominance_test: Dict[str, Any] = {
-        "test": "wilcoxon_signed_rank",
-        "alternative": "pacer_auc > static_auc",
-        "n_seeds": N_SEEDS,
-        "pacer_auc_mean": float(np.mean(pacer_auc_arr)),
-        "pacer_auc_std": float(np.std(pacer_auc_arr, ddof=1)),
-        "static_auc_mean": float(np.mean(static_auc_arr)),
-        "static_auc_std": float(np.std(static_auc_arr, ddof=1)),
-        "auc_diff_mean": float(np.mean(auc_diff)),
-        "auc_diff_std": float(np.std(auc_diff, ddof=1)),
-        "statistic": float(wilcoxon_stat),
-        "p_value": float(wilcoxon_p),
-        "per_seed_pacer_auc": [float(v) for v in per_seed_pacer_auc],
-        "per_seed_static_auc": [float(v) for v in per_seed_static_auc],
-    }
-
-    logger.info("\nPareto Dominance Test (Wilcoxon signed-rank):")
-    logger.info(
-        "  Pacer AUC:  %.6f ± %.6f",
-        dominance_test["pacer_auc_mean"], dominance_test["pacer_auc_std"],
-    )
-    logger.info(
-        "  Static AUC: %.6f ± %.6f",
-        dominance_test["static_auc_mean"], dominance_test["static_auc_std"],
-    )
-    logger.info(
-        "  Δ AUC:      %.6f ± %.6f",
-        dominance_test["auc_diff_mean"], dominance_test["auc_diff_std"],
-    )
-    logger.info("  Wilcoxon p: %.2e", dominance_test["p_value"])
-
-    # ------------------------------------------------------------------
     # Save results
     # ------------------------------------------------------------------
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -585,13 +520,11 @@ def main() -> None:
         "pacer_lr": PACER_LR,
         "pacer_lambda_max": PACER_LAMBDA_MAX,
         "budget_targets": budget_targets,
-        "static_cost_penalties": STATIC_COST_PENALTIES,
         "online_n": online.n,
         "test_n": test.n,
         "oracle_mean_reward": oracle_mean_reward,
         "oracle_mean_cost": oracle_mean_cost,
         "results": all_results,
-        "dominance_test": dominance_test,
     }
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
@@ -617,16 +550,25 @@ def main() -> None:
     )
 
     for r in all_results:
-        if r["method"] == "static":
-            cfg = f"cp={r['cost_penalty']:.2f}"
-            util_str = "—"
-            lam_str = "—"
-        else:
+        method = r["method"]
+        if method == "pacer":
             cfg = f"t=${r['target_spend']:.6f}"
             util_str = f"{r['budget_utilization']:.2f}x"
             lam_str = f"{r['final_lambda']:.4f}"
+        elif method == "fixed_model":
+            cfg = r.get("model_id", "").split("/")[-1][:16]
+            util_str = "—"
+            lam_str = "—"
+        elif method == "random":
+            cfg = "uniform 1/K"
+            util_str = "—"
+            lam_str = "—"
+        else:
+            cfg = "?"
+            util_str = "—"
+            lam_str = "—"
         print(
-            f"  {r['method']:<12s} {cfg:>16s}  {r['mean_reward']:10.4f}  "
+            f"  {method:<12s} {cfg:>16s}  {r['mean_reward']:10.4f}  "
             f"${r['mean_cost']:11.6f}  {r['mean_quality_gap']:10.1f}  "
             f"{util_str:>7s}  {lam_str:>8s}"
         )
