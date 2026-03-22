@@ -238,24 +238,37 @@ so their Phase~1 costs match by construction.
 Four failure modes emerge:
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy under-spends} ($0.46$--$0.51\times$).
-    The static cost penalty, tuned to produce similar Phase~1 spend
-    for the pacer conditions, is too aggressive for a frozen policy
-    that cannot refine its reward estimates.
-    At tight budget, it routes ${\sim}72\%$ to Llama-8B---the cheapest arm
-    but also the lowest-quality---wasting roughly half the quality
-    headroom that the budget allows.
+  \item \textbf{Fixed Policy is inconsistent across budgets}
+    ($\bdFixedModPhaseOneRatio$--$\bdFixedLoosePhaseOneRatio$).
+    At tight and moderate budgets, the static cost penalty is too
+    aggressive for a frozen policy that cannot refine its reward
+    estimates: it under-spends ($\bdFixedTightPhaseOneRatio$ /
+    $\bdFixedModPhaseOneRatio$), routing ${\sim}71\%$ to
+    Llama-8B at tight budget---the cheapest arm but also the
+    lowest-quality---wasting roughly half the quality headroom
+    that the budget allows.
+    At loose budget the same calibration approach produces a penalty
+    that is too weak: the Fixed Policy spends
+    $\bdFixedLoosePhaseOneRatio$ the target, because without online
+    learning it cannot correct the pre-trained routing mix.
 
-  \item \textbf{Naive Bandit is inconsistent across budgets.}
+  \item \textbf{Naive Bandit is also inconsistent across budgets.}
     After pre-training on the validation split, the Naive Bandit
-    overshoots at tight ($1.52\times$) and moderate ($1.16\times$)
-    because the static cost penalty provides no feedback mechanism to
-    correct realised over-spend.
-    At loose budget, the same static penalty ($\lambda_s{=}0.10$)
-    cannot contain the shift toward expensive arms: the Naive Bandit
-    spends \$5.1e-3/req ($2.74\times$ target).
-    A different penalty per budget tier would require the very
-    closed-loop calibration that the BudgetPacer provides automatically.
+    under-spends at tight ($\bdNaiveTightPhaseOneRatio$) and moderate
+    ($\bdNaiveModPhaseOneRatio$) because the static cost penalty,
+    calibrated against the ParetoBandit's routing mix, is too
+    aggressive when paired with the Naive Bandit's different
+    quality estimates---and there is no feedback mechanism to
+    correct realised under-spend.
+    At loose budget, the same calibration approach produces a penalty
+    that is too weak: the Naive Bandit spends
+    $\bdNaiveLoosePhaseOneRatio$ the target
+    (\bdNaiveLoosePhaseOneCost/req) because online learning shifts
+    routing toward expensive high-quality arms, unchecked by any
+    budget feedback.
+    No single static penalty can work across all budget regimes;
+    the BudgetPacer provides this closed-loop calibration
+    automatically.
 
   \item \textbf{Recalibrated Bandit inherits Phase~1 weakness.}
     Because recalibration only takes effect at the Phase~2 boundary,
@@ -285,7 +298,7 @@ Four failure modes emerge:
 
 \noindent
 \textbf{ParetoBandit is the only condition that reliably hits the
-budget target} ($0.97$--$1.00\times$).  The BudgetPacer's
+budget target} ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$).  The BudgetPacer's
 primal-dual mechanism adjusts $\lambda_t$ continuously based on
 observed costs, providing a closed-loop budget controller that
 static penalties cannot replicate.
@@ -356,11 +369,15 @@ The recovery demonstrates that the primal-dual mechanism adapts
 in both directions: $\lambda_t$ decreases when costs drop below
 target and increases when costs rise above it.
 Phase~3 $\lambda_t$ does not exactly match Phase~1 levels: at tight
-budget, $\lambda_t$ overshoots ($0.51$ vs.\ $0.41$ in Phase~1),
-while at loose budget it closely tracks ($0.10$ vs.\ $0.08$).
-This asymmetry reflects the ramp-up transient---the dual update must
-raise $\lambda_t$ from near-zero through the slack region---and is
-consistent with the finite phase length (608 steps).
+budget, $\lambda_t$ overshoots slightly
+(${\sim}\bdParetoBanditTightLambdaPhaseThree$ vs.\
+${\sim}\bdParetoBanditTightLambdaPhaseOne$ in Phase~1),
+while at loose budget it closely tracks
+(${\sim}\bdParetoBanditLooseLambdaPhaseThree$ vs.\
+${\sim}\bdParetoBanditLooseLambdaPhaseOne$).
+The mild overshoot at tight reflects the ramp-up transient---the dual
+update must raise $\lambda_t$ from near-zero through the slack
+region---and is consistent with the finite phase length (608 steps).
 
 \paragraph{Gemini adoption (Figure~\ref{fig:exp02_adaptation}a).}
 All three budget regimes show substantial Gemini adoption in Phase~2.
@@ -378,7 +395,7 @@ the cheapest and highest-quality arm post-drop.
 At \textbf{moderate} budget, Gemini selection rises from
 ${\sim}\bdParetoBanditModGeminiPhaseOne\%$ to
 ${\sim}\bdParetoBanditModGeminiPhaseTwo\%$, approaching the
-unconstrained baseline (${\sim}59\%$ Gemini in Phase~2).
+unconstrained baseline (${\sim}75\%$ Gemini in Phase~2).
 At \textbf{loose} budget, Gemini selection grows from
 ${\sim}\bdParetoBanditLooseGeminiPhaseOne\%$ to
 ${\sim}\bdParetoBanditLooseGeminiPhaseTwo\%$, also converging
@@ -434,18 +451,22 @@ However, panel~(c) reveals the cost of this reward: both baselines
 pay for their Gemini adoption with uncontrolled spend.
 
 \emph{Panel~(c): Windowed cost.}
-The critical panel.  In Phase~1, the Forgetting Bandit's cost trace
-sits far above the moderate budget target---already overshooting at
-$\bdForgetModPhaseOneRatio$---because geometric forgetting has eroded
-the cost penalty's anchoring effect.
-The Naive Bandit sits closer to target in Phase~1
-($\bdNaiveModPhaseOneRatio$), anchored by its full history.
+The critical panel.  In Phase~1, both baselines miss the moderate
+budget target but in opposite directions: the Forgetting Bandit
+overshoots at $\bdForgetModPhaseOneRatio$ because geometric forgetting
+erodes the cost penalty's anchoring effect, while the Naive Bandit
+under-spends at $\bdNaiveModPhaseOneRatio$ because the static penalty,
+calibrated against the ParetoBandit's routing mix, is too aggressive
+for the Naive Bandit's different quality estimates.
 In Phase~2, both traces drop sharply as cheap Gemini traffic
 dominates.
-In Phase~3, when normal pricing resumes, both traces spike above
-target: the Forgetting Bandit reaches $\bdForgetModPhaseThreeRatio$
-and the Naive Bandit $\bdNaiveModPhaseThreeRatio$---neither has a
-feedback mechanism to re-tighten cost control.
+In Phase~3, the two baselines diverge further: the Forgetting
+Bandit's cost spikes to $\bdForgetModPhaseThreeRatio$ as it
+aggressively routes to the now-expensive Gemini based on stale
+Phase~2 quality estimates, while the Naive Bandit remains flat at
+$\bdNaiveModPhaseThreeRatio$---still under-spending because its
+infinite memory anchors routing to the cheap-arm mix learned earlier.
+Neither has a feedback mechanism to converge on the target.
 ParetoBandit's traces, by contrast, hug the budget target lines
 throughout all three phases, visually demonstrating the closed-loop
 advantage.
@@ -454,14 +475,15 @@ advantage.
 (Figure~\ref{fig:exp02_adaptation}b).}
 The unconstrained baseline shares ParetoBandit's $\gamma{=}0.997$ but
 removes the budget pacer, isolating the pacer's quality impact.
-In Phase~2, the unconstrained baseline achieves reward $0.928$,
+In Phase~2, the unconstrained baseline achieves reward $0.933$,
 while ParetoBandit at moderate and loose budgets reaches
-$0.927$---a gap of ${\leq}0.1\%$.
-The pacer thus imposes \emph{negligible quality cost} when the
-constraint is slack; at tight budget the cost is still only
-${\sim}0.1\%$ ($\bdParetoBanditTightRewardPhaseTwo$ vs.\ $0.928$),
-attributable to the residual $\lambda_t$ that slightly favors
-cheaper arms over the quality-optimal mix.
+$\bdParetoBanditModRewardPhaseTwo$---a gap of ${\sim}0.7\%$.
+The pacer thus imposes a \emph{small quality cost} when the
+constraint is slack; at tight budget the gap narrows further
+($\bdParetoBanditTightRewardPhaseTwo$ vs.\ $0.933$,
+$<0.1\%$), because the residual $\lambda_t$ at tight budget
+happens to favour the quality-optimal arm (Gemini) when it is also
+the cheapest.
 %
 The $\epsilon$-constraint procedure
 (Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.997$ because
@@ -485,24 +507,26 @@ Tight    & \$3.00e-4 & \bdParetoBanditTightPhaseOneCost & \bdParetoBanditTightPh
 Moderate & \$6.62e-4 & \bdParetoBanditModPhaseOneCost & \bdParetoBanditModPhaseTwoCost & \bdParetoBanditModPhaseThreeCost \\
 Loose    & \$1.87e-3 & \bdParetoBanditLoosePhaseOneCost & \bdParetoBanditLoosePhaseTwoCost & \bdParetoBanditLoosePhaseThreeCost \\
 \midrule
-Unconstr.\ & ---     & \$9.5e-3 & \$3.2e-4 & \$9.8e-3 \\
+Unconstr.\ & ---     & \bdUncPhaseOneCostEng & \$3.0e-4 & \$1.3e-2 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
-ParetoBandit achieves Phase~1 costs within $3\%$ of the target at all
-budget levels.  After the price drop, costs decline below target at
+ParetoBandit achieves Phase~1 costs within $6\%$ of the target at all
+budget levels ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$).
+After the price drop, costs decline below target at
 all three levels (the pacer constrains from above, never inflates):
 tight costs settle at $\bdParetoBanditTightPhaseTwoRatio$ target,
 moderate at $\bdParetoBanditModPhaseTwoRatio$, and loose at
 $\bdParetoBanditLoosePhaseTwoRatio$.
 In Phase~3, when original pricing is restored, ParetoBandit recovers
-budget compliance to $1.00\times$--$1.02\times$ of the target across
-all three regimes.
-The unconstrained baseline spends ${\sim}5$--$33\times$ more than
-pacer targets in Phase~1 (\$9.5e-3/req), confirming that the pacer
-provides genuine cost control.
+budget compliance to
+$\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$
+of the target across all three regimes.
+The unconstrained baseline spends ${\sim}6$--$39\times$ more than
+pacer targets in Phase~1 (\bdUncPhaseOneCostEng/req), confirming that
+the pacer provides genuine cost control.
 
 \paragraph{Reward lift after price drop.}
 We test whether the pacer exploits the price drop by measuring
@@ -645,12 +669,15 @@ This experiment demonstrates that
 recalibration or geometric forgetting---cannot substitute for
 principled budget pacing}:
 \begin{itemize}[nosep,leftmargin=*]
-  \item The \textbf{Fixed Policy} under-spends the budget by
-    ${\sim}2\times$ in Phase~1 because it cannot refine its reward
-    estimates---it sacrifices quality unnecessarily.
-  \item The \textbf{Naive Bandit} is inconsistent: it overshoots
-    at tight ($\bdNaiveTightPhaseOneRatio$) and moderate
-    ($\bdNaiveModPhaseOneRatio$), and over-spends by
+  \item The \textbf{Fixed Policy} is inconsistent across budgets:
+    it under-spends at tight ($\bdFixedTightPhaseOneRatio$) and
+    moderate ($\bdFixedModPhaseOneRatio$) because it cannot refine
+    its reward estimates, yet over-spends at loose
+    ($\bdFixedLoosePhaseOneRatio$) where the calibrated penalty is
+    too weak.
+  \item The \textbf{Naive Bandit} exhibits the same inconsistency:
+    it under-spends at tight ($\bdNaiveTightPhaseOneRatio$) and
+    moderate ($\bdNaiveModPhaseOneRatio$), and over-spends by
     $\bdNaiveLoosePhaseOneRatio$ at loose budget, because no
     feedback mechanism corrects the static cost penalty.
   \item The \textbf{Recalibrated Bandit} (oracle) demonstrates that
@@ -661,8 +688,7 @@ principled budget pacing}:
     cannot track intra-phase spending dynamics.
     In Phase~3, recalibration produces
     $\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$
-    compliance at tight and moderate budgets---better than the Naive
-    Bandit but far from target.
+    at tight and moderate budgets---still far from target.
   \item The \textbf{Forgetting Bandit} ($\gamma{=}0.997$, same
     learning dynamics as ParetoBandit, no pacer) is the critical
     ablation: it isolates the BudgetPacer's contribution by
