@@ -1,0 +1,133 @@
+\begin{figure*}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=2.2cm and 2.5cm,
+    font=\sffamily\Large,
+    >={stealth},
+    box/.style={
+        rectangle, 
+        draw=black!80, 
+        thick, 
+        fill=white, 
+        text width=4.2cm, 
+        text centered, 
+        rounded corners=4pt, 
+        minimum height=2.0cm,
+        inner sep=10pt
+    },
+    actionbox/.style={
+        box,
+        fill=blue!5,
+        draw=blue!80
+    },
+    statebox/.style={
+        box,
+        fill=orange!5,
+        draw=orange!80,
+        text width=4.0cm
+    },
+    storebox/.style={
+        rectangle,
+        draw=black!50,
+        thick,
+        fill=gray!5,
+        text width=3.5cm,
+        text centered,
+        rounded corners=3pt,
+        minimum height=1.4cm,
+        inner sep=8pt,
+        dashed
+    },
+    arrow/.style={
+        ->,
+        line width=1.5pt,
+        draw=black!70
+    },
+    dashed_arrow/.style={
+        ->,
+        line width=1.5pt,
+        dashed,
+        draw=orange!70
+    },
+    group/.style={
+        rectangle,
+        draw=black!30,
+        dashed,
+        thick,
+        inner sep=0.6cm,
+        rounded corners=8pt
+    }
+]
+
+% -------------------------
+% Inference Path (Top Half)
+% -------------------------
+\node[box, fill=gray!10, text width=3.0cm] (user) {
+    \begin{tikzpicture}[scale=0.5]
+        \fill[gray!80] (0,1.5) circle (0.8);
+        \fill[gray!80] (0,0) ellipse (1.5 and 0.8);
+    \end{tikzpicture}\\[6pt]
+    \textbf{User Query}\\($x_t$)
+};
+
+\node[actionbox, right=of user, text width=5.0cm] (extractor) {\textbf{FeatureService}\\[4pt]\Large{Embedding $\to$ PCA $\to$ Bias}};
+
+\node[actionbox, right=of extractor, text width=5.5cm] (router) {\textbf{BanditRouter}\\[6pt]\Large{$a_t = \arg\max_{a \in \mathcal{A}_t} \;\text{UCB}_a - \lambda_t\,\tilde{c}_a$}};
+
+\node[statebox, above=1.5cm of router, text width=4.5cm] (priors) {\textbf{Warmup Priors}\\($A_0, b_0$)};
+
+\node[box, fill=gray!10, below=3.5cm of router, text width=4.5cm] (portfolio) {
+    \textbf{LLM Portfolio}\\[8pt]
+    \Large{Llama-3.1-8B}\\
+    \Large{Mistral-Large}\\
+    \Large{Gemini-2.5-Pro}
+};
+
+% Connections Top
+\draw[arrow] (user) -- (extractor);
+\draw[arrow] (extractor) -- node[above, font=\sffamily\Large, yshift=6pt] {$x_t$} (router);
+\draw[arrow] (priors) -- (router);
+\draw[arrow] (router) -- node[right, font=\sffamily\Large, xshift=6pt] {Execute $a_t$} (portfolio);
+
+% -------------------------
+% Feedback Path (Bottom Half)
+% -------------------------
+\node[actionbox, left=of portfolio, text width=4.5cm] (evaluator) {\textbf{Reward Signal}\\(External Evaluator)};
+
+\node[actionbox, left=of evaluator, yshift=-1.0cm, text width=5.0cm] (forgetting) {\textbf{LinUCB Update}\\[8pt]\Large{w/ Geometric}\\\Large{Forgetting ($\gamma$)}};
+
+\node[statebox, left=of evaluator, yshift=1.8cm, text width=5.0cm] (pacer) {\textbf{BudgetPacer}\\[8pt]\Large{EMA Dual Update}\\\Large{($\lambda_{t+1}$)}};
+
+% ContextStore between inference and feedback paths
+\node[storebox, below=1.8cm of extractor] (ctxstore) {\textbf{ContextStore}\\[2pt]\large{(Delayed Feedback)}};
+
+% Connections Bottom
+\draw[dashed_arrow] (portfolio) -- node[above, font=\sffamily\Large, yshift=6pt] {Response} (evaluator);
+\draw[dashed_arrow] (evaluator) |- node[near start, below, font=\sffamily\Large, yshift=-6pt] {Quality Reward ($r_t$)} (forgetting);
+\draw[dashed_arrow] (evaluator) |- node[near start, above, font=\sffamily\Large, yshift=6pt] {Realized Cost ($c_t$)} (pacer);
+
+% Feedback loops closing
+\draw[dashed_arrow] (forgetting) -| node[near start, left, font=\sffamily\Large, xshift=-6pt, align=center] {Update Stats\\($A_a, b_a$)} (router);
+
+% BudgetPacer → Router: dual enforcement (hard ceiling + soft penalty)
+\draw[arrow] (pacer) -- node[above, sloped, font=\sffamily\Large, yshift=6pt, align=center] {Cost Ceiling ($\mathcal{A}_t$) +\\Penalty ($\lambda_t \cdot \tilde{c}_a$)} (router);
+
+% ContextStore connections
+\draw[arrow, draw=black!40, line width=1.0pt] (router.south west) -- node[left, font=\sffamily\normalsize, xshift=-2pt] {save $x_t$} (ctxstore.north east);
+\draw[->, line width=1.0pt, dashed, draw=black!40] (ctxstore.south) |- node[near end, above, font=\sffamily\normalsize] {load $x_t$} (forgetting.east);
+
+% Group boxes
+\begin{scope}[on background layer]
+    \node[group, fit=(user)(extractor)(router)(priors), fill=blue!2] (inference_layer) {};
+    \node[above left, inner sep=6pt, font=\sffamily\bfseries\huge, text=blue!80] at (inference_layer.north west) {Synchronous Inference Path};
+    
+    \node[group, fit=(forgetting)(pacer)(evaluator)(ctxstore), fill=orange!2] (feedback_layer) {};
+    \node[below left, inner sep=6pt, font=\sffamily\bfseries\huge, text=orange!80] at (feedback_layer.south west) {Asynchronous Feedback Path};
+\end{scope}
+
+\end{tikzpicture}
+}
+\caption{ParetoBandit system architecture. The synchronous inference path (blue) extracts prompt features via the FeatureService (embedding, PCA, bias) and routes through the BanditRouter, which applies constraint filtering and budget-augmented UCB scoring to select a model. The BudgetPacer enforces the budget through two mechanisms: an adaptive cost ceiling that gates the candidate set ($\mathcal{A}_t$), and a soft dual penalty $\lambda_t \cdot \tilde{c}_a$ injected into the scoring function. The asynchronous feedback path (orange) updates reward estimates with geometric forgetting, adjusts the dual variable via the EMA-smoothed cost signal, and persists context vectors in the ContextStore for delayed-feedback workflows (e.g., human RLHF labels arriving hours after routing).}
+\label{fig:architecture}
+\end{figure*}
