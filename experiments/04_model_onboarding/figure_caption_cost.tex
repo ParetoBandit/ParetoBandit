@@ -1,0 +1,33 @@
+% Figure caption for cost compliance + reward during model onboarding.
+% Include in the appendix as:
+%   \begin{figure}[t]
+%     \centering
+%     \includegraphics[width=\linewidth]{figures/model_onboarding_cost.pdf}
+%     \caption{\input{experiments/04_model_onboarding/figure_caption_cost.tex}}
+%     \label{fig:model_onboarding_cost}
+%   \end{figure}
+
+\textbf{Budget--quality trade-off during model onboarding (Good \& Cheap).}
+\textbf{(a)}~Running average cost per request for three budget tiers
+(dotted lines = targets).
+Tight and moderate track their ceilings to within 1\% throughout the
+K=3 $\to$ K=4 transition.
+The loose tier settles ${\sim}6$\% below its target---a case of
+\emph{complementary slackness}: with only four arms and a
+$29{\times}$ cost gap between Mistral (\$5.1e-4/req) and Gemini-Pro
+(\$1.5e-2/req), the quality-maximising allocation at ${\sim}8$\%
+Pro naturally costs \$1.71e-3, below the \$1.87e-3 ceiling.
+The dual variable confirms this: $\lambda_t \approx 0.06$ (loose)
+vs.\ $0.41$ (tight), indicating the constraint is slack at the
+quality optimum.
+\textbf{(b)}~Cumulative average reward.
+Tight budget reward dips ${\sim}1$\% at the Phase~2 boundary---the
+bounded cost of 20 forced-exploration pulls ($1.1$\% of Phase~2
+traffic).
+Moderate reward \emph{rises} by $1$\% after onboarding: Flash
+($\bar{r}{=}0.925$, \$8.8e-4/req) fills a quality niche previously
+inaccessible at that budget tier, replacing prompts that would have
+gone to lower-quality Llama.
+Loose and unconstrained rewards are nearly identical, confirming the
+budget constraint is non-binding.
+20~seeds; shaded regions = 95\% bootstrap CI.

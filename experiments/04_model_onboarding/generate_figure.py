@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the model onboarding appendix figure (K=3 → K=4).
+"""Generate the model onboarding appendix figures (K=3 → K=4).
 
-Reads ``results/model_onboarding_results.json`` and produces a
-publication-ready 1×3 panel figure showing Flash adoption across
-three onboarding scenarios (good_cheap, bad_cheap, good_expensive),
-with budget tiers overlaid in each panel.
+Reads ``results/model_onboarding_results.json`` and produces:
+
+1. **model_onboarding** (1×3 panel): Flash adoption across three
+   onboarding scenarios (good_cheap, good_expensive, bad_cheap),
+   with budget tiers overlaid in each panel.
+
+2. **model_onboarding_cost** (single panel): Running average cost
+   per request for the good_cheap scenario, with budget targets
+   annotated — demonstrates that the BudgetPacer maintains
+   compliance throughout the K=3 → K=4 transition.
 
 Usage:
     python experiments/04_model_onboarding/generate_figure.py
@@ -57,6 +63,14 @@ SCENARIO_TITLES: Dict[str, str] = {
 }
 
 SCENARIO_ORDER: List[str] = ["good_cheap", "good_expensive", "bad_cheap"]
+
+BUDGET_NICE: Dict[str, str] = {
+    "tight": r"Tight ($B{=}\$3.0{\times}10^{-4}$)",
+    "moderate": r"Moderate ($B{=}\$6.6{\times}10^{-4}$)",
+    "loose": r"Loose ($B{=}\$1.9{\times}10^{-3}$)",
+}
+
+_MILLI: float = 1_000.0
 
 
 def _load() -> Dict[str, Any]:
@@ -196,6 +210,129 @@ def _panel_flash_by_budget(
 
 
 # ======================================================================
+# Panel: Cost compliance
+# ======================================================================
+
+
+def _panel_cost_compliance(
+    ax: plt.Axes,
+    scenario_data: Dict[str, Any],
+    phase_boundary: int,
+    burnin_pulls: int,
+    budget_targets: Dict[str, float],
+) -> None:
+    """Running average cost with annotated budget targets."""
+    traces = scenario_data["checkpoint_traces"]
+
+    for blabel in ["tight", "moderate", "loose"]:
+        key = f"paretobandit_transfer_{blabel}"
+        if key not in traces:
+            continue
+        trace = traces[key]
+        steps = [c["step"] for c in trace]
+        costs_m = [c["cumulative_cost"] * _MILLI for c in trace]
+        has_per_seed = "per_seed_cumulative_cost" in trace[0]
+        color = BUDGET_STYLES[blabel]["color"]
+
+        ax.plot(
+            steps,
+            costs_m,
+            color=color,
+            linewidth=2.2,
+            label=BUDGET_NICE[blabel],
+            zorder=4,
+        )
+
+        if has_per_seed:
+            matrix = np.array(
+                [c["per_seed_cumulative_cost"] for c in trace]
+            ) * _MILLI
+            ci_lo, ci_hi = bootstrap_ci_series(matrix, ci_level=0.95)
+            ax.fill_between(
+                steps, ci_lo, ci_hi,
+                alpha=0.10, color=color, zorder=2,
+            )
+
+        target_m = budget_targets[blabel] * _MILLI
+        ax.axhline(
+            target_m,
+            color=color,
+            linestyle=":",
+            linewidth=1.4,
+            alpha=0.7,
+            zorder=1,
+        )
+
+    burnin_boundary = (
+        phase_boundary + burnin_pulls if burnin_pulls > 0 else None
+    )
+    _add_phase_shading(ax, phase_boundary, burnin_boundary)
+
+    ax.set_title(
+        "(a) Cost Compliance",
+        fontsize=14,
+        fontweight="bold",
+        pad=10,
+    )
+    ax.set_xlabel("Prompts Routed", fontsize=13)
+    ax.set_ylabel(
+        r"Avg Cost / Request ($\times 10^{-3}$ USD)", fontsize=13,
+    )
+    ax.grid(True, alpha=0.2, linewidth=0.5)
+    ax.tick_params(labelsize=11)
+
+
+def _panel_reward(
+    ax: plt.Axes,
+    scenario_data: Dict[str, Any],
+    phase_boundary: int,
+    burnin_pulls: int,
+) -> None:
+    """Cumulative average reward for each budget tier + unconstrained."""
+    traces = scenario_data["checkpoint_traces"]
+
+    for blabel in ["tight", "moderate", "loose", "unconstrained"]:
+        key = f"paretobandit_transfer_{blabel}"
+        if key not in traces:
+            continue
+        trace = traces[key]
+        steps = [c["step"] for c in trace]
+        rewards = [c["cumulative_reward"] for c in trace]
+        style = BUDGET_STYLES[blabel]
+
+        label = style["label"]
+        if blabel == "unconstrained":
+            label = "Unconstrained (ceiling)"
+
+        ax.plot(
+            steps,
+            rewards,
+            color=style["color"],
+            linestyle=style["linestyle"],
+            linewidth=2.2,
+            label=label,
+            zorder=4,
+        )
+
+    burnin_boundary = (
+        phase_boundary + burnin_pulls if burnin_pulls > 0 else None
+    )
+    ax.set_ylim(top=ax.get_ylim()[1] + 0.03)
+    _add_phase_shading(ax, phase_boundary, burnin_boundary)
+
+    ax.set_title(
+        "(b) Reward",
+        fontsize=14,
+        fontweight="bold",
+        pad=10,
+    )
+    ax.set_xlabel("Prompts Routed", fontsize=13)
+    ax.set_ylabel("Avg Reward", fontsize=13)
+    ax.grid(True, alpha=0.2, linewidth=0.5)
+    ax.tick_params(labelsize=11)
+
+
+# ======================================================================
 # Main
 # ======================================================================
 
@@ -261,6 +398,52 @@ def main() -> None:
         fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved model_onboarding.{{pdf,png}} to {RESULTS_DIR}/")
+
+    # ------------------------------------------------------------------
+    # Figure 2: Cost compliance + reward for good_cheap scenario
+    # ------------------------------------------------------------------
+    if "good_cheap" in scenarios and "budget_targets" in data:
+        fig2, (ax_cost, ax_reward) = plt.subplots(
+            1, 2, figsize=(14, 5),
+        )
+        _panel_cost_compliance(
+            ax_cost,
+            scenarios["good_cheap"],
+            phase_boundary,
+            burnin_pulls,
+            data["budget_targets"],
+        )
+        _panel_reward(
+            ax_reward,
+            scenarios["good_cheap"],
+            phase_boundary,
+            burnin_pulls,
+        )
+
+        ax_cost.legend(
+            fontsize=10,
+            loc="center right",
+            framealpha=0.9,
+        )
+        ax_reward.legend(
+            fontsize=10,
+            loc="lower right",
+            framealpha=0.9,
+        )
+
+        fig2.suptitle(
+            r"Model Onboarding: Budget–Quality Trade-off (Good & Cheap)"
+            f" — {n_seeds} seeds",
+            fontsize=15,
+            fontweight="bold",
+            y=1.01,
+        )
+        fig2.tight_layout(rect=[0, 0, 1, 0.97])
+        for fmt in ("pdf", "png"):
+            out = RESULTS_DIR / f"model_onboarding_cost.{fmt}"
+            fig2.savefig(out, dpi=300, bbox_inches="tight")
+        plt.close(fig2)
+        print(f"Saved model_onboarding_cost.{{pdf,png}} to {RESULTS_DIR}/")
 
 
 if __name__ == "__main__":
