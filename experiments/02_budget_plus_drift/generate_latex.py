@@ -12,37 +12,32 @@ Run from the experiment directory: python generate_latex.py
 
 from __future__ import annotations
 
-import json
+import math
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from utils.latex_gen import (
+    BINDING_RATIO_HIGH,
+    BINDING_RATIO_LOW,
+    BUDGET_LABEL_TO_SHORT,
+    BUDGET_TABLE_DISPLAY,
+    PHASE_NAMES,
     CommandSet,
     fmt_cost_eng,
     fmt_cost_sci,
     fmt_int,
-    fmt_num,
     fmt_ratio,
+    load_json,
 )
 
 # -----------------------------------------------------------------------------
 # Constants
 # -----------------------------------------------------------------------------
-
-BUDGET_LABEL_TO_SHORT: Dict[str, str] = {
-    "tight": "Tight",
-    "moderate": "Mod",
-    "loose": "Loose",
-}
-
-BUDGET_TABLE_DISPLAY: Dict[str, str] = {
-    "Tight": "Tight",
-    "Mod": "Moderate",
-    "Loose": "Loose",
-}
 
 CONDITION_ORDER: tuple[str, ...] = (
     "Fixed Policy",
@@ -52,17 +47,16 @@ CONDITION_ORDER: tuple[str, ...] = (
     "ParetoBandit",
 )
 
-BINDING_RATIO_LOW = 0.95
-BINDING_RATIO_HIGH = 1.05
 NON_BINDING_RATIO_THRESHOLD = 0.90
 
 GEMINI_ARM_KEY = "Gemini-Pro"
 
 
-def load_results(json_path: Path) -> Dict[str, Any]:
-    """Load budget cost drift results from JSON."""
-    with open(json_path, "r") as f:
-        return json.load(f)
+def _se_from_seeds(values: List[float]) -> float:
+    """Standard error of the mean from a list of per-seed values."""
+    if len(values) < 2:
+        return 0.0
+    return float(np.std(values, ddof=1) / math.sqrt(len(values)))
 
 
 def _condition_key(condition: str, budget_label: str) -> str:
@@ -82,9 +76,6 @@ def _short_name(condition: str, budget_label: str) -> str:
     }
     cond_short = cond_map.get(condition, condition.replace(" ", ""))
     return f"{cond_short}{short_budget}"
-
-
-PHASE_NAMES = {1: "One", 2: "Two", 3: "Three"}
 
 
 def build_command_set(data: Dict[str, Any]) -> CommandSet:
@@ -119,6 +110,18 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 cs.ratio(f"{short}Phase{phase_name}Ratio", ratio)
                 cs.raw(f"{short}Phase{phase_name}Cost", fmt_cost_eng(mean_cost))
 
+                per_seed_costs = cond_data.get(
+                    f"per_seed_phase{phase_num}_cost", [],
+                )
+                if per_seed_costs:
+                    cost_se = _se_from_seeds(per_seed_costs)
+                    ratio_se = cost_se / target if target > 0 else 0.0
+                    cs.raw(
+                        f"{short}Phase{phase_name}CostSE",
+                        fmt_cost_eng(cost_se),
+                    )
+                    cs.num(f"{short}Phase{phase_name}RatioSE", ratio_se, digits=2)
+
             if condition == "ParetoBandit":
                 for phase_num in (1, 2, 3):
                     phase_key = f"phase{phase_num}_summary"
@@ -140,11 +143,31 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                     cs.num(f"ParetoBandit{short_budget}RewardPhase{phase_name}",
                            mean_reward, digits=4)
 
+                    per_seed_rewards = cond_data.get(
+                        f"per_seed_phase{phase_num}_reward", [],
+                    )
+                    if per_seed_rewards:
+                        reward_se = _se_from_seeds(per_seed_rewards)
+                        cs.num(
+                            f"ParetoBandit{short_budget}RewardPhase{phase_name}SE",
+                            reward_se, digits=4,
+                        )
+
                 p1 = cond_data.get("phase1_summary") or {}
                 p2 = cond_data.get("phase2_summary") or {}
                 r1 = p1.get("mean_reward", 0.0)
                 r2 = p2.get("mean_reward", 0.0)
                 cs.num(f"ParetoBandit{short_budget}RewardLift", r2 - r1, digits=3)
+
+                ps_r1 = cond_data.get("per_seed_phase1_reward", [])
+                ps_r2 = cond_data.get("per_seed_phase2_reward", [])
+                if ps_r1 and ps_r2:
+                    deltas = [b - a for a, b in zip(ps_r1, ps_r2)]
+                    lift_se = _se_from_seeds(deltas)
+                    cs.num(
+                        f"ParetoBandit{short_budget}RewardLiftSE",
+                        lift_se, digits=4,
+                    )
 
                 ratio_p1 = p1.get("mean_cost", 0.0) / target if target > 0 else 0.0
                 cs.ratio(f"ParetoBandit{short_budget}PhaseOneUtil", ratio_p1)
@@ -181,25 +204,25 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
     return cs
 
 
-def _format_ratio_cell(
+def _format_ratio_cell_with_se(
     ratio: float,
+    ratio_se: float,
     is_paretobandit: bool,
     is_non_binding: bool = False,
 ) -> str:
-    """Format a ratio cell with optional bold and dagger."""
+    """Format a budget-utilisation ratio cell with SE, optional bold & dagger."""
     within_5pct = BINDING_RATIO_LOW <= ratio <= BINDING_RATIO_HIGH
     should_bold = is_paretobandit or within_5pct
 
     ratio_str = fmt_ratio(ratio)
+    se_str = f"{ratio_se:.2f}"
+    inner = f"{ratio_str}{{\\scriptstyle\\pm{se_str}}}"
     if should_bold:
-        inner = f"\\mathbf{{{ratio_str}}}"
-    else:
-        inner = ratio_str
+        inner = f"\\mathbf{{{ratio_str}}}{{\\scriptstyle\\pm{se_str}}}"
 
-    cell = f"${inner}$"
     if is_non_binding:
-        cell = f"${inner}^{{\\dagger}}$"
-    return cell
+        return f"${inner}^{{\\dagger}}$"
+    return f"${inner}$"
 
 
 def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
@@ -213,7 +236,7 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
         r"\centering",
         r"\caption{Budget compliance under cost drift (Experiment~2,",
         rf"{data['n_seeds']}~seeds, three phases).  Each cell shows realised average cost",
-        r"as a multiple of the budget target ($1.00\times$ = perfect).",
+        r"as a multiple of the budget target ($1.00\times$ = perfect), $\pm$ standard error.",
         r"\textbf{Bold} marks values within $5\%$ of $1.00\times$.",
         r"$\dagger$~Phase~2 constraint non-binding: the price drop reduces",
         r"all methods' costs below target, regardless of algorithm.",
@@ -239,20 +262,38 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
             if not cond_data:
                 continue
 
-            ratios = []
+            ratios: List[float] = []
+            ratio_ses: List[float] = []
             for phase_num in (1, 2, 3):
                 phase_key = f"phase{phase_num}_summary"
                 pd = cond_data.get(phase_key) or {}
                 mc = pd.get("mean_cost", 0.0)
                 ratios.append(mc / target if target > 0 else 0.0)
 
+                per_seed = cond_data.get(
+                    f"per_seed_phase{phase_num}_cost", [],
+                )
+                if per_seed and target > 0:
+                    ratio_ses.append(
+                        _se_from_seeds(per_seed) / target,
+                    )
+                else:
+                    ratio_ses.append(0.0)
+
             is_paretobandit = condition == "ParetoBandit"
             p2_non_binding = ratios[1] < NON_BINDING_RATIO_THRESHOLD
 
             cond_display = "\\textbf{ParetoBandit}" if is_paretobandit else condition
-            cell_p1 = _format_ratio_cell(ratios[0], is_paretobandit)
-            cell_p2 = _format_ratio_cell(ratios[1], is_paretobandit, is_non_binding=p2_non_binding)
-            cell_p3 = _format_ratio_cell(ratios[2], is_paretobandit)
+            cell_p1 = _format_ratio_cell_with_se(
+                ratios[0], ratio_ses[0], is_paretobandit,
+            )
+            cell_p2 = _format_ratio_cell_with_se(
+                ratios[1], ratio_ses[1], is_paretobandit,
+                is_non_binding=p2_non_binding,
+            )
+            cell_p3 = _format_ratio_cell_with_se(
+                ratios[2], ratio_ses[2], is_paretobandit,
+            )
 
             line_end = r"\\[3pt]" if cond_idx == len(CONDITION_ORDER) - 1 else r"\\"
             n_conds = len(CONDITION_ORDER)
@@ -283,7 +324,7 @@ def main() -> None:
         print(f"Error: {json_path} not found.")
         sys.exit(1)
 
-    data = load_results(json_path)
+    data = load_json(json_path)
     cs = build_command_set(data)
 
     autogen_path = exp_dir / "_autogen.tex"

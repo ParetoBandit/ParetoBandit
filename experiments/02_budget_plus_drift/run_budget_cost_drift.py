@@ -31,8 +31,8 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
   comparison is a controlled within-subject design: any difference between
   the two phases is attributable solely to the router's internal state
   (accumulated Phase 2 learning history), not prompt-sampling variability.
-  With geometric forgetting γ=0.995, Phase 1 observations are down-weighted
-  by γ^608 ≈ 0.047 by Phase 3, so the learner retains negligible memory
+  With geometric forgetting γ=0.997, Phase 1 observations are down-weighted
+  by γ^608 ≈ 0.16 by Phase 3, so the learner retains only modest memory
   of individual Phase 1 evaluations.  The Fixed Policy (no online learning)
   serves as a null check: its P1 and P3 metrics should be nearly identical,
   confirming that any P1-vs-P3 gap in other conditions is algorithmic.
@@ -40,7 +40,7 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
 Three budget targets (tight, moderate, loose) and five conditions
 (Fixed Policy, Naive Bandit, Recalibrated Bandit, Forgetting Bandit,
 ParetoBandit) plus an unconstrained baseline are tested.  The
-Forgetting Bandit (γ=0.995, same static penalty, no pacer) isolates
+Forgetting Bandit (γ=0.997, same static penalty, no pacer) isolates
 the BudgetPacer's contribution from the forgetting factor.
 
 Usage:
@@ -83,7 +83,7 @@ from pareto_bandit.config import (
 from pareto_bandit.feature_service import FeatureService
 from pareto_bandit.router import BanditRouter
 from pareto_bandit.storage import EphemeralContextStore
-from utils.simulation import SplitData, build_model_registry
+from utils.simulation import SplitData, build_model_registry, load_split
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,6 +126,12 @@ MATCHED_STATIC_CPS: Dict[str, float] = {
     "moderate": 0.30,
     "loose": 0.10,
 }
+"""Static cost penalties for Fixed Policy / Naive Bandit / Forgetting Bandit.
+
+Selected via grid search over CAL_LAMBDA_CANDIDATES on the validation split
+under normal pricing to minimise |mean_cost - budget_target|, using the
+ParetoBandit's Phase 1 routing mix as reference (10 calibration seeds).
+"""
 
 CAL_N_SEEDS: int = 10
 CAL_SEED_OFFSET: int = 9500
@@ -189,36 +195,6 @@ class SeedResult:
 # ======================================================================
 # Data Loading
 # ======================================================================
-
-
-def _load_all(
-    path: Path,
-    fs: FeatureService,
-    arm_order: List[str],
-) -> SplitData:
-    """Load all prompts from a JSONL file into a ``SplitData``."""
-    prompts: List[str] = []
-    rewards: Dict[str, List[float]] = {a: [] for a in arm_order}
-    costs: Dict[str, List[float]] = {a: [] for a in arm_order}
-
-    with open(path) as f:
-        for line in f:
-            rec = json.loads(line)
-            prompts.append(rec["prompt"])
-            for arm_id in arm_order:
-                info = rec["arms"][arm_id]
-                rewards[arm_id].append(info["reward"])
-                costs[arm_id].append(info["cost"])
-
-    logger.info("  Encoding %d prompts from %s ...", len(prompts), path.name)
-    embeddings = fs.extract_features_batch(prompts)
-
-    return SplitData(
-        prompts=prompts,
-        rewards={a: np.array(v) for a, v in rewards.items()},
-        costs={a: np.array(v) for a, v in costs.items()},
-        embeddings=embeddings,
-    )
 
 
 def _apply_gemini_cost_reduction(
@@ -806,8 +782,8 @@ def main() -> None:
     fs = FeatureService()
     feature_dim = fs.dimension
 
-    train_all = _load_all(VAL_DATA_PATH, fs, ARM_ORDER)
-    test_all = _load_all(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
+    train_all = load_split(VAL_DATA_PATH, fs, ARM_ORDER)
+    test_all = load_split(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
 
     logger.info("  Train (val): %d prompts — online learning, no eval", train_all.n)
     logger.info(

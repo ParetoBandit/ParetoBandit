@@ -33,13 +33,24 @@ the P1-vs-P3 comparison is a controlled within-subject design: any
 difference between the two phases is attributable solely to the
 router's internal state (accumulated Phase~2 learning history), not
 prompt-sampling variability.
-With geometric forgetting $\gamma{=}0.995$, Phase~1 observations are
-down-weighted by $\gamma^{608}\approx 0.047$ by the start of Phase~3,
-so the learner retains negligible memory of individual Phase~1
+With geometric forgetting $\gamma{=}0.997$, Phase~1 observations are
+down-weighted by $\gamma^{608}\approx 0.16$ by the start of Phase~3,
+so the learner retains only modest memory of individual Phase~1
 evaluations.
 The Fixed Policy (no online learning) serves as a null check: its P1
 and P3 metrics are identical, confirming that any P1-vs-P3 gap in
 other conditions is algorithmic rather than due to prompt sampling.
+A consequence of prompt reuse is that P1-vs-P3 comparisons have
+zero prompt-sampling variance; the remaining uncertainty is solely
+across-seed variability in prompt ordering.  This tightens confidence
+intervals relative to an independent-sample design and should be
+kept in mind when interpreting the precision of P3 recovery
+estimates.
+For stationary conditions (e.g.\ the Naive Bandit, $\gamma{=}1.0$),
+the bandit's $\hat{\theta}$ already incorporates Phase~1 feedback
+on these exact context vectors, so Phase~3 estimates are not
+independent of Phase~1---a standard feature of within-subject
+designs.
 
 Three budget targets are chosen to span qualitatively distinct
 operating regimes of the primal-dual controller:
@@ -109,28 +120,30 @@ routing sophistication, each using warmup priors:
     mechanism and no forgetting.
     This isolates the value of \emph{online quality learning}
     when cost control remains open-loop.
-  \item \textbf{Recalibrated Bandit ($\gamma{=}1.0$):}
+  \item \textbf{Recalibrated Bandit ($\gamma{=}1.0$) [oracle]:}
     Identical to the Naive Bandit in Phase~1.  At each phase
     boundary (steps $608$ and $1{,}216$), the static cost penalty
     is re-tuned offline: a grid search over $\lambda_s$ candidates
     on the validation split with the new phase's pricing selects
     the value that minimises
-    $|\overline{c} - B|$.  This baseline directly isolates
-    \emph{continuous online tracking} (ParetoBandit) from
-    \emph{stepwise offline recalibration}, and is the strongest
-    static-penalty baseline in our comparison.
-    It answers the question: ``if we re-tuned the cost weight
+    $|\overline{c} - B|$.
+    This is an \emph{oracle} baseline: in production, the operator
+    would not have access to labeled data under the new pricing
+    regime to calibrate against.  We grant this advantage
+    deliberately to set a generous upper bound on what stepwise
+    offline recalibration can achieve.
+    It answers the question: ``if an oracle re-tuned the cost weight
     whenever prices change, would that be enough?''
-  \item \textbf{Forgetting Bandit ($\gamma{=}0.995$):}
+  \item \textbf{Forgetting Bandit ($\gamma{=}0.997$):}
     Same matched static cost penalty as the Naive Bandit, but with
-    the same forgetting factor as ParetoBandit ($\gamma{=}0.995$).
+    the same forgetting factor as ParetoBandit ($\gamma{=}0.997$).
     No budget pacer.  This is the key ablation: it shares
     ParetoBandit's learning dynamics (forgetting + priors) but
     relies on a static cost penalty instead of the primal-dual
     mechanism.  Any gap between this condition and ParetoBandit
     is attributable \emph{solely to the BudgetPacer}, not to
     differences in the forgetting schedule.
-  \item \textbf{ParetoBandit (Pacer + $\gamma{=}0.995$):}
+  \item \textbf{ParetoBandit (Pacer + $\gamma{=}0.997$):}
     Warmup priors with jointly-tuned forgetting and the
     primal-dual BudgetPacer targeting the dollar budget directly.
     This is the only condition with \emph{closed-loop} cost
@@ -138,7 +151,7 @@ routing sophistication, each using warmup priors:
 \end{enumerate}
 
 \noindent
-An \textbf{unconstrained ParetoBandit} baseline (same $\gamma{=}0.995$,
+An \textbf{unconstrained ParetoBandit} baseline (same $\gamma{=}0.997$,
 same priors, no budget pacer, $\lambda_s{=}0$) is included in
 every panel of Figure~\ref{fig:exp02_adaptation}.
 Because it shares the forgetting factor with ParetoBandit, any gap
@@ -165,8 +178,14 @@ signals (e.g., from Llama to Gemini after the drop) but
 
 \paragraph{Static cost-penalty calibration.}
 The matched static cost penalties ($\lambda_s \in \{0.10, 0.30,
-0.40\}$) were calibrated against the BudgetPacer's Phase~1 spend
-profile.
+0.40\}$) for the loose, moderate, and tight budgets, respectively,
+were selected via a grid search on the validation split
+(under normal pricing) to minimize the absolute gap between mean
+per-request cost and the budget target, using the ParetoBandit's
+Phase~1 routing mix as reference.
+The search was conducted over the same candidate set used for the
+Recalibrated Bandit ($\lambda_s \in \{0, 0.05, 0.1, \ldots, 3.0\}$),
+averaged over 10~calibration seeds.
 Because the Fixed Policy and Naive Bandit route differently from
 the pacer, the same penalty produces different actual spend;
 this is a fundamental limitation of open-loop cost control and is
@@ -190,23 +209,23 @@ targeting}:
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
 \multirow{5}{*}{Tight ($\$3.0 \times 10^{-4}$)}
-  & Fixed Policy     & \bdFixedTightPhaseOneCost & $\bdFixedTightPhaseOneRatio$ \\
-  & Naive Bandit     & \bdNaiveTightPhaseOneCost & $\bdNaiveTightPhaseOneRatio$ \\
-  & Recalibrated     & \bdRecalTightPhaseOneCost & $\bdRecalTightPhaseOneRatio$ \\
-  & Forgetting Bandit & \bdForgetTightPhaseOneCost & $\bdForgetTightPhaseOneRatio$ \\
-  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditTightPhaseOneCost} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ \\[3pt]
+  & Fixed Policy     & \bdFixedTightPhaseOneCost & $\bdFixedTightPhaseOneRatio{\scriptstyle\pm\bdFixedTightPhaseOneRatioSE}$ \\
+  & Naive Bandit     & \bdNaiveTightPhaseOneCost & $\bdNaiveTightPhaseOneRatio{\scriptstyle\pm\bdNaiveTightPhaseOneRatioSE}$ \\
+  & Recalibrated     & \bdRecalTightPhaseOneCost & $\bdRecalTightPhaseOneRatio{\scriptstyle\pm\bdRecalTightPhaseOneRatioSE}$ \\
+  & Forgetting Bandit & \bdForgetTightPhaseOneCost & $\bdForgetTightPhaseOneRatio{\scriptstyle\pm\bdForgetTightPhaseOneRatioSE}$ \\
+  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditTightPhaseOneCost} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}{\scriptstyle\pm\bdParetoBanditTightPhaseOneRatioSE}$ \\[3pt]
 \multirow{5}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
-  & Fixed Policy     & \bdFixedModPhaseOneCost & $\bdFixedModPhaseOneRatio$ \\
-  & Naive Bandit     & \bdNaiveModPhaseOneCost & $\bdNaiveModPhaseOneRatio$ \\
-  & Recalibrated     & \bdRecalModPhaseOneCost & $\bdRecalModPhaseOneRatio$ \\
-  & Forgetting Bandit & \bdForgetModPhaseOneCost & $\bdForgetModPhaseOneRatio$ \\
-  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditModPhaseOneCost} & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ \\[3pt]
+  & Fixed Policy     & \bdFixedModPhaseOneCost & $\bdFixedModPhaseOneRatio{\scriptstyle\pm\bdFixedModPhaseOneRatioSE}$ \\
+  & Naive Bandit     & \bdNaiveModPhaseOneCost & $\bdNaiveModPhaseOneRatio{\scriptstyle\pm\bdNaiveModPhaseOneRatioSE}$ \\
+  & Recalibrated     & \bdRecalModPhaseOneCost & $\bdRecalModPhaseOneRatio{\scriptstyle\pm\bdRecalModPhaseOneRatioSE}$ \\
+  & Forgetting Bandit & \bdForgetModPhaseOneCost & $\bdForgetModPhaseOneRatio{\scriptstyle\pm\bdForgetModPhaseOneRatioSE}$ \\
+  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditModPhaseOneCost} & $\mathbf{\bdParetoBanditModPhaseOneRatio}{\scriptstyle\pm\bdParetoBanditModPhaseOneRatioSE}$ \\[3pt]
 \multirow{5}{*}{Loose ($\$1.9 \times 10^{-3}$)}
-  & Fixed Policy     & \bdFixedLoosePhaseOneCost & $\bdFixedLoosePhaseOneRatio$ \\
-  & Naive Bandit     & \bdNaiveLoosePhaseOneCost & $\bdNaiveLoosePhaseOneRatio$ \\
-  & Recalibrated     & \bdRecalLoosePhaseOneCost & $\bdRecalLoosePhaseOneRatio$ \\
-  & Forgetting Bandit & \bdForgetLoosePhaseOneCost & $\bdForgetLoosePhaseOneRatio$ \\
-  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditLoosePhaseOneCost} & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}$ \\
+  & Fixed Policy     & \bdFixedLoosePhaseOneCost & $\bdFixedLoosePhaseOneRatio{\scriptstyle\pm\bdFixedLoosePhaseOneRatioSE}$ \\
+  & Naive Bandit     & \bdNaiveLoosePhaseOneCost & $\bdNaiveLoosePhaseOneRatio{\scriptstyle\pm\bdNaiveLoosePhaseOneRatioSE}$ \\
+  & Recalibrated     & \bdRecalLoosePhaseOneCost & $\bdRecalLoosePhaseOneRatio{\scriptstyle\pm\bdRecalLoosePhaseOneRatioSE}$ \\
+  & Forgetting Bandit & \bdForgetLoosePhaseOneCost & $\bdForgetLoosePhaseOneRatio{\scriptstyle\pm\bdForgetLoosePhaseOneRatioSE}$ \\
+  & \textbf{ParetoBandit} & \textbf{\bdParetoBanditLoosePhaseOneCost} & $\mathbf{\bdParetoBanditLoosePhaseOneRatio}{\scriptstyle\pm\bdParetoBanditLoosePhaseOneRatioSE}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -247,7 +266,7 @@ Four failure modes emerge:
 
   \item \textbf{Forgetting Bandit is the worst offender}
     ($\bdForgetLoosePhaseOneRatio$--$\bdForgetTightPhaseOneRatio$).
-    This condition shares ParetoBandit's $\gamma{=}0.995$ but replaces
+    This condition shares ParetoBandit's $\gamma{=}0.997$ but replaces
     the closed-loop pacer with a static cost penalty.
     Geometric forgetting actively \emph{undermines} open-loop cost
     control: as the learner down-weights early observations where the
@@ -395,7 +414,7 @@ infinite memory retains all Phase~1 observations where Gemini was
 penalised, and the learner must accumulate enough Phase~2 evidence
 to overcome the Phase~1 anchor before Gemini's UCB exceeds
 Mistral's.
-The \textbf{Forgetting Bandit} ($\gamma{=}0.995$) shifts faster:
+The \textbf{Forgetting Bandit} ($\gamma{=}0.997$) shifts faster:
 geometric forgetting down-weights Phase~1 observations within
 ${\sim}200$ steps, so the learner discovers post-drop Gemini more
 quickly.
@@ -433,7 +452,7 @@ advantage.
 
 \paragraph{Quality cost decomposition
 (Figure~\ref{fig:exp02_adaptation}b).}
-The unconstrained baseline shares ParetoBandit's $\gamma{=}0.995$ but
+The unconstrained baseline shares ParetoBandit's $\gamma{=}0.997$ but
 removes the budget pacer, isolating the pacer's quality impact.
 In Phase~2, the unconstrained baseline achieves reward $0.928$,
 while ParetoBandit at moderate and loose budgets reaches
@@ -445,7 +464,7 @@ attributable to the residual $\lambda_t$ that slightly favors
 cheaper arms over the quality-optimal mix.
 %
 The $\epsilon$-constraint procedure
-(Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.995$ because
+(Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.997$ because
 it trades a marginal stationary-quality loss for substantially
 faster adaptation, and the present experiment validates that
 tradeoff end-to-end: ParetoBandit's Phase~2 reward lift
@@ -497,9 +516,9 @@ comparison; each budget level serves as its own control).
 \toprule
 \textbf{Budget} & \textbf{P1 Rwd} & \textbf{P2 Rwd} & $\boldsymbol{\Delta}$ \\
 \midrule
-Tight    & \bdParetoBanditTightRewardPhaseOne & \bdParetoBanditTightRewardPhaseTwo & $+\bdParetoBanditTightRewardLift$ \\
-Moderate & \bdParetoBanditModRewardPhaseOne & \bdParetoBanditModRewardPhaseTwo & $+\bdParetoBanditModRewardLift$ \\
-Loose    & \bdParetoBanditLooseRewardPhaseOne & \bdParetoBanditLooseRewardPhaseTwo & $+\bdParetoBanditLooseRewardLift$ \\
+Tight    & $\bdParetoBanditTightRewardPhaseOne{\scriptstyle\pm\bdParetoBanditTightRewardPhaseOneSE}$ & $\bdParetoBanditTightRewardPhaseTwo{\scriptstyle\pm\bdParetoBanditTightRewardPhaseTwoSE}$ & $+\bdParetoBanditTightRewardLift{\scriptstyle\pm\bdParetoBanditTightRewardLiftSE}$ \\
+Moderate & $\bdParetoBanditModRewardPhaseOne{\scriptstyle\pm\bdParetoBanditModRewardPhaseOneSE}$ & $\bdParetoBanditModRewardPhaseTwo{\scriptstyle\pm\bdParetoBanditModRewardPhaseTwoSE}$ & $+\bdParetoBanditModRewardLift{\scriptstyle\pm\bdParetoBanditModRewardLiftSE}$ \\
+Loose    & $\bdParetoBanditLooseRewardPhaseOne{\scriptstyle\pm\bdParetoBanditLooseRewardPhaseOneSE}$ & $\bdParetoBanditLooseRewardPhaseTwo{\scriptstyle\pm\bdParetoBanditLooseRewardPhaseTwoSE}$ & $+\bdParetoBanditLooseRewardLift{\scriptstyle\pm\bdParetoBanditLooseRewardLiftSE}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -634,16 +653,17 @@ principled budget pacing}:
     ($\bdNaiveModPhaseOneRatio$), and over-spends by
     $\bdNaiveLoosePhaseOneRatio$ at loose budget, because no
     feedback mechanism corrects the static cost penalty.
-  \item The \textbf{Recalibrated Bandit} demonstrates that
-    \emph{knowing} the optimal penalty at each phase boundary
-    (via an offline sweep) is not enough: it inherits the Naive
+  \item The \textbf{Recalibrated Bandit} (oracle) demonstrates that
+    even \emph{oracle-grade knowledge} of the optimal penalty at each
+    phase boundary (via an offline sweep on labeled data under the
+    new pricing) is not enough: it inherits the Naive
     Bandit's Phase~1 non-compliance, and its stepwise recalibration
     cannot track intra-phase spending dynamics.
     In Phase~3, recalibration produces
     $\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$
     compliance at tight and moderate budgets---better than the Naive
     Bandit but far from target.
-  \item The \textbf{Forgetting Bandit} ($\gamma{=}0.995$, same
+  \item The \textbf{Forgetting Bandit} ($\gamma{=}0.997$, same
     learning dynamics as ParetoBandit, no pacer) is the critical
     ablation: it isolates the BudgetPacer's contribution by
     controlling for the forgetting factor.
