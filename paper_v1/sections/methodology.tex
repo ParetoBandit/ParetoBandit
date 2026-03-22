@@ -43,6 +43,46 @@ After the query completes and is evaluated (either synchronously by an automated
 
 \input{figures/architecture.tex}
 
+Algorithm~\ref{alg:paretobandit} consolidates the per-step routing loop.  Each component---UCB scoring (line~\ref{line:ucb}), hard ceiling (line~\ref{line:ceiling}), geometric forgetting (line~\ref{line:forget}), and dual-variable update (line~\ref{line:dual})---is detailed in the subsections that follow.
+
+\begin{algorithm}[t]
+\caption{ParetoBandit: Budget-Paced Non-Stationary Routing}
+\label{alg:paretobandit}
+\begin{algorithmic}[1]
+\Require Arms $\mathcal{A}$; budget target $B$; exploration rate $\alpha$; forgetting factor $\gamma$; static penalty $\lambda_s$; dual step size $\eta$; EMA factor $\alpha_{\mathrm{ema}}$; dual cap $\bar\lambda$
+\Statex \textbf{Init:} $\forall\, a$: $A_a \!\leftarrow\! \lambda_0 I$ (or warmup prior, Alg.~\ref{alg:warmup}), $b_a \!\leftarrow\! \mathbf{0}$, $\hat\theta_a \!\leftarrow\! A_a^{-1} b_a$
+\Statex \phantom{\textbf{Init:}} $\lambda_0 \leftarrow 0$;\; $\bar{c}_0 \leftarrow B$;\; $t \leftarrow 0$
+\For{each request with context $x_t$}
+    \State \textbf{--- Arm Selection ---}
+    \If{$\lambda_t > 0$} \Comment{Hard ceiling (safety net)}
+        \State $\mathcal{A}_t \leftarrow \bigl\{a \in \mathcal{A} : c_a \leq c_{\max} / (1 + \lambda_t)\bigr\}$ \label{line:ceiling}
+    \Else\; $\mathcal{A}_t \leftarrow \mathcal{A}$
+    \EndIf
+    \For{each $a \in \mathcal{A}_t$}
+        \State $\mathrm{dt}_a \leftarrow t - \max(\text{last\_update}_a,\, \text{last\_played}_a)$
+        \State $v_a \leftarrow x_t^\top A_a^{-1} x_t \,\big/\, \max\!\bigl(\gamma^{\mathrm{dt}_a},\, V_{\max}^{-1}\bigr)$ \Comment{Staleness inflation}
+        \State $s_a \leftarrow \hat\theta_a^\top x_t + \alpha\sqrt{v_a} - (\lambda_s + \lambda_t)\,\tilde{c}_a$ \label{line:ucb}
+    \EndFor
+    \State $a_t \leftarrow \arg\max_{a \in \mathcal{A}_t} s_a$ \Comment{Random tiebreak}
+    \State $t \leftarrow t + 1$;\; $\text{last\_played}_{a_t} \leftarrow t$
+    \Statex
+    \State \textbf{--- Observe Reward $r_t$, Cost $c_t$ ---}
+    \Statex
+    \State \textbf{--- Reward Update (with Geometric Forgetting) ---}
+    \State $\mathrm{dt} \leftarrow t - \text{last\_update}_{a_t}$
+    \State $A_{a_t} \leftarrow \gamma^{\mathrm{dt}}\, A_{a_t}$;\;\; $b_{a_t} \leftarrow \gamma^{\mathrm{dt}}\, b_{a_t}$ \label{line:forget}
+    \State $A_{a_t}^{-1} \leftarrow A_{a_t}^{-1} / \gamma^{\mathrm{dt}}$ \Comment{$O(d^2)$ scalar op}
+    \State $A_{a_t} \leftarrow A_{a_t} + x_t x_t^\top$;\;\; $b_{a_t} \leftarrow b_{a_t} + r_t\, x_t$
+    \State Update $A_{a_t}^{-1}$ via Sherman--Morrison (Eq.~\ref{eq:sherman_morrison}) \Comment{$O(d^2)$}
+    \State $\hat\theta_{a_t} \leftarrow A_{a_t}^{-1}\, b_{a_t}$;\;\; $\text{last\_update}_{a_t} \leftarrow t$
+    \Statex
+    \State \textbf{--- Budget Pacer Dual Update ---}
+    \State $\bar{c}_t \leftarrow (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1} + \alpha_{\mathrm{ema}}\,c_t$ \Comment{Eq.~\ref{eq:cost_ema}}
+    \State $\lambda_{t+1} \leftarrow \min\!\bigl(\bar\lambda,\; \max(0,\; \lambda_t + \eta\,(\bar{c}_t / B - 1))\bigr)$ \label{line:dual} \Comment{Eq.~\ref{eq:dual_update}}
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
 \subsection{Primal-Dual Budget Pacing}
 \label{sec:budget_pacing}
 
