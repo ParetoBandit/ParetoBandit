@@ -7,11 +7,14 @@ warmup priors substantially reduce early regret and improve sample
 efficiency — the router begins with informed beliefs rather than
 blindly exploring all arms.
 
-Three conditions share the same prompt stream (val split, n=1,785),
-seeds, and hyperparameters; only the prior initialization differs:
+Each condition uses its own separately-tuned hyperparameters from the
+Experiment 05 Pareto knee-point sweep, so the comparison is
+"best warmup vs best cold-start" — the deployment-relevant question.
 
   1. **ParetoBandit (warmup)** — offline priors from training set
+     (alpha=0.01, n_eff=1163.9, gamma=0.997; from BEST_K3_HPARAMS)
   2. **Tabula Rasa** — cold start (A=λI, b=0)
+     (alpha=0.01, n_eff=1.0, gamma=0.995; from BEST_K3_TABULA_RASA_HPARAMS)
   3. **Random** — uniform random arm selection (floor baseline)
 
 Usage:
@@ -29,6 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from scipy.stats import binomtest, fisher_exact
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -84,6 +88,10 @@ TABULA_GAMMA: float = BEST_K3_TABULA_RASA_HPARAMS["forgetting_factor"]
 
 EARLY_STEP: int = 200
 """Step at which to report Regret@200 for the early-learning comparison."""
+
+CATASTROPHIC_MULTIPLIER: float = 2.0
+"""A seed is 'catastrophic' if its regret exceeds this multiple of the
+warmup median for the same budget regime."""
 
 
 def _snapshot_trace_A_inv(
@@ -182,6 +190,7 @@ def _create_router(
     prior_n_effective: float = WARMUP_N_EFF,
     forgetting_factor: float = WARMUP_GAMMA,
     budget_pacer: Optional[BudgetPacer] = None,
+    seed: Optional[int] = None,
 ) -> BanditRouter:
     """Build a K=3 router with optional warmup priors and budget pacer.
 
@@ -202,10 +211,12 @@ def _create_router(
         Geometric decay factor.
     budget_pacer : BudgetPacer or None
         If provided, enables primal-dual budget pacing.
+    seed : int or None
+        Seed for the policy's internal RNG (tie-breaking).
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
-    return BanditRouter.create(
+    router = BanditRouter.create(
         model_registry=registry,
         feature_service=fs,
         context_store=store,
@@ -218,6 +229,9 @@ def _create_router(
         forgetting_factor=forgetting_factor,
         budget_pacer=budget_pacer,
     )
+    if seed is not None:
+        router.bandit._rng = np.random.default_rng(seed)
+    return router
 
 
 # ======================================================================
@@ -292,6 +306,7 @@ def _run_trial(
             prior_n_effective=prior_n_effective,
             forgetting_factor=forgetting_factor,
             budget_pacer=budget_pacer,
+            seed=seed,
         )
 
     result = SeedResult(condition=condition_label, seed=seed)
@@ -486,6 +501,104 @@ def _aggregate_seeds(
 
 
 # ======================================================================
+# Paired Tests & Catastrophic Failure
+# ======================================================================
+
+_COMPARISONS: List[tuple] = [
+    ("ParetoBandit (warmup)", "Tabula Rasa", "unconstrained"),
+]
+for _bl in K3_BUDGET_LABELS:
+    _COMPARISONS.append(
+        (f"Warmup ({_bl} budget)", f"Tabula Rasa ({_bl} budget)", _bl)
+    )
+
+
+def _compute_paired_tests(
+    all_results: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Compute sign tests, Fisher exact tests, and catastrophic failure rates.
+
+    For each (warmup, baseline) pair in the same budget regime, computes:
+
+    - **Sign test** (exact binomial): counts seeds where warmup has strictly
+      lower regret than baseline.  H0: P(warmup wins) = 0.5.  No
+      distributional assumptions — answers "does warmup have lower regret
+      seed-by-seed?"
+    - **Catastrophic failure rate**: fraction of seeds where regret exceeds
+      ``CATASTROPHIC_MULTIPLIER × median(warmup regret)``.
+    - **Fisher exact test** on the 2×2 catastrophic-failure table
+      (warmup vs baseline × catastrophic vs safe).  H0: equal failure
+      rates.  One-sided alternative: warmup has fewer catastrophic
+      failures.  Answers "does warmup reduce tail risk?"
+
+    Returns
+    -------
+    list[dict]
+        One entry per comparison with test statistics and failure rates.
+    """
+    tests: List[Dict[str, Any]] = []
+    for warmup_key, baseline_key, budget_label in _COMPARISONS:
+        if warmup_key not in all_results or baseline_key not in all_results:
+            continue
+
+        w_regrets = np.array(all_results[warmup_key]["per_seed_regret"])
+        b_regrets = np.array(all_results[baseline_key]["per_seed_regret"])
+        diffs = b_regrets - w_regrets
+
+        n_warmup_wins = int(np.sum(diffs > 0))
+        n_ties = int(np.sum(diffs == 0))
+        n_effective = len(diffs) - n_ties
+        if n_effective > 0:
+            result = binomtest(n_warmup_wins, n_effective, 0.5, alternative="greater")
+            p_val = result.pvalue
+        else:
+            p_val = 1.0
+
+        warmup_median = float(np.median(w_regrets))
+        catastrophic_threshold = CATASTROPHIC_MULTIPLIER * warmup_median
+        w_catastrophic = int(np.sum(w_regrets > catastrophic_threshold))
+        b_catastrophic = int(np.sum(b_regrets > catastrophic_threshold))
+        n_seeds = len(w_regrets)
+
+        fisher_table = [
+            [w_catastrophic, n_seeds - w_catastrophic],
+            [b_catastrophic, n_seeds - b_catastrophic],
+        ]
+        _, fisher_p = fisher_exact(fisher_table, alternative="less")
+
+        tests.append({
+            "warmup": warmup_key,
+            "baseline": baseline_key,
+            "budget": budget_label,
+            "n_warmup_wins": n_warmup_wins,
+            "n_baseline_wins": int(np.sum(diffs < 0)),
+            "n_ties": n_ties,
+            "n_effective": n_effective,
+            "sign_test_p_value": float(p_val),
+            "warmup_median_regret": warmup_median,
+            "baseline_median_regret": float(np.median(b_regrets)),
+            "catastrophic_threshold": catastrophic_threshold,
+            "warmup_catastrophic_rate": w_catastrophic / n_seeds,
+            "baseline_catastrophic_rate": b_catastrophic / n_seeds,
+            "warmup_catastrophic_count": w_catastrophic,
+            "baseline_catastrophic_count": b_catastrophic,
+            "fisher_exact_p_value": float(fisher_p),
+        })
+
+        logger.info(
+            "  %s vs %s [%s]: sign %d/%d wins (p=%.4g), "
+            "cat %d/%d vs %d/%d (Fisher p=%.4g, threshold=%.1f)",
+            warmup_key, baseline_key, budget_label,
+            n_warmup_wins, n_effective, p_val,
+            w_catastrophic, n_seeds,
+            b_catastrophic, n_seeds,
+            fisher_p, catastrophic_threshold,
+        )
+
+    return tests
+
+
+# ======================================================================
 # Main
 # ======================================================================
 
@@ -539,8 +652,8 @@ def main() -> None:
         },
     ]
 
-    # -- Budget-constrained conditions (tight + moderate) --
-    for target, blabel in zip(K3_BUDGET_TARGETS[:2], K3_BUDGET_LABELS[:2]):
+    # -- Budget-constrained conditions (tight, moderate, loose) --
+    for target, blabel in zip(K3_BUDGET_TARGETS, K3_BUDGET_LABELS):
         conditions.append({
             "label": f"Warmup ({blabel} budget)",
             "warmup": True,
@@ -615,6 +728,10 @@ def main() -> None:
             agg["oracle_agreement"]["mean"],
         )
 
+    # -- Paired tests and catastrophic failure rates --
+    paired_tests = _compute_paired_tests(all_results)
+    logger.info("Paired tests computed for %d comparisons", len(paired_tests))
+
     output = {
         "experiment": "appendix_warmup_ablation",
         "n_seeds": N_SEEDS,
@@ -623,6 +740,7 @@ def main() -> None:
         "arms": ARM_ORDER,
         "arm_short": ARM_SHORT,
         "early_step": EARLY_STEP,
+        "catastrophic_multiplier": CATASTROPHIC_MULTIPLIER,
         "hparams": {
             "warmup": {
                 "alpha": WARMUP_ALPHA,
@@ -640,9 +758,10 @@ def main() -> None:
         },
         "budget_targets": {
             label: target
-            for label, target in zip(K3_BUDGET_LABELS[:2], K3_BUDGET_TARGETS[:2])
+            for label, target in zip(K3_BUDGET_LABELS, K3_BUDGET_TARGETS)
         },
         "conditions": all_results,
+        "paired_tests": paired_tests,
     }
 
     out_path = RESULTS_DIR / "warmup_ablation_results.json"
