@@ -227,12 +227,15 @@ The convergence beyond step~${\sim}400$ visible in the
 unconstrained regime is a direct consequence of
 geometric forgetting ($\gamma{=}0.997$): after ${\sim}333$
 effective-memory steps, online evidence dominates and the
-initialisation is irrelevant.
+initialisation contributes little.
 Appendix~\ref{appendix:val_burnin_ablation} confirms this
 quantitatively: after a full validation burn-in
-($1{,}785$ steps), warmup and tabula-rasa conditions achieve
-identical test regret ($74.4$ vs.\ $75.4$, $p{=}0.29$) because
-the prior has decayed by $\gamma^{1785} \approx 5{\times}10^{-3}$.
+($1{,}785$ steps), warmup and tabula-rasa conditions are
+statistically indistinguishable on test regret ($60.4$ vs.\
+$68.5$, $p_\mathrm{adj}{=}0.45$ after Bonferroni correction),
+with the residual nominal gap attributable to the different
+forgetting rates ($\gamma{=}0.997$ vs.\ $0.995$, yielding
+${\sim}333$ vs.\ ${\sim}200$ effective-memory steps).
 Under budget constraints, however, the catastrophic seeds
 \emph{never} recover, because the budget pacer's dual variable
 permanently locks out the expensive arm.

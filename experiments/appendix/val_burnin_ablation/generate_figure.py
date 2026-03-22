@@ -6,14 +6,9 @@ Reads ``results/val_burnin_ablation_results.json`` and produces figures:
 1. **val_burnin_test_regret** — Cumulative regret on the held-out test
    split under varying burn-in fractions (unconstrained).
 
-2. **val_burnin_combined** — Combined val+test cumulative regret
-   ("no free lunch" view with all learning costs visible).
-
-3. **val_burnin_summary** — 2×2 factorial bar chart (unconstrained).
-
-4. **val_burnin_budget_summary** — Budget-stratified 2×2 factorial bar
+2. **val_burnin_budget_summary** — Budget-stratified 2×2 factorial bar
    chart showing that the burn-in finding holds under tight and moderate
-   budget constraints.
+   budget constraints, with cost compliance panel.
 
 Usage:
     python experiments/appendix/val_burnin_ablation/generate_figure.py
@@ -35,7 +30,7 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from utils.bootstrap import bootstrap_ci_series
+from utils.bootstrap import bootstrap_ci, bootstrap_ci_series
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
@@ -98,9 +93,7 @@ def _figure_test_regret(data: Dict[str, Any]) -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Panel (a): Full test trajectory
     ax_full = axes[0]
-    # Panel (b): Zoom on first 400 steps
     ax_zoom = axes[1]
 
     for frac in data["burnin_fractions"]:
@@ -136,19 +129,20 @@ def _figure_test_regret(data: Dict[str, Any]) -> None:
             x=data["early_step"], color="black", linestyle=":",
             linewidth=0.8, alpha=0.5,
         )
-        ax.set_xlabel("Test Step")
+        ax.set_xlabel("Test Step", fontsize=13)
+        ax.tick_params(axis="both", labelsize=12)
         ax.grid(True, alpha=0.3)
 
-    ax_full.set_ylabel("Cumulative Regret (test split)")
-    ax_full.set_title("(a) Full test trajectory", fontsize=11)
-    ax_full.legend(fontsize=8, loc="upper left")
+    ax_full.set_ylabel("Cumulative Regret (test split)", fontsize=13)
+    ax_full.set_title("(a) Full test trajectory", fontsize=13)
+    ax_full.legend(fontsize=10, loc="upper left")
 
     ax_zoom.set_xlim(0, 400)
-    ax_zoom.set_title("(b) First 400 test steps (zoom)", fontsize=11)
+    ax_zoom.set_title("(b) First 400 test steps (zoom)", fontsize=13)
 
     fig.suptitle(
         "Effect of validation burn-in on held-out test regret",
-        fontsize=13, fontweight="bold", y=1.02,
+        fontsize=15, fontweight="bold", y=1.02,
     )
     fig.tight_layout()
 
@@ -161,214 +155,16 @@ def _figure_test_regret(data: Dict[str, Any]) -> None:
     print(f"Saved val_burnin_test_regret.pdf/.png to {RESULTS_DIR}")
 
 
-def _figure_combined_trajectory(data: Dict[str, Any]) -> None:
-    """Figure 2: Combined val+test trajectory (no-free-lunch view).
-
-    Two panels with a shared y-axis:
-      (a) Full 100% burn-in trajectory (val+test) with the val→test
-          boundary marked, showing where val regret ends and test
-          regret begins.
-      (b) Aligned test-phase comparison: test-only regret for the
-          100% burn-in condition overlaid with the 0% condition and
-          Tabula Rasa, so the reader can compare test-phase learning
-          rates on the same x-axis scale.
-    """
-    conditions = data["conditions"]
-
-    full_burnin_key = "Warmup (100% burn-in)"
-    no_burnin_key = "Warmup (0% burn-in)"
-    tabula_no_key = "Tabula Rasa (no burn-in)"
-    tabula_full_key = "Tabula Rasa (100% burn-in)"
-
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    ax_combined = axes[0]
-    ax_test = axes[1]
-
-    # -- Panel (a): Full combined trajectory for 100% burn-in --
-    if full_burnin_key in conditions:
-        comb = conditions[full_burnin_key]["combined_trajectory"]
-        n_val = comb["n_val_burnin"]
-
-        _plot_condition(
-            ax_combined, comb["curves"],
-            color=CB_BLUE,
-            linestyle="-",
-            label="Warmup + 100% burn-in (val → test)",
-            linewidth=2.0,
-        )
-
-    if tabula_full_key in conditions:
-        comb = conditions[tabula_full_key]["combined_trajectory"]
-        _plot_condition(
-            ax_combined, comb["curves"],
-            color=CB_ORANGE,
-            linestyle="-",
-            label="Tabula Rasa + 100% burn-in (val → test)",
-            linewidth=1.8,
-        )
-
-    if full_burnin_key in conditions:
-        n_val = conditions[full_burnin_key]["combined_trajectory"]["n_val_burnin"]
-        ax_combined.axvline(
-            x=n_val, color="black", linestyle="--",
-            linewidth=1.2, alpha=0.7,
-        )
-        ymax = ax_combined.get_ylim()[1]
-        ax_combined.annotate(
-            "val → test boundary",
-            xy=(n_val, ymax * 0.5),
-            xytext=(n_val + 100, ymax * 0.65),
-            fontsize=9, ha="left",
-            arrowprops=dict(arrowstyle="->", color="black", lw=0.8),
-        )
-
-    ax_combined.set_xlabel("Global Step (val + test)")
-    ax_combined.set_ylabel("Cumulative Regret")
-    ax_combined.set_title(
-        "(a) Full trajectory: all learning costs visible",
-        fontsize=11,
-    )
-    ax_combined.legend(fontsize=8, loc="upper left")
-    ax_combined.grid(True, alpha=0.3)
-
-    # -- Panel (b): Test-phase regret, aligned at step 0 --
-    for label_key, color, ls, lbl in [
-        (full_burnin_key, CB_BLUE, "-", "Warmup + 100% burn-in"),
-        (no_burnin_key, CB_RED, "-", "Warmup + 0% burn-in (priors only)"),
-        (tabula_full_key, CB_ORANGE, "--", "Tabula Rasa + 100% burn-in"),
-        (tabula_no_key, CB_GRAY, "--", "Tabula Rasa (no priors)"),
-    ]:
-        if label_key not in conditions:
-            continue
-        curves = conditions[label_key]["test_metrics"]["curves"]
-        _plot_condition(
-            ax_test, curves,
-            color=color, linestyle=ls, label=lbl, linewidth=1.8,
-        )
-
-    ax_test.set_xlabel("Test Step")
-    ax_test.set_ylabel("Cumulative Regret (test split)")
-    ax_test.set_title(
-        "(b) Test-phase regret (aligned comparison)",
-        fontsize=11,
-    )
-    ax_test.legend(fontsize=8, loc="upper left")
-    ax_test.grid(True, alpha=0.3)
-
-    fig.suptitle(
-        "No-free-lunch view: val learning costs + test performance",
-        fontsize=13, fontweight="bold", y=1.02,
-    )
-    fig.tight_layout()
-    for ext in ("pdf", "png"):
-        fig.savefig(
-            RESULTS_DIR / f"val_burnin_combined.{ext}",
-            dpi=200, bbox_inches="tight",
-        )
-    plt.close(fig)
-    print(f"Saved val_burnin_combined.pdf/.png to {RESULTS_DIR}")
-
-
-def _figure_summary_bar(data: Dict[str, Any]) -> None:
-    """Figure 3: Grouped bar chart — warmup vs tabula rasa at key burn-in levels."""
-    from utils.bootstrap import bootstrap_ci
-
-    conditions = data["conditions"]
-
-    group_labels = ["0%\nburn-in", "100%\nburn-in"]
-    warmup_keys = ["Warmup (0% burn-in)", "Warmup (100% burn-in)"]
-    tabula_keys = ["Tabula Rasa (no burn-in)", "Tabula Rasa (100% burn-in)"]
-
-    warmup_means: List[float] = []
-    warmup_ci_lo: List[float] = []
-    warmup_ci_hi: List[float] = []
-    tabula_means: List[float] = []
-    tabula_ci_lo: List[float] = []
-    tabula_ci_hi: List[float] = []
-
-    for wk, tk in zip(warmup_keys, tabula_keys):
-        for key_list, means_l, lo_l, hi_l in [
-            ([wk], warmup_means, warmup_ci_lo, warmup_ci_hi),
-            ([tk], tabula_means, tabula_ci_lo, tabula_ci_hi),
-        ]:
-            k = key_list[0]
-            if k not in conditions:
-                means_l.append(0.0)
-                lo_l.append(0.0)
-                hi_l.append(0.0)
-                continue
-            tm = conditions[k]["test_metrics"]
-            regrets = tm["per_seed_test_regret"]
-            lo, hi = bootstrap_ci(np.array(regrets))
-            mean = tm["test_regret"]["mean"]
-            means_l.append(mean)
-            lo_l.append(mean - lo)
-            hi_l.append(hi - mean)
-
-    fig, ax = plt.subplots(1, 1, figsize=(7, 5))
-    x = np.arange(len(group_labels))
-    width = 0.35
-
-    bars_w = ax.bar(
-        x - width / 2, warmup_means, width,
-        color=CB_BLUE, alpha=0.85, edgecolor="white", label="Warmup priors",
-    )
-    ax.errorbar(
-        x - width / 2, warmup_means,
-        yerr=[warmup_ci_lo, warmup_ci_hi],
-        fmt="none", ecolor="black", capsize=4, linewidth=1.2,
-    )
-
-    bars_t = ax.bar(
-        x + width / 2, tabula_means, width,
-        color=CB_GRAY, alpha=0.85, edgecolor="white", label="Tabula Rasa",
-    )
-    ax.errorbar(
-        x + width / 2, tabula_means,
-        yerr=[tabula_ci_lo, tabula_ci_hi],
-        fmt="none", ecolor="black", capsize=4, linewidth=1.2,
-    )
-
-    for bars, means in [(bars_w, warmup_means), (bars_t, tabula_means)]:
-        for bar, m in zip(bars, means):
-            if m > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.5,
-                    f"{m:.1f}", ha="center", va="bottom", fontsize=9,
-                )
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(group_labels, fontsize=11)
-    ax.set_xlabel("Val Burn-In Fraction", fontsize=11)
-    ax.set_ylabel("Total Test Regret", fontsize=11)
-    ax.set_title(
-        "2×2 factorial: priors × burn-in (95% bootstrap CI)",
-        fontsize=12, fontweight="bold",
-    )
-    ax.legend(fontsize=10, loc="upper right")
-    ax.grid(axis="y", alpha=0.3)
-
-    fig.tight_layout()
-    for ext in ("pdf", "png"):
-        fig.savefig(
-            RESULTS_DIR / f"val_burnin_summary.{ext}",
-            dpi=200, bbox_inches="tight",
-        )
-    plt.close(fig)
-    print(f"Saved val_burnin_summary.pdf/.png to {RESULTS_DIR}")
-
-
 def _figure_budget_summary(data: Dict[str, Any]) -> None:
-    """Figure 4: Budget-stratified 2×2 factorial with cost compliance.
+    """Budget-stratified 2×2 factorial with cost compliance.
 
     Two panels:
       (a) Total test regret across budget regimes.
       (b) Cost compliance (mean cost / target) for budget-constrained
           regimes, confirming that spend is consistent across conditions.
-    """
-    from utils.bootstrap import bootstrap_ci
 
+    Shared legend placed below the panels.
+    """
     conditions = data["conditions"]
     budget_regimes = data.get("budget_regimes", {"unconstrained": None})
 
@@ -397,14 +193,13 @@ def _figure_budget_summary(data: Dict[str, Any]) -> None:
     bar_defs = [
         ("w0", "Warmup, 0% burn-in", CB_BLUE, 0.85),
         ("w100", "Warmup, 100% burn-in", CB_TEAL, 0.85),
-        ("t0", "Tabula Rasa, 0% burn-in", CB_ORANGE, 0.85),
         ("t100", "Tabula Rasa, 100% burn-in", CB_GRAY, 0.85),
+        ("t0", "Tabula Rasa, 0% burn-in", CB_ORANGE, 0.85),
     ]
 
     n_regimes = len(regime_labels)
     n_bars = len(bar_defs)
 
-    # Check if we have any budget-constrained regimes for panel (b)
     constrained_idxs = [
         i for i, t in enumerate(regime_targets) if t is not None
     ]
@@ -412,11 +207,11 @@ def _figure_budget_summary(data: Dict[str, Any]) -> None:
 
     if has_compliance:
         fig, (ax_reg, ax_cost) = plt.subplots(
-            1, 2, figsize=(max(14, 4 * n_regimes), 5.5),
+            1, 2, figsize=(max(14, 4 * n_regimes), 6.0),
         )
     else:
         fig, ax_reg = plt.subplots(
-            1, 1, figsize=(max(9, 3 * n_regimes), 5.5),
+            1, 1, figsize=(max(9, 3 * n_regimes), 6.0),
         )
         ax_cost = None
 
@@ -425,6 +220,7 @@ def _figure_budget_summary(data: Dict[str, Any]) -> None:
     bar_width = 0.18
     offsets = np.arange(n_bars) - (n_bars - 1) / 2
 
+    legend_handles = []
     for i, (key, label, color, alpha) in enumerate(bar_defs):
         means: List[float] = []
         errs_lo: List[float] = []
@@ -450,33 +246,27 @@ def _figure_budget_summary(data: Dict[str, Any]) -> None:
             pos, means, bar_width,
             color=color, alpha=alpha, edgecolor="white", label=label,
         )
+        legend_handles.append(bars)
         ax_reg.errorbar(
             pos, means,
             yerr=[errs_lo, errs_hi],
             fmt="none", ecolor="black", capsize=3, linewidth=1.0,
         )
-        for bar, m in zip(bars, means):
-            if m > 0:
-                ax_reg.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.8,
-                    f"{m:.1f}", ha="center", va="bottom", fontsize=7.5,
-                )
 
     ax_reg.set_xticks(x)
-    ax_reg.set_xticklabels(regime_labels, fontsize=11)
-    ax_reg.set_xlabel("Budget Regime", fontsize=11)
-    ax_reg.set_ylabel("Total Test Regret", fontsize=11)
+    ax_reg.set_xticklabels(regime_labels, fontsize=13)
+    ax_reg.set_xlabel("Budget Regime", fontsize=13)
+    ax_reg.set_ylabel("Total Test Regret", fontsize=13)
+    ax_reg.tick_params(axis="both", labelsize=12)
     panel_lbl = "(a) " if has_compliance else ""
     ax_reg.set_title(
         f"{panel_lbl}Val burn-in effect across budget regimes\n"
         "(2×2 factorial: priors × burn-in; 95% bootstrap CI)",
-        fontsize=11, fontweight="bold",
+        fontsize=13, fontweight="bold",
     )
-    ax_reg.legend(fontsize=8.5, loc="upper left", ncol=2)
     ax_reg.grid(axis="y", alpha=0.3)
 
-    # -- Panel (b): Cost compliance --
+    # -- Panel (b): Cost compliance (budget-constrained regimes only) --
     if has_compliance and ax_cost is not None:
         c_labels = [regime_labels[i] for i in constrained_idxs]
         c_specs = [group_specs[i] for i in constrained_idxs]
@@ -509,23 +299,33 @@ def _figure_budget_summary(data: Dict[str, Any]) -> None:
                 if r > 0:
                     ax_cost.text(
                         p, r + 0.01, f"{r:.2f}",
-                        ha="center", va="bottom", fontsize=7.5,
+                        ha="center", va="bottom", fontsize=11,
                     )
-
-        ax_cost.axhline(y=1.0, color="black", linestyle="--", linewidth=1, alpha=0.6)
         ax_cost.set_xticks(xc)
-        ax_cost.set_xticklabels(c_labels, fontsize=11)
-        ax_cost.set_xlabel("Budget Regime", fontsize=11)
-        ax_cost.set_ylabel("Mean Cost / Target", fontsize=11)
+        ax_cost.set_xticklabels(c_labels, fontsize=13)
+        ax_cost.set_xlabel("Budget Regime", fontsize=13)
+        ax_cost.set_ylabel("Mean Cost / Target", fontsize=13)
+        ax_cost.tick_params(axis="both", labelsize=12)
         ax_cost.set_title(
             "(b) Budget compliance\n"
             "(1.0 = exactly at target; <1.0 = under budget)",
-            fontsize=11, fontweight="bold",
+            fontsize=13, fontweight="bold",
         )
-        ax_cost.legend(fontsize=8.5, loc="upper right", ncol=2)
         ax_cost.grid(axis="y", alpha=0.3)
 
-    fig.tight_layout()
+    # -- Shared legend below panels --
+    legend_labels = [bd[1] for bd in bar_defs]
+    fig.legend(
+        legend_handles, legend_labels,
+        loc="lower center",
+        ncol=4,
+        fontsize=13,
+        frameon=True,
+        bbox_to_anchor=(0.5, -0.02),
+    )
+    fig.tight_layout(w_pad=4.0)
+    fig.subplots_adjust(bottom=0.15)
+
     for ext in ("pdf", "png"):
         fig.savefig(
             RESULTS_DIR / f"val_burnin_budget_summary.{ext}",
@@ -541,8 +341,6 @@ def main() -> None:
         data = json.load(f)
 
     _figure_test_regret(data)
-    _figure_combined_trajectory(data)
-    _figure_summary_bar(data)
 
     if "budget_regimes" in data and len(data["budget_regimes"]) > 1:
         _figure_budget_summary(data)

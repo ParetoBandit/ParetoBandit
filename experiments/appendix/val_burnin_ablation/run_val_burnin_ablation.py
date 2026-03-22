@@ -115,13 +115,12 @@ TABULA_GAMMA: float = BEST_K3_TABULA_RASA_HPARAMS["forgetting_factor"]
 
 EARLY_STEP: int = 200
 
-# With γ=0.995, effective memory ≈ 1/(1−γ) = 200 steps.  After a
-# full 1,785-step burn-in the warmup priors are decayed by γ^1785
-# ≈ 1.3e−5 — effectively erased.  This interaction between forgetting
-# and burn-in length is a key part of the analysis: at 100% burn-in
-# the bandit operates on recent online evidence, not the original
-# priors.  The 0% condition is the only one where priors are fully
-# intact at the start of test.
+# With γ=WARMUP_GAMMA, effective memory ≈ 1/(1−γ) steps.  After a
+# full 1,785-step burn-in the warmup priors are decayed by γ^1785.
+# The degree of erasure depends on γ: lower γ erases more aggressively.
+# At 100% burn-in the bandit operates mostly on recent online evidence;
+# the 0% condition is the only one where priors are fully intact at the
+# start of test.
 GAMMA_DECAY_AT_FULL_BURNIN: float = WARMUP_GAMMA ** 1785
 
 
@@ -216,6 +215,7 @@ def _create_router(
     prior_n_effective: float = WARMUP_N_EFF,
     forgetting_factor: float = WARMUP_GAMMA,
     budget_pacer: Optional[BudgetPacer] = None,
+    seed: Optional[int] = None,
 ) -> BanditRouter:
     """Build a K=3 router with optional warmup priors and budget pacer.
 
@@ -235,10 +235,13 @@ def _create_router(
         Geometric decay factor.
     budget_pacer : BudgetPacer or None
         If provided, enables primal-dual budget pacing.
+    seed : int or None
+        If provided, seeds the bandit policy's RNG for reproducible
+        tie-breaking in LinUCB arm selection.
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
-    return BanditRouter.create(
+    router = BanditRouter.create(
         model_registry=registry,
         feature_service=fs,
         context_store=store,
@@ -251,6 +254,9 @@ def _create_router(
         forgetting_factor=forgetting_factor,
         budget_pacer=budget_pacer,
     )
+    if seed is not None:
+        router.bandit._rng = np.random.default_rng(seed)
+    return router
 
 
 # ======================================================================
@@ -333,6 +339,7 @@ def _run_burnin_trial(
             prior_n_effective=prior_n_effective,
             forgetting_factor=forgetting_factor,
             budget_pacer=budget_pacer,
+            seed=seed,
         )
         for t_idx in range(val_data.n):
             orig_idx = val_order[t_idx]
@@ -364,6 +371,7 @@ def _run_burnin_trial(
         prior_n_effective=prior_n_effective,
         forgetting_factor=forgetting_factor,
         budget_pacer=budget_pacer,
+        seed=seed,
     )
 
     result = SeedResult(condition=condition_label, seed=seed)
@@ -630,11 +638,11 @@ def main() -> None:
     # ==================================================================
     # Build condition list: budget regimes × prior type × burn-in level
     # ==================================================================
-    # Budget regimes: None (unconstrained) + tight + moderate
+    # Budget regimes: None (unconstrained) + tight + moderate + loose
     budget_regimes: List[Dict[str, Any]] = [
         {"target": None, "label": "unconstrained"},
     ]
-    for target, blabel in zip(K3_BUDGET_TARGETS[:2], K3_BUDGET_LABELS[:2]):
+    for target, blabel in zip(K3_BUDGET_TARGETS, K3_BUDGET_LABELS):
         budget_regimes.append({"target": target, "label": blabel})
 
     # For unconstrained: full burn-in sweep (0/25/50/75/100%) + tabula rasa 0%/100%
@@ -846,10 +854,11 @@ def main() -> None:
             "effective_memory_steps": effective_memory,
             "prior_decay_by_burnin_fraction": prior_decay_by_fraction,
             "note": (
-                "With gamma=0.995, effective memory is ~200 steps. "
-                "After 100% burn-in (1785 steps), warmup priors are "
-                f"decayed by gamma^1785 = {GAMMA_DECAY_AT_FULL_BURNIN:.2e}, "
-                "effectively erased. The 0% condition is the only one "
+                f"With gamma={WARMUP_GAMMA}, effective memory is "
+                f"~{effective_memory:.0f} steps. "
+                f"After 100% burn-in (1785 steps), warmup priors are "
+                f"decayed by gamma^1785 = {GAMMA_DECAY_AT_FULL_BURNIN:.2e}. "
+                "The 0% condition is the only one "
                 "where priors are fully intact at the start of test."
             ),
         },
