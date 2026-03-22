@@ -1,0 +1,70 @@
+%%%%%%%% ParetoBandit — MLSys 2026 Submission %%%%%%%%%%%%%%%%%
+
+\documentclass{article}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,fit,backgrounds}
+
+
+% Blind submission:
+\usepackage{mlsys2025}
+% Camera-ready:
+% \usepackage[accepted]{mlsys2025}
+
+\mlsystitlerunning{ParetoBandit: Budget-Paced Adaptive LLM Routing}
+
+\begin{document}
+
+\twocolumn[
+\mlsystitle{ParetoBandit: Budget-Paced Adaptive Routing\\for Non-Stationary LLM Serving}
+
+\mlsyssetsymbol{equal}{*}
+
+\begin{mlsysauthorlist}
+\mlsysauthor{Anonymous}{anon}
+\end{mlsysauthorlist}
+
+\mlsysaffiliation{anon}{Anonymous Institution}
+
+\mlsyskeywords{LLM routing, contextual bandits, budget pacing, non-stationary, model serving}
+
+\vskip 0.3in
+]
+
+% ---------- Abstract ----------
+\input{sections/abstract}
+
+\printAffiliationsAndNotice{}
+
+% ---------- Auto-generated macros from experiment results ----------
+% Regenerate all: for d in experiments/*/; do [ -f "$d/generate_latex.py" ] && python "$d/generate_latex.py"; done
+% NOTE: Some _autogen.tex files contain command names with digits (e.g. \cfP2),
+% which are invalid LaTeX. These need regeneration with letter-only names before
+% inclusion. Uncomment once fixed.
+% \input{../experiments/01_stationary_budget_pacing/_autogen.tex}
+% \input{../experiments/02_budget_plus_drift/_autogen.tex}
+% \input{../experiments/03_catastrophic_failure/_autogen.tex}
+% \input{../experiments/appendix/hparam_optimization/_autogen.tex}
+% \input{../experiments/appendix/cost_heuristic_validation/results/_autogen.tex}
+
+% ---------- Main body ----------
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/system_design}
+\input{sections/evaluation}
+\input{sections/related_work}
+\input{sections/conclusion}
+
+% ---------- References ----------
+\bibliography{references}
+\bibliographystyle{mlsys2025}
+
+\end{document}
