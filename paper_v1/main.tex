@@ -97,20 +97,22 @@
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
-\caption{Total regret across prior quality levels and $n_\mathit{eff}$ values (K=3 stationary, 20 seeds, held-out test split).
-  The dashed line marks the Tabula Rasa baseline (81.7).
+\caption{Prior mismatch sensitivity: total regret (left) and early regret R@200 (right) across prior-quality levels and $n_\mathit{eff}$ values (K=3 stationary, unconstrained, 20 seeds, held-out test split).
+  Tabula Rasa baseline annotated in grey.
   Directionally correct priors (Well-calibrated through GSM8K-only) reduce regret at every $n_\mathit{eff}$;
-  only the Inverted prior---where model rankings are systematically swapped---causes harm, and the damage scales with $n_\mathit{eff}$.}
+  only the Inverted prior---where model rankings are systematically swapped---causes harm, and the damage scales with $n_\mathit{eff}$.
+  Bold values exceed the Tabula Rasa baseline.}
 \label{fig:prior_mismatch_heatmap}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_regret.png}
-\caption{Cumulative regret curves for selected prior-quality conditions at $n_\mathit{eff}{=}1{,}000$ (K=3 stationary, 20 seeds, 95\% bootstrap CI).
-  Well-calibrated and domain-mismatched priors separate from Tabula Rasa within the first 200 steps and maintain the advantage throughout.
-  The Inverted prior accumulates excess regret early as the router confidently routes to the wrong model, requiring hundreds of steps to partially recover.}
-\label{fig:prior_mismatch_regret}
+\includegraphics[width=\linewidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
+\caption{Per-seed regret distributions for each prior-quality level (K=3 stationary, unconstrained, 20 seeds).
+  Diamonds mark means.
+  Tabula Rasa (grey) exhibits a heavy-tailed, multimodal distribution ($\mathit{std}{=}82.2$) with 25--30\% of seeds incurring $2{\times}$+ the median regret.
+  All warmup conditions---including domain-mismatched and even inverted priors---produce tight, unimodal distributions ($\mathit{std} \leq 5$).}
+\label{fig:prior_mismatch_distribution}
 \end{figure}
 
 \subsection{Model Onboarding: Supplementary Analysis}

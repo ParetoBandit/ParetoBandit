@@ -348,6 +348,7 @@ def _create_router(
     alpha: float = ALPHA,
     prior_n_effective: float = 1000.0,
     forgetting_factor: float = GAMMA,
+    seed: Optional[int] = None,
 ) -> BanditRouter:
     """Build a K=3 router with the specified prior configuration.
 
@@ -365,12 +366,15 @@ def _create_router(
         Effective pseudo-observations for priors.
     forgetting_factor : float
         Geometric forgetting factor.
+    seed : int or None
+        If provided, seeds the policy's internal RNG for deterministic
+        tie-breaking.  Required for bit-exact reproducibility.
     """
     fs = FeatureService.for_precomputed(feature_dim)
     store = EphemeralContextStore()
 
     use_warmup = priors_path is not None
-    return BanditRouter.create(
+    router = BanditRouter.create(
         model_registry=registry,
         feature_service=fs,
         context_store=store,
@@ -381,6 +385,9 @@ def _create_router(
         cost_penalty=0.0,
         forgetting_factor=forgetting_factor,
     )
+    if seed is not None:
+        router.bandit._rng = np.random.default_rng(seed)
+    return router
 
 
 # ======================================================================
@@ -438,6 +445,7 @@ def _run_trial(
         alpha=alpha,
         prior_n_effective=prior_n_effective,
         forgetting_factor=forgetting_factor,
+        seed=seed,
     )
 
     result = SeedResult(condition=condition_label, seed=seed)
@@ -506,6 +514,7 @@ def _aggregate_seeds(
         "curves": curves,
         "total_regret": {
             "mean": float(np.mean(per_seed_regret)),
+            "median": float(np.median(per_seed_regret)),
             "std": float(np.std(per_seed_regret)),
             "se": float(np.std(per_seed_regret) / np.sqrt(n_seeds)),
         },
@@ -515,6 +524,7 @@ def _aggregate_seeds(
         },
         f"regret_at_{EARLY_STEP}": {
             "mean": float(np.mean(per_seed_regret_early)),
+            "median": float(np.median(per_seed_regret_early)),
             "std": float(np.std(per_seed_regret_early)),
             "se": float(np.std(per_seed_regret_early) / np.sqrt(n_seeds)),
         },
@@ -584,71 +594,100 @@ def _build_conditions(
 # ======================================================================
 
 
-BOOTSTRAP_N: int = 10_000
-"""Number of bootstrap resamples for paired CIs."""
-
-BOOTSTRAP_SEED: int = 42
+CATASTROPHIC_MULTIPLIER: float = 2.0
+"""A seed is 'catastrophic' if its regret exceeds this multiple of the
+condition's own median regret."""
 
 
 def _paired_tests(
     per_seed_a: List[float],
     per_seed_b: List[float],
+    *,
+    catastrophic_ref_median: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Wilcoxon signed-rank test + bootstrap CI on paired per-seed regret.
+    """Sign test + Fisher exact test on paired per-seed regret.
 
-    The Wilcoxon test is rank-based and does not assume normality or
-    equal variance in the paired differences — appropriate here because
-    Tabula Rasa exhibits 15-40x higher seed-to-seed variance than warmup
-    conditions.  Bootstrap CIs provide a distribution-free interval for
-    the mean difference.
+    Computes two complementary non-parametric tests:
+
+    - **Sign test** (exact binomial): counts seeds where the condition
+      has strictly lower regret than baseline.  H0: P(condition wins)
+      = 0.5.  No distributional assumptions — answers "does the
+      condition have lower regret seed-by-seed?" (location).
+    - **Fisher exact test** on the 2×2 catastrophic-failure table
+      (condition vs baseline × catastrophic vs safe).  H0: equal
+      failure rates.  Answers "does the condition reduce tail risk?"
+
+    The sign test requires only that paired observations are
+    independent — it makes no assumption about the symmetry or shape
+    of the difference distribution, which is critical here because
+    Tabula Rasa's per-seed regret is heavy-tailed / bimodal while
+    warmup conditions are tightly clustered.
 
     Parameters
     ----------
     per_seed_a, per_seed_b : list[float]
         Same-length arrays of per-seed total regret, paired by seed.
+        Convention: a = condition under test, b = baseline (Tabula Rasa).
+        A "win" is when a < b (condition has lower regret).
+    catastrophic_ref_median : float or None
+        If provided, use this as the reference for the catastrophic
+        threshold (``CATASTROPHIC_MULTIPLIER * ref``).  Otherwise uses
+        ``median(per_seed_a)``.
 
     Returns
     -------
     dict
-        Wilcoxon statistic and p-value, mean/median differences, and
-        bootstrap 95% CI for the mean difference.
+        Sign test wins/losses/ties, p-value, Fisher exact test p-value,
+        and catastrophic failure rates for both conditions.
     """
-    from scipy import stats
+    from scipy.stats import binomtest, fisher_exact
 
     a = np.array(per_seed_a)
     b = np.array(per_seed_b)
     diffs = a - b
-    n = len(diffs)
+    n_seeds = len(diffs)
 
-    delta_mean = float(np.mean(diffs))
-    delta_median = float(np.median(diffs))
+    n_a_wins = int(np.sum(diffs < 0))
+    n_b_wins = int(np.sum(diffs > 0))
+    n_ties = int(np.sum(diffs == 0))
+    n_effective = n_seeds - n_ties
 
-    # Wilcoxon signed-rank (two-sided)
-    nonzero_diffs = diffs[diffs != 0]
-    if len(nonzero_diffs) < 2:
-        w_stat, w_pval = float("nan"), 1.0
+    if n_effective > 0:
+        result = binomtest(n_a_wins, n_effective, 0.5, alternative="two-sided")
+        p_val = result.pvalue
     else:
-        w_stat, w_pval = stats.wilcoxon(nonzero_diffs, alternative="two-sided")
+        p_val = 1.0
 
-    # Bootstrap CI for mean difference (BCa not needed; percentile is
-    # sufficient with 10K resamples and n=20 paired observations).
-    rng = np.random.default_rng(BOOTSTRAP_SEED)
-    boot_means = np.empty(BOOTSTRAP_N)
-    for i in range(BOOTSTRAP_N):
-        idx = rng.integers(0, n, size=n)
-        boot_means[i] = np.mean(diffs[idx])
-    ci_lo = float(np.percentile(boot_means, 2.5))
-    ci_hi = float(np.percentile(boot_means, 97.5))
+    ref_median = catastrophic_ref_median if catastrophic_ref_median is not None else float(np.median(a))
+    catastrophic_threshold = CATASTROPHIC_MULTIPLIER * ref_median
+
+    a_catastrophic = int(np.sum(a > catastrophic_threshold))
+    b_catastrophic = int(np.sum(b > catastrophic_threshold))
+
+    fisher_table = [
+        [a_catastrophic, n_seeds - a_catastrophic],
+        [b_catastrophic, n_seeds - b_catastrophic],
+    ]
+    _, fisher_p = fisher_exact(fisher_table, alternative="less")
 
     return {
-        "wilcoxon_stat": float(w_stat),
-        "wilcoxon_p": float(w_pval),
-        "delta_mean": delta_mean,
-        "delta_median": delta_median,
-        "bootstrap_ci_95_lo": ci_lo,
-        "bootstrap_ci_95_hi": ci_hi,
-        "bootstrap_n": BOOTSTRAP_N,
-        "n_seeds": n,
+        "test": "sign_test_and_fisher",
+        "n_condition_wins": n_a_wins,
+        "n_baseline_wins": n_b_wins,
+        "n_ties": n_ties,
+        "n_effective": n_effective,
+        "sign_test_p": float(p_val),
+        "fisher_exact_p": float(fisher_p),
+        "delta_mean": float(np.mean(diffs)),
+        "delta_median": float(np.median(diffs)),
+        "condition_median": float(np.median(a)),
+        "baseline_median": float(np.median(b)),
+        "catastrophic_threshold": catastrophic_threshold,
+        "condition_catastrophic_count": a_catastrophic,
+        "baseline_catastrophic_count": b_catastrophic,
+        "condition_catastrophic_rate": float(a_catastrophic / n_seeds),
+        "baseline_catastrophic_rate": float(b_catastrophic / n_seeds),
+        "n_seeds": n_seeds,
     }
 
 
@@ -733,29 +772,33 @@ def main() -> None:
             agg["mean_reward"]["mean"],
         )
 
-    # --- Wilcoxon + bootstrap CIs: each warmup condition vs Tabula Rasa ---
+    # --- Sign tests + catastrophic failure: each warmup condition vs Tabula Rasa ---
     logger.info("\n--- Statistical Tests (vs Tabula Rasa) ---")
-    logger.info("  Wilcoxon signed-rank + bootstrap 95%% CI (n_boot=%d)", BOOTSTRAP_N)
+    logger.info("  Sign test (exact binomial, H0: P(condition wins) = 0.5)")
     tr_seeds = all_results["Tabula Rasa"]["per_seed_regret"]
-    tr_se = all_results["Tabula Rasa"]["total_regret"]["se"]
-    logger.info("  Tabula Rasa SE=%.1f (warmup SEs ≤ 1.1)", tr_se)
+    tr_std = all_results["Tabula Rasa"]["total_regret"]["std"]
+    logger.info("  Tabula Rasa std=%.1f (warmup stds ≤ 2.6)", tr_std)
     pairwise_tests: Dict[str, Dict[str, Any]] = {}
     for label, agg in all_results.items():
         if label == "Tabula Rasa":
             continue
         test = _paired_tests(agg["per_seed_regret"], tr_seeds)
         pairwise_tests[label] = test
-        sig = "***" if test["wilcoxon_p"] < 0.001 else (
-            "**" if test["wilcoxon_p"] < 0.01 else (
-                "*" if test["wilcoxon_p"] < 0.05 else "ns"
+        sig = "***" if test["sign_test_p"] < 0.001 else (
+            "**" if test["sign_test_p"] < 0.01 else (
+                "*" if test["sign_test_p"] < 0.05 else "ns"
             )
         )
         logger.info(
-            "  %-35s  Δmean=%+.1f  Δmed=%+.1f  "
-            "CI=[%+.1f, %+.1f]  W p=%.4f  %s",
-            label, test["delta_mean"], test["delta_median"],
-            test["bootstrap_ci_95_lo"], test["bootstrap_ci_95_hi"],
-            test["wilcoxon_p"], sig,
+            "  %-35s  wins=%d/%d  sign_p=%.4g  Δmed=%+.1f  "
+            "cat: %d/%d vs %d/%d (Fisher p=%.4g)  %s",
+            label,
+            test["n_condition_wins"], test["n_effective"],
+            test["sign_test_p"], test["delta_median"],
+            test["condition_catastrophic_count"], test["n_seeds"],
+            test["baseline_catastrophic_count"], test["n_seeds"],
+            test["fisher_exact_p"],
+            sig,
         )
 
     # --- Save results ---

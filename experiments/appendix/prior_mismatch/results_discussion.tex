@@ -1,13 +1,14 @@
 % Appendix: Prior Mismatch Sensitivity Analysis
 
-\subsection{Prior Mismatch Sensitivity (Figures~\ref{fig:prior_mismatch_heatmap}--\ref{fig:prior_mismatch_regret})}
+\subsection{Prior Mismatch Sensitivity (Figures~\ref{fig:prior_mismatch_heatmap}--\ref{fig:prior_mismatch_distribution})}
 \label{appendix:prior_mismatch}
 
 The warmup ablation (Section~\ref{sec:warmup_ablation}) demonstrated
-that well-calibrated priors reduce regret by 11\% under stationary
-conditions.  All experiments in this paper use priors trained on a
-representative training set drawn from the same distribution as the
-test traffic.  In practice, however, priors may be trained on stale
+that well-calibrated priors substantially reduce regret and eliminate
+catastrophic cold-start failures under stationary conditions.
+All experiments in this paper use priors trained on a representative
+training set drawn from the same distribution as the test traffic.
+In practice, however, priors may be trained on stale
 data, a different prompt mix, or an outdated model portfolio.
 This experiment stress-tests warmup priors under progressively worse
 calibration to quantify the cost of bad priors and identify when
@@ -36,51 +37,147 @@ We construct five prior-quality levels forming a mismatch gradient:
 Each level is tested at three $n_\mathit{eff}$ values (10, 100, 1000)
 plus a single Tabula Rasa control ($n_\mathit{eff}{=}1$, no priors),
 yielding $5 \times 3 + 1 = 16$ conditions.
-All conditions share the Experiment~04 hyperparameters
-($\alpha{=}0.1$, $\gamma{=}0.995$, disjoint LinUCB), which were
-tuned for the well-calibrated case and \emph{not} re-optimised per
-condition---matching the production scenario where prior quality
-degrades after deployment without hyperparameter adjustment.
+All warmup conditions use $\alpha{=}0.01$, $\gamma{=}0.997$ (disjoint
+LinUCB); Tabula Rasa uses $\alpha{=}0.01$, $\gamma{=}0.995$
+(each condition's hyperparameters are independently optimised via the
+Experiment~05 Pareto knee-point sweep).
+The warmup hyperparameters were \emph{not} re-optimised per
+prior-quality level---matching the production scenario where prior
+quality degrades after deployment without hyperparameter adjustment.
+Note that the $\gamma$ difference ($0.997$ vs.\ $0.995$) means
+warmup conditions have ${\sim}67\%$ longer effective memory than
+Tabula Rasa.
+This confound is addressed by the $n_\mathit{eff}$ dose--response
+within this experiment: all warmup conditions share $\gamma{=}0.997$,
+yet regret decreases monotonically with $n_\mathit{eff}$
+(e.g., Well-calibrated: $n_\mathit{eff}{=}10 \to 100 \to 1{,}000$),
+confirming that the prior content---not the forgetting factor---drives
+the advantage.
 Evaluation follows the same cumulative-regret protocol as the warmup
 ablation: held-out test split ($n{=}1{,}824$), 20 seeds
 (offset${=}9{,}000$, aligned for paired comparisons), unconstrained
 (no budget pacer).
+We deliberately restrict this experiment to the unconstrained regime
+to isolate the effect of prior quality from the budget-pacer
+interaction.
+The warmup ablation (Section~\ref{sec:warmup_ablation}) already
+characterises the pacer interaction for well-calibrated priors vs.\
+tabula rasa; adding budget constraints here would conflate two
+failure modes (prior mismatch and pacer-induced catastrophic
+failures) without additional insight, since the prior-quality
+threshold for harm is determined by the bandit's learning dynamics,
+not the pacer.
 
 \paragraph{Results.}
 Figure~\ref{fig:prior_mismatch_heatmap} summarises total regret
-across the quality--strength grid; pairwise comparisons use two-sided
-paired $t$-tests (19~d.f.) against the Tabula Rasa baseline
-(total regret $81.7 \pm 4.2$).
+across the quality--strength grid.
+Pairwise comparisons use two complementary non-parametric tests.
+The \textbf{exact binomial sign test} (two-sided,
+$H_0$: $P(\text{condition wins}) = 0.5$) counts per-seed paired
+wins and tests for a location shift.
+The \textbf{Fisher exact test} on the $2{\times}2$ catastrophic-failure
+table ($H_0$: equal failure rates; one-sided, condition $<$ baseline)
+tests whether the condition reduces tail risk.
+Because Tabula Rasa's per-seed regret is heavy-tailed and
+multimodal ($\mathit{std}{=}82.2$; see below), the standard
+assumptions of the Wilcoxon signed-rank test (symmetric paired
+differences) and the paired $t$-test (normally distributed
+differences) are both violated.
+The sign test requires only that paired observations are independent
+and makes no distributional assumptions; the Fisher test requires
+only a fixed marginal total.
+We complement both with win counts and catastrophic failure rates
+throughout.
 
 \emph{Directionally correct priors help at every strength.}
-Well-calibrated priors reduce total regret monotonically with
-$n_\mathit{eff}$: $-4.5\%$ at $n_\mathit{eff}{=}10$ ($p < 0.001$),
-$-4.6\%$ at $100$ ($p{=}0.004$), and $-8.8\%$ at $1{,}000$
-($p < 10^{-4}$).
+Well-calibrated priors reduce median total regret monotonically with
+$n_\mathit{eff}$: $65.2$ vs.\ $73.4$ at $n_\mathit{eff}{=}10$
+(14/20 wins, $p{=}0.12$),
+$61.9$ vs.\ $73.4$ at $100$ (15/20 wins, $p{=}0.041$), and
+$55.5$ vs.\ $73.4$ at $1{,}000$
+(19/20 wins, $p < 10^{-4}$).
+The $n_\mathit{eff}{=}10$ result is directionally positive on 14/20
+seeds but does not reach significance given the sign test's limited
+power at this sample size.
 The sample-size control (Random-1680) performs comparably to
 Well-calibrated at every $n_\mathit{eff}$---confirming that the
 $n_\mathit{eff}$ scaling normalises prior strength and the benefit is
 not an artifact of having more training prompts.
 
 \emph{Domain-mismatched priors still beat cold start.}
-Both MMLU-only and GSM8K-only priors reduce regret relative to Tabula
-Rasa at $n_\mathit{eff} \geq 100$ ($p < 0.05$), despite being trained
-on single-domain data.  At $n_\mathit{eff}{=}10$ the improvements are
-directionally positive but not statistically significant ($p > 0.09$),
+MMLU-only priors reduce regret relative to Tabula Rasa at
+$n_\mathit{eff} \geq 100$ (15--16/20 wins, $p \leq 0.041$),
+despite being trained on single-domain data.
+GSM8K-only priors---which encode near-zero arm differentiation---reach
+significance at $n_\mathit{eff}{=}1{,}000$ (15/20 wins, $p{=}0.041$)
+and are directionally positive at $100$ (14/20 wins, $p{=}0.12$).
+At $n_\mathit{eff}{=}10$ both domain-specific priors are directionally
+positive (13/20 and 12/20 wins, $p > 0.25$) but not significant,
 reflecting the weak prior's limited initial influence.
 Crucially, no domain-mismatched prior \emph{increases} regret at any
 $n_\mathit{eff}$: partial knowledge is always at least as good as no
 knowledge.
 
 \emph{Inverted priors cause harm that scales with $n_\mathit{eff}$.}
-This is the only condition where priors hurt.  At $n_\mathit{eff}{=}10$,
-the damage is modest and non-significant ($+2.9\%$, $p{=}0.055$);
-at $n_\mathit{eff}{=}100$ it is significant ($+4.1\%$, $p{=}0.003$);
-and at $n_\mathit{eff}{=}1{,}000$ regret rises to $92.5$ ($+13.3\%$,
-$p < 10^{-6}$), substantially worse than cold start.
+This is the only condition where priors hurt.
+At $n_\mathit{eff}{=}10$, the damage is modest (median $78.2$ vs.\
+Tabula Rasa's $73.4$; 11/20 wins, $p{=}0.82$);
+at $n_\mathit{eff}{=}100$, median regret rises to $89.9$
+(7/20 wins, $p{=}0.26$);
+and at $n_\mathit{eff}{=}1{,}000$, to $106.9$
+(6/20 wins, $p{=}0.12$).
+The sign test does not reach significance at any $n_\mathit{eff}$
+because Tabula Rasa's own catastrophic seeds (${\sim}25$--$30\%$
+of runs; see below) inflate the baseline's regret sufficiently to
+mask the inverted condition's harm in a paired comparison.
+The median comparison, however, is unambiguous: inverted
+$n_\mathit{eff}{=}1{,}000$ increases median regret by $46\%$
+relative to Tabula Rasa ($106.9$ vs.\ $73.4$).
 The mechanism is clear: the inverted prior confidently routes traffic
 to the worst model, and high $n_\mathit{eff}$ forces the router to
 accumulate many online observations before overriding the prior.
+
+\paragraph{Tabula Rasa instability.}
+The mean $\pm$ SE summaries in
+Figure~\ref{fig:prior_mismatch_heatmap} mask a heavy-tailed,
+multimodal distribution of per-seed outcomes.
+Figure~\ref{fig:prior_mismatch_distribution} makes this explicit:
+Tabula Rasa's per-seed total regret spans from ${\sim}57$ to
+${\sim}283$ ($\mathit{std}{=}82.2$), with 25--30\% of seeds
+incurring $2{\times}$+ the median regret.
+By contrast, every warmup condition---including domain-mismatched
+and even inverted priors---exhibits a tight, unimodal distribution
+($\mathit{std} \leq 3$ for all non-inverted conditions;
+$\mathit{std} \leq 5$ even for Inverted at $n_\mathit{eff}{=}1{,}000$).
+
+The warmup ablation (Section~\ref{sec:warmup_ablation}) reveals the
+mechanism: under budget constraints, the bimodality becomes stark.
+Tabula Rasa seeds split into ``good'' runs (where early exploration
+happens to probe cheap arms first, yielding regret comparable to
+warmup) and ``catastrophic'' runs (where early UCB-driven exploration
+probes the expensive arm, the budget pacer penalises aggressively,
+and the router gets stuck exploiting a suboptimal cheap arm for the
+remainder of the horizon).
+Under budget constraints, 40\% of Tabula Rasa seeds
+catastrophically fail at moderate and loose budgets
+($p_\text{Fisher}{=}0.002$), and clear bimodality appears
+even at tight budgets (9/20 seeds at regret~${\sim}300$ vs.\
+11/20 at~${\sim}165$).
+Warmup priors eliminate this failure mode entirely: zero catastrophic
+seeds across all budget levels, with
+$\mathit{std} \in [4.6,\, 11.0]$.
+
+This reframes the warmup advantage.  The sign test and the Fisher
+exact test answer complementary questions: the sign test detects
+location shifts (warmup consistently wins under tight budget,
+$p < 10^{-3}$) while the Fisher test detects differential tail risk
+(warmup eliminates catastrophic failures under moderate and loose
+budgets, $p < 0.005$, even when the sign test is not significant).
+The mean regret reduction reported above is a \emph{conservative}
+summary that averages over a coin-flip baseline; the more
+operationally relevant finding is that warmup priors
+\emph{eliminate catastrophic cold-start failures}---converting a
+stochastic, seed-dependent outcome into a reliable one.
 
 \paragraph{Practical implications.}
 The results establish that the prior-quality threshold for harm is
@@ -88,21 +185,30 @@ high: priors must be \emph{actively wrong} (systematically inverting
 model rankings) before they degrade performance.  Domain mismatch,
 reduced sample size, and even near-zero arm differentiation
 (GSM8K-only) do not cross this threshold.
+Beyond mean regret reduction, warmup priors deliver a qualitative
+reliability guarantee: all warmup conditions produce tight, unimodal
+per-seed distributions, whereas Tabula Rasa's heavy tail makes
+deployment outcomes seed-dependent.
 For practitioners:
 \begin{itemize}[nosep,leftmargin=*]
   \item When the prior is trained on representative data from the
     deployment domain, use $n_\mathit{eff}{=}1{,}000$---this
-    captures the full 8.8\% regret reduction.
+    captures the full 24\% median regret reduction ($55.5$ vs.\
+    $73.4$) and eliminates catastrophic cold-start variance.
   \item When the prior comes from a related but different domain
     (e.g., a general-purpose prior applied to a specialised
     deployment), $n_\mathit{eff}{=}100$ is a safe default that
-    still reduces regret by 3--4\%.
+    still reduces median regret by 16\% ($61.9$ vs.\ $73.4$)
+    with negligible variance penalty.
   \item When prior quality is entirely unknown, set
     $n_\mathit{eff}{=}10$.  This limits worst-case inverted-prior
-    damage to $<3\%$ (non-significant) while still providing a
-    directional nudge from any non-adversarial prior.
+    damage to $6\%$ median increase (non-significant, $p{=}0.82$)
+    while still providing a directional nudge from any
+    non-adversarial prior and substantially reducing outcome
+    variance.
   \item Tabula rasa ($n_\mathit{eff}{=}1$) is the appropriate
     choice only when the prior is known or suspected to be
     systematically inverted---a scenario that implies a fundamental
-    error in the offline reward pipeline.
+    error in the offline reward pipeline---and even then, operators
+    should expect high seed-to-seed variance.
 \end{itemize}

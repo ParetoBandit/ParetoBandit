@@ -15,8 +15,8 @@ safer choice.
 - **Arms**: Llama-3.1-8B, Mistral-Large-2512, Gemini-2.5-Pro
 - **Data**: test.jsonl (1,824 prompts), 20 seeds; cumulative-regret protocol
 - **Seeds**: offset=9000 (matches warmup ablation for paired comparisons)
-- **Hyperparameters (warmup conditions)**: alpha=0.10, gamma=0.995, disjoint LinUCB
-- **Hyperparameters (tabula rasa)**: alpha=0.10, n_eff=1, gamma=0.995
+- **Hyperparameters (warmup conditions)**: alpha=0.01, gamma=0.997, disjoint LinUCB
+- **Hyperparameters (tabula rasa)**: alpha=0.01, n_eff=1, gamma=0.995
 
 ## Prior Quality Gradient
 
@@ -52,15 +52,26 @@ Total conditions: 5 prior levels × 3 n_eff values + 1 Tabula Rasa = **16 condit
 
 ## Statistical Tests
 
-Each condition is compared to Tabula Rasa via a two-sided paired t-test
-(same seed pairings, 19 d.f.).  Tests are reported in the results JSON
-under `pairwise_tests_vs_tabula_rasa`.
+Each condition is compared to Tabula Rasa via two complementary tests:
+
+1. **Sign test** (exact binomial, two-sided, H0: P(condition wins) = 0.5):
+   counts per-seed paired wins.  Tests for a location shift — "does the
+   condition have lower regret seed-by-seed?"  No distributional assumptions.
+2. **Fisher exact test** on the 2×2 catastrophic-failure table (one-sided,
+   H0: equal failure rates): tests whether the condition reduces tail risk.
+   A seed is "catastrophic" if its regret exceeds 2× the condition's median.
+
+The sign test is used instead of Wilcoxon signed-rank because Tabula Rasa's
+heavy-tailed, multimodal per-seed regret (std ≈ 82 vs ≤ 3 for warmup
+conditions) violates the Wilcoxon assumption that paired differences are
+symmetric.  Results are in the JSON under `pairwise_tests_vs_tabula_rasa`.
 
 ## Design Notes
 
-**Hyperparameters.** All warmup conditions use `alpha=0.10`, `gamma=0.995`
-(the Exp-04 epsilon-constraint selection for well-calibrated priors).
-These hyperparameters were **not** re-tuned for mismatched conditions.
+**Hyperparameters.** All warmup conditions use `alpha=0.01`, `gamma=0.997`
+(the Exp-05 Pareto knee-point selection for well-calibrated priors);
+Tabula Rasa uses `alpha=0.01`, `gamma=0.995` (its own optimal config).
+Warmup hyperparameters were **not** re-tuned for mismatched conditions.
 This is intentional: it matches the production scenario where
 hyperparameters are fixed before deployment and prior quality degrades
 post-deployment.  A fairer-to-warmup comparison would re-tune per
@@ -87,8 +98,7 @@ python experiments/appendix/prior_mismatch/generate_figure.py
 
 ## Outputs
 
-- `results/prior_mismatch_results.json` — full per-seed metrics, curves, and paired t-tests
+- `results/prior_mismatch_results.json` — full per-seed metrics, curves, sign test + Fisher exact test results
 - `results/priors/` — generated `.joblib` prior files (cached)
-- `results/prior_mismatch_regret.pdf/.png` — cumulative regret curves
 - `results/prior_mismatch_heatmap.pdf/.png` — regret heatmap (quality × n_eff)
-- `results/prior_mismatch_bars.pdf/.png` — grouped bar chart comparison
+- `results/prior_mismatch_distribution.pdf/.png` — per-seed violin + strip plot
