@@ -134,9 +134,9 @@ The Fixed Policy cannot learn and continues routing $30$--$71$\% of traffic to t
 
 After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with no warmup priors. Across all 80 trials (20~seeds $\times$ 4~budget tiers), Flash achieves sustained adoption within ${\sim}230$ steps. Budget determines adoption speed, not whether adoption occurs: loose budgets reach ${\sim}38$\% Flash share while tight budgets plateau at ${\sim}14$\%. The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without reconfiguration. Flash primarily displaces Mistral-Large ($-22.9$\,pp at moderate budget), taking over the mid-cost quality niche at lower cost. A three-scenario design (Figure~\ref{fig:model_onboarding}) confirms that the bandit discriminates rather than blindly adopting: bad models are rejected after a bounded burn-in, and expensive models are budget-gated.
 
-\begin{figure}[t]
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/04_model_onboarding/results/model_onboarding.png}
+\includegraphics[width=\textwidth]{../experiments/04_model_onboarding/results/model_onboarding.png}
 \caption{Model onboarding ($K{=}3 \to K{=}4$; 20~seeds, 95\% CI). Flash windowed selection fraction across four budget levels after cold-start addition. \textbf{(a)}~Good \& cheap: Flash is adopted at all budgets. \textbf{(b)}~Good \& expensive: the BudgetPacer suppresses Flash under tight budgets. \textbf{(c)}~Bad \& cheap: the bandit correctly rejects Flash in every seed.}
 \label{fig:model_onboarding}
-\end{figure}
+\end{figure*}
