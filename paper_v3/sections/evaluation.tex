@@ -1,3 +1,144 @@
 \section{Evaluation}
 \label{sec:evaluation}
-(To be written.)
+
+We evaluate ParetoBandit across four experiments: stationary budget pacing, budget pacing under cost drift, resilience to catastrophic model failure, and cold-start model onboarding. All experiments use 20~seeds and report 95\% bootstrap confidence intervals.
+
+\subsection{Experimental Setup}
+\label{sec:eval_setup}
+
+\paragraph{Data and models.}
+We collect 11,983 prompts from nine public NLP benchmarks (MMLU~\cite{hendrycks2021measuring}, GSM8K~\cite{cobbe2021gsm8k}, HellaSwag~\cite{zellers2019hellaswag}, BIG-Bench Hard~\cite{suzgun2022challenging}, ARC-Challenge~\cite{clark2018arc}, OpenBookQA~\cite{mihaylov2018suit}, WinoGrande~\cite{sakaguchi2020winogrande}, TruthfulQA~\cite{lin2022truthfulqa}, MBPP~\cite{austin2021program}) spanning reasoning, math, code synthesis, commonsense, and factual knowledge. For each prompt, all $K{=}3$ models generate responses that are judged offline, producing a full reward--cost matrix. Prompts are partitioned into three disjoint splits stratified by source: train ($n{=}8{,}374$) for fitting warmup priors, val ($n{=}1{,}785$) for online hyperparameter tuning, and test ($n{=}1{,}824$) for evaluation. The $K{=}3$ portfolio spans a $\bpPriceRangeX{\times}$ cost range (Table~\ref{tab:setup}).
+
+\paragraph{Quality evaluation.}
+Each response is scored by DeepSeek-R1~\cite{deepseekai2025deepseekr1} on three continuous dimensions: reasoning quality (weight 0.4), instruction following (0.3), and communication quality (0.3), yielding a composite reward $r_t \in [0, 1]$. R1 produces the largest inter-model reward gaps among the judges we evaluated; Appendix~\ref{sec:judge_robustness} validates that its routing decisions capture ${\geq}97\%$ of any alternative judge's oracle reward.
+
+\paragraph{Baselines.}
+Three conditions represent increasing routing sophistication, all sharing warmup priors ($n_\mathit{eff}{=}\bdNeff$, $\alpha{=}0.01$):
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Fixed Policy:} Frozen warmup priors, static cost penalty, no online learning.
+  \item \textbf{Naive Bandit ($\gamma{=}1.0$):} LinUCB with online learning but infinite memory and a static cost penalty.
+  \item \textbf{ParetoBandit ($\gamma{=}0.997$):} Geometric forgetting with warmup priors and an active BudgetPacer.
+\end{enumerate}
+Experiment~2 additionally includes a \textbf{Recalibrated Bandit} (oracle knowledge of price changes) and a \textbf{Forgetting Bandit} ($\gamma{=}0.997$, no pacer) as ablations. Hyperparameters are selected via the epsilon-constraint procedure described in Appendix~\ref{sec:hparam_sweep}.
+
+\paragraph{Non-stationary protocol.}
+Experiments 2--3 follow a three-phase stress-test: normal operation (608 steps), abrupt perturbation (608 steps), and recovery (608 steps). Phase~3 reuses Phase~1 prompts for a controlled within-subject comparison.
+
+\begin{table}[t]
+\centering
+\caption{Model portfolio and budget targets. The $\bpPriceRangeX{\times}$ cost spread stresses the router's quality--cost tradeoff. Three budgets span the full operating range.}
+\label{tab:setup}
+\small
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Model} & \textbf{Tier} & \textbf{Cost (\$/req)} \\
+\midrule
+Llama-3.1-8B   & Budget   & \$0.00003 \\
+Mistral-Large  & Mid-cost & \$0.003 \\
+Gemini-2.5-Pro & Frontier & \$0.015 \\
+\midrule
+\textbf{Budget} & \textbf{Target $B$} & \textbf{Regime} \\
+\midrule
+Tight    & $\$3.0{\times}10^{-4}$ & Llama-dominant \\
+Moderate & $\$6.6{\times}10^{-4}$ & Llama--Mistral mix \\
+Loose    & $\$1.9{\times}10^{-3}$ & Selective Gemini \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Stationary Budget Pacing}
+\label{sec:eval_stationary}
+
+We first ask: \emph{can the router accept a dollar budget directly and automatically achieve it, filling the quality--cost gaps between fixed single-model baselines?}
+
+Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set. Each fixed model occupies a single point: Llama at ($\bpFixedLlamaCost$, $\bpFixedLlamaReward$), Mistral at ($\bpFixedMistralCost$, $\bpFixedMistralReward$), Gemini at ($\bpFixedGeminiCost$, $\bpFixedGeminiReward$). The BudgetPacer traces a continuous curve through these points by dynamically mixing models based on prompt context and budget pressure. At a budget of $\bpAnnotBudget$/req, the router achieves $\bpAnnotQualPct$\% of Gemini quality at $\bpAnnotCostPct$\% of its cost by blending $\bpAnnotLlamaFrac$\% Llama and $\bpAnnotMistralFrac$\% Mistral. For binding targets, utilisation ranges from $\bpUtilBindingLow$ to $\bpUtilBindingHigh$. At unconstrained budgets, $\lambda_t \to 0$ and the pacer gracefully becomes a no-op, recovering $\bpCeilingOraclePct$\% of the per-prompt oracle quality ($\bpOracleReward$).
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/01_stationary_budget_pacing/results/budget_pacing.png}
+\caption{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget as the only input. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ target. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
+\label{fig:pareto}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Budget Pacing under Cost Drift}
+\label{sec:eval_nonstationary}
+
+We now evaluate whether the pacer automatically exploits a mid-stream price drop while maintaining compliance. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's pricing to \$0.10/M tokens (normalized cost $\tilde{c} \approx 0$); Phase~3 restores original pricing.
+
+\paragraph{Budget compliance is the key differentiator.}
+Table~\ref{tab:budget_compliance} summarises cost/target ratios across all conditions and phases. ParetoBandit is the only condition that reliably hits the target in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance in Phase~3 ($\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$). The Fixed Policy is wildly inconsistent ($\bdFixedTightPhaseOneRatio$ at tight, $\bdFixedLoosePhaseOneRatio$ at loose). The Naive Bandit similarly fails ($\bdNaiveTightPhaseOneRatio$--$\bdNaiveLoosePhaseOneRatio$). The Forgetting Bandit ($\gamma{=}0.997$, no pacer) is the critical ablation: it shares ParetoBandit's learning dynamics but produces the \emph{worst} compliance ($\bdForgetTightPhaseOneRatio$ at tight Phase~1, $\bdForgetTightPhaseThreeRatio$ at tight Phase~3), confirming that the BudgetPacer, not the forgetting factor, drives budget compliance.
+
+\paragraph{Exploiting the price drop.}
+When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost change via its EMA signal. All three budget regimes show significant reward lifts ($\Delta{=}+\bdParetoBanditLooseRewardLift$ to $+\bdParetoBanditTightRewardLift$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding. Figure~\ref{fig:adaptation_dynamics} shows the dual-variable dynamics: $\lambda_t$ decays as costs fall below target, increasing Gemini adoption; in Phase~3, $\lambda_t$ rises and compliance recovers. This full round-trip demonstrates symmetric adaptation without operator intervention.
+
+\begin{table}[t]
+\centering
+\caption{Budget compliance under cost drift (20~seeds).
+Each cell shows realised cost as a multiple of the target ($1.00{\times}$ = perfect).
+\textbf{Bold}: within 5\% of target.
+$\dagger$: Phase~2 constraint non-binding (price drop reduces all costs below target).}
+\label{tab:budget_compliance}
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llccc@{}}
+\toprule
+\textbf{Budget} & \textbf{Condition}
+  & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
+\midrule
+\multirow{5}{*}{\shortstack[l]{Tight\\($\$3.0{\times}10^{-4}$)}}
+  & Fixed Policy        & $0.53{\times}$ & $0.89{\times}^{\dagger}$ & $0.53{\times}$ \\
+  & Naive Bandit        & $0.78{\times}$ & $0.89{\times}^{\dagger}$ & $0.83{\times}$ \\
+  & Recalibrated        & $0.78{\times}$ & $\mathbf{1.01{\times}}$ & $1.24{\times}$ \\
+  & Forgetting Bandit   & $2.00{\times}$ & $0.87{\times}^{\dagger}$ & $4.78{\times}$ \\
+  & \textbf{ParetoBandit} & $\mathbf{1.00{\times}}$ & $\mathbf{0.95{\times}}$ & $\mathbf{1.01{\times}}$ \\[3pt]
+\multirow{5}{*}{\shortstack[l]{Moderate\\($\$6.6{\times}10^{-4}$)}}
+  & Fixed Policy        & $0.49{\times}$ & $0.40{\times}^{\dagger}$ & $0.49{\times}$ \\
+  & Naive Bandit        & $0.54{\times}$ & $0.40{\times}^{\dagger}$ & $0.54{\times}$ \\
+  & Recalibrated        & $0.54{\times}$ & $0.45{\times}^{\dagger}$ & $1.40{\times}$ \\
+  & Forgetting Bandit   & $1.21{\times}$ & $0.41{\times}^{\dagger}$ & $3.53{\times}$ \\
+  & \textbf{ParetoBandit} & $\mathbf{0.99{\times}}$ & $\mathbf{0.64{\times}}^{\dagger}$ & $\mathbf{1.00{\times}}$ \\[3pt]
+\multirow{5}{*}{\shortstack[l]{Loose\\($\$1.9{\times}10^{-3}$)}}
+  & Fixed Policy        & $2.75{\times}$ & $0.14{\times}^{\dagger}$ & $2.75{\times}$ \\
+  & Naive Bandit        & $2.48{\times}$ & $0.14{\times}^{\dagger}$ & $2.72{\times}$ \\
+  & Recalibrated        & $2.48{\times}$ & $0.17{\times}^{\dagger}$ & $0.56{\times}$ \\
+  & Forgetting Bandit   & $2.61{\times}$ & $0.17{\times}^{\dagger}$ & $4.43{\times}$ \\
+  & \textbf{ParetoBandit} & $\mathbf{0.94{\times}}$ & $\mathbf{0.23{\times}}^{\dagger}$ & $\mathbf{0.94{\times}}$ \\[3pt]
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Catastrophic Model Failure}
+\label{sec:eval_catastrophic}
+
+We stress-test against the most severe non-stationarity: Mistral-Large begins returning garbage (reward $\to \cfFailureReward$, cost $\to \$0$) in Phase~2, then recovers in Phase~3.
+
+\begin{figure}[!b]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/02_budget_plus_drift/results/adaptation_dynamics.png}
+\caption{Adaptation dynamics under cost drift. Normal pricing $\to$ Gemini price drop (step~609) $\to$ price restored (step~1217). $K{=}3$, 20~seeds, 95\% CI. The BudgetPacer exploits the price drop (Gemini adoption surges), then recovers compliance when pricing is restored.}
+\label{fig:adaptation_dynamics}
+\end{figure}
+
+\paragraph{Results (Figure~\ref{fig:catastrophic_failure}).}
+The Fixed Policy cannot learn and continues routing $30$--$71$\% of traffic to the dead model (budget-dependent). The Naive Bandit detects the failure but its budget explodes: at moderate budget it overshoots by $\cfNaiveModPhaseTwoRatio$ in Phase~2 and $\cfNaiveModPhaseThreeRatio$ in Phase~3. ParetoBandit detects the failure, redistributes traffic (Mistral drops to $\cfParetoBanditModMistralPhaseTwo$\% at moderate), \emph{and} maintains budget compliance: $0.95$--$1.00{\times}$ across all nine phase--budget combinations. The quality cost of compliance is bounded: during the failure, constrained conditions sacrifice ${\sim}\cfParetoBanditModPhaseTwoRewardGapPct$\% quality relative to Phase~1, while the unconstrained alternative maintains quality at the price of a $\cfUncCostSpikePct$\% cost spike.
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}
+\caption{Catastrophic failure dynamics (Normal $\to$ Mistral failure at step~\cfPhaseN{} $\to$ recovered at step~$2{\times}$\cfPhaseN; 20~seeds, 95\% CI). \textbf{(a)}~Gemini-Pro selection fraction: constrained conditions shift to cheaper Llama; the unconstrained baseline shifts ${\sim}80$\% to Gemini. \textbf{(b)}~Windowed reward: all adaptive conditions recover from the trough, but panel~(c) reveals the cost. \textbf{(c)}~Cost per request (dotted = budget targets): ParetoBandit hugs the target; Naive and Forgetting Bandits overshoot progressively.}
+\label{fig:catastrophic_failure}
+\end{figure}
+
+\subsection{Cold-Start Model Onboarding}
+\label{sec:eval_onboarding}
+
+After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with no warmup priors. Across all 80 trials (20~seeds $\times$ 4~budget tiers), Flash achieves sustained adoption within ${\sim}230$ steps. Budget determines adoption speed, not whether adoption occurs: loose budgets reach ${\sim}38$\% Flash share while tight budgets plateau at ${\sim}14$\%. The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without reconfiguration. Flash primarily displaces Mistral-Large ($-22.9$\,pp at moderate budget), taking over the mid-cost quality niche at lower cost. A three-scenario design (Figure~\ref{fig:model_onboarding}) confirms that the bandit discriminates rather than blindly adopting: bad models are rejected after a bounded burn-in, and expensive models are budget-gated.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/04_model_onboarding/results/model_onboarding.png}
+\caption{Model onboarding ($K{=}3 \to K{=}4$; 20~seeds, 95\% CI). Flash windowed selection fraction across four budget levels after cold-start addition. \textbf{(a)}~Good \& cheap: Flash is adopted at all budgets. \textbf{(b)}~Good \& expensive: the BudgetPacer suppresses Flash under tight budgets. \textbf{(c)}~Bad \& cheap: the bandit correctly rejects Flash in every seed.}
+\label{fig:model_onboarding}
+\end{figure}

@@ -6,12 +6,33 @@
 \usepackage{graphicx}
 \usepackage{subfigure}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{enumitem}
 \usepackage{tikz}
+\usepackage{placeins}
+\usepackage{dblfloatfix}
 \usetikzlibrary{shapes,arrows,positioning,fit,backgrounds}
+
+% Keep float spacing compact and placement predictable in two-column layout.
+\raggedbottom
+\setlength{\textfloatsep}{8pt plus 1pt minus 2pt}
+\setlength{\floatsep}{6pt plus 1pt minus 2pt}
+\setlength{\intextsep}{8pt plus 1pt minus 2pt}
+\setlength{\dbltextfloatsep}{8pt plus 1pt minus 2pt}
+\setlength{\abovecaptionskip}{4pt plus 1pt minus 1pt}
+\setlength{\belowcaptionskip}{0pt}
+\setcounter{topnumber}{2}
+\setcounter{dbltopnumber}{2}
+\setcounter{totalnumber}{4}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.8}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\dblfloatpagefraction}{0.8}
 
 
 % Blind submission:
@@ -46,12 +67,9 @@
 
 % ---------- Auto-generated macros from experiment results ----------
 % Regenerate all: for d in experiments/*/; do [ -f "$d/generate_latex.py" ] && python "$d/generate_latex.py"; done
-% NOTE: Some _autogen.tex files contain command names with digits (e.g. \cfP2),
-% which are invalid LaTeX. These need regeneration with letter-only names before
-% inclusion. Uncomment once fixed.
-% \input{../experiments/01_stationary_budget_pacing/_autogen.tex}
-% \input{../experiments/02_budget_plus_drift/_autogen.tex}
-% \input{../experiments/03_catastrophic_failure/_autogen.tex}
+\input{../experiments/01_stationary_budget_pacing/_autogen.tex}
+\input{../experiments/02_budget_plus_drift/_autogen.tex}
+\input{../experiments/03_catastrophic_failure/_autogen.tex}
 % \input{../experiments/appendix/hparam_optimization/_autogen.tex}
 % \input{../experiments/appendix/cost_heuristic_validation/results/_autogen.tex}
 
@@ -64,6 +82,7 @@
 \input{sections/conclusion}
 
 % ---------- References ----------
+\FloatBarrier
 \bibliography{references}
 \bibliographystyle{mlsys2025}
 
