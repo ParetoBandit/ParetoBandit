@@ -38,8 +38,9 @@ def get_heuristic_prior(
     with an average reward equal to the model's quality score.
     
     **Numerical Stability Note:**
-    By initializing A = init_lambda * I, we ensure the matrix is invertible
-    at t=0, matching the standard LinUCB regularization.
+    By initializing A = n_effective * I, we ensure the matrix scales with confidence.
+    BanditRouter will add init_lambda * I to A afterwards. We set b such that the 
+    mean prediction exactly equals the target quality, preventing Bayesian shrinkage.
     
     Args:
         model_data: Dictionary containing model metadata (quality_score, etc.)
@@ -51,15 +52,14 @@ def get_heuristic_prior(
     Returns:
         Tuple of (A_prior, b_prior)
     """
-    # 1. Initialize A (Covariance) with regularization
-    A = init_lambda * np.eye(dim)
+    # 1. Initialize A (Covariance) to represent n_effective samples
+    # (Router will later add init_lambda * I to this)
+    A = n_effective * np.eye(dim)
     
     # 2. Initialize b (Reward Vector)
     b = np.zeros(dim)
     
     # 3. Apply the "Prior Belief"
-    # Use only initial_quality (composite metric) for consistency with the router
-    # initialization path.
     quality = model_data.get("initial_quality")
     
     if quality is None:
@@ -70,9 +70,9 @@ def get_heuristic_prior(
         quality = default_quality
     
     # CRITICAL: b[-1] assumes the BIAS term is the LAST feature in the vector.
-    # Verification Reference: src.pareto_bandit.feature_service.FeatureService.extract_features
-    # Logic: np.append(emb_reduced, 1.0) -> bias is absolutely the last element.
-    prior_reward_sum = float(quality) * float(n_effective)
-    b[-1] = prior_reward_sum
+    # We want final mean theta[-1] = quality.
+    # Since final A will be (n_effective + init_lambda) * I,
+    # we set b[-1] = quality * (n_effective + init_lambda).
+    b[-1] = float(quality) * (float(n_effective) + float(init_lambda))
     
     return A, b

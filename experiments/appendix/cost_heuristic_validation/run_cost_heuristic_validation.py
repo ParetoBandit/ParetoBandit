@@ -80,42 +80,77 @@ def _heuristic_c_tilde(arm_id: str) -> float:
     return log_normalize_cost(blended_per_1k, cfg.market_cost_floor, cfg.market_cost_ceiling)
 
 
-def _per_request_c_tilde(cost_usd: float, arm_id: str) -> float:
+def _per_request_c_tilde(
+    cost_usd: float,
+    mean_cost_usd: float,
+    arm_id: str,
+) -> float:
     """Convert a per-request cost (USD) to log-normalized c_tilde space.
 
-    Uses the model's actual per-request cost relative to its mean to derive
-    an effective per-token rate, then normalizes identically to the heuristic.
+    Scales the model's blended per-token rate by the ratio of this request's
+    actual cost to the model's empirical mean cost, then applies the same
+    log-normalization as the heuristic.  When ``cost_usd == mean_cost_usd``
+    the result equals the static heuristic exactly, so deviations reflect
+    genuine per-request cost variation.
+
+    Args:
+        cost_usd: Actual USD cost for this request.
+        mean_cost_usd: Empirical mean cost across all requests for this model.
+        arm_id: Model identifier (key into ``PRICING``).
+
+    Returns:
+        Normalized cost in [0.0, 1.0].
     """
     cfg = RouterConfig()
     p = PRICING[arm_id]
     blended_per_1k = (p["in"] + p["out"]) / 2.0 / 1000.0
-    if blended_per_1k <= 0:
+    if blended_per_1k <= 0 or mean_cost_usd <= 0:
         return 0.0
-    mean_cost_at_500_tokens = blended_per_1k / 1000.0 * 500.0
-    if mean_cost_at_500_tokens <= 0:
-        return 0.0
-    effective_rate = cost_usd / mean_cost_at_500_tokens * blended_per_1k
+    effective_rate = blended_per_1k * (cost_usd / mean_cost_usd)
     return log_normalize_cost(effective_rate, cfg.market_cost_floor, cfg.market_cost_ceiling)
 
 
 def load_split(path: Path, arms: List[str]) -> Dict[str, Any]:
-    """Load a JSONL split and extract per-model costs and prompt texts."""
-    prompts: List[str] = []
-    costs: Dict[str, List[float]] = {a: [] for a in arms}
-    rewards: Dict[str, List[float]] = {a: [] for a in arms}
+    """Load a JSONL split and extract per-model costs and prompt texts.
+
+    Rows where *any* arm has a zero or negative cost are dropped (these
+    indicate API refusals or empty responses that would produce spurious
+    data points in the cost analysis).
+    """
+    raw_prompts: List[str] = []
+    raw_costs: Dict[str, List[float]] = {a: [] for a in arms}
+    raw_rewards: Dict[str, List[float]] = {a: [] for a in arms}
 
     with open(path) as f:
         for line in f:
             rec = json.loads(line)
-            prompts.append(rec["prompt"])
+            raw_prompts.append(rec["prompt"])
             for a in arms:
-                costs[a].append(rec["arms"][a]["cost"])
-                rewards[a].append(rec["arms"][a]["reward"])
+                raw_costs[a].append(rec["arms"][a]["cost"])
+                raw_rewards[a].append(rec["arms"][a]["reward"])
+
+    n_raw = len(raw_prompts)
+    keep = np.ones(n_raw, dtype=bool)
+    for a in arms:
+        arr = np.array(raw_costs[a])
+        keep &= arr > 0
+
+    n_dropped = int(n_raw - keep.sum())
+    if n_dropped > 0:
+        logger.warning(
+            "Dropped %d/%d rows with zero/negative cost in %s",
+            n_dropped, n_raw, path.name,
+        )
+
+    indices = np.where(keep)[0]
+    prompts = [raw_prompts[i] for i in indices]
+    costs = {a: np.array(raw_costs[a])[indices] for a in arms}
+    rewards = {a: np.array(raw_rewards[a])[indices] for a in arms}
 
     return {
         "prompts": prompts,
-        "costs": {a: np.array(v) for a, v in costs.items()},
-        "rewards": {a: np.array(v) for a, v in rewards.items()},
+        "costs": costs,
+        "rewards": rewards,
         "n": len(prompts),
     }
 
@@ -162,7 +197,7 @@ def analyze_portfolio(
         for j in range(i + 1, len(arms)):
             ai, aj = heuristic_order[i], heuristic_order[j]
             key = f"{ARM_SHORT[ai]} < {ARM_SHORT[aj]}"
-            correct = int(np.sum(costs[ai] < costs[aj]))
+            correct = int(np.sum(costs[ai] <= costs[aj]))
             pairwise[key] = {"correct": correct, "total": n, "frac": correct / n}
 
     for idx in range(n):
@@ -182,7 +217,10 @@ def analyze_portfolio(
     c_tilde_per_request: Dict[str, np.ndarray] = {}
 
     for a in arms:
-        ct_values = np.array([_per_request_c_tilde(c, a) for c in costs[a]])
+        mean_cost = float(costs[a].mean())
+        ct_values = np.array(
+            [_per_request_c_tilde(c, mean_cost, a) for c in costs[a]]
+        )
         c_tilde_per_request[a] = ct_values
         c_tilde_stats[ARM_SHORT[a]] = {
             "heuristic": float(c_tilde_heuristics[a]),
@@ -285,7 +323,7 @@ def main() -> None:
     # K=3 analysis (always available)
     logger.info("Analyzing K=3 portfolio (val split)...")
     k3_data = load_split(VAL_DATA_PATH, K3_ARMS)
-    k3_results = analyze_portfolio(k3_data, K3_ARMS, "K=3 Portfolio (val, 1785 prompts)")
+    k3_results = analyze_portfolio(k3_data, K3_ARMS, f"K=3 Portfolio (val, {k3_data['n']} prompts)")
     all_results["k3"] = k3_results
     print_results(k3_results)
 

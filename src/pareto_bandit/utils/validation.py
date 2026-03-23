@@ -105,7 +105,7 @@ def evaluate_threshold(X_pca, reward_gaps, threshold):
         silhouette = silhouette_score(X_2d, labels)
         davies_bouldin = davies_bouldin_score(X_2d, labels)
         calinski = calinski_harabasz_score(X_2d, labels)
-    except:
+    except Exception:
         return None
     
     # Compute reward gap statistics
@@ -120,7 +120,7 @@ def evaluate_threshold(X_pca, reward_gaps, threshold):
     # Statistical significance
     try:
         _, p_value = stats.mannwhitneyu(gaps_low, gaps_high, alternative='two-sided')
-    except:
+    except Exception:
         p_value = 1.0
     
     # Cluster balance

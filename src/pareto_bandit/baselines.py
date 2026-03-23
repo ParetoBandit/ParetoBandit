@@ -43,13 +43,28 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _argmax_random_tiebreak(scores: Dict[str, float]) -> str:
-    """Return key with max value, breaking ties uniformly at random."""
-    max_val = max(scores.values())
-    tied = [k for k, v in scores.items() if abs(v - max_val) < 1e-12]
+def _argmax_random_tiebreak(
+    scores: Dict[str, float],
+    rng: np.random.Generator | None = None,
+) -> str:
+    """Return key with max value, breaking ties uniformly at random.
+
+    Args:
+        scores: Mapping of candidate names to their scores.
+        rng: Explicit NumPy generator for reproducibility. Falls back to
+            the global ``np.random`` state if *None*.
+    """
+    finite = {k: v for k, v in scores.items() if np.isfinite(v)}
+    if not finite:
+        keys = list(scores.keys())
+        idx = rng.integers(len(keys)) if rng is not None else np.random.randint(len(keys))
+        return keys[idx]
+    max_val = max(finite.values())
+    tied = [k for k, v in finite.items() if abs(v - max_val) < 1e-12]
     if len(tied) == 1:
         return tied[0]
-    return tied[np.random.randint(len(tied))]
+    idx = rng.integers(len(tied)) if rng is not None else np.random.randint(len(tied))
+    return tied[idx]
 
 
 # =============================================================================
@@ -90,6 +105,7 @@ class CostAwareLinTSRouter:
         noise_variance: float = 0.25,
         warmup_priors: Optional[Dict] = None,
         ridge_lambda: float = 1.0,
+        seed: int | None = None,
     ):
         """
         Initialize LinTS router.
@@ -102,6 +118,7 @@ class CostAwareLinTSRouter:
             noise_variance: v² for posterior sampling (default: 0.25 for binary rewards)
             warmup_priors: Optional dict with 'A', 'b', 'context_dim' for warm-start
             ridge_lambda: Ridge regularization for tabula rasa init (default: 1.0)
+            seed: RNG seed for reproducibility. *None* creates an unseeded generator.
         """
         self.models = models
         self.cost_penalty = cost_penalty
@@ -110,6 +127,7 @@ class CostAwareLinTSRouter:
         self.context_dim = context_dim
         self.t = 0
         self._lock = threading.Lock()
+        self._rng = np.random.default_rng(seed)
 
         if warmup_priors is not None:
             _wp_A = warmup_priors.get("A", {})
@@ -159,11 +177,10 @@ class CostAwareLinTSRouter:
                 cov = self.noise_variance * A_inv_m
                 cov += self._COV_JITTER * np.eye(self.context_dim)
                 try:
-                    theta_sample = np.random.multivariate_normal(theta_hat, cov)
+                    theta_sample = self._rng.multivariate_normal(theta_hat, cov)
                 except np.linalg.LinAlgError:
-                    # Fallback: diagonal sampling if covariance is ill-conditioned
                     diag_var = np.maximum(np.diag(cov), 1e-12)
-                    theta_sample = np.random.normal(
+                    theta_sample = self._rng.normal(
                         loc=theta_hat, scale=np.sqrt(diag_var)
                     )
 
@@ -181,7 +198,7 @@ class CostAwareLinTSRouter:
             fallback = candidates if candidates is not None else self.models
             return fallback[0] if fallback else None
 
-        return _argmax_random_tiebreak(scores)
+        return _argmax_random_tiebreak(scores, rng=self._rng)
 
     def update(
         self,
@@ -269,6 +286,7 @@ class CostAwareLearnedProjRouter:
         alpha_start: float = 2.0,
         alpha_end: float = 0.1,
         ridge_lambda: float = 1.0,
+        seed: int | None = None,
     ):
         self.models = models
         self.raw_dim = raw_dim
@@ -280,11 +298,10 @@ class CostAwareLearnedProjRouter:
         self.alpha_end = alpha_end
         self.t = 0
         self._lock = threading.Lock()
+        self._rng = np.random.default_rng(seed)
 
-        # Learnable projection: initialize as truncated identity / random orthogonal
-        # Use Glorot-style initialization scaled for (proj_dim, raw_dim)
         scale = np.sqrt(2.0 / (raw_dim + proj_dim))
-        self.W = np.random.randn(proj_dim, raw_dim) * scale
+        self.W = self._rng.standard_normal((proj_dim, raw_dim)) * scale
 
         # LinUCB state in projected space
         self.A = {m: ridge_lambda * np.eye(proj_dim) for m in models}
@@ -342,7 +359,7 @@ class CostAwareLearnedProjRouter:
             fallback = candidates if candidates is not None else self.models
             return fallback[0] if fallback else None
 
-        return _argmax_random_tiebreak(scores)
+        return _argmax_random_tiebreak(scores, rng=self._rng)
 
     def update(
         self,

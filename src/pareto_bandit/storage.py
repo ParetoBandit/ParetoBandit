@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import pickle
+import threading
 import time
 from abc import ABC, abstractmethod
 from collections import deque
@@ -84,6 +85,18 @@ class EphemeralContextStore(ContextStore):
         self.max_size = max_size
         self._store: deque = deque(maxlen=max_size)
         self._index: Dict[str, Tuple[np.ndarray, str]] = {}
+        self._lock = threading.Lock()
+
+    def __deepcopy__(self, memo: dict) -> "EphemeralContextStore":
+        import copy
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        result.max_size = self.max_size
+        result._store = copy.deepcopy(self._store, memo)
+        result._index = copy.deepcopy(self._index, memo)
+        result._lock = threading.Lock()
+        return result
     
     def save_context(
         self,
@@ -91,20 +104,22 @@ class EphemeralContextStore(ContextStore):
         context: np.ndarray,
         model_id: str,
     ) -> None:
-        if len(self._store) >= self.max_size and request_id not in self._index:
-            oldest_id = self._store.popleft()
-            self._index.pop(oldest_id, None)
-        
-        if request_id not in self._index:
-            self._store.append(request_id)
-        self._index[request_id] = (context, model_id)
+        with self._lock:
+            if len(self._store) >= self.max_size and request_id not in self._index:
+                oldest_id = self._store.popleft()
+                self._index.pop(oldest_id, None)
+            
+            if request_id not in self._index:
+                self._store.append(request_id)
+            self._index[request_id] = (context, model_id)
     
     def get_context(
         self, request_id: str,
     ) -> Tuple[np.ndarray | None, str | None]:
-        if request_id in self._index:
-            return self._index[request_id]
-        return None, None
+        with self._lock:
+            if request_id in self._index:
+                return self._index[request_id]
+            return None, None
     
     def prune(self) -> int:
         """No-op for ephemeral store (automatic eviction via deque)."""

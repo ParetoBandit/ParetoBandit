@@ -88,7 +88,7 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
     prior_n_eff = data.get("prior_n_effective", 1000.0)
     cs.raw("Neff", fmt_int(prior_n_eff))
 
-    for idx, (target, label) in enumerate(zip(budget_targets, budget_labels)):
+    for target, label in zip(budget_targets, budget_labels):
         short_budget = BUDGET_LABEL_TO_SHORT.get(label, label.title())
 
         for condition in CONDITION_ORDER:

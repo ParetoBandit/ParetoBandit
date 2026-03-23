@@ -1,8 +1,9 @@
-"""Primal-Dual budget pacing for cost-constrained LLM routing.
+"""Smoothed dual-ascent budget pacing for cost-constrained LLM routing.
 
-The :class:`BudgetPacer` implements an online Lagrangian relaxation
-(Primal-Dual CBwK; Agrawal & Devanur 2014) that enforces a per-request
-average cost target without requiring a known time horizon.
+The :class:`BudgetPacer` implements an online dual-ascent budget pacing
+controller inspired by Primal-Dual CBwK (Agrawal & Devanur 2014) that
+enforces a per-request average cost target without requiring a known
+time horizon.
 
 Architecture
 ------------
@@ -51,6 +52,19 @@ $10/req.  ``lambda_max`` prevents the dual variable from growing
 unboundedly, which in HARD mode would shrink the ceiling to zero
 and exclude all models.
 
+Theoretical note
+----------------
+The EMA-smoothed dual update is a practical departure from the
+Agrawal & Devanur (2014) Primal-Dual CBwK algorithm, which requires
+the raw per-step constraint violation ``g_t = c_t - target`` as a valid
+subgradient of the per-round Lagrangian.  The EMA is a biased, lagged
+estimator of the current cost, so the O(sqrt(T)) budget-violation bound
+from the original paper does not directly carry over.  This is an
+intentional engineering choice: the EMA eliminates high-variance spikes
+from single expensive requests that would otherwise cause sawtooth
+oscillations in the dual variable.  For theoretical analysis of smoothed
+dual updates in online pacing, see Balseiro & Gur (2019).
+
 Design choices
 --------------
 - ``cost_ema`` warm-starts at ``target`` (not 0) to avoid cold-start
@@ -77,7 +91,7 @@ class PacingMode(enum.Enum):
 
 
 class BudgetPacer:
-    """Online budget pacer using Primal-Dual Lagrangian relaxation.
+    """Online budget pacer using a smoothed dual-ascent controller.
 
     Parameters
     ----------

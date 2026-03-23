@@ -8,19 +8,15 @@ Although each ingredient is well-established individually, combining them create
 \subsection{Architecture Overview}
 \label{sec:architecture}
 
-ParetoBandit operates as a closed-loop routing system (Figure~\ref{fig:architecture}) with two data paths.
+ParetoBandit operates as a closed-loop routing system with two data paths.
 
 \paragraph{Synchronous inference path.}
 When a user prompt arrives, the feature extractor (Section~\ref{sec:context_repr}) produces $x_t$. The \texttt{BanditRouter} scores every eligible model using the budget-augmented UCB rule (Section~\ref{sec:budget_pacer}) and dispatches the prompt to the highest-scoring model $a_t$.
 
 \paragraph{Asynchronous feedback path.}
-After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. The bandit updates its per-arm sufficient statistics with geometric forgetting (Section~\ref{sec:adaptive_learning}), while the budget pacer updates $\lambda_t$ via the EMA-smoothed cost signal (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}). The context vector is cached at route time so that rewards arriving hours later (e.g., human RLHF labels) can still update the bandit without re-encoding the prompt.
+After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. The bandit updates its per-arm sufficient statistics with geometric forgetting (Section~\ref{sec:adaptive_learning}), while the budget pacer updates $\lambda_t$ via the EMA-smoothed cost signal (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}). The context vector is cached at route time so that rewards arriving hours later (e.g., human RLHF labels) can still update the bandit without re-encoding the prompt. Algorithm~\ref{alg:paretobandit} consolidates the full per-step loop.
 
-\input{figures/architecture}
-
-Algorithm~\ref{alg:paretobandit} consolidates the per-step loop.
-
-\begin{algorithm}[t]
+\begin{algorithm}[ht]
 \caption{ParetoBandit: Budget-Paced Non-Stationary Routing}
 \label{alg:paretobandit}
 \begin{algorithmic}[1]
@@ -46,7 +42,7 @@ Algorithm~\ref{alg:paretobandit} consolidates the per-step loop.
 \STATE $A_{a_t} \leftarrow \gamma^{\mathrm{dt}'}\, A_{a_t}$;\; $b_{a_t} \leftarrow \gamma^{\mathrm{dt}'}\, b_{a_t}$ \label{line:forget} \hfill $\triangleright$ Decay stale data
 \STATE $A_{a_t}^{-1} \leftarrow A_{a_t}^{-1} / \gamma^{\mathrm{dt}'}$ \hfill $\triangleright$ $O(d^2)$ scalar op
 \STATE $A_{a_t} \leftarrow A_{a_t} + x_t x_t^\top$;\; $b_{a_t} \leftarrow b_{a_t} + r_t\, x_t$
-\STATE Update $A_{a_t}^{-1}$ via Sherman--Morrison (Eq.~\ref{eq:sherman_morrison}) \hfill $\triangleright$ $O(d^2)$
+\STATE Update $A_{a_t}^{-1}$ via Sherman--Morrison \hfill $\triangleright$ $O(d^2)$
 \STATE $\hat\theta_{a_t} \leftarrow A_{a_t}^{-1}\, b_{a_t}$;\; $\text{last\_upd}_{a_t} \leftarrow t$
 \STATE \textbf{--- Budget Pacer Dual Update ---}
 \STATE $\bar{c}_t \leftarrow (1 {-} \alpha_{\mathrm{ema}})\,\bar{c}_{t-1} + \alpha_{\mathrm{ema}}\,c_t$ \hfill $\triangleright$ Eq.~\ref{eq:cost_ema}
@@ -67,7 +63,15 @@ At each step $t$, the router selects model $a_t$ by maximizing a budget-augmente
     \Bigr]
     \label{eq:budget_ucb}
 \end{equation}
-The first term is the router's current best estimate of the expected reward for model $a$ on prompt $x_t$ (\emph{exploitation}). The second term is a confidence bonus proportional to the router's uncertainty about that estimate: models selected rarely or on dissimilar prompts have larger bonuses, encouraging the router to try them (\emph{exploration}); in practice this base variance is further inflated for stale arms via a staleness divisor (Eq.~\ref{eq:staleness_inflation}, Section~\ref{sec:adaptive_learning}). The exploration rate $\alpha > 0$ directly controls this tradeoff. The cost penalty $(\lambda_c + \lambda_t)\tilde{c}_a$ reduces the effective score of expensive models, constraining exploration to arms the budget can sustain. It comprises two additive components. The static weight $\lambda_c \geq 0$ (default 0.3) encodes the operator's baseline cost--quality preference and is active from the first request; setting $\lambda_c = 0$ recovers pure quality-only routing. The dynamic dual variable $\lambda_t \geq 0$ is maintained by the budget pacer (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}): it starts at zero and rises only when recent spending exceeds the target $B$, providing closed-loop budget enforcement on top of the static preference.
+The first term is the router's current best estimate of the expected reward for model $a$ on prompt $x_t$ (\emph{exploitation}). The second term is a confidence bonus proportional to the router's uncertainty about that estimate: models selected rarely or on dissimilar prompts have larger bonuses, encouraging the router to try them (\emph{exploration}); in practice this base variance is further inflated for stale arms via a staleness divisor (Eq.~\ref{eq:staleness_inflation}, Section~\ref{sec:adaptive_learning}). The exploration rate $\alpha > 0$ directly controls this tradeoff. The cost penalty $(\lambda_c + \lambda_t)\tilde{c}_a$ reduces the effective score of expensive models, constraining exploration to arms the budget can sustain. It comprises two additive components. The static weight $\lambda_c \geq 0$ (default 0.3) encodes the operator's baseline cost--quality preference and is active from the first request; setting $\lambda_c = 0$ recovers pure quality-only routing. The dynamic dual variable $\lambda_t \geq 0$ is maintained by the budget pacer: it starts at zero and rises only when recent spending exceeds the target $B$, providing closed-loop budget enforcement on top of the static preference. After each request, a smoothed dual-ascent update adjusts $\lambda_t$:
+\begin{align}
+    \bar{c}_t &= (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1}
+                 + \alpha_{\mathrm{ema}}\,c_t
+    \label{eq:cost_ema} \\
+    \lambda_{t+1} &= \bigl[\lambda_t + \eta\,(\bar{c}_t / B - 1)\bigr]_{0}^{\bar\lambda}
+    \label{eq:dual_update}
+\end{align}
+where $\bar{c}_t$ is an EMA-smoothed cost signal ($\alpha_{\mathrm{ema}}{=}0.05$, half-life ${\approx}14$ requests), $\eta{=}0.05$ is the step size, and $[\cdot]_0^{\bar\lambda}$ projects onto $[0, \bar\lambda{=}5]$. The EMA prevents sawtooth oscillations from single expensive requests; normalizing the gradient by $B$ makes $\eta$ portfolio-independent. When $\bar{c}_t / B > 1$ (overspending), $\lambda_t$ rises, penalizing expensive models; when below, $\lambda_t$ falls, releasing the router to pursue quality.
 
 \paragraph{Reward model and parameter estimation.}
 LinUCB assumes a linear reward model: the expected reward for arm $a$ on context $x_t$ is $\mathbb{E}[r_t \mid x_t, a_t{=}a] = \theta_a^{*\top} x_t$, where $\theta_a^* \in \mathbb{R}^d$ is an unknown parameter vector. The estimate $\hat\theta_a = A_a^{-1} b_a$ is the regularized least-squares (ridge regression) solution over all observed context--reward pairs for arm $a$, where
@@ -84,7 +88,7 @@ The term $\tilde{c}_a \in [0,1]$ is a log-normalized unit cost:
     \tilde{c}_a = \frac{\log c_a - \log c_{\mathrm{floor}}}{\log c_{\mathrm{ceil}} - \log c_{\mathrm{floor}}}
     \label{eq:cost_norm}
 \end{equation}
-where $c_{\mathrm{floor}}$ and $c_{\mathrm{ceil}}$ are fixed market-floor and market-ceiling blended rates (respectively \$0.0001 and \$0.10 per 1k tokens). The logarithmic scale compresses the $530{\times}$ cost differential into a bounded penalty commensurate with the $[0,1]$ reward scale. Intuitively, jumping from a \$0.00003 model to a \$0.003 model ($100{\times}$) is a comparable tier leap to jumping from \$0.003 to \$0.015 ($5{\times}$); on a linear scale the first gap would be invisible while the second would dominate the penalty, distorting the router's cost-quality reasoning.
+where $c_{\mathrm{floor}}$ and $c_{\mathrm{ceil}}$ are fixed market-floor and market-ceiling blended rates (respectively \$0.0001 and \$0.10 per 1k tokens). The logarithmic scale compresses the $530{\times}$ cost differential into a bounded penalty commensurate with the $[0,1]$ reward scale.
 
 \paragraph{Two-layer enforcement (Adaptive mode).}
 The budget pacer combines two mechanisms simultaneously:
@@ -107,10 +111,10 @@ A standard LinUCB ($\gamma{=}1.0$) accumulates infinite memory, requiring hundre
     b_{a_t} &\leftarrow \gamma^{\mathrm{dt}} \, b_{a_t} + r_t \, x_t
     \label{eq:forget_b}
 \end{align}
-where $\mathrm{dt} = t - \text{last\_update}_{a_t}$ is the number of intervening requests since $a_t$'s last update. This batched exponentiation avoids redundant per-step multiplications for arms that were not selected. The exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps and an e-folding time of $1 / (1 - \gamma)$. For $\gamma{=}0.995$, the e-folding time is 200 steps: an observation from 200 steps ago retains weight $\gamma^{200} \approx e^{-1} \approx 0.37$, and after ${\sim}1{,}000$ steps the prior's contribution is reduced to $\gamma^{1000} \approx 0.007$.
+where $\mathrm{dt} = t - \text{last\_update}_{a_t}$ is the number of intervening requests since $a_t$'s last update. This batched exponentiation avoids redundant per-step multiplications for arms that were not selected. The exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps and an e-folding time of $1 / (1 - \gamma)$. For $\gamma{=}0.997$, the e-folding time is ${\approx}333$ steps: an observation from 333 steps ago retains weight $\gamma^{333} \approx e^{-1} \approx 0.37$, and after ${\sim}1{,}000$ steps the prior's contribution is reduced to $\gamma^{1000} \approx 0.05$.
 
 \paragraph{Staleness-based variance inflation.}
-When $\gamma < 1.0$, an arm whose most recent interaction (update or selection) was $\mathrm{dt}_a = t - \max(\text{last\_update}_a,\, \text{last\_played}_a)$ steps ago has its UCB variance inflated by dividing the base variance $x_t^\top A_a^{-1} x_t$ by $\gamma^{\mathrm{dt}_a}$. This $\mathrm{dt}_a$ differs from the decay exponent $\mathrm{dt}' = t - \text{last\_update}_{a_t}$ in Eqs.~\ref{eq:forget_A}--\ref{eq:forget_b}: decay tracks the age of the sufficient statistics (time since the last matrix update), while exploration staleness additionally credits a recent selection whose feedback has not yet arrived, preventing the router from repeatedly re-selecting the same arm while awaiting an asynchronous reward. The inflation implements ``optimism in the face of uncertainty'' for stale arms: the longer an arm goes without interaction, the wider its confidence interval, encouraging re-exploration. Without a bound, the inflation would grow unboundedly with $\mathrm{dt}_a$, causing the exploration bonus to overwhelm any finite cost penalty. A capacity cap $V_{\max} = 200$ limits the worst-case exploration bonus to $\sqrt{200} \approx 14{\times}$ the uninflated value, strong enough to force re-exploration but bounded enough to preserve the cost signal:
+When $\gamma < 1.0$, an arm whose most recent interaction (update or selection) was $\mathrm{dt}_a = t - \max(\text{last\_update}_a,\, \text{last\_played}_a)$ steps ago has its UCB variance inflated by dividing the base variance $x_t^\top A_a^{-1} x_t$ by $\gamma^{\mathrm{dt}_a}$. This $\mathrm{dt}_a$ differs from the decay exponent $\mathrm{dt}' = t - \text{last\_update}_{a_t}$ in Eqs.~\ref{eq:forget_A}--\ref{eq:forget_b}: decay tracks the age of the sufficient statistics, while exploration staleness additionally credits a recent selection whose feedback has not yet arrived, preventing repeated re-selection while awaiting an asynchronous reward. A capacity cap $V_{\max} = 200$ bounds the worst-case inflation to $\sqrt{200} \approx 14{\times}$ the uninflated value, preserving the cost signal:
 \begin{equation}
     v_a = \frac{x_t^\top A_a^{-1} x_t}{\max\!\bigl(\gamma^{\mathrm{dt}_a},\; V_{\max}^{-1}\bigr)}
     \label{eq:staleness_inflation}
@@ -138,9 +142,9 @@ The term $\lambda_0 \hat\theta_a^{\mathrm{off}}$ in the $b_a$ update is critical
 
 For models absent from the offline data (e.g., a newly launched endpoint), a heuristic prior places $n_\mathit{eff}$ pseudo-observations at isotropic uncertainty with a bias-only reward prediction based on registry metadata. A two-pass calibration checks that no arm's prediction exceeds a safe range, applying theta-reconstruction or global rescaling as needed (Appendix~\ref{appendix:pseudocode}).
 
-Warmup priors interact naturally with geometric forgetting. After ${\sim}1{,}000$ steps at $\gamma{=}0.995$, the prior's contribution is reduced by $\gamma^{1000} \approx 0.007$; the router's steady-state quality is determined by online evidence regardless of initialization (Appendix~\ref{appendix:val_burnin_ablation}). Priors thus serve as a deployment latency optimization: they provide informed routing from request \#1, eliminating the cold-start cost that would otherwise accumulate during initial learning.
+Warmup priors interact naturally with geometric forgetting. After ${\sim}1{,}000$ steps at $\gamma{=}0.997$, the prior's contribution is reduced by $\gamma^{1000} \approx 0.05$; the router's steady-state quality is determined by online evidence regardless of initialization (Appendix~\ref{appendix:val_burnin_ablation}). Priors thus serve as a deployment latency optimization: they provide informed routing from request \#1, eliminating the cold-start cost that would otherwise accumulate during initial learning.
 
-The prior strength $n_\mathit{eff}$ acts as a safety valve against prior-reality mismatch. A conservative (small) $n_\mathit{eff}$ lets online evidence override quickly; a large $n_\mathit{eff}$ trusts priors longer, trading adaptability for early stability. Directionally correct priors reduce regret at every $n_\mathit{eff}$, but systematically inverted priors cause harm that scales with $n_\mathit{eff}$ (Appendix~\ref{appendix:prior_mismatch}).
+The prior strength $n_\mathit{eff}$ acts as a safety valve: small values let online evidence override quickly, while large values trust priors longer; systematically inverted priors cause harm that scales with $n_\mathit{eff}$ (Appendix~\ref{appendix:prior_mismatch}).
 
 \subsection{Computational Efficiency}
 \label{sec:efficiency}
@@ -148,13 +152,7 @@ The prior strength $n_\mathit{eff}$ acts as a safety valve against prior-reality
 The router sits on the critical path of every LLM request, so per-step latency must be negligible relative to model inference time.
 
 \paragraph{$O(d^2)$ updates via Sherman--Morrison.}
-Rather than recomputing $A_a^{-1}$ from scratch after each observation ($O(d^3)$), ParetoBandit maintains a cached inverse and applies the Sherman--Morrison rank-1 update:
-\begin{equation}
-    A_a^{-1} \leftarrow A_a^{-1}
-        - \frac{(A_a^{-1} x_t)(x_t^\top A_a^{-1})}{1 + x_t^\top A_a^{-1} x_t}
-    \label{eq:sherman_morrison}
-\end{equation}
-At $d{=}26$, this is ${\sim}17{,}500{\times}$ faster than a full $O(d^3)$ inversion. When $\gamma < 1.0$, discounting $A_a \leftarrow \gamma A_a$ requires only a scalar division $A_a^{-1} \leftarrow A_a^{-1} / \gamma$, keeping the total per-update cost at $O(d^2)$. A full $O(d^3)$ recomputation is triggered only as a rare numerical-stability safeguard when the regularization floor decays below $10\%$ of its initial value under prolonged forgetting; in practice fewer than one in every thousand updates.
+Rather than recomputing $A_a^{-1}$ from scratch after each observation ($O(d^3)$), ParetoBandit maintains a cached inverse and applies the standard Sherman--Morrison rank-1 update in $O(d^2)$. When $\gamma < 1.0$, discounting $A_a \leftarrow \gamma A_a$ requires only a scalar division $A_a^{-1} \leftarrow A_a^{-1} / \gamma$, keeping the total per-update cost at $O(d^2)$. A full $O(d^3)$ recomputation is triggered only as a rare numerical-stability safeguard; in practice fewer than one in every thousand updates.
 
 \paragraph{$O(Kd)$ arm selection.}
 The expected reward $\hat\theta_a^\top x_t$ is a single $O(d)$ dot product per arm because $\hat\theta_a = A_a^{-1} b_a$ is cached and refreshed only at update time. The UCB exploration bonus requires one $O(d^2)$ quadratic form $x_t^\top A_a^{-1} x_t$ per arm. With $K{=}3$ arms and $d{=}26$, the full selection pass amounts to ${\sim}2{,}100$ floating-point operations.
@@ -165,13 +163,4 @@ A latency microbenchmark (Appendix~\ref{sec:latency_benchmark}) confirms that th
 \subsection{Runtime Portfolio Management}
 \label{sec:production_infra}
 
-Production model portfolios are not static: new models launch, old ones are deprecated, and operators need to adjust the roster without downtime. ParetoBandit supports this through three mechanisms.
-
-\paragraph{Hot-swap model registry.}
-Models can be added or removed at runtime via \texttt{add\_arm()} and \texttt{delete\_arm()} without restarting the router. A newly added model is initialized with either a heuristic prior or uninformative covariance ($A_a = \lambda_0 I$); the bandit's exploration bonus discovers its quality-cost niche from live traffic within approximately $1/(1-\gamma)$ steps. Existing arms are unaffected; their learned statistics are preserved.
-
-\paragraph{Persistent context store.}
-The context vector $x_t$ is cached at route time so that feedback arriving later (synchronous judge scores, asynchronous human RLHF labels, or batch-processed metrics) can update the bandit without re-encoding the prompt. Two storage backends are provided: an in-memory store for low-latency synchronous feedback, and an SQLite-backed store for workflows where feedback may arrive hours or days after routing.
-
-\paragraph{Thread-safe design.}
-Per-arm locking ensures that concurrent updates to different models do not block each other, while a global lock protects structural operations (arm addition/removal). Thread-local storage enables a greedy \texttt{exploit()} mode that overrides the exploration rate $\alpha$ per-thread without mutating shared state, supporting mixed explore/exploit workloads in multi-threaded serving architectures.
+Production model portfolios are not static. ParetoBandit supports runtime model additions and removals via \texttt{add\_arm()} and \texttt{delete\_arm()} without restarting the router. A newly added model is initialized with either a heuristic prior or uninformative covariance; the bandit's exploration bonus discovers its quality-cost niche from live traffic within approximately $1/(1{-}\gamma)$ steps. The context vector $x_t$ is cached at route time so that feedback arriving later (synchronous judge scores, asynchronous RLHF labels, or batch metrics) can update the bandit without re-encoding the prompt, with both in-memory and SQLite-backed storage backends.

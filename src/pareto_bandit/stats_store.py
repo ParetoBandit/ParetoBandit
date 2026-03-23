@@ -44,9 +44,13 @@ class StatsStore:
         # Mean (Expected Quality)
         mean_quality = total_successes / total_events
         
-        # Uncertainty (Standard Error) - Used for UCB
-        # Higher count (N) -> Lower uncertainty
-        uncertainty = 1.0 / math.sqrt(total_events)
+        # Beta posterior std: sqrt(alpha*beta / ((alpha+beta)^2 * (alpha+beta+1)))
+        alpha_param = total_successes
+        beta_param = total_failures
+        ab_sum = alpha_param + beta_param
+        uncertainty = math.sqrt(
+            (alpha_param * beta_param) / (ab_sum * ab_sum * (ab_sum + 1))
+        )
 
         # Handle cost calculation if blended_cost_per_1k is missing
         cost = static.get('blended_cost_per_1k')

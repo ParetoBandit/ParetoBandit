@@ -46,7 +46,7 @@ def main():
         
     try:
         router = BanditRouter.create()
-        model, log = router.route(args.prompt, profile=args.profile, max_cost=args.max_cost)
+        model, log = router.route(args.prompt, max_cost=args.max_cost)
         print(f"Selected Model: {model}")
         print(f"Predicted Utility: {log.predicted_utility:.4f}")
         print(f"Estimated Cost: ${log.cost_usd:.8f}")

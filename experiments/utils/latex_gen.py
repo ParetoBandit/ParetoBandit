@@ -14,17 +14,77 @@ Naming convention
 -----------------
 Experiment prefixes (to avoid command-name collisions):
 
-- Exp 01 (stationary budget pacing): ``\\bp``
-- Exp 02 (reward shift):              ``\\rs``
-- Exp 03 (budget + cost drift):       ``\\bd``
-- Exp 04 (hparam optimisation):       ``\\hp``
+- Exp 01 (stationary budget pacing):  ``\\bp``
+- Exp 02 (budget + reward-shift):     ``\\bd``
+- Exp 03 (catastrophic failure):      ``\\cf``
+- Exp 05 (hparam optimisation):       ``\\hp``
 """
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+# ======================================================================
+# Shared I/O
+# ======================================================================
+
+
+def load_json(path: Path) -> Dict[str, Any]:
+    """Load a JSON results file."""
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+# ======================================================================
+# Shared table constants (Exp 02, 03, and appendix phase tables)
+# ======================================================================
+
+BUDGET_LABEL_TO_SHORT: Dict[str, str] = {
+    "tight": "Tight",
+    "moderate": "Mod",
+    "loose": "Loose",
+}
+
+BUDGET_TABLE_DISPLAY: Dict[str, str] = {
+    "Tight": "Tight",
+    "Mod": "Moderate",
+    "Loose": "Loose",
+}
+
+BINDING_RATIO_LOW: float = 0.95
+BINDING_RATIO_HIGH: float = 1.05
+
+PHASE_NAMES: Dict[int, str] = {1: "One", 2: "Two", 3: "Three"}
+
+
+def format_ratio_cell(
+    ratio: float,
+    is_paretobandit: bool,
+    is_non_binding: bool = False,
+) -> str:
+    """Format a budget-utilisation ratio cell with optional bold and dagger.
+
+    Args:
+        ratio: Budget utilisation ratio (target 1.0).
+        is_paretobandit: Whether the row is for ParetoBandit (always bold).
+        is_non_binding: If ``True``, appends a dagger superscript.
+
+    Returns:
+        LaTeX-ready cell string.
+    """
+    within_5pct = BINDING_RATIO_LOW <= ratio <= BINDING_RATIO_HIGH
+    should_bold = is_paretobandit or within_5pct
+
+    ratio_str = fmt_ratio(ratio)
+    inner = f"\\mathbf{{{ratio_str}}}" if should_bold else ratio_str
+
+    if is_non_binding:
+        return f"${inner}^{{\\dagger}}$"
+    return f"${inner}$"
 
 
 # ======================================================================

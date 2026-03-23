@@ -7,7 +7,7 @@ from pareto_bandit.router import BanditRouter, ExplorationRate
 class TestRouterConfigurationUpdates(unittest.TestCase):
     """
     Unit tests for router configuration:
-    1. Default alpha is 0.1 (optimal K=10 ablation result)
+    1. Default alpha is 0.01 (T_adapt-constrained Pareto knee-point, Exp 05)
     2. exploration='safe' maps to ExplorationRate.SAFE (0.1)
     """
 
@@ -30,22 +30,22 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
             }
         }
 
-    def test_default_alpha_via_exploration_safe(self):
-        """Test that exploration='safe' maps to ExplorationRate.SAFE (0.1)."""
+    def test_explicit_alpha_via_exploration_rate(self):
+        """Test that passing alpha=ExplorationRate.SAFE explicitly sets alpha=0.1."""
         router = BanditRouter.create(
             model_registry=self.model_registry,
-            exploration="safe"
+            alpha=ExplorationRate.get("safe"),
         )
 
         self.assertEqual(router.bandit.alpha, ExplorationRate.SAFE,
-                        "exploration='safe' should result in alpha=0.1")
+                        "explicit alpha=ExplorationRate.SAFE should result in alpha=0.1")
 
     def test_default_alpha_via_create_no_args(self):
-        """Test that BanditRouter.create() defaults to alpha=0.1."""
+        """Test that BanditRouter.create() defaults to alpha=0.01."""
         router = BanditRouter.create(model_registry=self.model_registry)
 
-        self.assertEqual(router.bandit.alpha, 0.1,
-                        "BanditRouter.create() should default to alpha=0.1")
+        self.assertEqual(router.bandit.alpha, 0.01,
+                        "BanditRouter.create() should default to alpha=0.01")
 
 
 if __name__ == "__main__":

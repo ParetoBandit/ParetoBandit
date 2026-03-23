@@ -245,7 +245,7 @@ class ExperimentBurnIn:
         """
         for prompt in tqdm(burn_in_list, desc="  Burn-in", leave=False):
             # 1. Select Arm (arbitrage profile for learning balance)
-            model_id, _ = router.route(prompt, profile="arbitrage")
+            model_id, _ = router.route(prompt)
             
             # 2. Get Reward (Oracle)
             reward = self.oracle_rewards.get(prompt, {}).get(model_id, 0.0)

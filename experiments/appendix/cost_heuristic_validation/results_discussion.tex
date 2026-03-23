@@ -10,41 +10,54 @@ necessary conditions: (i)~$\tilde{c}_a$ preserves the \emph{true cost ranking}
 across prompts, and (ii)~within-model cost variance is small relative to
 inter-model gaps in $\tilde{c}$-space.
 
-\paragraph{K=3 portfolio (1,785 val prompts).}
+\paragraph{Blending assumption.}
+The heuristic blends input and output pricing with equal weight
+(i.e., a 1:1 token ratio).  In practice the output-to-input ratio varies
+across models and prompts, so the blended rate differs from the true per-request
+effective rate.  Because cost ranking depends only on the \emph{relative order}
+of effective rates and the log-normalization compresses the dynamic range,
+a simple average preserves the ranking whenever the price gap between models
+exceeds the variation introduced by differing output lengths—a condition
+satisfied for models spanning at least one order of magnitude in pricing.
+
+\paragraph{K=3 portfolio (\chNPromptsK{} val prompts).}
 The heuristic ordering Llama-8B $<$ Mistral-Large $<$ Gemini-Pro matches the
-per-request cost ordering on 99.9\% of prompts.  All three
-pairwise comparisons hold at ${\geq}$99.9\%.
+per-request cost ordering on \chFullOrderK\% of prompts.  All three
+pairwise comparisons hold at ${\geq}$\chMinPairwiseK\%.
 In log-normalised $\tilde{c}$-space, the within-model standard deviation
-is 3--17\% of the total inter-model gap,
+is \chStdFracRange\% of the total inter-model gap,
 confirming that prompt-level cost noise does not overwhelm the static
 heuristic signal.
 
-\paragraph{K=4 portfolio (1,785 val prompts, with Gemini-Flash).}
+\paragraph{K=4 portfolio (\chNPromptsK{} val prompts, with Gemini-Flash).}
 Adding a fourth arm with similar pricing to an existing arm is a harder test.
-Gemini-Flash ($\tilde{c} = 0.441$) is placed between Mistral-Large
-($\tilde{c} = 0.384$) and Gemini-Pro ($\tilde{c} = 0.673$).
-The full ordering matches on 79.2\% of prompts; the closest
-pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on only 79.3\%
-of prompts, reflecting Flash's high cost variance (CV${}=1.55$) and the
-narrow inter-model gap ($\Delta\tilde{c} = 0.056$).
+We re-use the same val split to isolate the effect of portfolio composition
+from prompt distribution.
+Gemini-Flash ($\tilde{c} = \chFlashCtilde$) is placed between Mistral-Large
+($\tilde{c} = \chMistralCtilde$) and Gemini-Pro ($\tilde{c} = \chProCtilde$).
+The full ordering matches on \chFullOrderKFour\% of prompts; the closest
+pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on only \chMistralFlashPW\%
+of prompts, reflecting Flash's high cost variance (CV${} = \chFlashCV$) and the
+narrow inter-model gap ($\Delta\tilde{c} = \chMistralFlashGap$).
 
 \paragraph{Prompt-cost correlation.}
 Spearman correlations between prompt word count and per-request cost are weak
-($\rho = 0.10$--$0.26$), indicating that prompt features are poor predictors
+($\rho = \chCorrRange$), indicating that prompt features are poor predictors
 of model cost in this portfolio.  A contextual cost model would add complexity
 with minimal benefit.
 
 \paragraph{Cross-model cost correlation.}
 Per-request costs are moderately to strongly correlated across models
-($\rho = 0.56$--$0.72$), driven by shared output-length variation.
+($\rho = \chCrossCorrRange$), driven by shared output-length variation.
 This shared factor preserves relative ordering even when absolute costs vary
-widely (CV = 0.62--1.55).
+widely (CV = \chCVRangeKFour).
 
 \paragraph{Takeaway.}  The static $\tilde{c}_a$ heuristic is empirically
 well-calibrated for portfolios where models span at least one order of
 magnitude in pricing.  For denser price clusters (e.g., Mistral-Large
-vs.\ Gemini-Flash, where the heuristic gap is only $\Delta\tilde{c} = 0.056$),
-the ranking holds for ${\sim}$79\% of prompts but inverts when Flash generates
-short responses.  The budget pacer's dual variable $\lambda_t$,
+vs.\ Gemini-Flash, where the heuristic gap is only
+$\Delta\tilde{c} = \chMistralFlashGap$),
+the ranking holds for ${\sim}$\chMistralFlashPW\% of prompts but inverts when
+Flash generates short responses.  The budget pacer's dual variable $\lambda_t$,
 which updates on \emph{actual} costs, compensates for these per-request
 deviations from the static estimate.

@@ -31,7 +31,7 @@ import json
 import logging
 import math
 import threading
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, TypedDict
@@ -63,10 +63,9 @@ logger = logging.getLogger(__name__)
 # sqrt(200) ~ 14x relative to the uninflated baseline -- strong enough to
 # force re-exploration but bounded enough to preserve the cost signal.
 #
-# **This path is only active when forgetting_factor < 1.0 (non-default).**
-# The default configuration is stationary (forgetting_factor = 1.0) and
-# never applies variance inflation; the cost penalty remains fully effective
-# at all times in the default deployment.
+# **This path is active in the default configuration (forgetting_factor=0.997).**
+# Variance inflation is always engaged when gamma < 1.0; the cap ensures
+# the exploration bonus does not overwhelm additive cost penalties.
 #
 # If stricter cost control is required alongside non-stationary forgetting,
 # reduce alpha or increase cost_penalty rather than relaxing this cap.
@@ -102,14 +101,17 @@ This prevents the covariance matrix from approaching singularity in
 high-traffic, non-stationary settings before the SM denominator check fires.
 """
 
-_SM_DENOMINATOR_THRESHOLD: float = 1e-6
-"""Minimum absolute denominator for the Sherman-Morrison rank-1 update.
+_SM_INVARIANT_TOL: float = 1e-9
+"""Tolerance for the Sherman-Morrison positive-definite invariant check.
 
-The SM denominator is 1 + weight * x^T A^{-1} x.  For any positive-definite
-A (guaranteed by initialisation and rank-1 PD updates) this quantity is
-always >= 1.  Falling below this threshold therefore signals floating-point
-corruption of the cached A_inv matrix rather than a legitimate near-zero
-value, and triggers a full O(d^3) recomputation from scratch.
+The SM denominator is ``1 + weight * x^T A^{-1} x``.  For any
+positive-definite ``A`` (guaranteed by initialisation and rank-1 PD
+updates) this quantity is always >= 1.0.  A value below ``1.0 - tol``
+signals float64 corruption of the cached ``A_inv`` (e.g. accumulated
+rounding error from many rank-1 updates) and triggers a full O(d^3)
+recomputation.  The check uses ``>=`` (not ``abs()``) so that negative
+denominators — which would flip the SM correction sign and make ``A_inv``
+indefinite — are caught immediately rather than masked by ``abs()``.
 """
 
 _OUTPUT_COST_MULTIPLIER: float = 3.0
@@ -275,7 +277,7 @@ def _sherman_morrison_update(
     v_A_inv = u @ A_inv
     denominator = 1.0 + (u @ A_inv_u)
 
-    if abs(denominator) > _SM_DENOMINATOR_THRESHOLD:
+    if denominator >= 1.0 - _SM_INVARIANT_TOL:
         new_A_inv = A_inv - np.outer(A_inv_u, v_A_inv) / denominator
         new_A = A + x_outer
         new_b = b + reward_x
@@ -286,8 +288,8 @@ def _sherman_morrison_update(
         )
 
     logger.warning(
-        f"[WARN] Sherman-Morrison near-singularity for {model_name}: "
-        f"|denominator|={abs(denominator):.2e} < {_SM_DENOMINATOR_THRESHOLD}. "
+        f"[WARN] Sherman-Morrison PD invariant violated for {model_name}: "
+        f"denominator={denominator:.2e} < 1.0 (expected >= 1.0 for PD A_inv). "
         f"A_inv has numerically drifted; rebuilding with gap-based "
         f"regularisation injection."
     )
@@ -370,9 +372,9 @@ class DisjointLinUCBPolicy:
         self,
         model_names: List[str],
         dim: int = 384,
-        alpha: float = 0.1,
+        alpha: float = 0.01,
         init_lambda: float = 1.0,
-        forgetting_factor: float = 1.0,
+        forgetting_factor: float = 0.997,
         seed: int | None = None,
         max_staleness_dt: int = _MAX_STALENESS_DT,
         reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
@@ -396,10 +398,13 @@ class DisjointLinUCBPolicy:
             model_names: List of model identifiers (arms).
             dim: Context vector dimension.
             alpha: Exploration coefficient (UCB bonus multiplier).
+                Default 0.01 from T_adapt-constrained Pareto knee-point
+                selection (Experiment 05).
             init_lambda: Initialization regularization (A_0 = lambda I).
                 Default 1.0 for cold-start stability.
             forgetting_factor: Exponential decay factor (1.0 = stationary,
-                <1.0 = adaptive).
+                <1.0 = adaptive).  Default 0.997 from T_adapt-constrained
+                Pareto knee-point selection with T_adapt=500.
             seed: Seed for the internal ``np.random.Generator`` used by
                 Thompson Sampling (``get_probabilities``).  *None* creates
                 an unseeded generator.
@@ -993,10 +998,15 @@ class DisjointLinUCBPolicy:
         # Import here to avoid circular import at module level.
         # policy.py -> types.py is fine, but we avoid a hard top-level
         # dependency so the module can be imported independently.
-        if config is None or model not in self.A_inv:
+        if config is None:
             return
 
-        trace = np.trace(self.A_inv[model])
+        with self._lock:
+            if model not in self.A_inv:
+                return
+            A_inv_snap = self.A_inv[model]
+
+        trace = np.trace(A_inv_snap)
 
         threshold = getattr(config, "stability_threshold", 1000 * self.dim)
 
@@ -1235,7 +1245,9 @@ class SlidingWindowLinUCBPolicy:
         }
         self._lock = threading.Lock()
 
-        self._buffer: List[Tuple[str, np.ndarray, float, float]] = []
+        self._buffer: deque[Tuple[str, np.ndarray, float, float]] = deque(
+            maxlen=self.window_size
+        )
 
         self.A: Dict[str, np.ndarray] = {
             m: np.eye(self.dim) * self.init_lambda for m in self.models
@@ -1374,7 +1386,6 @@ class SlidingWindowLinUCBPolicy:
         evicted_arm: str | None = None
         if len(self._buffer) >= self.window_size:
             evicted_arm = self._buffer[0][0]
-            self._buffer.pop(0)
 
         self._buffer.append((model, x.copy(), float(reward), float(weight)))
 
@@ -1518,6 +1529,12 @@ def calibrate_priors(
         try:
             theta = bandit.A_inv[m] @ bandit.b[m]
 
+            # Intervention threshold (1.5) is intentionally above
+            # target_max_pred (default 0.9) to provide headroom: pass 1
+            # catches only severe bias explosions, leaving the comprehensive
+            # suite probe (pass 2) to handle moderate cases before rescaling
+            # to target_max_pred.  Do not lower this to match target_max_pred
+            # — that would trigger spurious corrections on well-calibrated priors.
             bias_pred = float(theta @ bias_probe)
             if abs(bias_pred) > 1.5:
                 theta_new = theta.copy()

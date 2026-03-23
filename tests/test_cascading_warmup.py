@@ -18,19 +18,22 @@ class TestHeuristicPrior:
         
         assert A.shape == (dim, dim)
         assert b.shape == (dim,)
-        assert np.allclose(A, np.eye(dim))
+        # A = n_effective * I (default n_effective=5.0)
+        assert np.allclose(A, np.eye(dim) * 5.0)
         
     def test_get_heuristic_prior_values(self):
         """Verify that quality and n_effective correctly set the bias term."""
         dim = 24
         quality = 0.8
         n_eff = 10.0
+        init_lambda = 1.0
         model_data = {"initial_quality": quality}
         
-        A, b = get_heuristic_prior(model_data, dim, n_effective=n_eff)
+        A, b = get_heuristic_prior(model_data, dim, init_lambda=init_lambda, n_effective=n_eff)
         
-        # Bias should be the last element
-        assert b[-1] == quality * n_eff
+        # b[-1] = quality * (n_effective + init_lambda) so that
+        # theta_bias = b[-1] / A[-1,-1] = quality after post-warmup A += lambda*I
+        assert b[-1] == quality * (n_eff + init_lambda)
         assert np.all(b[:-1] == 0)
 
 class TestCascadingWarmup:
@@ -68,30 +71,29 @@ class TestCascadingWarmup:
             feature_service=mock_fs
         )
         
-        # model_a should be from joblib (scaled)
-        # scale = 20 / 20000 = 0.001
-        # scaled_A = 100 * 0.001 = 0.1
-        # b = 10 * 0.001 = 0.01
-        
-        # Note: router.bandit.A["model_a"] will also have init_lambda adding np.eye later in router.py
-        # router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda (default lambda=1.0)
-        # So A_final = 0.1*I + 1.0*I = 1.1*I
-        assert np.allclose(router.bandit.A["model_a"][0, 0], 1.1)
-        assert np.allclose(router.bandit.b["model_a"][0], 0.01)
+        # model_a should be from joblib (scaled by n_effective / A[-1,-1])
+        # A[-1,-1] = 100.0, so scale = 20.0 / 100.0 = 0.2
+        # A_scaled = 100 * 0.2 = 20.0, then + lambda*I → 21.0
+        init_lambda = router.bandit.init_lambda
+        a_diag = 100.0
+        scale_a = 20.0 / a_diag
+        assert np.allclose(router.bandit.A["model_a"][0, 0], a_diag * scale_a + init_lambda)
+        # b_final = b_orig * scale + init_lambda * theta_true
+        # theta_true[0] = 10.0 / 100.0 = 0.1
+        expected_b0 = 10.0 * scale_a + init_lambda * (10.0 / a_diag)
+        assert np.allclose(router.bandit.b["model_a"][0], expected_b0)
         
         # model_b should be heuristic-warmup
-        # A_heuristic is initialized with init_lambda*I = 1.0*I
-        # THEN BanditRouter.create adds lambda*I again:
-        # So model_b A should be 2.0*I
-        assert np.allclose(router.bandit.A["model_b"][0, 0], 2.0)
+        # get_heuristic_prior: A = n_effective * I = 20.0 * I
+        # Post-warmup: A += lambda * I → (20.0 + 1.0) * I = 21.0 * I
+        assert np.allclose(router.bandit.A["model_b"][0, 0], 20.0 + init_lambda)
         
-        # b[-1] initially encodes quality * prior_n_effective = 0.5 * 20.0 = 10.0.
-        # However BanditRouter.create() runs calibrate_priors(), which clamps
-        # extreme bias-only predictions to target_max_pred=0.9 via theta
-        # reconstruction. With A = 2I after post-warmup regularization,
-        # clamped theta_bias=0.9 implies b_bias = 2 * 0.9 = 1.8.
-        assert router.bandit.b["model_b"][-1] == pytest.approx(1.8)
-        assert np.all(router.bandit.b["model_b"][:-1] == 0)
+        # b[-1] = quality * (n_effective + init_lambda) = 0.5 * 21.0 = 10.5
+        # calibrate_priors may rescale if bias-only prediction > 1.5;
+        # with A_bias = 21.0, theta_bias = 10.5/21.0 = 0.5, which is safe.
+        theta_b = router.bandit.A_inv["model_b"] @ router.bandit.b["model_b"]
+        assert theta_b[-1] == pytest.approx(0.5, abs=0.05)
+        assert np.allclose(router.bandit.b["model_b"][:-1], 0)
 
 if __name__ == "__main__":
     pytest.main([__file__])

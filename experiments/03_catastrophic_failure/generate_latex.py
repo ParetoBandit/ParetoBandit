@@ -17,7 +17,6 @@ Usage::
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +26,11 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from utils.latex_gen import (
+    BINDING_RATIO_HIGH,
+    BINDING_RATIO_LOW,
+    BUDGET_LABEL_TO_SHORT,
+    BUDGET_TABLE_DISPLAY,
+    PHASE_NAMES,
     CommandSet,
     fmt_cost_eng,
     fmt_cost_sci,
@@ -35,23 +39,13 @@ from utils.latex_gen import (
     fmt_pct,
     fmt_ratio,
     fmt_reward,
+    format_ratio_cell,
+    load_json,
 )
 
 # ======================================================================
 # Constants
 # ======================================================================
-
-BUDGET_LABEL_TO_SHORT: Dict[str, str] = {
-    "tight": "Tight",
-    "moderate": "Mod",
-    "loose": "Loose",
-}
-
-BUDGET_TABLE_DISPLAY: Dict[str, str] = {
-    "Tight": "Tight",
-    "Mod": "Moderate",
-    "Loose": "Loose",
-}
 
 CONDITION_ORDER: tuple[str, ...] = (
     "Fixed Policy",
@@ -59,19 +53,6 @@ CONDITION_ORDER: tuple[str, ...] = (
     "Forgetting Bandit",
     "ParetoBandit",
 )
-
-PHASE_NAMES = {1: "One", 2: "Two", 3: "Three"}
-
-
-# ======================================================================
-# Helpers
-# ======================================================================
-
-
-def load_results(json_path: Path) -> Dict[str, Any]:
-    """Load catastrophic failure results from JSON."""
-    with open(json_path, "r") as f:
-        return json.load(f)
 
 
 def _condition_key(condition: str, budget_label: str) -> str:
@@ -265,22 +246,6 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 # Failure Response Table
 # ======================================================================
 
-BINDING_RATIO_LOW = 0.95
-BINDING_RATIO_HIGH = 1.05
-
-
-def _format_ratio_cell(
-    ratio: float,
-    is_paretobandit: bool,
-) -> str:
-    """Format a ratio cell with optional bold."""
-    within_5pct = BINDING_RATIO_LOW <= ratio <= BINDING_RATIO_HIGH
-    should_bold = is_paretobandit or within_5pct
-
-    ratio_str = fmt_ratio(ratio)
-    inner = f"\\mathbf{{{ratio_str}}}" if should_bold else ratio_str
-    return f"${inner}$"
-
 
 def generate_failure_response_table(data: Dict[str, Any]) -> str:
     """Generate the failure response table.
@@ -358,7 +323,7 @@ def generate_failure_response_table(data: Dict[str, Any]) -> str:
             cond_display = "\\textbf{ParetoBandit}" if is_pb else condition
 
             r_cells = [fmt_num(r, digits=3) for r in rewards]
-            ratio_cells = [_format_ratio_cell(rat, is_pb) for rat in ratios]
+            ratio_cells = [format_ratio_cell(rat, is_pb) for rat in ratios]
 
             line_end = r"\\[3pt]" if cond_idx == len(CONDITION_ORDER) - 1 else r"\\"
             if cond_idx == 0:
@@ -401,7 +366,7 @@ def main() -> None:
         print(f"Error: {json_path} not found.  Run run_catastrophic_failure.py first.")
         sys.exit(1)
 
-    data = load_results(json_path)
+    data = load_json(json_path)
     cs = build_command_set(data)
 
     autogen_path = exp_dir / "_autogen.tex"
