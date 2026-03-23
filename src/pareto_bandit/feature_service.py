@@ -204,7 +204,7 @@ class FeatureService:
     Feature extraction service for BanditRouter.
     
     **Responsibility**: Convert prompts to feature vectors
-    **Output**: [PCA_0...PCA_31, bias] = 33-dimensional vector (with default pca_32.joblib)
+    **Output**: [PCA_0...PCA_24, bias] = 26-dimensional vector (with default pca_25.joblib)
     
     **PCA provenance guarantee:**
     The PCA projection matrix shipped with the package (``pca_25.joblib``) is
@@ -222,8 +222,8 @@ class FeatureService:
     Example:
         >>> features = FeatureService()
         >>> vector = features.extract_features("Solve x^2 + 2x + 1 = 0")
-        >>> vector.shape  # depends on PCA artifact; 33 with default pca_32.joblib
-        (33,)
+        >>> vector.shape  # depends on PCA artifact; 26 with default pca_25.joblib
+        (26,)
     """
     
     def __init__(
@@ -258,7 +258,7 @@ class FeatureService:
                 *custom_encoder* is provided).
             pca_path: Path to a pre-trained PCA model (``.joblib``).
                 When ``None`` and using the default encoder, the shipped
-                ``pca_32.joblib`` is loaded.  When ``None`` and a
+                ``pca_25.joblib`` is loaded.  When ``None`` and a
                 *custom_encoder* is given, **no PCA** is applied and raw
                 embeddings (+ bias) are used directly.
             pca_components: Number of PCA components (auto-detected from PCA
@@ -660,11 +660,11 @@ class FeatureService:
         """
         Convert prompt to feature vector.
         
-        **Feature Structure (with default pca_32.joblib):**
-        [PCA_0, PCA_1, ..., PCA_31, bias] = 33 dimensions
+        **Feature Structure (with default pca_25.joblib):**
+        [PCA_0, PCA_1, ..., PCA_24, bias] = 26 dimensions
         
         The actual dimension is determined by the PCA artifact loaded at init.
-        Default production artifact: pca_32.joblib (32 PCA + 1 bias = 33D).
+        Default production artifact: pca_25.joblib (25 PCA + 1 bias = 26D).
         
         Args:
             prompt: Input text or pre-computed vector
@@ -679,8 +679,8 @@ class FeatureService:
         Example:
             >>> features = FeatureService()
             >>> vector = features.extract_features("Explain quantum computing")
-            >>> vector.shape  # 33 with default pca_32.joblib
-            (33,)
+            >>> vector.shape  # 26 with default pca_25.joblib
+            (26,)
             >>> vector[-1]  # Bias term
             1.0
         """
@@ -750,7 +750,7 @@ class FeatureService:
             >>> fs = FeatureService()
             >>> vectors = fs.extract_features_batch(["Hello", "World"])
             >>> vectors.shape
-            (2, 24)
+            (2, 26)
         """
         if not prompts:
             return np.empty((0, self.dimension))
@@ -893,8 +893,8 @@ class FeatureService:
             
             # Fit PCA
             from sklearn.decomposition import PCA
-            # If pca_components not specified, default to 32 for JIT training
-            n_components = self.pca_components if self.pca_components is not None else 32
+            # If pca_components not specified, default to 25 to match paper (d=26)
+            n_components = self.pca_components if self.pca_components is not None else 25
             new_pca = PCA(n_components=n_components, whiten=bool(self.whiten_pca))
             new_pca.fit(embeddings)
             

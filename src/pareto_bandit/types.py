@@ -86,7 +86,7 @@ class RouterConfig:
     # ---------------------------------------------------------------------------
     max_log_size: int = 10_000
     """Ring buffer size for RoutingLog entries.
-    At 100 QPS with 33-dim context vectors (~300 bytes/log), 10k logs ~ 3 MB."""
+    At 100 QPS with 26-dim context vectors (~300 bytes/log), 10k logs ~ 3 MB."""
 
     # ---------------------------------------------------------------------------
     # LinUCB Regularization

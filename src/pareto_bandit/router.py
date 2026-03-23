@@ -242,7 +242,7 @@ class BanditRouter:
             logger.info("Created default FeatureService with encoder=%s", context_model)
         
         # Calculate dimension dynamically from feature service
-        # Default is 33 (32 PCA + 1 bias) with pca_32.joblib
+        # Default is 26 (25 PCA + 1 bias) with pca_25.joblib
         embedding_dim = self.features.dimension
         
         logger.debug("Feature dimensions: total=%d (including bias)", embedding_dim)

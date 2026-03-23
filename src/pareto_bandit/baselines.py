@@ -263,7 +263,7 @@ class CostAwareLearnedProjRouter:
 
     Args:
         models: List of model identifiers
-        raw_dim: Dimension of raw feature vectors (e.g., 33 with PCA+bias)
+        raw_dim: Dimension of raw feature vectors (e.g., 26 with PCA-25+bias)
         proj_dim: Dimension of projected feature space (default: 16)
         model_costs: Cost metadata
         cost_penalty: λ weight
