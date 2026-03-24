@@ -27,7 +27,7 @@ None of the above evaluates router behaviour under non-stationarity (reward or c
 
 \paragraph{Constrained and non-stationary bandits.}
 ParetoBandit draws on three theoretical streams.
-For budget enforcement, we adapt the Lagrangian relaxation of Contextual Bandits with Knapsacks~\cite{agrawal2014bandits} from a cumulative constraint to a rate constraint suitable for open-ended serving, with smoothed dual updates following Balseiro and Gur~\cite{balseiro2019learning}.
+For budget enforcement, we adapt the Lagrangian relaxation of Bandits with Knapsacks~\cite{badanidiyuru2013bwk, agrawal2016linear} from a cumulative constraint to a rate constraint suitable for open-ended serving, with smoothed dual updates following Balseiro and Gur~\cite{balseiro2019learning}.
 For non-stationarity, we apply geometric discounting~\cite{garivier2011switching} and weighted ridge regression~\cite{russac2019weighted} to the LinUCB sufficient statistics, giving stale observations an exponentially decaying influence.
 For cold-start elimination, we inject offline-fitted priors following the warm-start contextual bandit framework of Kveton et~al.~\cite{kveton2023warmstart}; related work has also explored LLM-generated priors for bandit initialization~\cite{pan2024cbli}.
 To our knowledge, ParetoBandit is the first system to integrate rate-constrained online pacing with geometric forgetting in a contextual bandit LLM router.

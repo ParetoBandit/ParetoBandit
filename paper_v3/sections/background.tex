@@ -28,7 +28,7 @@ The context vector $x_t$ is constructed by encoding the prompt with a lightweigh
 
 Each model $a \in \mathcal{A}$ incurs a deterministic cost $c_a(x_t)$ per request, typically computed from per-token API pricing. In a realistic portfolio, costs span orders of magnitude: the three-tier pool used in our experiments ranges from \$0.00003/req (Llama-3.1-8B) to \$0.015/req (Gemini-2.5-Pro), a $530{\times}$ spread.
 
-The rate constraint in Eq.~\ref{eq:objective} departs from the classical Contextual Bandits with Knapsacks (CBwK) framework~\cite{agrawal2014bandits}, which imposes a cumulative budget over a known horizon $T$. Production LLM serving is open-ended: request volume is unknown, and the natural specification is a cost \emph{rate} (dollars per request), not a finite pool. Our formulation is horizon-free and self-regulates at any traffic volume.
+The rate constraint in Eq.~\ref{eq:objective} departs from the classical Bandits with Knapsacks (BwK) framework~\cite{badanidiyuru2013bwk}, which imposes a cumulative budget over a known horizon $T$. Production LLM serving is open-ended: request volume is unknown, and the natural specification is a cost \emph{rate} (dollars per request), not a finite pool. Our formulation is horizon-free and self-regulates at any traffic volume.
 
 We enforce the rate constraint through a dual variable $\lambda_t$ that rises when recent spending exceeds $B$ and falls when it is below. Section~\ref{sec:budget_pacer} defines the smoothed dual-ascent update and the two-layer enforcement mechanism (soft penalty plus hard cost ceiling) that operationalize $\lambda_t$.
 
