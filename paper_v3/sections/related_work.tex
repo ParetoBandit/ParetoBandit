@@ -23,11 +23,15 @@ BaRP~\cite{wang2025barp} introduces entropy-regularized policy gradients conditi
 LLM Bandit~\cite{li2025llmbandit} generalizes further by conditioning on model identity features, allowing the policy to transfer to unseen models without re-evaluation.
 MixLLM~\cite{wang2025mixllm} is the only bandit-based router to explicitly model downstream latency, penalising endpoint congestion via an estimated waiting-time signal and accommodating evolving model pools through continual learning.
 xRouter~\cite{qian2025xrouter} fine-tunes a small LM as an RL orchestration agent, achieving competitive routing quality.
-PROTEUS~\cite{bhatti2026proteus} is the closest prior work on cost control: it trains a Lagrangian RL policy against SLA constraints and demonstrates strong compliance across large portfolios ($K{=}11$ on Routerbench, $K{=}14$ on SPROUT), explicitly identifying post-deployment cost drift as an open problem.
+PROTEUS~\cite{bhatti2026proteus} represents a conceptual advance over the preference-weight approach: rather than requiring operators to guess a scalarization $r - \lambda c$ and hope the resulting accuracy is acceptable, PROTEUS lets the operator specify a hard accuracy floor $\tau$ and trains a Lagrangian RL policy to find the cheapest routing that satisfies it.
+This direct-SLA formulation demonstrates strong compliance across large portfolios ($K{=}11$ on Routerbench, $K{=}14$ on SPROUT).
+ParetoBandit solves the dual problem on the same Pareto frontier: given a dollar budget~$B$, maximize quality (Eq.~\ref{eq:objective}), whereas PROTEUS minimizes cost subject to a quality constraint.
+Both use Lagrangian relaxation, but they constrain opposite quantities---the choice between the two formulations depends on whether the operator's binding constraint is dollars or accuracy.
+ParetoBandit's online pacing machinery naturally generalizes to the quality-constrained formulation (Section~\ref{sec:conclusion}, limitation~vi), making an online counterpart to PROTEUS's offline SLA enforcement a concrete extension.
 Despite these advances, two gaps remain.
-First, none of the above provides closed-loop online budget pacing over an open-ended request stream: PILOT's knapsack requires a known finite horizon; BaRP and LLM Bandit accept preference weights but do not track realized spend against a dollar target; PROTEUS freezes its dual variables at deployment.
+First, none of the above provides closed-loop online budget pacing over an open-ended request stream: PILOT's knapsack requires a known finite horizon; BaRP and LLM Bandit accept preference weights but do not track realized spend against a dollar target; PROTEUS freezes its dual variables at deployment, and the authors themselves identify post-deployment cost drift as an open problem.
 Second, all use infinite memory ($\gamma{=}1.0$), and none evaluates router behaviour under non-stationarity---neither price changes nor quality drift.
-ParetoBandit extends this adaptive line of work with two additions: a rate-constrained budget pacer that enforces a per-request dollar target in closed loop, and geometric forgetting that gives the bandit a bounded memory window for tracking environment shifts.
+ParetoBandit extends this adaptive line of work by making the Lagrangian dual variable online: a rate-constrained budget pacer enforces the per-request dollar target in closed loop, while geometric forgetting gives the bandit a bounded memory window for tracking environment shifts.
 
 \paragraph{Constrained and non-stationary bandits.}
 ParetoBandit draws on three well-established theoretical streams and composes them into a single routing system.

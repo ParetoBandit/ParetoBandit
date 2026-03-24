@@ -4,7 +4,7 @@
 We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting. Across four experiments on a three-model portfolio, the system maintains per-request cost compliance within $0.95$--$1.01{\times}$ of the target budget while filling the quality--cost gaps between fixed single-model baselines. Under cost drift, the budget pacer autonomously exploits a price drop and recovers compliance when pricing is restored. Under silent quality degradation, ParetoBandit detects the regression, redistributes traffic, and holds budget compliance throughout---while baselines that learn but lack closed-loop cost control overshoot by up to $6.9{\times}$. Cold-start onboarding of a fourth model proceeds without reconfiguration, with the budget pacer maintaining compliance through the portfolio transition. As organizations increasingly operate multi-provider LLM portfolios subject to volatile pricing and unannounced quality shifts, closed-loop cost control moves from a convenience to a systems-level necessity; these results suggest that bandit-driven routing with integrated budget pacing can fill that gap without manual intervention.
 
 \paragraph{Limitations and future work.}
-Five limitations merit discussion, each pointing toward a concrete extension of the current framework.
+Six limitations merit discussion, each pointing toward a concrete extension of the current framework.
 
 \emph{(i)~Offline evaluation.}
 Our evaluation relies on a fixed offline reward matrix with non-stationarity injected via phase-boundary permutations; live deployment would introduce additional stochastic feedback delays and distribution shift.
@@ -31,4 +31,13 @@ Moreover, MixLLM evaluates on $K{=}11$ Routerbench models---the same pool where 
 ParetoBandit's Bandits-with-Knapsacks formulation naturally accommodates latency as a second rate constraint: introducing a dual variable $\mu_t$ with its own EMA-smoothed update---identical in form to the cost pacer (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update})---would add a single adaptive penalty term $\mu_t \tilde{L}_a$ to the arm score (Eq.~\ref{eq:budget_ucb}), where $\tilde{L}_a$ is the observed or predicted latency for arm $a$.
 This extension requires no changes to the LinUCB update, the forgetting mechanism, or the warmup priors, and would provide closed-loop latency pacing that adapts to real-time conditions rather than relying on a fixed queue simulation.
 
-Validating the latency extension empirically and evaluating ParetoBandit under realistic human-feedback conditions are the most immediate next steps.
+\emph{(vi)~Quality-constrained (SLA) mode.}
+ParetoBandit constrains cost and maximizes quality; PROTEUS~\cite{bhatti2026proteus} solves the dual problem, minimizing cost subject to an accuracy floor~$\tau$.
+As noted in Section~\ref{sec:related}, PROTEUS's key advance is replacing indirect preference weights with a direct SLA target---but its dual variables are learned offline and frozen at deployment.
+ParetoBandit's online pacing machinery can be inverted to enforce a quality floor: a dual variable $\mu_t$ would track EMA-smoothed reward $\bar{r}_t$ against a target $\tau$, rising when quality falls below the floor and falling when it is met, with an update identical in form to the cost pacer (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}) but substituting $1 - \bar{r}_t / \tau$ for $\bar{c}_t / B - 1$.
+The resulting penalty $\mu_t \hat\theta_a^\top x_t$ in Eq.~\ref{eq:budget_ucb} would boost high-quality arms when quality is at risk, while the arm selection objective shifts to cost minimization.
+One practical nuance distinguishes the two modes: the cost signal feeding the current pacer is deterministic (known per-model API pricing), whereas the quality signal is stochastic and depends on the bandit's uncertain reward estimates, making $\mu_t$ inherently noisier.
+The EMA smoothing that already stabilises $\lambda_t$ would be even more critical for $\mu_t$, and a longer smoothing window or tighter step-size $\eta$ may be needed to prevent oscillation.
+No changes to the LinUCB update, geometric forgetting, or warmup priors would be required---only the pacer logic and arm-scoring objective change---making this a natural configuration-level extension rather than a new architecture.
+
+Validating the quality-constrained mode, the latency extension, and realistic human-feedback conditions are the most immediate next steps.

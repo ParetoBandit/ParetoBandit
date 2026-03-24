@@ -8,7 +8,7 @@ Several recent routers---BaRP~\cite{wang2025barp}, LLM Bandit~\cite{li2025llmban
 A linear model is a deliberate architectural choice, not a simplification; its advantages are structural and become most visible under non-stationarity.
 %
 First, MLP-based policies are brittle when the cost--performance landscape shifts.
-PROTEUS trains its Lagrangian RL policy offline and freezes it at deployment, so any price or quality change requires full retraining.
+PROTEUS trains its Lagrangian RL policy offline and freezes both the policy weights and the dual variables at deployment; the authors themselves identify post-deployment cost drift as an open problem, since the frozen Lagrange multipliers are calibrated to training-time pricing.
 BaRP and LLM Bandit train via policy gradients (BaRP simulating bandit feedback from offline logs; LLM Bandit pretraining on full-information data), but in both cases the MLP weights encode the \emph{entire} interaction history with no forgetting mechanism: when a model's quality degrades or a provider cuts prices, stale associations must be slowly overwritten by new gradient steps rather than explicitly discounted.
 Moreover, BaRP's calibrated cost scaling normalizes rewards against the observed cost range; if costs shift to a regime outside that calibration window, the scalarized reward $r - \lambda c$ becomes unreliable, and neural networks extrapolate poorly outside their training support.
 In contrast, ParetoBandit's sufficient statistics $(A_a, b_a)$ are exponentially decayed via geometric forgetting (a single scalar multiply), giving stale evidence an explicit half-life; costs enter as a separate Lagrangian penalty that adapts online through the dual variable $\lambda_t$, requiring no learned cost representation.
