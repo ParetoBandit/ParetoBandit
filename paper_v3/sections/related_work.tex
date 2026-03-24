@@ -6,7 +6,8 @@ FrugalGPT~\cite{chen2023frugalgpt} pioneered cost-aware LLM routing via sequenti
 Subsequent work moved to single-dispatch classifiers trained offline:
 RouteLLM~\cite{ong2024routellm} learns from pairwise preferences,
 GraphRouter~\cite{feng2025graphrouter} predicts edges in a task--query--LLM heterogeneous graph,
-RouterDC~\cite{chen2024routerdc} and CSCR~\cite{shirkavand2025cscr} learn contrastive embeddings that push cost-effective models closer to the prompt,
+RouterDC~\cite{chen2024routerdc} learns dual-contrastive embeddings that map queries toward their best-performing model,
+CSCR~\cite{shirkavand2025cscr} extends contrastive routing with an explicit cost-aware objective,
 and HybridLLM~\cite{ding2024hybridllm} trains a BERT classifier for binary strong/weak triage.
 Cross-attention architectures~\cite{pulishetty2025onehead} jointly predict quality and cost by modelling prompt--model feature interactions.
 OmniRouter~\cite{ma2025omnirouter} formulates budget-aware routing as a batch-level constrained optimisation, solving a Lagrangian dual over a fixed prompt set; this achieves strong offline trade-offs but requires the full workload upfront, precluding open-ended serving.
