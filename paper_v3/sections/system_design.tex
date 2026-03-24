@@ -20,8 +20,8 @@ After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. Th
 \caption{ParetoBandit: Budget-Paced Non-Stationary Routing}
 \label{alg:paretobandit}
 \begin{algorithmic}[1]
-\REQUIRE Arms $\mathcal{A}$; budget $B$; static cost penalty $\lambda_c$; exploration $\alpha$; forgetting $\gamma$; step size $\eta$; EMA $\alpha_{\mathrm{ema}}$; cap $\bar\lambda$
-\STATE \textbf{Init:} $\forall\, a$: $A_a \!\leftarrow\! \lambda_0 I$, $b_a \!\leftarrow\! \mathbf{0}$ (or warmup both, \S\ref{sec:warmup}), $\hat\theta_a \!\leftarrow\! A_a^{-1} b_a$; $\lambda_0 \!\leftarrow\! 0$; $\bar{c}_0 \!\leftarrow\! B$; $t \!\leftarrow\! 0$
+\REQUIRE Arms $\mathcal{A}$; regularization $\lambda_0$; budget $B$; static cost penalty $\lambda_c$; exploration $\alpha$; forgetting $\gamma$; step size $\eta$; EMA $\alpha_{\mathrm{ema}}$; cap $\bar\lambda$
+\STATE \textbf{Init:} $\forall\, a$: $A_a \!\leftarrow\! \lambda_0 I$, $b_a \!\leftarrow\! \mathbf{0}$ (or warmup both, \S\ref{sec:warmup}), $\hat\theta_a \!\leftarrow\! A_a^{-1} b_a$; $\lambda_t \!\leftarrow\! 0$; $\bar{c}_0 \!\leftarrow\! B$; $t \!\leftarrow\! 0$
 \FOR{each request with context $x_t$}
 \STATE \textbf{--- Arm Selection ---}
 \IF{$\lambda_t > 0$}
@@ -143,7 +143,7 @@ The term $\lambda_0 \hat\theta_a^{\mathrm{off}}$ in the $b_a$ update is critical
 
 For models absent from the offline data (e.g., a newly launched endpoint), a heuristic prior places $n_\mathit{eff}$ pseudo-observations at isotropic uncertainty with a bias-only reward prediction based on registry metadata. A two-pass calibration checks that no arm's prediction exceeds a safe range, applying theta-reconstruction or global rescaling as needed (Appendix~\ref{appendix:pseudocode}).
 
-Warmup priors interact naturally with geometric forgetting. After ${\sim}1{,}000$ steps at $\gamma{=}0.997$, the prior's contribution is reduced by $\gamma^{1000} \approx 0.05$; the router's steady-state quality is determined by online evidence regardless of initialization (Appendix~\ref{appendix:val_burnin_ablation}). Priors thus serve as a deployment latency optimization: they provide informed routing from request \#1, eliminating the cold-start cost that would otherwise accumulate during initial learning.
+Warmup priors interact naturally with geometric forgetting. After ${\sim}1{,}000$ steps at $\gamma{=}0.997$, the prior's contribution is reduced to $\gamma^{1000} \approx 0.05$ of its original weight; the router's steady-state quality is determined by online evidence regardless of initialization (Appendix~\ref{appendix:val_burnin_ablation}). Priors thus serve as a deployment latency optimization: they provide informed routing from request \#1, eliminating the cold-start cost that would otherwise accumulate during initial learning.
 
 The prior strength $n_\mathit{eff}$ acts as a safety valve: small values let online evidence override quickly, while large values trust priors longer; systematically inverted priors cause harm that scales with $n_\mathit{eff}$ (Appendix~\ref{appendix:prior_mismatch}).
 
