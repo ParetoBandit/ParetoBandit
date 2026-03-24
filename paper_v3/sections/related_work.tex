@@ -22,7 +22,7 @@ LLM Bandit~\cite{li2025llmbandit} likewise accepts user-specified quality--cost 
 Both let operators tune the trade-off at inference time via a scalarized reward $r - \lambda c$, but neither tracks realized spend against a budget target.
 MixLLM~\cite{wang2025mixllm} accommodates evolving model pools via continual learning and penalises endpoint congestion via an estimated waiting-time signal, making it the only bandit-based router to explicitly model downstream latency;
 xRouter~\cite{qian2025xrouter} fine-tunes a small LM as an RL orchestration agent.
-PROTEUS~\cite{bhatti2026proteus} is the closest prior work on cost control: it trains a Lagrangian RL policy against SLA constraints across $K{=}11$--$14$ models, but its dual variables are learned offline and frozen at deployment, so the policy cannot react to post-training price or quality shifts.
+PROTEUS~\cite{bhatti2026proteus} is the closest prior work on cost control: it trains a Lagrangian RL policy against SLA constraints across $K{=}11$ (Routerbench) and $K{=}14$ (SPROUT) models, but its dual variables are learned offline and frozen at deployment, so the policy cannot react to post-training price or quality shifts.
 None of the above evaluates router behaviour under non-stationarity (reward or cost drift), and none provides closed-loop online budget pacing over an open-ended request stream.
 
 \paragraph{Constrained and non-stationary bandits.}
