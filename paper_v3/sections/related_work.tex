@@ -11,6 +11,7 @@ CSCR~\cite{shirkavand2025cscr} extends contrastive routing with an explicit cost
 and HybridLLM~\cite{ding2024hybridllm} trains a BERT classifier for binary strong/weak triage.
 Cross-attention architectures~\cite{pulishetty2025onehead} jointly predict quality and cost by modelling prompt--model feature interactions.
 OmniRouter~\cite{ma2025omnirouter} formulates budget-aware routing as a batch-level constrained optimisation, solving a Lagrangian dual over a fixed prompt set; this achieves strong offline trade-offs but requires the full workload upfront, precluding open-ended serving.
+Several of these systems also face a cold-start onboarding cost: RouteLLM's matrix-factorization variant, for example, must evaluate each new model on a curated set of ${\sim}20$--$50$ benchmark prompts offline before the model can participate in routing.
 All of these approaches deploy frozen policies: when model quality drifts or pricing changes mid-stream, they cannot adapt without offline retraining.
 
 \paragraph{Adaptive and bandit-based routers.}
