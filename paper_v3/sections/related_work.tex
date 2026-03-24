@@ -16,8 +16,9 @@ All of these approaches deploy frozen policies: when model quality drifts or pri
 \paragraph{Adaptive and bandit-based routers.}
 A growing line of work frames routing as an online learning problem.
 PILOT~\cite{panda2025pilot} extends LinUCB with preference-prior initialization and enforces a cumulative budget via an online knapsack algorithm, but requires a known finite horizon and uses infinite memory ($\gamma{=}1.0$).
-BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients conditioned on a user preference vector; LLM Bandit~\cite{li2025llmbandit} conditions routing on model identity vectors to generalize across models.
-Both enforce cost awareness through a static scalarized penalty $r - \lambda c$ and do not monitor realized spend.
+BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients conditioned on a user preference vector;
+LLM Bandit~\cite{li2025llmbandit} likewise accepts user-specified quality--cost preferences and further generalizes to unseen models via model identity features.
+Both let operators tune the trade-off at inference time via a scalarized reward $r - \lambda c$, but neither tracks realized spend against a budget target.
 MixLLM~\cite{wang2025mixllm} accommodates evolving model pools via continual learning,
 xRouter~\cite{qian2025xrouter} fine-tunes a small LM as an RL orchestration agent,
 and C2MAB-V~\cite{dai2024c2mab} selects model subsets via combinatorial bandits.
