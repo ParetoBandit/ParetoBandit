@@ -5,13 +5,18 @@
 FrugalGPT~\cite{chen2023frugalgpt} pioneered cost-aware LLM routing, demonstrating that sequential cascades---querying models from cheapest to most expensive until a quality threshold is met---can reduce inference costs by up to 98\% while matching the best single-model quality.
 A rich line of subsequent work has produced increasingly effective single-dispatch classifiers trained offline.
 RouteLLM~\cite{ong2024routellm} achieves strong quality--cost Pareto trade-offs by learning routing policies from pairwise preference data, requiring only two models to match GPT-4 quality at a fraction of the cost.
-GraphRouter~\cite{feng2025graphrouter} captures task--query--model interactions through a heterogeneous graph, outperforming baselines on diverse benchmarks.
+GraphRouter~\cite{feng2025graphrouter} models task--query--model interactions as a heterogeneous graph, jointly predicting quality and cost via GNN link prediction and outperforming flat classifiers on offline benchmarks.
+An \emph{inductive graph modification} mechanism inserts new query--outcome edges at serving time, enabling the GNN to condition on recent feedback without retraining its weights.
+Despite this adaptivity, three static-router limitations persist:
+(i)~cost enters as a manually tuned effect-cost scalarisation rather than a closed-loop budget constraint, requiring operator recalibration when pricing shifts;
+(ii)~adaptation to price changes demands that the operator rewrite and re-embed a model's text-description node---the system does not detect cost drift or quality regressions autonomously; and
+(iii)~the frozen GNN provides no uncertainty quantification or exploration policy, so routing is deterministic given the graph state and cannot preferentially probe where an underexplored or newly added model excels on specific prompt types.
 RouterDC~\cite{chen2024routerdc} learns dual-contrastive embeddings that map queries toward their best-performing model, achieving strong routing accuracy across multiple benchmarks; however, its objective is purely quality-oriented with no cost signal, its contrastive loss requires a full prompt$\times$model reward matrix at training time, and the learned embeddings are frozen at deployment.
 CSCR~\cite{shirkavand2025cscr} extends contrastive routing with an explicit cost-aware objective, delivering microsecond-scale kNN routing decisions via FAISS.
 HybridLLM~\cite{ding2024hybridllm} shows that even a lightweight BERT classifier can achieve effective binary strong/weak triage, while cross-attention architectures~\cite{pulishetty2025onehead} jointly predict quality and cost by modelling prompt--model feature interactions.
 OmniRouter~\cite{ma2025omnirouter} formulates budget-aware routing as a batch-level constrained optimisation, solving a Lagrangian dual over a fixed prompt set to achieve strong offline budget--quality trade-offs.
 These methods perform well when deployment conditions match training, and several report cost savings of 2--12$\times$ over frontier-model-only baselines.
-However, all deploy frozen policies: when model quality drifts or pricing changes mid-stream, they cannot adapt without an offline retraining cycle.
+However, all deploy frozen or operator-managed policies: when model quality drifts or pricing changes mid-stream, they cannot adapt without an offline retraining cycle or manual reconfiguration.
 OmniRouter's batch formulation further requires the full workload upfront, precluding open-ended serving.
 Several systems also incur onboarding costs---RouteLLM's matrix-factorization variant, for example, must evaluate each new model on ${\sim}20$--$50$ curated benchmark prompts offline before it can participate in routing.
 ParetoBandit retains the same goal of quality--cost optimization but replaces the frozen policy with online learning, enabling adaptation to price drops, quality regressions, and portfolio changes without retraining or downtime.
