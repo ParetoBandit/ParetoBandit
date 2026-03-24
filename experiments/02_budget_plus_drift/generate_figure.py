@@ -209,6 +209,65 @@ def _extract_arm_fraction_with_ci(
 
 
 # ======================================================================
+# Budget-target label placement with collision avoidance
+# ======================================================================
+
+
+def _place_budget_target_labels(
+    ax: plt.Axes,
+    labels: List[Tuple[float, str, str]],
+    font_scale: float = 1.0,
+    label_fontsize_base: float = 9.0,
+    min_sep_frac: float = 0.045,
+) -> None:
+    """Place budget-target labels to the right of the axes, spreading overlapping ones.
+
+    Parameters
+    ----------
+    ax : plt.Axes
+        The axes on which to place the labels.
+    labels : list of (y_data, text_label, color)
+        Each entry gives the y-position in data coords, the label string,
+        and the colour for the label.
+    font_scale : float
+        Multiplicative font scaling factor.
+    label_fontsize_base : float
+        Base font size before scaling (default 9.0).
+    min_sep_frac : float
+        Minimum vertical separation between label centres, expressed as a
+        fraction of the y-axis range.
+    """
+    if not labels:
+        return
+
+    fs = font_scale
+    sorted_labels = sorted(labels, key=lambda x: x[0])
+    y_lo, y_hi = ax.get_ylim()
+    min_sep = min_sep_frac * (y_hi - y_lo)
+
+    adj_y = [entry[0] for entry in sorted_labels]
+    for i in range(1, len(adj_y)):
+        if adj_y[i] - adj_y[i - 1] < min_sep:
+            mid = (adj_y[i] + adj_y[i - 1]) / 2
+            adj_y[i - 1] = mid - min_sep / 2
+            adj_y[i] = mid + min_sep / 2
+
+    for (_, blabel, color), y_pos in zip(sorted_labels, adj_y):
+        ax.text(
+            1.01,
+            y_pos,
+            f"{blabel} target",
+            transform=blended_transform_factory(ax.transAxes, ax.transData),
+            fontsize=label_fontsize_base * fs,
+            color=color,
+            va="center",
+            ha="left",
+            fontweight="bold",
+            clip_on=False,
+        )
+
+
+# ======================================================================
 # Main figure: 3x1 stacked adaptation dynamics
 # ======================================================================
 
@@ -420,6 +479,7 @@ def plot_adaptation_dynamics(
     # (c) Trailing-window average cost per request (last 50 steps)
     # ------------------------------------------------------------------
     ax_cost = axes[2]
+    _target_labels: List[Tuple[float, str, str]] = []
     for blabel, btarget in zip(budget_labels, budget_targets):
         result = _extract_curve_with_ci(
             conditions,
@@ -454,12 +514,7 @@ def plot_adaptation_dynamics(
             alpha=0.6,
             zorder=1,
         )
-        ax_cost.text(
-            1.01, btarget, f"{blabel} target",
-            transform=blended_transform_factory(ax_cost.transAxes, ax_cost.transData),
-            fontsize=7.5 * fs, color=color, va="center", ha="left",
-            fontweight="bold", clip_on=False,
-        )
+        _target_labels.append((btarget, blabel, color))
 
     naive_cost_result = _extract_curve_with_ci(
         conditions, "Naive Bandit", BASELINE_BUDGET_LABEL,
@@ -521,6 +576,8 @@ def plot_adaptation_dynamics(
 
     _add_phase_shading(ax_cost, phase_boundaries, font_scale=fs)
 
+    _place_budget_target_labels(ax_cost, _target_labels, font_scale=fs)
+
     ax_cost.set_title(
         "(c) Windowed Avg Cost / Request",
         fontsize=12 * fs,
@@ -543,12 +600,12 @@ def plot_adaptation_dynamics(
         labels,
         loc="lower center",
         ncol=min(len(labels), 3),
-        fontsize=9.0 * fs,
+        fontsize=10.0 * fs,
         framealpha=0.9,
         bbox_to_anchor=(0.5, -0.005),
     )
 
-    fig.tight_layout(rect=[0, 0.07, 1, 1.0])
+    fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     fig.subplots_adjust(hspace=0.15)
 
     return fig
@@ -679,6 +736,7 @@ def plot_slide_cost(data: Dict[str, Any]) -> plt.Figure:
 
     fig, ax = plt.subplots(figsize=_SLIDE_FIGSIZE)
 
+    _slide_target_labels: List[Tuple[float, str, str]] = []
     for blabel, btarget in zip(budget_labels, budget_targets):
         result = _extract_curve_with_ci(
             conditions, "ParetoBandit", blabel,
@@ -697,12 +755,7 @@ def plot_slide_cost(data: Dict[str, Any]) -> plt.Figure:
                         alpha=_SLIDE_CI_ALPHA, color=color, zorder=2)
         ax.axhline(btarget, color=color, linestyle=":", linewidth=2.0,
                    alpha=0.6, zorder=1)
-        ax.text(
-            1.01, btarget, f"{blabel} target",
-            transform=blended_transform_factory(ax.transAxes, ax.transData),
-            fontsize=8 * fs, color=color, va="center", ha="left",
-            fontweight="bold", clip_on=False,
-        )
+        _slide_target_labels.append((btarget, blabel, color))
 
     if "Unconstrained" in conditions:
         uc_result = _extract_curve_with_ci_direct(
@@ -722,6 +775,9 @@ def plot_slide_cost(data: Dict[str, Any]) -> plt.Figure:
                             color=UNCONSTRAINED_COLOR, zorder=2)
 
     _add_phase_shading(ax, phase_boundaries, font_scale=fs)
+    _place_budget_target_labels(
+        ax, _slide_target_labels, font_scale=fs, label_fontsize_base=9.0,
+    )
     ax.set_title("Windowed Avg Cost / Request",
                  fontsize=14 * fs, fontweight="bold", pad=12)
     ax.set_ylabel("$/request", fontsize=12 * fs)
