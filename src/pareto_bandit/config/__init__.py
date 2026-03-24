@@ -166,10 +166,17 @@ GEMINI_COST_DROP = {
 # ==============================================================================
 
 K3_FAILURE_ARM: str = "mistralai/mistral-large-2512"
-"""Model that suffers catastrophic failure in Experiment 03."""
+"""Model that suffers quality degradation in Experiment 03."""
 
-K3_FAILURE_REWARD: float = 0.05
-"""Fixed low reward during failure (API returns garbage, not exact zero)."""
+K3_FAILURE_REWARD: float = 0.75
+"""Degraded reward during failure phase (~18% below Mistral's normal ~0.92).
+
+Models a silent quality regression where the API continues to respond and
+charge normally, but response quality drops.  Set within the system's
+analytically-derived recovery envelope so Phase 3 demonstrates full
+recovery.  See Appendix (recovery limit study) for the degradation
+threshold beyond which recovery requires a longer horizon.
+"""
 
 # ==============================================================================
 # K=3 Budget Targets (Experiment 03 / Appendix model onboarding)

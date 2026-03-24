@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Experiment 03: Catastrophic Model Failure (Three-Phase).
+"""Experiment 03: Model Quality Degradation (Three-Phase).
 
-Demonstrates that ParetoBandit's BudgetPacer maintains cost-invariance
-($/request) through a catastrophic model failure while the bandit
-automatically redistributes traffic across the remaining K>2 models.
+Demonstrates that ParetoBandit detects a silent quality regression,
+redistributes traffic, maintains budget compliance, and recovers when
+the model is restored — all without any external signal beyond the
+observed reward.
 
 Experimental setup
 ------------------
@@ -19,16 +20,18 @@ The pipeline follows the train-then-evaluate design of Experiment 02.
     router has converged to a Mistral-heavy allocation via warmup
     priors and online training.
 
-    **Phase 2** (steps 609–1216): **Catastrophic failure** —
-    Mistral-Large's reward drops to ~0.05 and per-request cost drops
-    to $0 (the API returns errors/garbage and the provider does not
-    charge).  The router must detect the quality collapse through its
-    reward signal and redistribute traffic to Llama-8B and Gemini-Pro.
+    **Phase 2** (steps 609–1216): **Quality degradation** —
+    Mistral-Large's reward drops to ~0.75 (~18% below normal) while
+    per-request cost remains unchanged (the API continues to respond
+    and charge normally).  This models a silent quality regression
+    (e.g., a model update ships a regression).  Only the reward signal
+    reveals the problem; the cost signal provides no warning.  The
+    router must detect the quality drop and redistribute traffic.
 
     **Phase 3** (steps 1217–1824): **Recovery** — Mistral-Large is
-    restored to normal quality and pricing.  The router must
-    re-discover Mistral via UCB exploration as geometric forgetting
-    erases the Phase 2 failure memory.
+    restored to normal quality.  The router re-discovers Mistral via
+    geometric forgetting (which erases the degraded-period estimates)
+    and staleness-driven exploration.
 
   Phase 3 deliberately reuses Phase 1 prompts so that the P1-vs-P3
   comparison is a controlled within-subject design: any difference
@@ -39,10 +42,10 @@ Registry handling
 -----------------
 The model registry is NOT mutated at phase boundaries.  Unlike the
 cost-drift scenario (Experiment 02), where pricing changes are
-publicly announced, a model failure is an emergent event discovered
-through observed rewards.  The router's internal cost penalty
-continues to reflect Mistral's normal pricing; only the reward signal
-drives adaptation.
+publicly announced, a quality regression is an emergent event
+discovered through observed rewards.  The router's internal cost
+penalty continues to reflect Mistral's normal pricing; only the
+reward signal drives adaptation.
 
 Conditions (per budget level)
 -----------------------------
@@ -51,14 +54,14 @@ baseline:
 
   - **Fixed Policy**: warmup priors frozen, static cost penalty matched
     to the budget target, no online learning, no BudgetPacer.  Keeps
-    routing to dead Mistral — the counterfactual.
+    routing to degraded Mistral — the counterfactual.
   - **Naive Bandit (γ=1.0)**: infinite memory, static cost penalty,
-    online learning.  Detects failure but Phase 1 inertia slows both
-    detection and recovery.
+    online learning.  Detects degradation but Phase 1 inertia slows
+    both detection and recovery.
   - **Forgetting Bandit (γ=0.997)**: same forgetting factor as
     ParetoBandit, matched static cost penalty, no BudgetPacer.  Key
     ablation: isolates the BudgetPacer's contribution to budget
-    compliance under failure.
+    compliance under degradation.
   - **ParetoBandit (γ=0.997)**: geometric forgetting with BudgetPacer
     active.  Fast detection, redistribution, and budget maintenance.
   - **Unconstrained**: ParetoBandit without budget constraint (λ=0).
@@ -106,7 +109,7 @@ from pareto_bandit.router import BanditRouter
 from pareto_bandit.storage import EphemeralContextStore
 from utils.simulation import (
     SplitData,
-    apply_catastrophic_failure,
+    apply_quality_degradation,
     build_model_registry,
 )
 
@@ -303,12 +306,12 @@ def _run_three_phase_trial(
     budget_pacer: Optional[BudgetPacer] = None,
     seed: int,
 ) -> SeedResult:
-    """Run one seed through the three-phase catastrophic failure scenario.
+    """Run one seed through the three-phase quality degradation scenario.
 
     Stages:
       1. **Train** (val split, normal conditions): online-learn, no metrics.
       2. **Phase 1** (holdout, normal): evaluate and record.
-      3. **Phase 2** (holdout, Mistral failed): evaluate and record.
+      3. **Phase 2** (holdout, Mistral degraded): evaluate and record.
       4. **Phase 3** (holdout, Mistral recovered): evaluate and record.
 
     The registry is NOT mutated at phase boundaries.  Adaptation is
@@ -322,7 +325,7 @@ def _run_three_phase_trial(
         Validation split for online learning (no metrics recorded).
     phase1, phase2, phase3 : SplitData
         Holdout evaluation data for each phase.  Phase 2 has Mistral's
-        rewards degraded and costs zeroed via ``apply_catastrophic_failure``.
+        rewards degraded via ``apply_quality_degradation`` (costs unchanged).
         Phase 3 uses the same prompts as Phase 1 (normal rewards/costs).
     registry : dict
         Model registry (unchanged throughout all phases).
@@ -672,15 +675,15 @@ def main() -> None:
         embeddings=test_all.embeddings[p1_idx],
     )
 
-    phase2 = apply_catastrophic_failure(
+    phase2 = apply_quality_degradation(
         SplitData(
             prompts=[test_all.prompts[i] for i in p2_idx],
             rewards={a: test_all.rewards[a][p2_idx] for a in ARM_ORDER},
             costs={a: test_all.costs[a][p2_idx] for a in ARM_ORDER},
             embeddings=test_all.embeddings[p2_idx],
         ),
-        failed_arm=FAILURE_ARM,
-        failure_reward=FAILURE_REWARD,
+        degraded_arm=FAILURE_ARM,
+        degraded_reward=FAILURE_REWARD,
     )
 
     phase3 = phase1
@@ -689,18 +692,19 @@ def main() -> None:
 
     registry = build_model_registry(ARM_ORDER)
 
-    logger.info("\nFailure scenario:")
-    logger.info("  Failed model: %s", ARM_SHORT[FAILURE_ARM])
-    logger.info("  Failure reward: %.2f", FAILURE_REWARD)
-    logger.info("  Failure cost: $0 (API failure, no charge)")
+    logger.info("\nDegradation scenario:")
+    logger.info("  Degraded model: %s", ARM_SHORT[FAILURE_ARM])
+    logger.info("  Degraded reward: %.2f", FAILURE_REWARD)
+    logger.info("  Cost: unchanged (silent quality regression)")
     logger.info("  Phase sizes: %d / %d / %d", phase1.n, phase2.n, phase3.n)
     logger.info("  Phase 3 reuses Phase 1 prompts (within-subject design)")
 
     mistral_normal_reward = float(np.mean(phase1.rewards[FAILURE_ARM]))
-    mistral_failure_reward = float(np.mean(phase2.rewards[FAILURE_ARM]))
+    mistral_degraded_reward = float(np.mean(phase2.rewards[FAILURE_ARM]))
+    degradation_pct = (mistral_normal_reward - mistral_degraded_reward) / mistral_normal_reward * 100
     logger.info(
-        "  Mistral mean reward: normal=%.3f  failure=%.3f",
-        mistral_normal_reward, mistral_failure_reward,
+        "  Mistral mean reward: normal=%.3f  degraded=%.3f  (%.1f%% degradation)",
+        mistral_normal_reward, mistral_degraded_reward, degradation_pct,
     )
 
     # ------------------------------------------------------------------
@@ -802,10 +806,11 @@ def main() -> None:
     output: Dict[str, Any] = {
         "experiment": "03_catastrophic_failure",
         "description": (
-            "Three-phase catastrophic failure: normal → Mistral failure "
-            "(reward→0.05, cost→$0) → recovery.  Phase 3 reuses Phase 1 "
-            "prompts for within-subject P1-vs-P3 comparison.  Registry "
-            "is NOT mutated; adaptation is reward-driven."
+            "Three-phase quality degradation: normal → Mistral degradation "
+            f"(reward→{FAILURE_REWARD}, cost unchanged) → recovery.  "
+            "Phase 3 reuses Phase 1 prompts for within-subject P1-vs-P3 "
+            "comparison.  Registry is NOT mutated; adaptation is "
+            "reward-driven.  Cost signal provides no warning."
         ),
         "arm_order": ARM_ORDER,
         "arm_short": ARM_SHORT,
@@ -842,8 +847,8 @@ def main() -> None:
     # ------------------------------------------------------------------
     logger.info("\n" + "=" * 120)
     logger.info(
-        "EXPERIMENT 03: CATASTROPHIC FAILURE — Summary "
-        "(3 phases: normal → failure → recovered)"
+        "EXPERIMENT 03: QUALITY DEGRADATION — Summary "
+        "(3 phases: normal → degraded → recovered)"
     )
     logger.info("=" * 120)
     logger.info(

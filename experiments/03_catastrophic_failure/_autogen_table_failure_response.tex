@@ -2,7 +2,7 @@
 \centering
 \caption{Failure response across algorithm variants (Experiment~3,
 20~seeds).  Phase~1: normal operation; Phase~2:
-Mistral-Large catastrophic failure (reward $\to$ 0.05,
+Mistral-Large catastrophic failure (reward $\to$ 0.75,
 cost $\to$ \$0); Phase~3: model restored.  \textbf{Bold} marks
 budget compliance within 5\% of target.
 ParetoBandit detects the failure, redistributes traffic, and maintains
@@ -20,18 +20,18 @@ model's cost drops to \$0.}
   & \textbf{P2 Mistral-Large\%}
   & \textbf{P1} & \textbf{P2} & \textbf{P3} \\
 \midrule
-\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy  & 0.830 & 0.596 & 0.830  & 30\%  & $0.53\times$ & $0.07\times$ & $0.53\times$ \\
-  & Naive Bandit  & 0.848 & 0.689 & 0.784  & 17\%  & $0.77\times$ & $0.15\times$ & $1.40\times$ \\
-  & Forgetting Bandit  & 0.866 & 0.770 & 0.786  & 6\%  & $1.83\times$ & $2.90\times$ & $1.53\times$ \\
-  & \textbf{ParetoBandit}  & 0.859 & 0.753 & 0.785  & 7\%  & $\mathbf{1.00\times}$ & $\mathbf{1.00\times}$ & $\mathbf{0.99\times}$ \\[3pt]
-\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy  & 0.870 & 0.372 & 0.870  & 61\%  & $0.49\times$ & $0.02\times$ & $0.49\times$ \\
-  & Naive Bandit  & 0.886 & 0.620 & 0.828  & 29\%  & $0.54\times$ & $2.53\times$ & $5.42\times$ \\
-  & Forgetting Bandit  & 0.893 & 0.756 & 0.805  & 10\%  & $1.40\times$ & $3.04\times$ & $3.05\times$ \\
-  & \textbf{ParetoBandit}  & 0.883 & 0.723 & 0.796  & 12\%  & $\mathbf{0.99\times}$ & $\mathbf{0.98\times}$ & $\mathbf{0.98\times}$ \\[3pt]
-\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy  & 0.928 & 0.308 & 0.928  & 71\%  & $2.75\times$ & $2.14\times$ & $2.75\times$ \\
-  & Naive Bandit  & 0.926 & 0.790 & 0.921  & 16\%  & $2.48\times$ & $6.11\times$ & $7.11\times$ \\
-  & Forgetting Bandit  & 0.918 & 0.879 & 0.921  & 6\%  & $2.61\times$ & $6.92\times$ & $7.49\times$ \\
-  & \textbf{ParetoBandit}  & 0.908 & 0.681 & 0.802  & 19\%  & $\mathbf{0.95\times}$ & $\mathbf{0.98\times}$ & $\mathbf{0.98\times}$ \\[3pt]
+\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}  & Fixed Policy  & 0.850 & 0.806 & 0.850  & 46\%  & $0.79\times$ & $0.74\times$ & $0.79\times$ \\
+  & Naive Bandit  & 0.871 & 0.802 & 0.855  & 56\%  & $1.06\times$ & $0.89\times$ & $0.91\times$ \\
+  & Forgetting Bandit  & 0.884 & 0.807 & 0.826  & 40\%  & $2.56\times$ & $2.80\times$ & $1.84\times$ \\
+  & \textbf{ParetoBandit}  & 0.863 & 0.800 & 0.818  & 33\%  & $\mathbf{1.00\times}$ & $\mathbf{1.00\times}$ & $\mathbf{0.99\times}$ \\[3pt]
+\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}  & Fixed Policy  & 0.890 & 0.797 & 0.890  & 69\%  & $0.55\times$ & $0.51\times$ & $0.55\times$ \\
+  & Naive Bandit  & 0.893 & 0.800 & 0.881  & 67\%  & $0.57\times$ & $0.56\times$ & $\mathbf{1.00\times}$ \\
+  & Forgetting Bandit  & 0.898 & 0.808 & 0.871  & 54\%  & $1.48\times$ & $2.07\times$ & $2.21\times$ \\
+  & \textbf{ParetoBandit}  & 0.885 & 0.795 & 0.863  & 50\%  & $\mathbf{0.98\times}$ & $\mathbf{0.99\times}$ & $\mathbf{0.97\times}$ \\[3pt]
+\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}  & Fixed Policy  & 0.930 & 0.816 & 0.930  & 65\%  & $3.28\times$ & $2.95\times$ & $3.28\times$ \\
+  & Naive Bandit  & 0.928 & 0.845 & 0.928  & 49\%  & $3.03\times$ & $4.23\times$ & $5.15\times$ \\
+  & Forgetting Bandit  & 0.919 & 0.899 & 0.923  & 19\%  & $3.04\times$ & $6.19\times$ & $6.92\times$ \\
+  & \textbf{ParetoBandit}  & 0.910 & 0.794 & 0.898  & 69\%  & $\mathbf{0.95\times}$ & $\mathbf{0.97\times}$ & $\mathbf{0.97\times}$ \\[3pt]
 \bottomrule
 \end{tabular}
 \end{table}

@@ -140,6 +140,40 @@ def apply_reward_swap(
     )
 
 
+def apply_quality_degradation(
+    split: SplitData,
+    degraded_arm: str,
+    degraded_reward: float = 0.75,
+) -> SplitData:
+    """Return a new ``SplitData`` with one arm's rewards degraded but costs unchanged.
+
+    Models a silent quality regression (e.g., a model update ships a
+    regression, the API continues to respond and charge normally, but
+    response quality drops).  Only the reward signal reveals the problem;
+    the cost signal provides no warning.
+
+    Args:
+        split: Original data.
+        degraded_arm: Model ID whose quality has regressed.
+        degraded_reward: Fixed degraded reward assigned to every prompt
+            for the affected arm (default 0.75).
+
+    Returns:
+        New ``SplitData`` with degraded rewards for ``degraded_arm``;
+        costs, other arms, and embeddings unchanged.
+    """
+    new_rewards = dict(split.rewards)
+    new_rewards[degraded_arm] = np.full_like(
+        split.rewards[degraded_arm], degraded_reward,
+    )
+    return SplitData(
+        prompts=split.prompts,
+        rewards=new_rewards,
+        costs=split.costs,
+        embeddings=split.embeddings,
+    )
+
+
 def apply_catastrophic_failure(
     split: SplitData,
     failed_arm: str,
