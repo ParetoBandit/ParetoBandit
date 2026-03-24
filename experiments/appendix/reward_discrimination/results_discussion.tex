@@ -1,0 +1,119 @@
+% Appendix: Why K=3 with Continuous Rewards Outperforms K>3 with Binary Feedback
+% Provides the detailed argument for why portfolio size is secondary to
+% reward granularity in multi-model LLM routing.
+
+\subsection{Reward Granularity and the \texorpdfstring{$K{>}2$}{K>2} Collapse}
+\label{sec:reward_discrimination}
+
+A natural question is whether ParetoBandit's $K{=}3$ portfolio is
+a limitation relative to systems that evaluate larger pools.
+PILOT~\cite{panda2025pilot} routes across $K{=}11$ models on
+Routerbench (${\sim}36{,}500$ samples),
+and PROTEUS~\cite{bhatti2026proteus} trains on $K{=}11$--$14$
+portfolios.
+We argue that \emph{reward granularity}, not portfolio size,
+is the binding constraint for multi-model routing,
+and that $K{>}2$ pools under binary rewards collapse to an
+effective $K{=}2$ strong-vs.-weak triage.
+
+\subsubsection{The Collapse Mechanism}
+
+Modern LLMs at adjacent price tiers produce acceptable responses on
+the majority of prompts.
+A binary reward signal (correct/incorrect, win/loss, thumbs-up/down)
+therefore clusters frontier and mid-tier models into a single
+``strong'' category whenever both exceed the acceptance threshold
+on the same prompt.
+The multi-model routing problem structurally reduces to
+$K{=}2$: one ``strong'' tier vs.\ one ``weak'' tier.
+
+In our own $K{=}3$ portfolio, a natural binarisation threshold
+($\tau{=}0.85$) causes the two stronger models (Gemini-2.5-Pro and
+Mistral-Large) to tie on $85.8\%$ of prompts, eliminating the
+router's ability to distinguish quality within a budget.
+Switching from binary to continuous multi-dimensional rewards
+(DeepSeek-R1 composite, $r_t \in [0,1]$) reduced the tied-prompt
+rate from $85.8\%$ to ${<}1\%$ and raised best-arm entropy from
+${\sim}1.1$ to ${\sim}2.7$ bits, restoring a genuinely multi-armed
+problem.
+
+\subsubsection{Evidence from PILOT (\texorpdfstring{$K{=}11$}{K=11}, Binary Rewards)}
+
+PILOT's qualitative routing analysis (Section~5.1
+of~\cite{panda2025pilot}) provides direct evidence of this
+collapse at scale.
+Despite having $K{=}11$ arms, per-task traffic concentrates on a
+single model:
+
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Task} & \textbf{Dominant model} & \textbf{Share} \\
+\midrule
+MMLU          & GPT-4        & 90\% \\
+ARC Challenge & GPT-4        & 89.4\% \\
+GSM8K         & Claude-v1    & 94\% \\
+MBPP          & GPT-4 + Claude & $\sim$72\% + 28\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+At most two models carry meaningful traffic on any given task;
+the remaining 9--10 arms are effectively dead.
+The appearance of diverse $K{=}11$ routing is an artefact of
+\emph{aggregating across heterogeneous tasks}: within each task
+the exact-match reward (binary 0/1) collapses the pool to
+one or two active arms---precisely the $K{=}2$ triage
+our analysis predicts.
+
+\subsubsection{Corroboration from the Literature}
+
+This structural limitation is widely reflected in the LLM routing
+literature.
+RouteLLM~\cite{ong2024routellm} and BaRP~\cite{wang2025barp}
+both frame routing as an explicit binary strong/weak decision
+trained on pairwise preference data; RouteLLM acknowledges the
+$K{=}2$ restriction as a limitation and identifies extension to
+multiple models as future work.
+LLMRouterBench~\cite{li2026llmrouterbench} identifies
+oversimplified binary accuracy metrics and imbalanced model
+pools---where a single dominant model masks inter-tier
+distinctions---as key evaluation failures for multi-model routing.
+
+Conversely, every production-oriented router that supports
+$K{>}2$ portfolios and demonstrates genuine multi-model
+discrimination adopts continuous quality signals:
+MixLLM~\cite{wang2025mixllm} uses predicted accuracy scores
+across $K{=}5$ models, and
+PROTEUS~\cite{bhatti2026proteus} optimises continuous SLA targets
+across $K{=}11$--$14$ models via Lagrangian RL.
+ParetoBandit follows this principle: our three-judge composite
+reward ($r_t \in [0,1]$) produces inter-model gaps of
+$0.793$--$0.932$ across the $K{=}3$ portfolio, which the router
+exploits to route ${\sim}45\%$ of traffic at moderate budgets
+to neither the cheapest nor the most expensive model---a
+genuinely three-way decision.
+
+\subsubsection{Implication for Portfolio Size}
+
+The takeaway is not that large portfolios are undesirable, but
+that \textbf{reward granularity is a prerequisite for portfolio
+diversity to matter}.
+A $K{=}11$ pool evaluated with binary exact-match rewards yields
+at most $K{=}2$ effective routing decisions per task domain.
+A $K{=}3$ pool evaluated with continuous multi-dimensional rewards
+yields genuine three-way routing that varies with prompt context
+and budget pressure.
+Extending ParetoBandit to larger $K$ is straightforward (the
+LinUCB update is $O(Kd^2)$ per step; the onboarding experiment
+already demonstrates $K{=}3 \to K{=}4$ transitions), and the
+continuous reward signal ensures that additional models will be
+discriminated rather than collapsed into existing tiers.
+
+We emphasise that this observation is specific to LLM routing,
+where inter-model quality gaps are narrow and most prompts are
+``easy'' for multiple tiers.
+In bandit domains with larger inter-arm gaps, binary rewards
+may carry sufficient separation.
