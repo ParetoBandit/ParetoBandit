@@ -21,7 +21,7 @@ The router operates under \emph{bandit feedback}~\cite{lattimore2020bandit}: it 
 \subsection{Context Representation}
 \label{sec:context_repr}
 
-The context vector $x_t$ is constructed by encoding the prompt with a lightweight sentence encoder (all-MiniLM-L6-v2~\cite{reimers2019sentence}), projecting to 25 PCA components whitened to unit variance, and appending a bias term, yielding $d = 26$. The PCA projection is fitted on ${\sim}46{,}000$ disjoint LMSYS Arena prompts. Section~\ref{sec:efficiency} details the latency impact of this dimensionality choice.
+The context vector $x_t$ is constructed by encoding the prompt with all-MiniLM-L6-v2, a lightweight model from the Sentence Transformers framework~\cite{reimers2019sentence}, projecting to 25 PCA components whitened to unit variance, and appending a bias term, yielding $d = 26$. The PCA projection is fitted on ${\sim}46{,}000$ disjoint LMSYS Arena prompts. Section~\ref{sec:efficiency} details the latency impact of this dimensionality choice.
 
 \subsection{Budget Constraint}
 \label{sec:budget_constraint}
@@ -35,4 +35,4 @@ We enforce the rate constraint through a dual variable $\lambda_t$ that rises wh
 \subsection{Non-Stationarity}
 \label{sec:nonstationarity}
 
-Two forms of environment drift affect production LLM deployments. \emph{Reward drift} occurs when providers silently update models behind their APIs~\cite{chen2023chatgptdrift, ma2024prompt}, changing the conditional expected reward at an unknown time. \emph{Cost drift} occurs when API pricing changes abruptly~\cite{openai2025turbopricing, google2024flashpricing}. The two interact: a price drop changes which models are cost-effective, requiring the router to jointly re-learn reward estimates and re-optimize the quality-cost frontier. Non-stationary bandit theory provides tools for this setting, including geometric discounting~\cite{garivier2011switching} and weighted ridge regression~\cite{russac2019weighted}, but these mechanisms have not previously been applied to LLM routing. Section~\ref{sec:adaptive_learning} presents our approach.
+Two forms of environment drift affect production LLM deployments. \emph{Reward drift} occurs when providers silently update models behind their APIs~\cite{chen2023chatgptdrift, ma2024prompt}, changing the conditional expected reward at an unknown time. \emph{Cost drift} occurs when API pricing changes abruptly~\cite{openai2024gpt4opricing, google2024flashpricing}. The two interact: a price drop changes which models are cost-effective, requiring the router to jointly re-learn reward estimates and re-optimize the quality-cost frontier. Non-stationary bandit theory provides tools for this setting, including geometric discounting~\cite{garivier2011switching} and weighted ridge regression~\cite{russac2019weighted}, but these mechanisms have not previously been applied to LLM routing. Section~\ref{sec:adaptive_learning} presents our approach.
