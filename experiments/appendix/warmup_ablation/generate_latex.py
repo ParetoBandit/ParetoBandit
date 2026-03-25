@@ -66,7 +66,7 @@ def _add_condition_commands(
     cond_data: Dict[str, Any],
     name_prefix: str,
 ) -> None:
-    """Emit regret, reward, R@200, and std commands for one condition."""
+    """Emit regret, reward, R@200, std, and bootstrap CI commands."""
     tr = cond_data["total_regret"]
     cs.num(f"{name_prefix}Regret", tr["mean"], digits=1)
     cs.num(f"{name_prefix}RegretStd", tr["std"], digits=1)
@@ -86,6 +86,15 @@ def _add_condition_commands(
         ci_hi = tr["mean"] + 1.96 * tr["se"]
     cs.num(f"{name_prefix}RegretCILo", ci_lo, digits=1)
     cs.num(f"{name_prefix}RegretCIHi", ci_hi, digits=1)
+
+    per_seed_r200 = cond_data.get("per_seed_regret_at_200")
+    if per_seed_r200 is not None:
+        r200_ci_lo, r200_ci_hi = bootstrap_ci(np.array(per_seed_r200))
+    else:
+        r200_ci_lo = r200["mean"] - 1.96 * r200["se"]
+        r200_ci_hi = r200["mean"] + 1.96 * r200["se"]
+    cs.num(f"{name_prefix}RAtTwoHundredCILo", r200_ci_lo, digits=1)
+    cs.num(f"{name_prefix}RAtTwoHundredCIHi", r200_ci_hi, digits=1)
 
 
 def _add_paired_test_commands(
@@ -216,6 +225,21 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         )
 
     _add_diff_ci_commands(cs, conditions)
+
+    # Derived quantities that appear in prose — autogenerate to prevent drift
+    warmup_gamma = hp_warmup["forgetting_factor"]
+    tr_gamma = hp_tr["forgetting_factor"]
+    cs.raw("WarmupEffMem", fmt_int(round(1.0 / (1.0 - warmup_gamma))))
+    cs.raw("TREffMem", fmt_int(round(1.0 / (1.0 - tr_gamma))))
+
+    # Std-deviation ratio (tight budget, warmup vs TR)
+    w_tight = conditions.get("Warmup (tight budget)")
+    t_tight = conditions.get("Tabula Rasa (tight budget)")
+    if w_tight and t_tight:
+        w_std = w_tight["total_regret"]["std"]
+        t_std = t_tight["total_regret"]["std"]
+        if w_std > 0:
+            cs.num("TightStdRatio", t_std / w_std, digits=0)
 
     return cs
 
