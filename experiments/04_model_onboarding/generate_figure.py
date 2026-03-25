@@ -104,7 +104,7 @@ def _add_phase_shading(
         transform=trans,
         ha="center",
         va="top",
-        fontsize=10,
+        fontsize=13,
         fontstyle="italic",
         color="#333333",
     )
@@ -117,7 +117,7 @@ def _add_phase_shading(
         transform=trans,
         ha="center",
         va="top",
-        fontsize=10,
+        fontsize=13,
         fontstyle="italic",
         color="#333333",
     )
@@ -202,10 +202,10 @@ def _panel_flash_by_budget(
     _add_phase_shading(ax, phase_boundary, burnin_boundary)
 
     title = SCENARIO_TITLES.get(scenario_name, scenario_name)
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
-    ax.set_xlabel("Prompts Routed", fontsize=13)
+    ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
+    ax.set_xlabel("Prompts Routed", fontsize=16)
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=11)
+    ax.tick_params(labelsize=14)
 
 
 
@@ -270,16 +270,16 @@ def _panel_cost_compliance(
 
     ax.set_title(
         "(a) Cost Compliance",
-        fontsize=14,
+        fontsize=17,
         fontweight="bold",
         pad=10,
     )
-    ax.set_xlabel("Prompts Routed", fontsize=13)
+    ax.set_xlabel("Prompts Routed", fontsize=16)
     ax.set_ylabel(
-        r"Avg Cost / Request ($\times 10^{-3}$ USD)", fontsize=13,
+        r"Avg Cost / Request ($\times 10^{-3}$ USD)", fontsize=16,
     )
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=11)
+    ax.tick_params(labelsize=14)
 
 
 def _panel_reward(
@@ -322,14 +322,14 @@ def _panel_reward(
 
     ax.set_title(
         "(b) Reward",
-        fontsize=14,
+        fontsize=17,
         fontweight="bold",
         pad=10,
     )
-    ax.set_xlabel("Prompts Routed", fontsize=13)
-    ax.set_ylabel("Avg Reward", fontsize=13)
+    ax.set_xlabel("Prompts Routed", fontsize=16)
+    ax.set_ylabel("Avg Reward", fontsize=16)
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=11)
+    ax.tick_params(labelsize=14)
 
 
 # ======================================================================
@@ -374,10 +374,10 @@ def main() -> None:
             scenario_name,
         )
         if col == 0:
-            ax.set_ylabel("Flash Windowed Fraction", fontsize=13)
+            ax.set_ylabel("Flash Windowed Fraction", fontsize=16)
         if col == mid_col:
             ax.legend(
-                fontsize=11,
+                fontsize=14,
                 loc="upper center",
                 bbox_to_anchor=(0.5, -0.18),
                 ncol=4,
@@ -387,7 +387,7 @@ def main() -> None:
     fig.suptitle(
         r"Model Onboarding: K=3 $\to$ K=4 (Gemini Flash)"
         f" — {n_seeds} seeds, 95% bootstrap CI",
-        fontsize=16,
+        fontsize=19,
         fontweight="bold",
         y=1.01,
     )
@@ -421,12 +421,12 @@ def main() -> None:
         )
 
         ax_cost.legend(
-            fontsize=10,
+            fontsize=13,
             loc="center right",
             framealpha=0.9,
         )
         ax_reward.legend(
-            fontsize=10,
+            fontsize=13,
             loc="lower right",
             framealpha=0.9,
         )
@@ -434,7 +434,7 @@ def main() -> None:
         fig2.suptitle(
             r"Model Onboarding: Budget–Quality Trade-off (Good & Cheap)"
             f" — {n_seeds} seeds",
-            fontsize=15,
+            fontsize=18,
             fontweight="bold",
             y=1.01,
         )
