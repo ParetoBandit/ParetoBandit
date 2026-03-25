@@ -516,16 +516,16 @@ def _print_cost_estimate(
     avg_output_tokens = 300
 
     gpt_calls = n_pairs
-    haiku_calls = n_pairs
+    claude_calls = n_pairs
     gpt_cost = (gpt_calls * avg_input_tokens * 0.40 + gpt_calls * avg_output_tokens * 1.60) / 1_000_000
-    haiku_cost = (haiku_calls * avg_input_tokens * 0.80 + haiku_calls * avg_output_tokens * 4.00) / 1_000_000
+    claude_cost = (claude_calls * avg_input_tokens * 0.80 + claude_calls * avg_output_tokens * 4.00) / 1_000_000
 
     logger.info("\n--- Cost Estimate ---")
     logger.info("  Prompts: %d, (prompt,model) pairs: %d", n_prompts, n_pairs)
     logger.info("  Judge calls: %d (%d per judge)", n_calls, n_pairs)
-    logger.info("  GPT-4.1-mini  : ~$%.2f", gpt_cost)
-    logger.info("  Claude-3.5-Haiku: ~$%.2f", haiku_cost)
-    logger.info("  Total estimate: ~$%.2f", gpt_cost + haiku_cost)
+    logger.info("  GPT-4.1-mini      : ~$%.2f", gpt_cost)
+    logger.info("  Claude-3.7-Sonnet : ~$%.2f", claude_cost)
+    logger.info("  Total estimate: ~$%.2f", gpt_cost + claude_cost)
 
 
 if __name__ == "__main__":

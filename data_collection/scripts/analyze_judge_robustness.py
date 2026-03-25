@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Analyze judge robustness: compare DeepSeek-R1 (primary) vs supplementary
-judges (GPT-4.1-mini, Claude-3.5-Haiku) on the stratified 2K subset.
+judges (GPT-4.1-mini, Claude-3.7-Sonnet) on the stratified 2K subset.
 
 This script is the companion to ``judge_robustness_subset.py``.  It loads
 the primary R1 scores from ``pareto_rewards.jsonl`` and the supplementary
@@ -74,13 +74,11 @@ JUDGE_COLORS = {
     "deepseek/deepseek-r1": CB_BLUE,
     "openai/gpt-4.1-mini": CB_ORANGE,
     "anthropic/claude-3.7-sonnet": CB_GREEN,
-    "anthropic/claude-3.5-haiku": CB_GREEN,
 }
 JUDGE_SHORT = {
     "deepseek/deepseek-r1": "DeepSeek-R1",
     "openai/gpt-4.1-mini": "GPT-4.1-mini",
     "anthropic/claude-3.7-sonnet": "Claude-3.7-Sonnet",
-    "anthropic/claude-3.5-haiku": "Claude-3.5-Haiku",
 }
 MODEL_SHORT = {
     "meta-llama/llama-3.1-8b-instruct": "Llama-8B",

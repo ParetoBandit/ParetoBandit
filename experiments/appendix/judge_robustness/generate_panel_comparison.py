@@ -18,17 +18,24 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
+from judge_robustness_utils import (
+    CB_BLUE,
+    CB_GRAY,
+    CB_PURPLE,
+    CB_RED,
+    MODELS,
+    MODEL_SHORT,
+    build_prompt_matrices as build_matrices,
+    load_all_scores,
+    setup_matplotlib,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,113 +43,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
-SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
-
-MODELS = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-    "google/gemini-2.5-pro",
-]
-MODEL_SHORT = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
-
-CB_BLUE = "#0072B2"
-CB_ORANGE = "#E69F00"
-CB_GREEN = "#009E73"
-CB_RED = "#D55E00"
-CB_PURPLE = "#7B2D8E"
-CB_GRAY = "#999999"
-
-
-def _setup_matplotlib() -> None:
-    """Configure matplotlib for publication-quality output."""
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.size": 9,
-        "axes.labelsize": 10,
-        "axes.titlesize": 10.5,
-        "legend.fontsize": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        "figure.dpi": 300,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.05,
-    })
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Data loading
-# ══════════════════════════════════════════════════════════════════════════
-
-
-def load_all_scores() -> Dict[str, Dict[Tuple[str, str], float]]:
-    """Load R1 + supplementary scores keyed by judge name.
-
-    Returns
-    -------
-    Dict[str, Dict[Tuple[str, str], float]]
-        {judge_name: {(prompt, model_id): score}}.
-    """
-    prompts: Set[str] = set()
-    with open(SUBSET_PROMPTS_PATH) as f:
-        for line in f:
-            prompts.add(json.loads(line)["prompt"])
-
-    r1: Dict[Tuple[str, str], float] = {}
-    with open(PARETO_REWARDS_PATH) as f:
-        for line in f:
-            rec = json.loads(line)
-            if not rec.get("ok") or rec["prompt"] not in prompts:
-                continue
-            r1[(rec["prompt"], rec["model_id"])] = rec["raw_score"]
-
-    supp: Dict[str, Dict[Tuple[str, str], float]] = defaultdict(dict)
-    with open(SUPPLEMENTARY_REWARDS_PATH) as f:
-        for line in f:
-            rec = json.loads(line)
-            if not rec.get("ok"):
-                continue
-            key = (rec["prompt"], rec["model_id"])
-            for jd in rec.get("judge_details", []):
-                if "gpt-4.1-mini" in jd["judge"]:
-                    supp["GPT-4.1-mini"][key] = jd["reward"]
-                elif "claude-3.7-sonnet" in jd["judge"]:
-                    supp["Claude-3.7-Sonnet"][key] = jd["reward"]
-
-    return {"R1": r1, **dict(supp)}
-
-
-def build_matrices(
-    all_scores: Dict[str, Dict[Tuple[str, str], float]],
-) -> Tuple[List[str], Dict[str, np.ndarray]]:
-    """Build [n_prompts × n_models] matrices on common keys.
-
-    Returns
-    -------
-    Tuple[List[str], Dict[str, np.ndarray]]
-        (prompt_list, {judge_name: score_matrix}).
-    """
-    common_keys = set.intersection(
-        *[set(s.keys()) for s in all_scores.values()]
-    )
-    prompts_with_all = sorted({
-        p for p, _ in common_keys
-        if all((p, m) in common_keys for m in MODELS)
-    })
-
-    matrices: Dict[str, np.ndarray] = {}
-    for judge, scores in all_scores.items():
-        matrices[judge] = np.array([
-            [scores[(p, m)] for m in MODELS]
-            for p in prompts_with_all
-        ])
-    return prompts_with_all, matrices
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -227,7 +128,7 @@ def plot_signal_compression(
     Path
         Path to saved PDF.
     """
-    _setup_matplotlib()
+    setup_matplotlib()
 
     r1_gaps = per_prompt_gaps(r1_mat)
     panel_gaps = per_prompt_gaps(panel_mat)
@@ -352,7 +253,7 @@ def plot_per_prompt_gap_scatter(
     Path
         Path to saved PDF.
     """
-    _setup_matplotlib()
+    setup_matplotlib()
 
     r1_gaps = per_prompt_gaps(r1_mat)
     panel_gaps = per_prompt_gaps(panel_mat)

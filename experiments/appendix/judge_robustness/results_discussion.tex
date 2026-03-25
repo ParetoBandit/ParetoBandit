@@ -147,8 +147,21 @@ highest on each prompt---and evaluating by the \emph{other} judges'
 scores yields 97.5\% of their own oracle reward
 (Table~\ref{tab:cross_regret}).  The reverse is worse: following
 GPT-4.1-mini's or Claude's oracle and evaluating by R1 captures only
-95.8--95.9\%.  This asymmetry means R1's routing decisions are not merely
-defensible but are the most consensus-compatible of the three judges.
+95.8--95.9\%.
+
+\paragraph{Interpreting the asymmetry.}
+Part of this asymmetry is mechanical: judges with smaller inter-model
+gaps (GPT-4.1-mini, Claude) impose lower penalties for ``wrong'' routing,
+so \emph{any} routing policy appears to capture a high fraction of their
+oracle reward.  Conversely, R1 produces the largest gaps and therefore
+penalises misrouted prompts more, explaining why the reverse direction
+(other judges' oracle evaluated by R1) is lower.  The 97.5\% figure is
+therefore a composite of R1's routing quality \emph{and} the
+supplementary judges' reduced discriminability.  Nevertheless, R1's
+off-diagonal capture fractions are the highest in every column of
+Table~\ref{tab:cross_regret}, indicating that R1's routing decisions
+are genuinely more consensus-compatible, not merely benefiting from a
+scale effect.
 
 \begin{table}[h]
 \centering
@@ -157,8 +170,8 @@ reward achieved by following the row judge's oracle, evaluated by the
 column judge's scores.  Parenthetical values show the fraction of the
 column judge's own oracle reward captured. R1's oracle (top row)
 consistently captures the largest fraction of other judges' oracles.
-Bootstrap 95\% CIs on the off-diagonal regret (not shown) are tight:
-$\pm 0.003$.}
+All off-diagonal cross-regret values have bootstrap 95\% CIs
+($B = 10{,}000$) of $\pm 0.003$, confirming precision.}
 \label{tab:cross_regret}
 \small
 \begin{tabular}{lccc}
@@ -202,15 +215,15 @@ which is invariant across judges.
 
 A natural alternative to using a single judge is to average scores across
 the three-judge panel, which is standard practice for reducing evaluator
-variance~\cite{zheng2023judging}.  We show concretely that this would
-\emph{harm} the bandit's ability to learn routing preferences.
+variance~\cite{zheng2023judging}.  We examine whether this would help or
+harm the bandit's ability to learn routing preferences.
 
 \paragraph{Panel averaging compresses the routing margin.}
 The \emph{routing margin}---the gap between the best and second-best model
 on a given prompt---is the signal the bandit must detect to make the
 correct routing decision.  Under R1 alone, the mean routing margin is
 0.049; under the three-judge panel average, it drops to 0.034---a
-\textbf{30\% compression} (Figure~\ref{fig:panel_signal}a).  This
+\textbf{30\% compression}.  This
 compression is not uniform: 63\% of prompts have a smaller gap under
 averaging, and only 34\% have a larger gap.
 
@@ -218,11 +231,34 @@ averaging, and only 34\% have a larger gap.
 Define an ``actionable'' prompt as one where the routing margin exceeds a
 threshold---i.e., the bandit has enough signal to distinguish between the
 best and second-best arm.  At a margin threshold of 0.05, R1 provides
-31\% actionable prompts; the panel average provides only 17\%
-(Figure~\ref{fig:panel_signal}b).  The bandit has nearly
+31\% actionable prompts; the panel average provides only 17\%.
+The bandit has nearly
 \textbf{half as many informative observations} to learn from.  At a
 threshold of 0.02, the gap is 54\% (R1) vs.\ 41\% (panel)---a loss of
 13~percentage points.
+
+\paragraph{Signal-to-noise ratio is largely preserved.}
+A critical nuance: the 30\% margin compression does not
+straightforwardly translate to a 30\% loss in learning speed.  The
+signal-to-noise ratio (SNR; mean margin / standard deviation of margin)
+is 0.617 under R1 and 0.586 under the panel---a difference of only
+${\sim}5\%$.  This means averaging compresses noise roughly in proportion
+to signal.  The practical consequence is twofold:
+\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \emph{Regret per step:} For UCB-style bandits, the per-step
+    regret bound scales inversely with the absolute gap, so the 30\%
+    smaller margins under panel averaging imply proportionally more
+    rounds to achieve the same cumulative regret.
+    \item \emph{Convergence rate:} Because SNR is nearly identical, the
+    rate at which the bandit \emph{distinguishes} arms is similar under
+    both approaches---the issue is not that the panel signal is
+    noisier, but that the absolute reward of correct routing is lower.
+\end{enumerate}
+\noindent In summary, R1 provides the largest absolute routing margins,
+which directly benefit per-step regret; panel averaging compresses
+margins but does not degrade signal quality relative to noise.  We
+select R1 primarily because it maximises the reward impact of correct
+routing, not because it suppresses noise.
 
 \paragraph{The mechanism.}
 GPT-4.1-mini's inter-model gaps are 37\% smaller than R1's.  When its
@@ -230,17 +266,7 @@ scores are averaged with R1 and Claude, the compressed GPT-4.1-mini
 signal pulls the mean toward indifference.  On prompts where R1 and
 Claude see a clear winner but GPT-4.1-mini sees models as nearly tied,
 the panel average dilutes the margin below the bandit's detection
-threshold.  This is the worst-case failure mode: the prompts where
-averaging \emph{most} compresses the signal are exactly the marginal
-prompts where routing adds the most value.
-
-\paragraph{R1 is also the most consensus-compatible.}
-Beyond signal strength, R1's oracle routing decisions capture
-97.4--97.5\% of the other judges' oracle reward---the highest
-off-diagonal fraction in Table~\ref{tab:cross_regret}.  The reverse
-direction is worse (95.8--95.9\%), confirming that R1's per-prompt
-decisions are not merely sharper but are also more aligned with the
-consensus than either alternative judge's decisions.
+threshold.
 
 \paragraph{Why not a more sophisticated aggregation?}
 Recent multi-judge aggregation methods---PoLL~\cite{verga2024poll}
@@ -252,8 +278,8 @@ so confounder-induced correlation is minimal; the residual disagreement
 is genuine and irreducible.  We additionally evaluated z-score
 calibration~\cite{hedges1985statistical} (location-scale standardisation
 before averaging), which recovered fewer than 3 percentage points of the
-30\% margin compression, confirming that the signal loss is caused by
-inter-judge disagreement, not scale mismatch.
+30\% margin compression, confirming that the margin reduction is caused by
+inter-judge disagreement in model preferences, not scale mismatch.
 
 \paragraph{Transparency.}
 Because R1 sees the largest oracle lift from contextual routing (0.031
@@ -264,20 +290,6 @@ demonstrated under conditions that maximise its visibility, while this
 appendix fully characterises the extent of agreement with alternative
 evaluators and the degree to which effect sizes depend on judge choice.
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\linewidth]{experiments/appendix/judge_robustness/results/panel_vs_r1_signal.pdf}
-    \caption{Signal compression from three-judge averaging.
-    \textbf{(a)}~Per-prompt reward gap (best $-$ worst model) under R1
-    alone (blue) vs.\ the three-judge panel average (purple).  The panel
-    mean gap is 17\% smaller.
-    \textbf{(b)}~Fraction of prompts where the routing margin (best $-$
-    2nd best) exceeds a given threshold.  R1 provides 31\% of prompts
-    with margin $\geq 0.05$; the panel average provides only 17\%.  The
-    red shaded area represents actionable prompts lost to averaging.}
-    \label{fig:panel_signal}
-\end{figure}
-
 \subsubsection{Per-Response Agreement Metrics}
 
 For completeness, Table~\ref{tab:judge_agreement} reports per-response
@@ -286,9 +298,10 @@ CCC~\cite{lin1989concordance}---the standard method-comparison
 measure---and MAD (mean absolute deviation) rather than Pearson~$r$,
 because the reward distribution is ceiling-compressed (most scores in
 $[0.8, 1.0]$) and discretised by the rubric's weighted components, both
-of which attenuate Pearson.  Bland--Altman plots
-(Figure~\ref{fig:judge_ba}) confirm that disagreement does not vary
-systematically with score level.
+of which attenuate Pearson.  Bland--Altman analysis confirms that
+disagreement does not vary systematically with score level (mean bias
+$+0.039$ for GPT-4.1-mini, $-0.012$ for Claude; neither exhibits
+proportional bias).
 
 \begin{table}[h]
 \centering
@@ -330,7 +343,10 @@ negligible.
 Kendall's~$W$ measures three-judge concordance on the full model ranking.
 Agreement is strong where the routing decision has the greatest reward
 impact (gap $> 0.20$) and weak where all models produce near-identical
-quality (gap $< 0.05$).}
+quality (gap $< 0.05$).  Conditioning on R1's gap bins when validating
+R1 can introduce selection bias; we verify in the reproducibility code
+that the same monotonic trend holds when conditioning on the consensus
+(panel-median) gap.}
 \label{tab:routing_diagnostics}
 \small
 \begin{tabular}{lrccc}
@@ -359,6 +375,19 @@ $W$ drops to 0.17, but routing the ``wrong'' model on these prompts
 costs at most 0.05 reward---less than the typical per-response judge
 noise (MAD ${\approx}$ 0.075).
 
+\paragraph{Non-monotonic best-model agreement.}
+Best-model agreement with R1 is lower in the $[0.05, 0.10)$ bin than
+in the $[0.00, 0.05)$ bin for both supplementary judges.  This is
+expected: when R1's gap is near zero, the ``best'' model is essentially
+arbitrary, and shared biases across judges (e.g., mild verbosity
+preferences) can cause above-random agreement on near-tied prompts.
+In the $[0.05, 0.10)$ bin, R1 expresses a weak but definite preference
+that the other judges may not share, driving agreement below the
+near-tie baseline.  Importantly, Kendall's~$W$ increases monotonically
+across all bins (0.17 $\to$ 0.29 $\to$ 0.43 $\to$ 0.57 $\to$ 0.71),
+confirming that full-ranking concordance improves steadily with gap
+size even when the binary ``who is best'' metric does not.
+
 Population-level model selection frequencies are consistent across judges
 (Table~\ref{tab:model_selection}), confirming that per-prompt disagreement
 does not propagate to the aggregate routing policy.
@@ -381,6 +410,91 @@ Claude-3.7-Sonnet & 35.1\% & 42.0\% & 22.8\% \\
 \end{tabular}
 \end{table}
 
+\subsubsection{End-to-End Regret Under an Alternative Judge}
+\label{sec:cross_judge_regret}
+
+The preceding analysis establishes that judges agree on the expected reward
+ordering and that cross-judge routing regret is small.  A remaining question
+is whether the bandit's \emph{learning dynamics}---convergence shape, sample
+complexity, and relative method ordering---are preserved when the reward
+signal comes from a different judge entirely.  We address this by re-running
+the bandit simulation under GPT-4.1-mini scores on the same prompts,
+comparing directly against R1.
+
+\paragraph{Protocol.}
+We split the 2{,}000 judge-robustness prompts into a stratified
+$\frac{1}{3}$~validation / $\frac{2}{3}$~test partition (672 / 1{,}328
+prompts).  The bandit performs online learning during the validation burn-in
+(no metrics), then cumulative regret is evaluated on the held-out test
+split.  Crucially, we use \textbf{cold-start} (Tabula~Rasa) only---no
+warmup priors---to eliminate any data-leakage concern between the
+judge-robustness subset and the training set used for prior estimation.
+This is deliberately the harder test: if the bandit converges from a cold
+start, warm-start robustness follows.  We compare Tabula~Rasa against a
+Random baseline (uniform $1/K$) under four budget regimes (unconstrained,
+tight, moderate, loose), with 20 seeds per condition.
+
+\paragraph{The bandit converges under both judges.}
+Figure~\ref{fig:cross_judge_regret} shows per-step cumulative regret under
+unconstrained routing.  Under R1, Tabula~Rasa achieves a final cumulative
+regret of $67.9 \pm 10.0$ (mean $\pm$ SE), compared to $107.3 \pm 0.7$ for
+Random---a \textbf{37\% reduction}.  Under GPT-4.1-mini, Tabula~Rasa
+achieves $47.9 \pm 10.4$ vs.\ $73.0 \pm 0.7$ for Random---a \textbf{34\%
+reduction}.  The near-identical reduction percentages (37\% vs.\ 34\%)
+demonstrate that the bandit's learning effectiveness is preserved across
+judges.  Both curves are sublinear with decreasing slope, indicating that
+the bandit progressively learns the reward structure regardless of evaluator.
+
+\paragraph{Effect sizes are compressed, learning dynamics are not.}
+The Random baseline's cumulative regret under GPT-4.1-mini (73.0) is 32\%
+lower than under R1 (107.3), consistent with GPT-4.1-mini's ${\sim}37\%$
+smaller inter-model margins.  The GPT/R1 regret ratio is stable across
+budget regimes (0.70--0.88; see summary table in
+Figure~\ref{fig:cross_judge_regret}), confirming proportional compression
+rather than a structural change in learning dynamics.  The wider confidence
+band under GPT-4.1-mini ($\pm 10.4$ vs.\ $\pm 10.0$) is comparable in
+absolute terms; expressed as a fraction of the mean regret, GPT-4.1-mini's
+relative SE (22\%) exceeds R1's (15\%), reflecting the harder discrimination
+problem when inter-model gaps are compressed.
+
+\paragraph{Budget-constrained behaviour is consistent.}
+Under budget constraints, the bandit appropriately trades quality for cost
+compliance under both judges.  The summary table in
+Figure~\ref{fig:cross_judge_regret} shows that Tabula~Rasa's regret
+increases with tighter budgets---reflecting the pacer's cost penalty.  The
+Random baseline is unconstrained across all regimes and therefore invariant.
+The qualitative pattern is identical across judges: tight budgets force more
+regret than moderate or loose budgets, and loose-budget regret approaches
+the unconstrained level.
+
+\paragraph{Why these results justify R1 as the sole judge.}
+If the bandit learns equally well under either evaluator, why use R1?
+Three reasons.  First, R1 provides larger inter-model margins
+(mean gap 0.049 vs.\ 0.034 for the panel average), which yield faster
+convergence and greater statistical power for detecting differences between
+methods.  Second, DeepSeek-R1 is substantially cheaper per evaluation than
+GPT-4.1-mini, making it the cost-efficient choice.  Third, this experiment
+demonstrates that the paper's \emph{conclusions}---method rankings,
+convergence behaviour, budget-pacing dynamics---are not artefacts of
+R1's scoring; it does not argue that GPT-4.1-mini would be an equally
+effective production judge.  R1 is the better instrument (higher SNR,
+lower cost), and this experiment shows that the findings generalise
+beyond it.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{experiments/appendix/judge_robustness/results/cross_judge_regret.pdf}
+    \caption{Cold-start bandit regret under R1 vs.\ GPT-4.1-mini evaluation
+    on the same 2{,}000 prompts.  \textbf{(A)}~Under R1, Tabula~Rasa reduces
+    cumulative regret by 37\% relative to Random.  \textbf{(B)}~Under
+    GPT-4.1-mini, the same mechanism achieves a 34\% reduction.  Shaded bands
+    show $\pm 1$~SE over 20 seeds.  The summary table reports Tabula~Rasa
+    cumulative regret (mean $\pm$ SE) across all four budget regimes with
+    the GPT/R1 ratio; the Random baseline (unconstrained, shown only in
+    the top row) is invariant across budget regimes.}
+    \label{fig:cross_judge_regret}
+\end{figure}
+
 \subsubsection{Scope and Limitations}
 
 This analysis validates reward \emph{consistency} across judges, not
@@ -390,8 +504,10 @@ per-prompt best-model agreement of ${\sim}50\%$ is an honest limitation
 of the LLM-as-judge paradigm: individual reward assignments are noisy.
 We have shown that this noise does not compromise the paper's
 conclusions, because the expected ordering is invariant, the cross-judge
-routing regret is small and bounded, and R1's decisions capture
-$\geq 97\%$ of any alternative judge's oracle reward.
+routing regret is small and bounded, R1's decisions capture
+$\geq 97\%$ of any alternative judge's oracle reward, and the bandit's
+learning dynamics replicate under GPT-4.1-mini evaluation
+(Figure~\ref{fig:cross_judge_regret}).
 
 We also note that R1 sees the largest contextual-routing benefit (oracle
 lift 0.031 vs.\ 0.016--0.020), so our main-paper effect sizes represent
@@ -413,25 +529,3 @@ smaller under a less discriminative evaluator.
     \label{fig:judge_scatter}
 \end{figure}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\linewidth]{experiments/appendix/judge_robustness/results/judge_bland_altman.pdf}
-    \caption{Bland--Altman agreement plots.  Solid black: mean difference;
-    dashed red: 95\% limits of agreement.  Claude-3.7-Sonnet is
-    approximately unbiased; GPT-4.1-mini shows a consistent $+0.04$
-    offset.  Neither judge exhibits proportional bias (the spread
-    does not widen with score level).}
-    \label{fig:judge_ba}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\linewidth]{experiments/appendix/judge_robustness/results/judge_gap_distribution.pdf}
-    \caption{Distribution of per-prompt reward gaps (best $-$ worst model)
-    by judge.  R1 (blue) produces the largest mean gap (0.192); GPT-4.1-mini
-    (orange) the smallest (0.140).  The gap rank order across prompts is
-    preserved (Pearson $r = 0.70$--$0.72$ between R1 and supplementary
-    judges' gaps), confirming that R1's larger gaps reflect a sharper
-    signal, not uncorrelated noise.}
-    \label{fig:judge_gap_dist}
-\end{figure}

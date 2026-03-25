@@ -18,82 +18,17 @@ Usage
 """
 from __future__ import annotations
 
-import json
-from collections import defaultdict
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 from scipy import stats as sp_stats
 
-from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
-
-SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
-SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"
-
-MODELS = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-    "google/gemini-2.5-pro",
-]
-MODEL_SHORT = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
-
-
-def load_all_scores() -> Dict[str, Dict[Tuple[str, str], float]]:
-    """Load R1 + supplementary scores keyed by judge name."""
-    prompts: Set[str] = set()
-    with open(SUBSET_PROMPTS_PATH) as f:
-        for line in f:
-            prompts.add(json.loads(line)["prompt"])
-
-    r1: Dict[Tuple[str, str], float] = {}
-    with open(PARETO_REWARDS_PATH) as f:
-        for line in f:
-            rec = json.loads(line)
-            if not rec.get("ok") or rec["prompt"] not in prompts:
-                continue
-            r1[(rec["prompt"], rec["model_id"])] = rec["raw_score"]
-
-    supp: Dict[str, Dict[Tuple[str, str], float]] = defaultdict(dict)
-    with open(SUPPLEMENTARY_REWARDS_PATH) as f:
-        for line in f:
-            rec = json.loads(line)
-            if not rec.get("ok"):
-                continue
-            key = (rec["prompt"], rec["model_id"])
-            for jd in rec.get("judge_details", []):
-                if "gpt-4.1-mini" in jd["judge"]:
-                    supp["GPT-4.1-mini"][key] = jd["reward"]
-                elif "claude-3.7-sonnet" in jd["judge"]:
-                    supp["Claude-3.7-Sonnet"][key] = jd["reward"]
-
-    return {"R1": r1, **dict(supp)}
-
-
-def build_prompt_matrices(
-    all_scores: Dict[str, Dict[Tuple[str, str], float]],
-) -> Tuple[List[str], Dict[str, np.ndarray]]:
-    """Build {judge: [n_prompts × n_models]} matrices on common keys."""
-    all_keys = set.intersection(
-        *[set(s.keys()) for s in all_scores.values()]
-    )
-    prompts_with_all = set()
-    for key in all_keys:
-        prompt, _ = key
-        if all((prompt, m) in all_keys for m in MODELS):
-            prompts_with_all.add(prompt)
-
-    prompt_list = sorted(prompts_with_all)
-    matrices: Dict[str, np.ndarray] = {}
-    for judge, scores in all_scores.items():
-        matrices[judge] = np.array([
-            [scores[(p, m)] for m in MODELS]
-            for p in prompt_list
-        ])
-    return prompt_list, matrices
+from judge_robustness_utils import (
+    MODELS,
+    MODEL_SHORT,
+    build_prompt_matrices,
+    load_all_scores,
+)
 
 
 def analyze() -> None:

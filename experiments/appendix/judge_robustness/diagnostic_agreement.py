@@ -15,99 +15,17 @@ Usage
 """
 from __future__ import annotations
 
-import json
-from collections import defaultdict
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 from scipy import stats
 
-from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
-
-SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
-SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"
-
-MODELS = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-    "google/gemini-2.5-pro",
-]
-MODEL_SHORT = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
-
-
-def load_all_scores() -> Dict[str, Dict[Tuple[str, str], float]]:
-    """Load R1 + supplementary scores into {judge: {(prompt, model): score}}.
-
-    Returns
-    -------
-    Dict[str, Dict[Tuple[str, str], float]]
-        Keyed by judge name: 'R1', 'GPT-4.1-mini', 'Claude-3.7-Sonnet'.
-    """
-    prompts: Set[str] = set()
-    with open(SUBSET_PROMPTS_PATH) as f:
-        for line in f:
-            prompts.add(json.loads(line)["prompt"])
-
-    r1: Dict[Tuple[str, str], float] = {}
-    with open(PARETO_REWARDS_PATH) as f:
-        for line in f:
-            rec = json.loads(line)
-            if not rec.get("ok") or rec["prompt"] not in prompts:
-                continue
-            r1[(rec["prompt"], rec["model_id"])] = rec["raw_score"]
-
-    supp: Dict[str, Dict[Tuple[str, str], float]] = defaultdict(dict)
-    with open(SUPPLEMENTARY_REWARDS_PATH) as f:
-        for line in f:
-            rec = json.loads(line)
-            if not rec.get("ok"):
-                continue
-            key = (rec["prompt"], rec["model_id"])
-            for jd in rec.get("judge_details", []):
-                if "gpt-4.1-mini" in jd["judge"]:
-                    supp["GPT-4.1-mini"][key] = jd["reward"]
-                elif "claude-3.7-sonnet" in jd["judge"]:
-                    supp["Claude-3.7-Sonnet"][key] = jd["reward"]
-
-    return {"R1": r1, **dict(supp)}
-
-
-def build_prompt_matrices(
-    all_scores: Dict[str, Dict[Tuple[str, str], float]],
-) -> Tuple[List[str], Dict[str, np.ndarray]]:
-    """Build per-prompt score matrices for each judge.
-
-    Returns
-    -------
-    Tuple[List[str], Dict[str, np.ndarray]]
-        (prompt_list, {judge: array of shape [n_prompts, n_models]}).
-    """
-    all_keys = set.intersection(
-        *[set(s.keys()) for s in all_scores.values()]
-    )
-    prompts_with_all = set()
-    for key in all_keys:
-        prompt, model = key
-        if all(
-            (prompt, m) in all_keys
-            for m in MODELS
-        ):
-            prompts_with_all.add(prompt)
-
-    prompt_list = sorted(prompts_with_all)
-    matrices: Dict[str, np.ndarray] = {}
-    for judge, scores in all_scores.items():
-        mat = np.array([
-            [scores[(p, m)] for m in MODELS]
-            for p in prompt_list
-        ])
-        matrices[judge] = mat
-
-    return prompt_list, matrices
+from judge_robustness_utils import (
+    MODELS,
+    MODEL_SHORT,
+    build_prompt_matrices,
+    load_all_scores,
+)
 
 
 def analyze() -> None:
@@ -161,6 +79,31 @@ def analyze() -> None:
                   f"R1 vs {j:20s} agree={agree:.1%}")
         print()
 
+    # ── 2b. Consensus-gap conditioned agreement ─────────────────────────
+    # Addresses circularity concern: conditioning on R1's gap bins when
+    # validating R1 can bias results.  Here we condition on the panel
+    # median gap (median across all 3 judges) as a judge-neutral proxy.
+    print("=" * 70)
+    print("2b. BEST-MODEL AGREEMENT CONDITIONED ON CONSENSUS (MEDIAN) GAP")
+    print("    Avoids circularity of conditioning on R1's own gap bins.")
+    print("=" * 70)
+    all_gaps = np.stack([
+        np.max(matrices[j], axis=1) - np.min(matrices[j], axis=1)
+        for j in judge_names
+    ], axis=0)
+    consensus_gaps = np.median(all_gaps, axis=0)
+
+    for lo, hi in zip(thresholds, thresholds[1:] + [1.0]):
+        mask = (consensus_gaps >= lo) & (consensus_gaps < hi)
+        n = mask.sum()
+        if n == 0:
+            continue
+        for j in ["GPT-4.1-mini", "Claude-3.7-Sonnet"]:
+            agree = np.mean(best_models["R1"][mask] == best_models[j][mask])
+            print(f"  Consensus gap [{lo:.2f}, {hi:.2f}) n={n:4d}: "
+                  f"R1 vs {j:20s} agree={agree:.1%}")
+        print()
+
     # ── 3. Routing regret ────────────────────────────────────────────────
     print("=" * 70)
     print("3. ROUTING REGRET (reward lost by following judge X's oracle")
@@ -210,6 +153,15 @@ def analyze() -> None:
         n = mask.sum()
         if n > 0:
             print(f"    Gap [{lo:.2f}, {hi:.2f}) n={n:4d}: "
+                  f"mean W={np.mean(w_arr[mask]):.3f}")
+    print()
+
+    print("  Kendall W by CONSENSUS (median) gap size:")
+    for lo, hi in zip(thresholds, thresholds[1:] + [1.0]):
+        mask = (consensus_gaps >= lo) & (consensus_gaps < hi)
+        n = mask.sum()
+        if n > 0:
+            print(f"    Consensus gap [{lo:.2f}, {hi:.2f}) n={n:4d}: "
                   f"mean W={np.mean(w_arr[mask]):.3f}")
     print()
 

@@ -28,13 +28,22 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
 from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
+
+from judge_robustness_utils import (
+    CB_BLUE,
+    CB_GRAY,
+    CB_GREEN,
+    CB_ORANGE,
+    CB_RED,
+    JUDGE_PLOT_META as JUDGE_META,
+    lins_ccc,
+    setup_matplotlib as _setup_matplotlib,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,67 +56,10 @@ SUBSET_PROMPTS_PATH = CALIBRATION_DIR / "judge_robustness_prompts.jsonl"
 SUPPLEMENTARY_REWARDS_PATH = CALIBRATION_DIR / "judge_robustness_rewards.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
-# ── Visual constants ──────────────────────────────────────────────────────
-CB_BLUE = "#0072B2"
-CB_ORANGE = "#E69F00"
-CB_GREEN = "#009E73"
-CB_RED = "#D55E00"
-CB_GRAY = "#999999"
-
-JUDGE_META = {
-    "openai/gpt-4.1-mini": {"short": "GPT-4.1-mini", "color": CB_ORANGE},
-    "anthropic/claude-3.7-sonnet": {"short": "Claude-3.7-Sonnet", "color": CB_GREEN},
-}
-
-
-def _setup_matplotlib() -> None:
-    """Configure matplotlib for publication-quality output."""
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.size": 9,
-        "axes.labelsize": 10,
-        "axes.titlesize": 10.5,
-        "legend.fontsize": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        "figure.dpi": 300,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.05,
-    })
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # Agreement metrics
 # ══════════════════════════════════════════════════════════════════════════
-
-
-def lins_ccc(x: np.ndarray, y: np.ndarray) -> float:
-    """Lin's Concordance Correlation Coefficient.
-
-    Measures agreement on the identity line, combining precision (Pearson r)
-    with accuracy (how far the best-fit line deviates from y=x).  Unlike
-    Pearson, CCC is penalised by both scale shift and location shift.
-
-    Parameters
-    ----------
-    x, y:
-        Paired measurements of equal length.
-
-    Returns
-    -------
-    float
-        CCC in [-1, 1].  Values near 1 indicate near-perfect agreement.
-
-    References
-    ----------
-    Lin, L.I. (1989). A concordance correlation coefficient to evaluate
-    reproducibility. *Biometrics*, 45(1), 255-268.
-    """
-    mx, my = np.mean(x), np.mean(y)
-    sx2, sy2 = np.var(x, ddof=1), np.var(y, ddof=1)
-    sxy = np.cov(x, y, ddof=1)[0, 1]
-    return float(2.0 * sxy / (sx2 + sy2 + (mx - my) ** 2))
 
 
 def compute_agreement_metrics(
