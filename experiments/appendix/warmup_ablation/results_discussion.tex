@@ -3,359 +3,172 @@
 \subsection{Cold-Start vs Warmup Priors (Figure~\ref{fig:warmup_ablation})}
 \label{sec:warmup_ablation}
 
-We isolate the contribution of warmup priors by comparing
-ParetoBandit with offline priors against a tabula-rasa cold start
-(identity covariance, zero bias) on the $K{=}3$ stationary portfolio
-under four budget regimes: unconstrained (no pacer), tight
+We isolate the contribution of warmup priors with two complementary
+comparisons on the $K{=}3$ stationary portfolio under four budget
+regimes: unconstrained (no pacer), tight
 ($B{=}\$3.0{\times}10^{-4}$/req), moderate
 ($B{=}\$6.6{\times}10^{-4}$/req), and loose
 ($B{=}\$1.87{\times}10^{-3}$/req).
-Each condition uses its own optimal hyperparameters from the
-Experiment~05 Pareto knee-point sweep: ParetoBandit uses
-$\alpha{=}0.01$, $n_\mathit{eff}{=}1{,}163.9$,
-$\gamma{=}0.997$; Tabula Rasa uses $\alpha{=}0.01$,
-$n_\mathit{eff}{=}1$, $\gamma{=}0.995$ (disjoint LinUCB).
-Budget-constrained conditions use the Primal-Dual BudgetPacer
-with the same learning rate and $\lambda_{\max}$ as Experiment~01.
-Following the standard contextual-bandit cumulative-regret
-protocol, the router learns and is evaluated simultaneously on
-the held-out test split ($n{=}1{,}824$, disjoint from warmup-prior
-training on \texttt{train.jsonl} and hyperparameter selection on
-\texttt{val.jsonl}).
+
+\paragraph{Q1: Deployment comparison (``best vs best'').}
+ParetoBandit (warmup) uses its own Pareto-knee hyperparameters
+($\alpha{=}0.01$, $n_\mathit{eff}{=}1{,}163.9$,
+$\gamma{=}0.997$); Tabula Rasa uses its own
+($\alpha{=}0.01$, $n_\mathit{eff}{=}1$, $\gamma{=}0.995$).
+This answers the deployment-relevant question: should a practitioner
+enable warmup priors?
+
+\paragraph{Q2: Mechanistic control (matched-$\gamma$).}
+Because the Pareto-knee sweep selects a different forgetting factor
+for each condition ($\gamma{=}0.997$ for warmup vs.\ $0.995$ for
+Tabula Rasa), the ``best vs best'' comparison confounds the prior
+contribution with the effect of longer memory (${\sim}333$ vs.\
+${\sim}200$ effective-memory steps).
+A matched-$\gamma$ control runs Tabula Rasa at warmup's
+$\gamma{=}0.997$ (cold start, $n_\mathit{eff}{=}1$), isolating
+the prior contribution at matched memory length.
 
 \begin{center}
 \small
 \begin{tabular}{@{}lcccc@{}}
 \toprule
-\textbf{Condition} & $\boldsymbol{\alpha}$ & $\boldsymbol{n_\mathit{eff}}$ & $\boldsymbol{\gamma}$ & \textbf{Source} \\
+\textbf{Condition} & $\boldsymbol{\alpha}$ & $\boldsymbol{n_\mathit{eff}}$ & $\boldsymbol{\gamma}$ & \textbf{Source / Role} \\
 \midrule
 Warmup (ParetoBandit) & $0.01$ & $1{,}163.9$ & $0.997$ & \textsc{Best\_K3\_Hparams} \\
 Tabula Rasa           & $0.01$ & $1.0$       & $0.995$ & \textsc{Best\_K3\_Tabula\_Rasa\_Hparams} \\
+TR (matched-$\gamma$) & $0.01$ & $1.0$       & $0.997$ & Mechanistic control \\
 \bottomrule
 \end{tabular}
+\end{center}
 
-\vspace{0.5em}
+\paragraph{Statistical methodology.}
+Two complementary tests formalise each comparison:
+\begin{itemize}[nosep,leftmargin=*]
+  \item The \textbf{sign test} (exact binomial) asks whether warmup
+    has lower regret seed-by-seed (location shift).
+    H$_0$: P(warmup wins)${}= 0.5$.
+  \item The \textbf{Fisher exact test} on a $2{\times}2$
+    catastrophic-failure table asks whether warmup has fewer
+    catastrophic failures (tail risk).
+    H$_0$: equal failure rates.
+\end{itemize}
+The catastrophic threshold for each budget regime is
+$2{\times}$ the \emph{pooled} median across all conditions in
+that regime (warmup, Tabula Rasa, and matched-$\gamma$), ensuring
+no single condition anchors the threshold.
+All $p$-values are corrected for multiplicity via the
+Holm--Bonferroni procedure across the full family of tests.
 
+\medskip\noindent
+\textbf{Results table.}
+%% NOTE: populate the table below from warmup_ablation_results.json
+%% after re-running the experiment with the matched-γ control.
+
+\begin{center}
+\small
 \begin{tabular}{@{}llrrrrrcc@{}}
 \toprule
-\textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Std} & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{Cat.} & $p_\text{sign}$ & $p_\text{Fisher}$ \\
+\textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Std} & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{Cat.} & $p_\text{sign}^*$ & $p_\text{Fisher}^*$ \\
 \midrule
-None     & Warmup      & $\mathbf{55.0}$\,[54.3, 55.7]    & $1.6$   & $\mathbf{6.2}$\,[5.8, 6.6]    & $\mathbf{0.933}$ & 0/20 & $<10^{-6}$ & $0.010$ \\
-         & Tabula Rasa & $115.5$\,[83.2, 154.2]            & $82.2$  & $17.8$\,[12.8, 23.2]           & $0.900$           & 6/20 & & \\
-         & Random      & $146.5$\,[144.4, 148.8]           & $5.0$   & $16.0$\,[15.1, 17.0]           & $0.883$           & ---  & --- & --- \\
+None     & Warmup           & \textit{re-run} & & & & & & \\
+         & Tabula Rasa      & \textit{re-run} & & & & & & \\
+         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
+         & Random           & \textit{re-run} & & & & --- & --- & --- \\
 \midrule
-Tight    & Warmup      & $\mathbf{161.2}$\,[159.1, 163.1]  & $4.6$   & $\mathbf{19.5}$\,[18.0, 21.0] & $\mathbf{0.875}$ & 0/20 & $<10^{-4}$ & $1.00$ \\
-         & Tabula Rasa & $255.6$\,[227.3, 282.6]            & $63.1$  & $29.8$\,[26.9, 32.6]           & $0.823$           & 0/20 & & \\
+Tight    & Warmup           & \textit{re-run} & & & & & & \\
+         & Tabula Rasa      & \textit{re-run} & & & & & & \\
+         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
 \midrule
-Moderate & Warmup      & $133.9$\,[129.0, 138.7]           & $11.0$  & $\mathbf{14.7}$\,[12.9, 16.6] & $\mathbf{0.890}$ & 0/20 & $0.41$ & $\mathbf{0.002}$ \\
-         & Tabula Rasa & $194.0$\,[150.3, 237.2]           & $97.8$  & $26.0$\,[21.5, 30.3]           & $0.857$           & 8/20 & & \\
+Moderate & Warmup           & \textit{re-run} & & & & & & \\
+         & Tabula Rasa      & \textit{re-run} & & & & & & \\
+         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
 \midrule
-Loose    & Warmup      & $\mathbf{83.6}$\,[81.3, 85.9]    & $5.1$   & $\mathbf{8.6}$\,[8.2, 9.1]   & $\mathbf{0.918}$ & 0/20 & $0.021$ & $\mathbf{0.002}$ \\
-         & Tabula Rasa & $163.4$\,[125.9, 202.6]           & $88.3$  & $25.0$\,[20.6, 29.1]          & $0.874$           & 8/20 & & \\
+Loose    & Warmup           & \textit{re-run} & & & & & & \\
+         & Tabula Rasa      & \textit{re-run} & & & & & & \\
+         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
 Twenty seeds; 95\% bootstrap CI; test split ($n{=}1{,}824$).
-\textbf{Cat.}\ = catastrophic failures (regret $> 2\times$ warmup median).
-$p_\text{sign}$: exact sign test on per-seed regret
-(H$_0$: P(warmup wins)${}= 0.5$); tests whether warmup has
-lower regret seed-by-seed (location).
+$^*$Holm--Bonferroni corrected.
+\textbf{Cat.}\ = catastrophic failures (regret $> 2\times$
+\emph{pooled} median of all conditions in each budget regime).
+$p_\text{sign}$: exact sign test on per-seed regret.
 $p_\text{Fisher}$: one-sided Fisher exact test on the $2{\times}2$
-catastrophic-failure table (H$_0$: equal failure rates); tests whether
-warmup reduces tail risk.
-The two tests answer complementary questions: at moderate and loose
-budgets, warmup does \emph{not} consistently beat tabula rasa
-seed-by-seed ($p_\text{sign} > 0.05$), but it \emph{does} significantly
-reduce catastrophic failure ($p_\text{Fisher} < 0.005$).
-Tabula rasa's bimodal regret distribution precludes Wilcoxon's
-symmetry assumption.
+catastrophic-failure table.
 
-\paragraph{Unconstrained.}
-Without a budget pacer, warmup priors reduce total regret by 10\%
-($74.5$ vs.\ $83.1$; $\Delta{=}-8.7$, $p < 10^{-5}$) and
-early regret (R@200) by 47\%
-($6.6$ vs.\ $12.5$).
-The advantage is concentrated in the first ${\sim}200$~steps
-(Figure~\ref{fig:warmup_ablation}), where the warmup router begins
-with informed arm-quality estimates and avoids the exploratory phase
-that the cold-start router must perform.  Beyond step~${\sim}400$,
-the two routers converge, but the regret gap established early
-persists through the full horizon.
+%% After re-running, populate the narrative paragraphs below with
+%% actual numbers from warmup_ablation_results.json.
+%% The matched-γ control answers Q2: if warmup still beats matched-γ
+%% with the same gamma, the advantage is attributable to priors.
+%% If the gap closes, gamma was doing most of the work.
 
-\paragraph{Tight budget.}
-Under a tight budget warmup produces dramatically more reliable
-outcomes ($161.2$ vs.\ $229.5$; $\Delta{=}-68.3$, $p < 10^{-3}$).
-The mean comparison understates the effect: Tabula Rasa's per-seed
-regret is \emph{bimodal}, splitting into 11 ``good'' seeds
-(regret~${\sim}160$--$179$, comparable to warmup) and 9
-``catastrophic'' seeds (regret~${\sim}300$--$310$).
-The mechanism is the budget pacer: when early UCB-driven exploration
-probes Gemini-Pro (${\sim}29{\times}$ costlier than Mistral-Large:
-\$0.0151/req vs.\ \$0.0005/req in our dataset), the dual variable
-$\lambda$ spikes, the pacer penalises all future expensive-arm
-selections, and the router becomes locked into a suboptimal cheap
-arm for the remainder of the horizon.
-Seeds where early exploration happens to avoid the expensive arm
-converge normally.
-Warmup priors, already knowing each arm's quality profile, avoid
-this trap entirely: all 20~seeds fall within a $4.6$-std band.
+\paragraph{Deployment comparison (Q1).}
+%% TODO: fill with actual numbers after re-run.
+%% Report: warmup vs TR total regret, R@200, sign test p, Fisher p
+%% for each budget regime.
 
-\paragraph{Moderate budget.}
-The sign test reports no significant location shift
-($11/20$ warmup wins, $p_\text{sign}{=}0.41$)---warmup does
-\emph{not} consistently beat Tabula Rasa seed-by-seed.
-This is because the ``good'' Tabula Rasa seeds (15/20,
-regret~$73$--$121$) actually achieve \emph{lower} regret than
-warmup's $114$--$155$, benefiting from a fortunate exploration
-path through cheap arms and enough budget headroom for
-convergence.
-The remaining 5~seeds catastrophically fail at $222$--$307$,
-producing a 35\% catastrophic failure rate that the Fisher test
-detects as highly significant ($p_\text{Fisher}{=}0.004$).
-The mean comparison ($133.9$ vs.\ $182.4$) averages excellent
-lucky outcomes with catastrophic unlucky ones; it is neither a
-reliable summary of Tabula Rasa's typical performance nor
-evidence that warmup is unnecessary.
-
-Warmup's $\mathit{std}{=}11.0$ at moderate budget is notably
-wider than at tight ($4.6$) or loose ($5.1$).
-The arm fractions explain why: at tight budget, the constraint is
-so binding that all seeds converge to the same cheap-arm mix
-(Llama 45\%, Mistral 55\%, Gemini 0\%)---no room for
-seed-dependent variation.
-At loose budget, the constraint barely binds and warmup routes
-near-optimally.
-But at moderate budget, the pacer's dual variable $\lambda$ sits
-at the margin between two operating regimes: small
-seed-dependent differences in early exploration lead to different
-$\lambda$ trajectories, which compound into a wider spread of
-final regret.
-This is the same mechanism that produces Tabula Rasa's
-catastrophic failures, heavily attenuated because warmup's priors
-prevent the worst-case $\lambda$ spike.
-The violin plot (Figure~\ref{fig:warmup_ablation}) may suggest
-apparent bimodality in warmup's moderate-budget distribution, but
-this is a KDE smoothing artifact: warmup's 40-point range with a
-9-point largest gap is well within normal sampling variation for
-$n{=}20$ ($\mathit{CV}{=}8.2\%$ vs.\ Tabula Rasa's
-$52.6\%$).
-
-\paragraph{Loose budget.}
-Under a loose budget ($B{=}\$1.87{\times}10^{-3}$/req) the
-constraint is permissive enough that the router can freely
-select most arms, yet the bimodal failure mode persists.
-The sign test again shows no significant location shift
-($12/20$ warmup wins, $p_\text{sign}{=}0.25$), because
-12~of 20 Tabula Rasa seeds achieve $73$--$172$---comparable to
-or better than warmup's consistently moderate $83.6$
-($\mathit{std}{=}5.1$).
-However, the remaining 8~seeds catastrophically fail
-(regret~${\sim}269$--$304$), producing a 40\% catastrophic
-failure rate ($p_\text{Fisher}{=}0.002$).
-Even a loose budget constraint is sufficient to trigger the
-pacer--exploration interaction that produces catastrophic seeds.
+\paragraph{Mechanistic control (Q2).}
+%% TODO: fill with warmup vs matched-γ comparison.
+%% Key question: does warmup still beat matched-γ at matched gamma?
+%% If yes → priors are the active ingredient.
+%% If the gap closes substantially → gamma was confounded.
 
 \paragraph{Cold-start bimodality.}
 The budget-stratified results reveal a qualitative finding
 beyond mean regret reduction: Tabula Rasa's per-seed regret is
-\emph{bimodal} under every budget constraint tested.
-Figure~\ref{fig:warmup_ablation} visualises this directly:
-under tight constraints, 9/20 seeds ($45\%$) catastrophically
-fail; under moderate constraints, 5/20 ($25\%$); under loose
-constraints, 7/20 ($35\%$).
-The bimodality is not noise---it is a deterministic consequence of
-the interaction between UCB exploration and the budget pacer.
-The cold-start router has high initial uncertainty over all arms,
-so UCB occasionally selects the expensive frontier arm
-(Gemini-Pro) during early exploration.  This triggers a
-dual-variable spike in the primal-dual pacer, which then penalises
-\emph{all} future expensive-arm selections.
-Because information about the expensive arm was incomplete when the
-pacer locked it out, the router is unable to learn the arm's true
-quality and remains stuck exploiting a suboptimal cheap arm.
+\emph{bimodal} under every budget constraint tested
+(Figure~\ref{fig:warmup_ablation}).
+The bimodality is a deterministic consequence of the interaction
+between UCB exploration and the budget pacer: the cold-start router
+has high initial uncertainty, so UCB occasionally selects the
+expensive frontier arm (Gemini-Pro) during early exploration.
+This triggers a dual-variable spike in the primal-dual pacer,
+which then penalises all future expensive-arm selections,
+permanently locking out the expensive arm before its quality
+is learned.
 Seeds where early exploration happens to probe cheap arms first
-avoid this trap and converge normally---producing the ``good'' mode.
-
-Warmup priors break this dynamic by providing informed initial
-quality estimates, so the router never needs to waste budget
-on uninformative early exploration of expensive arms.
-The result is zero catastrophic seeds across all 80 budget-warmup
-trials ($4 \text{ regimes} \times 20 \text{ seeds}$).
-
-\paragraph{Statistical summary.}
-Two complementary tests formalise these findings:
-\begin{itemize}[nosep,leftmargin=*]
-  \item The \textbf{sign test} asks whether warmup has lower regret
-    seed-by-seed (location shift).  It is significant for
-    unconstrained ($p < 10^{-6}$) and tight ($p < 10^{-3}$)
-    budgets---where warmup consistently wins---but not for moderate
-    ($p{=}0.41$) or loose ($p{=}0.25$), where ``lucky'' Tabula
-    Rasa seeds outperform warmup.
-  \item The \textbf{Fisher exact test} asks whether warmup has
-    fewer catastrophic failures (tail risk).  It is significant at
-    moderate ($p{=}0.004$) and loose ($p{=}0.002$) budgets---precisely
-    where the sign test is not---because 35--40\% of Tabula Rasa
-    seeds catastrophically fail while warmup has zero failures.
-\end{itemize}
-These tests are not contradictory: they answer different questions.
-At moderate budget, warmup does not consistently beat Tabula Rasa
-seed-by-seed (the lucky TR seeds do fine), but it \emph{does}
-eliminate the 35\% chance of catastrophic failure.
-The mean $\pm$ CI presentation obscures this structure: a
-``non-significant'' mean comparison averages over a bimodal
-baseline, not evidence that warmup is unnecessary.
-The operationally relevant metric is the catastrophic failure
-rate, which warmup reduces from 25--45\% to zero.
+avoid this trap and converge normally.
+The matched-$\gamma$ control clarifies whether this bimodality
+arises from the missing priors or from the different forgetting
+rate in the ``best vs best'' comparison.
 
 \paragraph{Discussion.}
-The budget-stratified results sharpen the recommendation:
-warmup priors deliver both mean regret reduction \emph{and}
-catastrophic failure elimination.
-The former is largest in the unconstrained regime ($p < 10^{-5}$)
-where early exploration freely wastes budget on expensive arms;
-under budget constraints the mean advantage grows further
-(e.g.\ $\Delta{=}-68$ at tight budget) because catastrophic
-seeds inflate the Tabula Rasa mean.
-The latter---zero catastrophic seeds vs.\ 25--45\%---is arguably
-the more deployment-relevant benefit, since production systems
-cannot re-roll their random seed.
+Warmup priors are best understood as a \emph{deployment
+reliability mechanism}: they eliminate both the cold-start
+transient and the catastrophic pacer-interaction failure mode.
+The warmup benefit is transient by design---geometric forgetting
+($\gamma{=}0.997$) replaces priors within ${\sim}333$
+effective-memory steps; after sufficient learning, warmup and
+tabula-rasa conditions converge
+(Appendix~\ref{appendix:val_burnin_ablation}).
+Under budget constraints, however, catastrophic seeds never
+recover because the budget pacer's dual variable permanently
+locks out the expensive arm.
 
-Importantly, the warmup benefit is \emph{transient by design}.
-The convergence beyond step~${\sim}400$ visible in the
-unconstrained regime is a direct consequence of
-geometric forgetting ($\gamma{=}0.997$): after ${\sim}333$
-effective-memory steps, online evidence dominates and the
-initialisation contributes little.
-Appendix~\ref{appendix:val_burnin_ablation} confirms this
-quantitatively: after a full validation burn-in
-($1{,}785$ steps), warmup and tabula-rasa conditions are
-statistically indistinguishable on test regret ($60.4$ vs.\
-$68.5$, $p_\mathrm{adj}{=}0.45$ after Bonferroni correction),
-with the residual nominal gap attributable to the different
-forgetting rates ($\gamma{=}0.997$ vs.\ $0.995$, yielding
-${\sim}333$ vs.\ ${\sim}200$ effective-memory steps).
-Under budget constraints, however, the catastrophic seeds
-\emph{never} recover, because the budget pacer's dual variable
-permanently locks out the expensive arm.
-Warmup priors are therefore best understood as a
-\emph{deployment reliability mechanism}---they eliminate both
-the cold-start transient and the catastrophic pacer-interaction
-failure mode.
+Importantly, these gains assume the prior is directionally correct.
+A dedicated prior-mismatch sensitivity analysis
+(Appendix~\ref{appendix:prior_mismatch}) quantifies trade-offs
+across five quality levels---from well-calibrated through
+domain-restricted to actively inverted priors.
 
 \paragraph{Business perspective.}
 Intelligent LLM routing delivers simultaneous quality and cost
 gains because no single model dominates all queries.
-In our $K{=}3$ portfolio, oracle routing---selecting the per-query
-best model---achieves 3.3\% higher quality than routing all
-traffic to the frontier model
-($(0.963 - 0.932)/0.932$; mean reward on the test split)
-while reducing per-request cost by 66\%
-($(1 - 0.005/0.015)$; mean oracle cost vs.\ mean Gemini-2.5-Pro
-cost on the test split, at March 2026 API pricing of
-\$1.25/M input and \$10.00/M output
-tokens\footnote{Google Cloud Vertex AI pricing,
-\url{https://cloud.google.com/vertex-ai/generative-ai/pricing},
-accessed March 2026.}).
-This dual improvement---better quality \emph{and} lower
-cost---arises because the frontier model is not universally
-best: in our test split, a cheaper model strictly outscores
-Gemini-2.5-Pro on 35\% of prompts (and ties on a further
-37\%), so Gemini is the unique best choice on only 27\% of
-queries.
-The direction of the result is consistent with RouteLLM, which
-shows that routers can maintain $>$95\% of frontier quality at
-$>$50\% lower cost in a $K{=}2$
-setting~\cite{ong2024routellm}.
-
-To illustrate the scale at which these per-request differences
-compound, we project to enterprise traffic volumes.
-Azure OpenAI Service alone reports 230{,}000 organisational
-deployments processing over 100~trillion tokens per
-quarter~\cite{azure2025stats}; a mid-sized deployment
-handling $10^5$--$10^6$ queries/day is well within this range.
-The per-request cost gap between frontier-only and oracle
-routing in our portfolio is
-$\$0.0151 - \$0.0051 = \$0.0100$/req, so
-$10^5 \times \$0.010 \times 365 = \$365\text{K/year}$,
-scaling linearly to ${\sim}\$3.7\text{M}$ at $10^6$ daily
-requests---with no quality sacrifice, since oracle routing
-\emph{improves} quality over the single-model baseline.
-
-Within this context, warmup priors protect routing quality during
-the critical---but transient---cold-start window.
-Under tight budgets, the 30\% regret reduction
-($(229.5 - 161.2)/229.5$; $p < 10^{-3}$) represents a substantial
-fraction of the router's total quality--cost value recovered solely
-by starting with informed priors.
-Applying the same projection:
-$0.30 \times \$365\text{K} \approx \$110\text{K/year}$ at $10^5$
-daily requests, rising to ${\sim}\$1.1\text{M}$ at $10^6$.
-Critically, the mean understates the deployment risk:
-45\% of Tabula Rasa seeds incur ${\sim}2{\times}$ the regret of
-successful seeds, so a cold-start deployment is effectively a
-coin flip on whether the router enters a catastrophic failure
-mode.
-The early regret reduction (R@200) is even starker:
-47\% in the unconstrained regime
-($6.6\,[6.2,\,7.1]$ vs.\ $12.5\,[10.9,\,14.1]$)
-and 8\% under a tight budget
-($21.8\,[20.0,\,23.6]$ vs.\ $23.8\,[21.7,\,26.0]$).
-In production, these first few hundred queries correspond to
-the initial deployment window where user trust is most
-fragile---precisely when suboptimal routing is costliest.
-
+In our $K{=}3$ portfolio, oracle routing achieves 3.3\% higher
+quality than routing all traffic to the frontier model while
+reducing per-request cost by 66\%.
+Warmup priors protect routing quality during the critical but
+transient cold-start window.
+%% TODO: after re-run, report specific regret reduction percentages
+%% and catastrophic failure rates from the new results.
 These projections are illustrative: the per-request costs are
 specific to our three-model portfolio and March 2026 pricing,
-and the traffic volumes are drawn from public platform
-statistics rather than a single organisation's logs.
-Actual savings depend on the specific model mix, prompt
-distribution, and pricing at deployment time.
-Nevertheless, warmup priors are easy to justify when
-calibrated on representative data: computing them from a
-labelled offline dataset takes minutes and requires no ongoing
-maintenance~\cite{kveton2023warmstart}.
-The key practical lever is $n_\mathit{eff}$, which controls
-how strongly the prior anchors the router.
-With well-calibrated priors (as in our experiments),
-$n_\mathit{eff}{=}1{,}164$ lets the router exploit prior
-knowledge immediately.
-When prior quality is uncertain---e.g., the offline dataset
-comes from a different prompt distribution or from stale model
-versions---a lower $n_\mathit{eff}$ (e.g., 10--100) gives
-the router a gentle initial nudge while preserving enough
-exploration for rapid online correction.
-A dedicated prior-mismatch sensitivity analysis
-(Appendix~\ref{appendix:prior_mismatch}) quantifies these
-trade-offs across five quality levels---from well-calibrated
-through domain-restricted to actively inverted priors.
-The results show that \emph{directionally correct} priors
-(including domain-mismatched priors trained exclusively on MMLU
-or GSM8K prompts) consistently reduce regret relative to a cold
-start at every $n_\mathit{eff}$ tested ($p < 0.05$ for
-$n_\mathit{eff} \geq 100$), confirming that partial domain
-coverage does not harm the router.
-However, \emph{systematically wrong} priors---where the best
-and worst models are inverted---cause measurable harm that
-\emph{scales with} $n_\mathit{eff}$: at $n_\mathit{eff}{=}10$
-the damage is statistically non-significant ($p{=}0.055$),
-but at $n_\mathit{eff}{=}1{,}000$ regret increases by 13\%
-over cold start ($p < 10^{-6}$).
-The practical recommendation is therefore conditional:
-enable warmup priors whenever the prior is known to be
-directionally correct (i.e., the model-quality ranking it
-encodes is not systematically inverted), setting
-$n_\mathit{eff}$ to reflect confidence in calibration
-quality---high when the offline data closely matches deployment
-traffic, low otherwise.
-If prior quality is entirely unknown, a conservative
-$n_\mathit{eff}$ (10--100) limits worst-case exposure while
-still offering early-regret reduction on any non-adversarial
-prior (Appendix~\ref{appendix:prior_mismatch},
-Figure~\ref{fig:prior_mismatch_heatmap}).
-The computational cost of warmup priors is negligible, and the
-upside---at enterprise scale, where LLM API spend surpassed
-\$8.4B by mid-2025~\cite{menlo2025llmmarket}---is economically
-meaningful.
-
+and the traffic volumes are drawn from public platform statistics
+rather than a single organisation's logs.
+Nevertheless, warmup priors are easy to justify when calibrated
+on representative data: computing them from a labelled offline
+dataset takes minutes and requires no ongoing
+maintenance~\cite{oetomo2023warmstart}.
