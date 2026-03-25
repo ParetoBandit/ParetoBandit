@@ -131,7 +131,7 @@ After Holm correction, these reductions are directionally consistent
 but individually non-significant at 20~seeds
 (Holm-corrected $p \geq 0.15$ for all domain-mismatched conditions).
 Crucially, no domain-mismatched prior \emph{increases} median regret
-at any $n_\mathit{eff}$: partial knowledge is always at least as good
+at any $n_\mathit{eff}$: partial knowledge is consistently at least as good
 as no knowledge.
 
 \emph{Inverted priors cause harm that scales with $n_\mathit{eff}$.}
@@ -177,7 +177,7 @@ $(1{-}\prmGammaCondCatPct/100)^{15 \times \prmNseeds} \approx 10^{-38}$---strong
 the prior confers a genuine reliability benefit regardless of
 calibration quality.
 
-This reliability guarantee is arguably more deployment-relevant
+This reliability benefit is arguably more deployment-relevant
 than the regret reduction.
 The warmup ablation (Appendix~\ref{sec:warmup_ablation}) shows that
 under budget constraints, Tabula Rasa's heavy tail becomes
@@ -185,16 +185,16 @@ catastrophic: 40\% of seeds fail at moderate and loose budgets
 ($p_\text{Fisher}{=}0.002$), while warmup priors eliminate
 this failure mode entirely.
 The present experiment extends that finding: the reliability
-guarantee is \emph{robust to prior degradation}.
+benefit is \emph{robust to prior degradation}.
 Operators who can only collect 1,680 prompts from a roughly
-representative distribution, or who must reuse priors from a
+representative distribution, or who need to reuse priors from a
 related domain, retain the same variance reduction as those
 with a perfectly calibrated 8K-prompt training set.
 
 \paragraph{Practical implications.}
-The prior-quality threshold for harm is high: priors must be
+The prior-quality threshold for harm is high: priors need to be
 \emph{actively wrong} (inverting model rankings) before they degrade
-performance.  The reliability guarantee---tight, unimodal distributions
+performance.  The reliability benefit---tight, unimodal distributions
 vs.\ Tabula Rasa's heavy tail---is robust across the entire quality
 gradient.
 The $n_\mathit{eff}$ parameter serves as a safety knob:

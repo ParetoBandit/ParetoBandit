@@ -11,10 +11,11 @@ $\gamma$---interact non-trivially with stationarity.
 Standard cross-validation optimises a single stationary metric,
 which selects $\gamma \geq 0.999$ because forgetting always hurts
 stationary performance.  However, $\gamma{=}1.0$ fails under
-non-stationarity (Section~\ref{sec:eval_nonstationary}: $+34\%$
-regret after a mid-stream price change), while optimising solely for adaptability
+non-stationarity (Section~\ref{sec:eval_catastrophic}: infinite memory
+retains stale pre-failure evidence, slowing adaptation to quality
+degradation), while optimising solely for adaptability
 yields excessive forgetting that destabilises the stationary policy.
-\emph{A good hyperparameter configuration must balance stationary
+\emph{A good hyperparameter configuration should balance stationary
 efficiency against non-stationary recovery.}
 
 Among bandit-based LLM routers we surveyed, none addresses this tension directly:
@@ -78,7 +79,7 @@ configuration on two objectives:
     two-phase simulation on the validation split---Phase~1 (first
     half) with normal rewards, Phase~2 (second half) with the failed
     arm's reward degraded to $0.50$ (${\sim}46$\% below normal) while cost remains unchanged.
-    A stronger degradation than Experiment~3's $\cfFailureReward$ is used because the tuning objective must discriminate gamma values on detection speed from the reward signal alone; the recovery limit study (Appendix~\ref{appendix:recovery_limit}) confirms the system handles degradations well beyond this level.
+    A stronger degradation than Experiment~3's $\cfFailureReward$ is used because the tuning objective needs to discriminate gamma values on detection speed from the reward signal alone; the recovery limit study (Appendix~\ref{appendix:recovery_limit}) confirms the system handles degradations well beyond this level.
     Mean Phase-2 reward captures how quickly the router detects the
     failure and reallocates traffic.
     We tune on Mistral failure, the most operationally stressful
@@ -188,7 +189,7 @@ $\hpTabulaTestAUC$ for Tabula Rasa.
 Because the Phase-2 objective was tuned on Mistral failure
 alone---the most operationally stressful scenario, as it is
 the dominant arm across the widest range of budget
-targets---we must verify that the selected forgetting rate
+targets---we should verify that the selected forgetting rate
 generalises.
 Table~\ref{tab:cross_arm_validation} evaluates the knee-point
 configuration against catastrophic failure of each of the

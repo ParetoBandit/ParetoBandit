@@ -2,7 +2,7 @@
 \label{sec:conclusion}
 
 We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting.
-Production LLM serving is inherently non-stationary: providers revise pricing, model quality can regress silently, and new endpoints must be absorbed without downtime, and ParetoBandit is the first router evaluated under all of them.
+Production LLM serving is inherently non-stationary: providers revise pricing, model quality can regress silently, and new endpoints need to be absorbed without downtime, and ParetoBandit is the first router evaluated under all of them.
 ParetoBandit addresses this gap directly.
 Across four experiments the system never exceeds the ceiling by more than ${\sim}2\%$ for any binding budget; under cost drift it autonomously exploits a price drop and maintains compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget, while baselines without closed-loop cost control overshoot by up to $\ppMaxOvershootX{\times}$; and cold-start model onboarding proceeds without reconfiguration.
 

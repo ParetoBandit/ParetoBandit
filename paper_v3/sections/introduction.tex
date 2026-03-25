@@ -13,7 +13,7 @@ Several routers accept budget or SLA targets~\cite{panda2025pilot, ma2025omnirou
 \noindent\textbf{Challenge 2: Principled non-stationarity handling.}
 Non-stationary bandit algorithms are well studied~\cite{garivier2011switching, russac2019weighted}, yet among published LLM routers we find none that incorporates geometric discounting or sliding windows to handle post-deployment shifts, nor any that evaluates behaviour under quality degradation or mid-stream price changes. In our quality-degradation experiment (Section~\ref{sec:eval_catastrophic}), a standard bandit without geometric forgetting or a budget pacer detects the degraded model yet overshoots the cost target by up to $\ppMaxOvershootX\times$.
 
-Closing these gaps has direct financial value: closed-loop cost control captures quality headroom that would otherwise go unused, and detecting a price drop lets freed budget be immediately redirected toward quality. Beyond budgets and non-stationarity, production portfolios are not static; new models must be evaluated and integrated without downtime or offline retraining.
+Closing these gaps has direct financial value: closed-loop cost control captures quality headroom that would otherwise go unused, and detecting a price drop lets freed budget be immediately redirected toward quality. Beyond budgets and non-stationarity, production portfolios are not static; new models need to be evaluated and integrated without downtime or offline retraining.
 
 We address these challenges with \textbf{ParetoBandit}, an open-source adaptive routing system for budget-constrained, non-stationary LLM serving. ParetoBandit is built on cost-aware contextual bandits and introduces three system-level contributions:
 
