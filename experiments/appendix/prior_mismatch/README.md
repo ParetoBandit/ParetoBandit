@@ -16,7 +16,8 @@ safer choice.
 - **Data**: test.jsonl (1,824 prompts), 20 seeds; cumulative-regret protocol
 - **Seeds**: offset=9000 (matches warmup ablation for paired comparisons)
 - **Hyperparameters (warmup conditions)**: alpha=0.01, gamma=0.997, disjoint LinUCB
-- **Hyperparameters (tabula rasa)**: alpha=0.01, n_eff=1, gamma=0.995
+- **Hyperparameters (tabula rasa, production)**: alpha=0.01, n_eff=1, gamma=0.995
+- **Hyperparameters (tabula rasa, γ-matched)**: alpha=0.01, n_eff=1, gamma=0.997
 
 ## Prior Quality Gradient
 
@@ -48,29 +49,39 @@ Each prior-quality level is tested at three `n_eff` values:
 | 100 | Moderate prior (informative but correctable) |
 | 1000 | Strong prior (the default tuned value; slow to override) |
 
-Total conditions: 5 prior levels × 3 n_eff values + 1 Tabula Rasa = **16 conditions**.
+Total conditions: 5 prior levels × 3 n_eff values + 2 Tabula Rasa baselines = **17 conditions**.
 
 ## Statistical Tests
 
-Each condition is compared to Tabula Rasa via two complementary tests:
+Each warmup condition is compared to **both** Tabula Rasa baselines via two
+complementary tests:
 
 1. **Sign test** (exact binomial, two-sided, H0: P(condition wins) = 0.5):
    counts per-seed paired wins.  Tests for a location shift — "does the
    condition have lower regret seed-by-seed?"  No distributional assumptions.
 2. **Fisher exact test** on the 2×2 catastrophic-failure table (one-sided,
    H0: equal failure rates): tests whether the condition reduces tail risk.
-   A seed is "catastrophic" if its regret exceeds 2× the condition's median.
+   A seed is "catastrophic" if its regret exceeds 2× the **γ-matched Tabula
+   Rasa's median** — a fixed, condition-independent threshold.
+
+All 15 pairwise p-values (per baseline) are corrected for multiplicity via
+the **Holm-Bonferroni** step-down procedure.  Both raw and corrected p-values
+are stored; significance statements use the corrected values.
 
 The sign test is used instead of Wilcoxon signed-rank because Tabula Rasa's
-heavy-tailed, multimodal per-seed regret (std ≈ 82 vs ≤ 3 for warmup
-conditions) violates the Wilcoxon assumption that paired differences are
-symmetric.  Results are in the JSON under `pairwise_tests_vs_tabula_rasa`.
+heavy-tailed, multimodal per-seed regret violates the Wilcoxon assumption
+that paired differences are symmetric.
+
+Results are in the JSON under `pairwise_tests_vs_tabula_rasa` (production
+baseline) and `pairwise_tests_vs_gamma_matched_tr` (controlled baseline).
 
 ## Design Notes
 
 **Hyperparameters.** All warmup conditions use `alpha=0.01`, `gamma=0.997`
-(the Exp-05 Pareto knee-point selection for well-calibrated priors);
-Tabula Rasa uses `alpha=0.01`, `gamma=0.995` (its own optimal config).
+(the Exp-05 Pareto knee-point selection for well-calibrated priors).
+Tabula Rasa (production) uses `alpha=0.01`, `gamma=0.995` (its own optimal
+config).  Tabula Rasa (γ-matched) uses `alpha=0.01`, `gamma=0.997` (same as
+warmup) to control for the forgetting-factor confound.
 Warmup hyperparameters were **not** re-tuned for mismatched conditions.
 This is intentional: it matches the production scenario where
 hyperparameters are fixed before deployment and prior quality degrades

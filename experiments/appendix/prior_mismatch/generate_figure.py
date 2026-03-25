@@ -27,6 +27,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+plt.rcParams.update({
+    "font.size": 15,
+    "axes.titlesize": 17,
+    "axes.labelsize": 15,
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
+})
+
 RESULTS_DIR = Path(__file__).parent / "results"
 
 COLORS = {
@@ -36,6 +44,7 @@ COLORS = {
     "GSM8K-only": "#E69F00",
     "Inverted": "#D55E00",
     "Tabula Rasa": "#999999",
+    "Tabula Rasa (γ-matched)": "#555555",
 }
 QUALITY_ORDER = [
     "Well-calibrated", "Random-1680", "MMLU-only", "GSM8K-only", "Inverted",
@@ -81,14 +90,24 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
         f"regret_at_{early_step}", {},
     ).get("mean", np.nan)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4.5))
+    gm_key = "Tabula Rasa (γ-matched)"
+    gm_regret = conditions.get(gm_key, {}).get(
+        "total_regret", {},
+    ).get("mean", np.nan)
+    gm_early = conditions.get(gm_key, {}).get(
+        f"regret_at_{early_step}", {},
+    ).get("mean", np.nan)
 
-    for ax, matrix, se_mat, tr_val, title in [
-        (ax1, regret_matrix, se_matrix, tr_regret, "Total Regret"),
-        (ax2, early_matrix, early_se_matrix, tr_early, f"R@{early_step} (Early Regret)"),
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 5.5))
+
+    for ax, matrix, se_mat, tr_val, gm_val, title in [
+        (ax1, regret_matrix, se_matrix, tr_regret, gm_regret, "Total Regret"),
+        (ax2, early_matrix, early_se_matrix, tr_early, gm_early,
+         f"R@{early_step} (Early Regret)"),
     ]:
-        vmin = min(np.nanmin(matrix), tr_val) * 0.95
-        vmax = max(np.nanmax(matrix), tr_val) * 1.05
+        ref_vals = [v for v in [tr_val, gm_val] if not np.isnan(v)]
+        vmin = min(np.nanmin(matrix), *ref_vals) * 0.95
+        vmax = max(np.nanmax(matrix), *ref_vals) * 1.05
 
         im = ax.imshow(
             matrix, aspect="auto", cmap="RdYlGn_r",
@@ -100,7 +119,7 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
         ax.set_yticks(range(n_qualities))
         ax.set_yticklabels(QUALITY_ORDER)
         ax.set_xlabel("n_eff")
-        ax.set_title(title, fontsize=11)
+        ax.set_title(title, fontsize=17)
 
         for qi in range(n_qualities):
             for ni in range(n_neffs):
@@ -108,27 +127,35 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
                 se = se_mat[qi, ni]
                 if np.isnan(val):
                     continue
-                exceeds_tr = val > tr_val
-                fontweight = "bold" if exceeds_tr else "normal"
+                exceeds_gm = val > gm_val if not np.isnan(gm_val) else val > tr_val
+                fontweight = "bold" if exceeds_gm else "normal"
                 ax.text(
                     ni, qi, f"{val:.1f}\n±{se:.1f}",
-                    ha="center", va="center", fontsize=11,
+                    ha="center", va="center", fontsize=14,
                     fontweight=fontweight, color="black",
                 )
 
+        ref_y = n_qualities - 0.5 + 0.55
         ax.text(
-            n_neffs - 0.5, -0.6,
-            f"Tabula Rasa = {tr_val:.1f}",
-            ha="right", va="center", fontsize=9,
+            n_neffs - 0.5, ref_y,
+            f"TR (γ=0.995) = {tr_val:.1f}",
+            ha="right", va="center", fontsize=12,
             fontstyle="italic", color=COLORS["Tabula Rasa"],
         )
+        if not np.isnan(gm_val):
+            ax.text(
+                n_neffs - 0.5, ref_y + 0.35,
+                f"TR (γ-matched) = {gm_val:.1f}",
+                ha="right", va="center", fontsize=12,
+                fontstyle="italic", color=COLORS[gm_key],
+            )
 
         plt.colorbar(im, ax=ax, shrink=0.8, pad=0.04)
 
     fig.suptitle(
         "Prior Mismatch × n_eff: When Do Warmup Priors Hurt?\n"
         "(Unconstrained regime, K=3 stationary, 20 seeds)",
-        fontsize=12, y=1.04,
+        fontsize=18, y=1.04,
     )
     fig.tight_layout()
 
@@ -155,19 +182,22 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
     """
     conditions = data["conditions"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.0), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(22, 6.0), sharey=True)
 
     for ax, n_eff in zip(axes, N_EFF_VALUES):
         labels: List[str] = []
         all_vals: List[np.ndarray] = []
         colors_list: List[str] = []
 
-        tr_key = "Tabula Rasa"
-        if tr_key in conditions and "per_seed_regret" in conditions[tr_key]:
-            vals = np.array(conditions[tr_key]["per_seed_regret"])
-            labels.append("Tabula\nRasa")
-            all_vals.append(vals)
-            colors_list.append(COLORS["Tabula Rasa"])
+        for bl_key, bl_short in [
+            ("Tabula Rasa", "TR\n(γ=.995)"),
+            ("Tabula Rasa (γ-matched)", "TR\n(γ-match)"),
+        ]:
+            if bl_key in conditions and "per_seed_regret" in conditions[bl_key]:
+                vals = np.array(conditions[bl_key]["per_seed_regret"])
+                labels.append(bl_short)
+                all_vals.append(vals)
+                colors_list.append(COLORS.get(bl_key, "#999999"))
 
         for quality in QUALITY_ORDER:
             key = f"{quality} (n_eff={n_eff})"
@@ -212,8 +242,8 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
             )
 
         ax.set_xticks(positions)
-        ax.set_xticklabels(labels, fontsize=8)
-        ax.set_title(f"n_eff = {n_eff}", fontsize=11)
+        ax.set_xticklabels(labels, fontsize=12, rotation=30, ha="right")
+        ax.set_title(f"n_eff = {n_eff}", fontsize=17)
         ax.grid(True, alpha=0.3, axis="y")
 
     axes[0].set_ylabel("Total Regret (per seed)")
@@ -221,7 +251,7 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
     fig.suptitle(
         "Per-Seed Regret Distributions: Warmup Stability vs Cold-Start Variance\n"
         "(Unconstrained regime, K=3 stationary, 20 seeds)",
-        fontsize=12, y=1.04,
+        fontsize=18, y=1.04,
     )
     fig.tight_layout()
 

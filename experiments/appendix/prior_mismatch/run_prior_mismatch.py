@@ -15,7 +15,14 @@ Five prior-quality levels form a mismatch gradient:
   5. **Inverted (severe)** — Llama ↔ Gemini rewards swapped in prior data
 
 Each prior level is tested at three ``n_eff`` values (10, 100, 1000),
-plus a Tabula Rasa control (n_eff=1, no priors).  Total: 16 conditions.
+plus two Tabula Rasa baselines:
+
+  - **Tabula Rasa** — independently tuned (γ=0.995), the production default.
+  - **Tabula Rasa (γ-matched)** — same γ=0.997 as warmup conditions but no
+    priors.  Isolates the prior's informational benefit from the forgetting-
+    factor difference, which otherwise confounds the comparison.
+
+Total: 17 conditions.  Pairwise tests are reported against both baselines.
 
 Priors are generated inline from the canonical training split using the
 same FeatureService and PCA as evaluation.  The well-calibrated condition
@@ -547,13 +554,19 @@ PRIOR_QUALITY_ORDER: List[str] = [
     "Inverted",
 ]
 
+TABULA_RASA_LABEL: str = "Tabula Rasa"
+GAMMA_MATCHED_TR_LABEL: str = "Tabula Rasa (γ-matched)"
+
+BASELINE_LABELS: List[str] = [TABULA_RASA_LABEL, GAMMA_MATCHED_TR_LABEL]
+
 
 def _build_conditions(
     prior_paths: Dict[str, Path],
 ) -> List[Dict[str, Any]]:
-    """Build the 16-condition experimental design.
+    """Build the 17-condition experimental design.
 
-    Five prior-quality levels × three n_eff values + one tabula rasa.
+    Five prior-quality levels × three n_eff values + two tabula-rasa
+    baselines (independently tuned and γ-matched).
 
     Parameters
     ----------
@@ -568,11 +581,19 @@ def _build_conditions(
     conditions: List[Dict[str, Any]] = []
 
     conditions.append({
-        "label": "Tabula Rasa",
+        "label": TABULA_RASA_LABEL,
         "priors_path": None,
         "alpha": TABULA_ALPHA,
         "prior_n_effective": BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"],
         "forgetting_factor": TABULA_GAMMA,
+    })
+
+    conditions.append({
+        "label": GAMMA_MATCHED_TR_LABEL,
+        "priors_path": None,
+        "alpha": ALPHA,
+        "prior_n_effective": 1.0,
+        "forgetting_factor": GAMMA,
     })
 
     for quality_label in PRIOR_QUALITY_ORDER:
@@ -595,8 +616,11 @@ def _build_conditions(
 
 
 CATASTROPHIC_MULTIPLIER: float = 2.0
-"""A seed is 'catastrophic' if its regret exceeds this multiple of the
-condition's own median regret."""
+"""A seed is 'catastrophic' if its regret exceeds this multiple of a
+fixed reference median (the γ-matched Tabula Rasa baseline).  Using a
+condition-independent threshold avoids the bias where high-regret
+conditions inflate their own threshold and appear to have zero
+catastrophic failures."""
 
 
 def _paired_tests(
@@ -630,9 +654,10 @@ def _paired_tests(
         Convention: a = condition under test, b = baseline (Tabula Rasa).
         A "win" is when a < b (condition has lower regret).
     catastrophic_ref_median : float or None
-        If provided, use this as the reference for the catastrophic
-        threshold (``CATASTROPHIC_MULTIPLIER * ref``).  Otherwise uses
-        ``median(per_seed_a)``.
+        Fixed reference for the catastrophic threshold
+        (``CATASTROPHIC_MULTIPLIER * ref``).  Should be the γ-matched
+        Tabula Rasa median so that the threshold is condition-
+        independent.  Falls back to ``median(per_seed_a)`` if ``None``.
 
     Returns
     -------
@@ -689,6 +714,32 @@ def _paired_tests(
         "baseline_catastrophic_rate": float(b_catastrophic / n_seeds),
         "n_seeds": n_seeds,
     }
+
+
+def _holm_bonferroni(
+    label_to_pval: Dict[str, float],
+) -> Dict[str, float]:
+    """Apply Holm-Bonferroni step-down correction for multiple comparisons.
+
+    Parameters
+    ----------
+    label_to_pval : dict[str, float]
+        Mapping from condition label to raw (uncorrected) p-value.
+
+    Returns
+    -------
+    dict[str, float]
+        Same keys, with corrected p-values (capped at 1.0).
+    """
+    items = sorted(label_to_pval.items(), key=lambda kv: kv[1])
+    m = len(items)
+    corrected: Dict[str, float] = {}
+    running_max = 0.0
+    for rank, (label, raw_p) in enumerate(items):
+        adjusted = raw_p * (m - rank)
+        running_max = max(running_max, adjusted)
+        corrected[label] = min(running_max, 1.0)
+    return corrected
 
 
 # ======================================================================
@@ -772,34 +823,95 @@ def main() -> None:
             agg["mean_reward"]["mean"],
         )
 
-    # --- Sign tests + catastrophic failure: each warmup condition vs Tabula Rasa ---
-    logger.info("\n--- Statistical Tests (vs Tabula Rasa) ---")
-    logger.info("  Sign test (exact binomial, H0: P(condition wins) = 0.5)")
-    tr_seeds = all_results["Tabula Rasa"]["per_seed_regret"]
-    tr_std = all_results["Tabula Rasa"]["total_regret"]["std"]
-    logger.info("  Tabula Rasa std=%.1f (warmup stds ≤ 2.6)", tr_std)
-    pairwise_tests: Dict[str, Dict[str, Any]] = {}
-    for label, agg in all_results.items():
-        if label == "Tabula Rasa":
-            continue
-        test = _paired_tests(agg["per_seed_regret"], tr_seeds)
-        pairwise_tests[label] = test
-        sig = "***" if test["sign_test_p"] < 0.001 else (
-            "**" if test["sign_test_p"] < 0.01 else (
-                "*" if test["sign_test_p"] < 0.05 else "ns"
+    # --- Pairwise tests against both baselines ---
+    # The γ-matched TR is the fair, controlled comparison (isolates the
+    # prior effect); the original TR is the production-relevant baseline.
+    gm_tr_median = all_results[GAMMA_MATCHED_TR_LABEL]["total_regret"]["median"]
+    catastrophic_ref = gm_tr_median
+    logger.info(
+        "\nCatastrophic threshold: %.1f × %.1f (γ-matched TR median) = %.1f",
+        CATASTROPHIC_MULTIPLIER, catastrophic_ref,
+        CATASTROPHIC_MULTIPLIER * catastrophic_ref,
+    )
+
+    all_pairwise: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for baseline_label in BASELINE_LABELS:
+        bl_seeds = all_results[baseline_label]["per_seed_regret"]
+        bl_std = all_results[baseline_label]["total_regret"]["std"]
+        logger.info("\n--- Statistical Tests (vs %s) ---", baseline_label)
+        logger.info("  Sign test (exact binomial, H0: P(condition wins) = 0.5)")
+        logger.info("  %s std=%.1f", baseline_label, bl_std)
+
+        pairwise_tests: Dict[str, Dict[str, Any]] = {}
+        for label, agg in all_results.items():
+            if label in BASELINE_LABELS:
+                continue
+            test = _paired_tests(
+                agg["per_seed_regret"],
+                bl_seeds,
+                catastrophic_ref_median=catastrophic_ref,
             )
-        )
-        logger.info(
-            "  %-35s  wins=%d/%d  sign_p=%.4g  Δmed=%+.1f  "
-            "cat: %d/%d vs %d/%d (Fisher p=%.4g)  %s",
-            label,
-            test["n_condition_wins"], test["n_effective"],
-            test["sign_test_p"], test["delta_median"],
-            test["condition_catastrophic_count"], test["n_seeds"],
-            test["baseline_catastrophic_count"], test["n_seeds"],
-            test["fisher_exact_p"],
-            sig,
-        )
+            pairwise_tests[label] = test
+
+        raw_sign_p = {k: v["sign_test_p"] for k, v in pairwise_tests.items()}
+        raw_fisher_p = {k: v["fisher_exact_p"] for k, v in pairwise_tests.items()}
+        corrected_sign = _holm_bonferroni(raw_sign_p)
+        corrected_fisher = _holm_bonferroni(raw_fisher_p)
+
+        for label, test in pairwise_tests.items():
+            test["sign_test_p_holm"] = corrected_sign[label]
+            test["fisher_exact_p_holm"] = corrected_fisher[label]
+            p_corr = test["sign_test_p_holm"]
+            sig = "***" if p_corr < 0.001 else (
+                "**" if p_corr < 0.01 else (
+                    "*" if p_corr < 0.05 else "ns"
+                )
+            )
+            logger.info(
+                "  %-35s  wins=%d/%d  sign_p=%.4g (Holm=%.4g)  Δmed=%+.1f  "
+                "cat: %d/%d vs %d/%d (Fisher p=%.4g, Holm=%.4g)  %s",
+                label,
+                test["n_condition_wins"], test["n_effective"],
+                test["sign_test_p"], test["sign_test_p_holm"],
+                test["delta_median"],
+                test["condition_catastrophic_count"], test["n_seeds"],
+                test["baseline_catastrophic_count"], test["n_seeds"],
+                test["fisher_exact_p"], test["fisher_exact_p_holm"],
+                sig,
+            )
+
+        all_pairwise[baseline_label] = pairwise_tests
+
+    # --- Baseline-vs-baseline: quantify the γ effect itself ---
+    logger.info("\n--- Baseline Comparison: γ effect (TR γ=0.997 vs TR γ=0.995) ---")
+    baseline_comparison = _paired_tests(
+        all_results[GAMMA_MATCHED_TR_LABEL]["per_seed_regret"],
+        all_results[TABULA_RASA_LABEL]["per_seed_regret"],
+        catastrophic_ref_median=catastrophic_ref,
+    )
+    gm_stats = all_results[GAMMA_MATCHED_TR_LABEL]["total_regret"]
+    tr_stats = all_results[TABULA_RASA_LABEL]["total_regret"]
+    logger.info(
+        "  γ-matched TR: median=%.1f, mean=%.1f, std=%.1f",
+        gm_stats["median"], gm_stats["mean"], gm_stats["std"],
+    )
+    logger.info(
+        "  Original  TR: median=%.1f, mean=%.1f, std=%.1f",
+        tr_stats["median"], tr_stats["mean"], tr_stats["std"],
+    )
+    logger.info(
+        "  γ-matched wins=%d/%d  sign_p=%.4g  Δmed=%+.1f  "
+        "cat: %d/%d vs %d/%d (Fisher p=%.4g)",
+        baseline_comparison["n_condition_wins"],
+        baseline_comparison["n_effective"],
+        baseline_comparison["sign_test_p"],
+        baseline_comparison["delta_median"],
+        baseline_comparison["condition_catastrophic_count"],
+        baseline_comparison["n_seeds"],
+        baseline_comparison["baseline_catastrophic_count"],
+        baseline_comparison["n_seeds"],
+        baseline_comparison["fisher_exact_p"],
+    )
 
     # --- Save results ---
     output: Dict[str, Any] = {
@@ -816,11 +928,18 @@ def main() -> None:
         "hparams": {
             "warmup": {"alpha": ALPHA, "forgetting_factor": GAMMA},
             "tabula_rasa": {"alpha": TABULA_ALPHA, "forgetting_factor": TABULA_GAMMA},
+            "gamma_matched_tabula_rasa": {"alpha": ALPHA, "forgetting_factor": GAMMA},
             "policy": "disjoint",
             "plasticity": PLASTICITY,
         },
+        "catastrophic_ref_median": catastrophic_ref,
+        "catastrophic_threshold": CATASTROPHIC_MULTIPLIER * catastrophic_ref,
         "prior_diagnostics": {},
-        "pairwise_tests_vs_tabula_rasa": pairwise_tests,
+        "pairwise_tests_vs_tabula_rasa": all_pairwise.get(TABULA_RASA_LABEL, {}),
+        "pairwise_tests_vs_gamma_matched_tr": all_pairwise.get(
+            GAMMA_MATCHED_TR_LABEL, {},
+        ),
+        "baseline_comparison_gamma_effect": baseline_comparison,
         "conditions": all_results,
     }
 
