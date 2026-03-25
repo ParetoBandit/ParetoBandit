@@ -172,10 +172,10 @@ K3_FAILURE_REWARD: float = 0.75
 """Degraded reward during failure phase (~18% below Mistral's normal ~0.92).
 
 Models a silent quality regression where the API continues to respond and
-charge normally, but response quality drops.  Set within the system's
-analytically-derived recovery envelope so Phase 3 demonstrates full
-recovery.  See Appendix (recovery limit study) for the degradation
-threshold beyond which recovery requires a longer horizon.
+charge normally, but response quality drops.  Set within the empirically
+characterised recovery envelope so Phase 3 demonstrates full recovery.
+See Appendix (recovery limit study) for the degradation threshold beyond
+which recovery requires a longer horizon.
 """
 
 # ==============================================================================

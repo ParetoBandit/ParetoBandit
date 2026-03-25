@@ -13,32 +13,38 @@ For each failure reward in a sweep from 0.05 (catastrophic) to 0.85 (mild):
   2. Phase 1 (608 steps, holdout, normal) — baseline.
   3. Phase 2 (608 steps, holdout, quality-only degradation: reward drops,
      cost unchanged) — the silent regression.
-  4. Phase 3 (608 or 1800 steps, holdout, normal) — recovery.
+  4. Phase 3 (608 or ~1,216 steps, holdout, normal) — recovery.
 
-Phase 3 reuses Phase 1 prompts (cycled for extended runs) for a
-within-subject P1-vs-P3 comparison.  All runs use the moderate budget
-target ($6.62 × 10⁻⁴) with ParetoBandit's tuned hyperparameters.
+Standard Phase 3 reuses Phase 1 prompts for a within-subject P1-vs-P3
+comparison.  All runs use the moderate budget target ($6.62 × 10⁻⁴)
+with ParetoBandit's tuned hyperparameters.
+
+Degradation is modelled as a mean-shift: per-prompt rewards are shifted
+so the degraded arm's mean reward equals the target ``failure_reward``
+while retaining prompt-dependent variation (``preserve_variance=True``).
+This is more realistic than constant-reward replacement because real
+regressions affect prompts heterogeneously.
 
 Extended Phase 3
 ~~~~~~~~~~~~~~~~
-For a subset of degradation levels, Phase 3 is extended to 1800 steps
-(~3× standard) by cycling the Phase 1 prompt pool.  This demonstrates
-that moderate degradations (30–70%) DO recover given sufficient time,
-supporting the paper's claim that the 608-step horizon is the binding
-constraint, not an inherent algorithmic limitation.
+For all degradation levels, Phase 3 is extended to use all non-Phase-2
+holdout prompts (≈2× the standard horizon) **without recycling**.  This
+avoids violating the i.i.d. prompt arrival assumption and ensures the
+extended-horizon results reflect genuine recovery on fresh prompts.
 
-Analytical bound
-~~~~~~~~~~~~~~~~
-At the Phase 2/3 boundary, the script extracts the policy's base
-variance (x^T A_inv x) and computes the maximum mean-estimate gap
-recoverable by staleness-driven exploration:
+Recovery mechanisms
+~~~~~~~~~~~~~~~~~~~
+Recovery operates through two complementary mechanisms:
 
-    Δ_max = α √(V_max · σ²) − λ · Δc̃
+  1. **Geometric forgetting** (γ < 1) — exponentially down-weights
+     corrupted Phase-2 observations so that fresh Phase-3 observations
+     dominate the mean estimate.  This is the primary driver.
 
-where α is the exploration rate, V_max=200 is the variance inflation
-cap, σ² is the empirical base variance, λ is the budget pacer's dual
-variable, and Δc̃ is the normalised cost differential between Mistral
-and the cheapest arm.
+  2. **Staleness-driven exploration** — once the degraded arm's
+     variance inflates (from non-selection), the UCB bonus can trigger
+     re-exploration.  However, under budget-constrained routing the
+     cost penalty may exceed the exploration bonus, limiting this
+     mechanism's contribution (see ``_compute_exploration_only_bound``).
 
 Usage::
 
@@ -109,7 +115,6 @@ SEED_OFFSET: int = 7000
 RESULTS_DIR = Path(__file__).parent / "results"
 
 PHASE_N: int = 608
-EXTENDED_PHASE3_N: int = 1800
 CHECKPOINT_INTERVAL: int = 20
 
 BUDGET_TARGET: float = 6.62e-4  # moderate
@@ -287,13 +292,7 @@ def _run_trial(
         failure_reward=failure_reward, seed=seed, extended=extended,
     )
 
-    # Build Phase 3 data (cycle Phase 1 prompts for extended runs)
-    n_p3 = EXTENDED_PHASE3_N if extended else PHASE_N
-    if n_p3 > phase3.n:
-        n_reps = (n_p3 // phase3.n) + 1
-        idx_pool = np.tile(np.arange(phase3.n), n_reps)[:n_p3]
-    else:
-        idx_pool = np.arange(n_p3)
+    n_p3 = phase3.n
 
     phases = [
         (1, phase1, PHASE_N),
@@ -303,12 +302,8 @@ def _run_trial(
 
     global_step = 0
     for phase_num, phase_data, n_steps in phases:
-        if phase_num == 3:
-            order = rng.permutation(idx_pool)
-        else:
-            order = rng.permutation(phase_data.n)[:n_steps]
+        order = rng.permutation(phase_data.n)[:n_steps]
 
-        # Capture diagnostics at the Phase 2→3 boundary
         if phase_num == 3:
             result.lambda_at_boundary = pacer.lambda_t
             sample_x = phase_data.embeddings[order[0]]
@@ -319,7 +314,6 @@ def _run_trial(
                 )
 
         for idx in order:
-            idx = int(idx % phase_data.n)
             model, log = router.route(phase_data.embeddings[idx])
             reward = float(phase_data.rewards[model][idx])
             cost = float(phase_data.costs[model][idx])
@@ -422,19 +416,26 @@ def _aggregate_trials(
 # ======================================================================
 
 
-def _compute_analytical_bound(
+def _compute_exploration_only_bound(
     alpha: float,
     max_inflation: float,
     base_variance: float,
     lambda_t: float,
     delta_cost: float,
 ) -> float:
-    """Maximum mean-estimate gap recoverable by staleness exploration.
+    """Exploration-only bound: max gap bridgeable by staleness inflation.
+
+    This captures only the staleness-driven exploration mechanism.
+    Recovery also operates through geometric forgetting erasing corrupted
+    estimates — that mechanism is not captured here, and in practice is
+    the primary recovery driver under budget-constrained routing.
+
+    A negative value indicates the cost penalty exceeds the maximum
+    exploration bonus, meaning recovery relies entirely on geometric
+    forgetting rather than active re-exploration of the degraded arm.
 
     Returns:
-        The max gap Δ_max = α √(V_max · σ²) − λ · Δc̃.
-        Positive means the exploration bonus can bridge this gap;
-        negative means even at maximum inflation the cost penalty dominates.
+        Δ_max = α √(V_max · σ²) − λ · Δc̃.
     """
     return alpha * np.sqrt(max_inflation * base_variance) - lambda_t * delta_cost
 
@@ -459,6 +460,7 @@ def main() -> None:
     all_idx = rng_global.permutation(test_all.n)
     p1_idx = all_idx[:PHASE_N]
     p2_idx = all_idx[PHASE_N:2 * PHASE_N]
+    p3_extra_idx = all_idx[2 * PHASE_N:]
 
     phase1 = SplitData(
         prompts=[test_all.prompts[i] for i in p1_idx],
@@ -466,7 +468,21 @@ def main() -> None:
         costs={a: test_all.costs[a][p1_idx] for a in ARM_ORDER},
         embeddings=test_all.embeddings[p1_idx],
     )
-    phase3 = phase1
+    phase3_standard = phase1
+
+    p3_ext_idx = np.concatenate([p1_idx, p3_extra_idx])
+    phase3_extended = SplitData(
+        prompts=[test_all.prompts[i] for i in p3_ext_idx],
+        rewards={a: test_all.rewards[a][p3_ext_idx] for a in ARM_ORDER},
+        costs={a: test_all.costs[a][p3_ext_idx] for a in ARM_ORDER},
+        embeddings=test_all.embeddings[p3_ext_idx],
+    )
+    extended_phase3_n = len(p3_ext_idx)
+
+    logger.info(
+        "Holdout split: %d total, P1=%d, P2=%d, P3_ext=%d (no recycling)",
+        test_all.n, len(p1_idx), len(p2_idx), extended_phase3_n,
+    )
 
     registry = build_model_registry(ARM_ORDER)
     norm_costs = compute_normalized_costs(registry, ARM_ORDER)
@@ -477,7 +493,7 @@ def main() -> None:
     logger.info("Normalised cost differential (Mistral - cheapest): %.4f", delta_cost)
 
     # ------------------------------------------------------------------
-    # Standard sweep (608-step Phase 3)
+    # Standard sweep (608-step Phase 3, within-subject with Phase 1)
     # ------------------------------------------------------------------
     logger.info("\n=== Standard sweep (Phase 3 = %d steps) ===", PHASE_N)
     standard_results: List[Dict[str, Any]] = []
@@ -496,6 +512,7 @@ def main() -> None:
         )
         phase2 = apply_quality_degradation(
             p2_base, degraded_arm=FAILURE_ARM, degraded_reward=fr,
+            preserve_variance=True,
         )
 
         trials: List[TrialResult] = []
@@ -505,7 +522,7 @@ def main() -> None:
                 train_data=train_all,
                 phase1=phase1,
                 phase2=phase2,
-                phase3=phase3,
+                phase3=phase3_standard,
                 registry=registry,
                 feature_dim=feature_dim,
                 failure_reward=fr,
@@ -527,10 +544,11 @@ def main() -> None:
         )
 
     # ------------------------------------------------------------------
-    # Extended sweep (1800-step Phase 3)
+    # Extended sweep (all non-Phase-2 holdout prompts, no recycling)
     # ------------------------------------------------------------------
     logger.info(
-        "\n=== Extended sweep (Phase 3 = %d steps) ===", EXTENDED_PHASE3_N,
+        "\n=== Extended sweep (Phase 3 = %d unique prompts) ===",
+        extended_phase3_n,
     )
     extended_results: List[Dict[str, Any]] = []
 
@@ -548,6 +566,7 @@ def main() -> None:
         )
         phase2 = apply_quality_degradation(
             p2_base, degraded_arm=FAILURE_ARM, degraded_reward=fr,
+            preserve_variance=True,
         )
 
         trials = []
@@ -557,7 +576,7 @@ def main() -> None:
                 train_data=train_all,
                 phase1=phase1,
                 phase2=phase2,
-                phase3=phase3,
+                phase3=phase3_extended,
                 registry=registry,
                 feature_dim=feature_dim,
                 failure_reward=fr,
@@ -578,18 +597,26 @@ def main() -> None:
         )
 
     # ------------------------------------------------------------------
-    # Analytical bound
+    # Exploration-only bound (diagnostic; see docstring for caveats)
     # ------------------------------------------------------------------
-    ref = standard_results[-1]  # fr=0.85 (mildest, most data)
+    ref = standard_results[-1]
     mean_var = ref.get("mean_base_variance", 0.1)
     mean_lam = ref.get("mean_lambda_at_boundary", 0.3)
-    bound = _compute_analytical_bound(
+    exploration_bound = _compute_exploration_only_bound(
         ALPHA, MAX_VAR_INFLATION, mean_var, mean_lam, delta_cost,
     )
-    logger.info("\nAnalytical recovery bound:")
+    forgetting_halflife = int(np.log(0.5) / np.log(FORGETTING_FACTOR))
+    logger.info("\nExploration-only bound (staleness mechanism only):")
     logger.info("  alpha=%.3f, V_max=%.0f, base_var=%.4f", ALPHA, MAX_VAR_INFLATION, mean_var)
     logger.info("  lambda=%.3f, delta_cost=%.4f", mean_lam, delta_cost)
-    logger.info("  max_recoverable_gap = %.4f", bound)
+    logger.info("  exploration_only_gap = %.4f", exploration_bound)
+    if exploration_bound < 0:
+        logger.info(
+            "  -> Negative: cost penalty exceeds exploration bonus. "
+            "Recovery is driven by geometric forgetting "
+            "(half-life ≈ %d steps at γ=%.3f).",
+            forgetting_halflife, FORGETTING_FACTOR,
+        )
 
     # ------------------------------------------------------------------
     # Save
@@ -598,9 +625,10 @@ def main() -> None:
         "experiment": "appendix_recovery_limit",
         "description": (
             "Recovery limit study: sweeps degradation severity under "
-            "quality-only degradation (cost unchanged) and measures "
-            "Phase 3 recovery.  Standard (608-step) and extended "
-            f"({EXTENDED_PHASE3_N}-step) Phase 3 horizons."
+            "variance-preserving quality degradation (cost unchanged) "
+            "and measures Phase 3 recovery.  Standard (608-step) and "
+            f"extended ({extended_phase3_n}-step, no recycling) Phase 3 "
+            "horizons."
         ),
         "arm_order": ARM_ORDER,
         "arm_short": ARM_SHORT,
@@ -608,7 +636,7 @@ def main() -> None:
         "budget_target": BUDGET_TARGET,
         "budget_label": BUDGET_LABEL,
         "phase_n": PHASE_N,
-        "extended_phase3_n": EXTENDED_PHASE3_N,
+        "extended_phase3_n": extended_phase3_n,
         "n_seeds": N_SEEDS,
         "seed_offset": SEED_OFFSET,
         "alpha": ALPHA,
@@ -617,11 +645,17 @@ def main() -> None:
         "max_var_inflation": MAX_VAR_INFLATION,
         "mistral_normal_reward": mistral_normal_reward,
         "delta_cost_normalized": delta_cost,
-        "analytical_bound": {
+        "exploration_only_bound": {
             "mean_base_variance": mean_var,
             "mean_lambda_at_boundary": mean_lam,
             "delta_cost": delta_cost,
-            "max_recoverable_gap": bound,
+            "exploration_only_gap": exploration_bound,
+            "forgetting_halflife_steps": forgetting_halflife,
+            "note": (
+                "Captures only the staleness-driven exploration mechanism. "
+                "Negative value indicates cost penalty exceeds exploration "
+                "bonus; recovery is primarily driven by geometric forgetting."
+            ),
         },
         "standard_results": standard_results,
         "extended_results": extended_results,

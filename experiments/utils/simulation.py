@@ -144,6 +144,7 @@ def apply_quality_degradation(
     split: SplitData,
     degraded_arm: str,
     degraded_reward: float = 0.75,
+    preserve_variance: bool = False,
 ) -> SplitData:
     """Return a new ``SplitData`` with one arm's rewards degraded but costs unchanged.
 
@@ -155,17 +156,27 @@ def apply_quality_degradation(
     Args:
         split: Original data.
         degraded_arm: Model ID whose quality has regressed.
-        degraded_reward: Fixed degraded reward assigned to every prompt
-            for the affected arm (default 0.75).
+        degraded_reward: Target mean reward for the degraded arm
+            (default 0.75).
+        preserve_variance: If ``True``, shift per-prompt rewards so the
+            mean equals ``degraded_reward`` while retaining the original
+            prompt-dependent variation (clipped to [0, 1]).  If ``False``
+            (default), replace all rewards with the constant
+            ``degraded_reward`` (legacy behaviour).
 
     Returns:
         New ``SplitData`` with degraded rewards for ``degraded_arm``;
         costs, other arms, and embeddings unchanged.
     """
     new_rewards = dict(split.rewards)
-    new_rewards[degraded_arm] = np.full_like(
-        split.rewards[degraded_arm], degraded_reward,
-    )
+    if preserve_variance:
+        original = split.rewards[degraded_arm]
+        shift = degraded_reward - float(np.mean(original))
+        new_rewards[degraded_arm] = np.clip(original + shift, 0.0, 1.0)
+    else:
+        new_rewards[degraded_arm] = np.full_like(
+            split.rewards[degraded_arm], degraded_reward,
+        )
     return SplitData(
         prompts=split.prompts,
         rewards=new_rewards,

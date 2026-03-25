@@ -5,9 +5,9 @@ Reads ``results/recovery_limit_results.json`` and produces a two-panel
 figure:
 
   (a) Recovery Envelope — P3/P1 reward ratio vs degradation severity for
-      standard (608-step) and extended (1800-step) Phase 3 horizons.
-  (b) Extended Recovery Dynamics — windowed mean reward time-series for
-      selected degradation levels at the extended horizon.
+      standard and extended Phase 3 horizons.
+  (b) Extended Recovery Dynamics — windowed mean reward (50-prompt window)
+      time-series for selected degradation levels at the extended horizon.
 
 Usage::
 
@@ -130,7 +130,7 @@ def plot_recovery_limit(
         ext_deg, ext_ratio,
         color=EXTENDED_COLOR, linewidth=2.2, marker="s", markersize=5,
         linestyle="--",
-        label=f"{ext_n} prompts", zorder=4,
+        label=f"{ext_n} unique prompts", zorder=4,
     )
     ax_env.fill_between(
         ext_deg, ext_ci_lo, ext_ci_hi,
@@ -229,9 +229,9 @@ def plot_recovery_limit(
     )
 
     ax_dyn.set_xlabel("Prompts Routed (Phase 3)", fontsize=11 * fs)
-    ax_dyn.set_ylabel("Windowed Mean Reward", fontsize=11 * fs)
+    ax_dyn.set_ylabel("Windowed Mean Reward (w=50)", fontsize=11 * fs)
     ax_dyn.set_title(
-        f"(b) Extended Recovery Dynamics ({ext_n} prompts)",
+        f"(b) Extended Recovery Dynamics ({ext_n} unique prompts)",
         fontsize=12 * fs, fontweight="bold", pad=10,
     )
     ax_dyn.legend(fontsize=8.5 * fs, loc="lower right")
