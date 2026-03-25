@@ -5,10 +5,10 @@
 
 We profile ParetoBandit's per-request routing overhead to validate the
 computational-efficiency claims in Section~\ref{sec:efficiency}.
-Four configurations isolate the individual contributions of
-\emph{PCA dimensionality reduction} ($d{=}26$ vs.\ $d{=}385$)
-and \emph{Sherman-Morrison incremental updates} (cached $A^{-1}$
-vs.\ full \texttt{np.linalg.inv} on every route call).
+Eight configurations isolate three factors:
+\emph{Sherman-Morrison vs.\ full inversion} (controlled at the same
+level of abstraction), \emph{production overhead} (locks, budget pacing,
+forgetting), and \emph{PCA dimensionality reduction} ($d{=}26$ vs.\ $d{=}385$).
 All configurations use $K{=}3$ arms, synthetic whitened context
 vectors, and 4,500 measured route\,+\,update cycles
 (500-round warmup excluded).
@@ -16,9 +16,12 @@ vectors, and 4,500 measured route\,+\,update cycles
 \begin{table}[h]
 \centering
 \caption{Per-request routing latency ($\mu$s) and throughput.
-ParetoBandit's production configuration (top row) adds $<$\,39\,$\mu$s
-per request---negligible relative to LLM inference times of
-100--2,000\,ms.}
+\emph{Algorithmic isolation:} Bare~SM and Cached~Inv.\ share identical
+\texttt{route()} code (same Python base class); only \texttt{update()} differs,
+cleanly isolating $O(d^2)$ SM vs.\ $O(d^3)$ full inversion.
+\emph{Production:} ParetoBandit adds locks, budget pacing, forgetting, and
+staleness tracking on top of the SM algorithm.
+\emph{Per-Route Inv.:} worst-case strawman (never caches $A^{-1}$).}
 \label{tab:latency}
 \small
 \begin{tabular}{@{}l r r r r r@{}}
@@ -30,10 +33,19 @@ per request---negligible relative to LLM inference times of
 \textbf{Configuration}
  & p50 & p95 & p50 & p95 & (req/s) \\
 \midrule
-ParetoBandit ($d{=}26$)       & $\mathbf{21.7}$ & $25.5$ & $16.8$ & $19.5$ & $\mathbf{24{,}347}$ \\
-ParetoBandit ($d{=}385$)      & $152.8$ & $214.4$ & $367.8$ & $427.8$ & $1{,}885$ \\
-Naive Inv.\ ($d{=}26$)     & $49.2$ & $51.2$ & $4.0$ & $4.7$ & $18{,}708$ \\
-Naive Inv.\ ($d{=}385$)    & $4{,}572$ & $4{,}902$ & $128.1$ & $702.6$ & $202$ \\
+\multicolumn{6}{@{}l}{\emph{Production (full router with locks, pacing, forgetting)}} \\
+ParetoBandit ($d{=}26$)        & 22.5 & 25.8 & 20.5 & 22.8 & 22{,}432 \\
+ParetoBandit ($d{=}385$)       & 156.1 & 211.3 & 456.2 & 525.1 & 1{,}610 \\
+\addlinespace
+\multicolumn{6}{@{}l}{\emph{Algorithmic isolation (identical \texttt{route()}, only \texttt{update()} differs)}} \\
+Bare SM ($d{=}26$)             & 5.8 & 6.1 & 8.2 & 8.6 & 70{,}242 \\
+Bare SM ($d{=}385$)            & 99.6 & 153.6 & 301.9 & 535.8 & 2{,}140 \\
+Cached Inv.\ ($d{=}26$)       & 7.0 & 7.5 & 18.7 & 19.4 & 39{,}934 \\
+Cached Inv.\ ($d{=}385$)      & 122.6 & 181.0 & 1{,}635.1 & 1{,}998.3 & 539 \\
+\addlinespace
+\multicolumn{6}{@{}l}{\emph{Worst-case baseline (never caches $A^{-1}$)}} \\
+Per-Route Inv.\ ($d{=}26$)    & 50.2 & 53.8 & 4.4 & 4.8 & 18{,}068 \\
+Per-Route Inv.\ ($d{=}385$)   & 4{,}585.2 & 4{,}909.1 & 129.9 & 213.3 & 210 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -41,61 +53,75 @@ Naive Inv.\ ($d{=}385$)    & $4{,}572$ & $4{,}902$ & $128.1$ & $702.6$ & $202$ \
 \begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/appendix/latency_benchmark/results/latency_benchmark.pdf}
-\caption{Per-request latency (left, log scale) and throughput (right, log scale)
-for four router configurations.  The combined effect of PCA reduction
-($385 \to 26$ dimensions) and Sherman-Morrison caching yields a
-$120\times$ throughput improvement over the naive baseline at raw dimension.}
+\caption{Route latency (left), update latency (centre), and throughput
+(right) for eight router configurations on a log scale.
+Bare~SM and Cached~Inv.\ share identical \texttt{route()} code, so the
+route panel confirms they are equivalent; the update panel exposes
+Sherman-Morrison's actual contribution ($O(d^2)$ vs.\ $O(d^3)$).
+ParetoBandit bars quantify the additional cost of production features.}
 \label{fig:latency_benchmark}
 \end{figure}
 
-\paragraph{Why ParetoBandit's route is fast but its update is slower than naive.}
-The most striking pattern in Table~\ref{tab:latency} is that ParetoBandit's \emph{update} is slower than the naive baseline (17\,$\mu$s vs.\ 4\,$\mu$s at $d{=}26$), yet its \emph{route} is $2.3\times$ faster---and at $d{=}385$ the route gap widens to $30\times$.
-This is an intentional architectural trade-off: ParetoBandit \emph{amortizes} the cost of maintaining the matrix inverse into the update path so the latency-critical route path is minimal.
+\paragraph{Algorithmic isolation: SM vs.\ full inversion.}
+The Bare~SM and Cached~Inv.\ configurations inherit from the same Python
+base class and execute \emph{literally the same} \texttt{route()} method
+(UCB scoring via cached $A_a^{-1}$ and $\hat\theta_a$).
+Only \texttt{update()} differs: $O(d^2)$ Sherman-Morrison rank-1
+correction vs.\ $O(d^3)$ \texttt{np.linalg.inv}.
+This design guarantees that any route-latency difference is measurement
+noise, not code divergence.
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Naive baseline.}  Update performs only the $O(d^2)$ outer-product addition $A_a \mathrel{+}= x_t x_t^\top$ (4\,$\mu$s at $d{=}26$).
-    Route must then recompute $A_a^{-1}$ from scratch via $O(d^3)$ inversion for each of $K$ arms before computing the UCB score.
-    At $d{=}385$ this costs $4.6$\,ms per route call.
-  \item \textbf{ParetoBandit.}  Update pays a higher constant: the $O(d^2)$ Sherman-Morrison rank-1 correction on $A_a^{-1}$ (Eq.~\ref{eq:sherman_morrison}), plus a cached $\hat{\theta}_a = A_a^{-1} b_a$ refresh.
-    Route then needs only one $O(d)$ dot product ($\hat{\theta}_a^\top x_t$) and one $O(d^2)$ quadratic form ($x_t^\top A_a^{-1} x_t$) per arm---no inversion at all.
+  \item \textbf{Route latency is identical} between Bare~SM and
+    Cached~Inv.\ at each dimension (same code path).
+  \item \textbf{Update latency} is where SM helps: at $d{=}385$
+    the $O(d^2)$ SM update is substantially faster than the $O(d^3)$
+    full inversion.
+    At $d{=}26$ the gap is smaller because $d^3 = 17{,}576$ is already
+    fast for LAPACK.
+  \item \textbf{Per-Route Inv.} never caches $A_a^{-1}$, paying $K$
+    full $O(d^3)$ inversions on every \texttt{route()} call.
+    No reasonable implementation would use this strategy; it is included
+    only to bound worst-case behaviour.
 \end{itemize}
 
-\noindent
-Because routing sits on the user-facing critical path while updates can be processed asynchronously (Section~\ref{sec:discussion}), this trade-off is strongly favorable: it shifts work from the latency-sensitive path to the throughput-tolerant path.
+\paragraph{Production overhead.}
+ParetoBandit uses the same SM algorithm as Bare~SM but adds production
+features: a threading lock around \texttt{select\_arm()} and
+\texttt{update()}, budget-pacing logic, forgetting-factor decay,
+staleness tracking, and constraint filtering.
+Comparing ParetoBandit against Bare~SM quantifies this overhead
+separately from the algorithmic comparison.
 
 \paragraph{Key findings.}
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Production overhead is negligible.}
     At the production dimension ($d{=}26$), ParetoBandit completes
-    a full route\,+\,update cycle in $39\,\mu$s (p50), adding
-    $<$\,0.004\% latency to even the fastest LLM call (${\sim}100$\,ms
+    a full route\,+\,update cycle in $43\,\mu$s (p50), adding
+    $<$\,0.03\% latency to even the fastest LLM call (${\sim}100$\,ms
     time-to-first-token for Llama-3.1-8B).
-    The router sustains $>$\,24{,}000\,req/s on a single CPU
+    The router sustains ${\sim}22{,}000$\,req/s on a single CPU
     core---sufficient for all but the most extreme throughput tiers.
-  \item \textbf{Sherman-Morrison accelerates selection by $30\times$ at high dimension.}
-    At $d{=}385$, the naive baseline spends $4.6$\,ms per route
-    call computing $K{=}3$ full matrix inversions.
-    ParetoBandit's cached inverse reduces this to $153\,\mu$s---a
-    $30\times$ speedup---because selection requires only a
-    matrix-vector product ($O(d^2)$) rather than an inversion ($O(d^3)$).
-    At $d{=}26$ the gap narrows to $2.3\times$ because $O(d^3)$ with
-    a small constant is already fast.
-  \item \textbf{PCA gives an additional $13\times$ throughput gain.}
-    Within the Sherman-Morrison configurations, reducing $d$ from
-    $385$ to $26$ improves throughput from $1{,}885$ to $24{,}347$
-    req/s ($12.9\times$).  This is consistent with the expected
-    $O(d^2)$ scaling: $(385/26)^2 \approx 219$, with overhead
-    constants (locking, Python dispatch) compressing the realized
-    ratio.
-  \item \textbf{Combined improvement: $120\times$.}
-    The full production stack (PCA\,+\,Sherman-Morrison at $d{=}26$)
-    achieves $120\times$ higher throughput than the naive baseline
-    at raw embedding dimension ($24{,}347$ vs.\ $202$\,req/s),
-    driven by three mutually reinforcing design choices:
-    PCA reduces the matrix size ($O(d^2)$ scaling),
-    Sherman-Morrison eliminates per-route inversion ($O(d^2)$ vs.\ $O(d^3)$),
-    and cached $\hat{\theta}_a$ reduces the expected-reward computation
-    to a single $O(d)$ dot product per arm.
+  \item \textbf{Sherman-Morrison's benefit is in update cost, not route
+    latency.}
+    Bare~SM and Cached~Inv.\ have identical route latency (same code).
+    The improvement appears in the update path: at $d{=}385$,
+    the $O(d^2)$ SM update is $5.4\times$ faster than the
+    $O(d^3)$ full inversion ($302\,\mu$s vs.\ $1{,}635\,\mu$s, p50).
+    At $d{=}26$ the gap narrows to $2.3\times$ ($8.2\,\mu$s vs.\
+    $18.7\,\mu$s) because $d^3 = 17{,}576$ is already fast for LAPACK.
+  \item \textbf{Production features add bounded overhead.}
+    ParetoBandit's route is $3.9\times$ and update $2.5\times$ slower
+    than Bare~SM at $d{=}26$, due to locking, pacing, and decay
+    bookkeeping.
+    At $d{=}385$ this ratio shrinks ($1.6\times$ route, $1.5\times$
+    update) because the linear-algebra cost dominates the fixed
+    production overhead.
+  \item \textbf{PCA gives an additional ${\sim}14\times$ throughput gain.}
+    Within the production configurations, reducing $d$ from
+    $385$ to $26$ improves throughput by ${\sim}14\times$
+    ($22{,}432$ vs.\ $1{,}610$\,req/s), consistent
+    with $O(d^2)$ scaling compressed by fixed overhead constants.
   \item \textbf{Comparison with published routing systems.}
     Table~\ref{tab:latency_comparison} contextualises ParetoBandit's
     overhead against published latencies from LLM routing systems,
@@ -107,7 +133,7 @@ Because routing sits on the user-facing critical path while updates can be proce
     experiences before the LLM call begins.
 
     \textbf{Routing-decision overhead.}
-    ParetoBandit's \texttt{route()} completes in $22\,\mu$s (p50)
+    ParetoBandit's \texttt{route()} completes in $22.5\,\mu$s (p50)
     on a single CPU core.
     No other LLM routing system reports a comparable figure.
     Among bandit-based LLM routers---LLM Bandit~\cite{li2025llmbandit},
@@ -126,15 +152,15 @@ Because routing sits on the user-facing critical path while updates can be proce
     only peer-reviewed system to report end-to-end routing latency:
     $8.7$\,ms (p50, single query) on an A100 GPU, dropping to $2.6$\,ms
     with batch-32 amortisation (DeBERTa-v3-small encoder, 22M parameters).
-    For an apples-to-apples comparison, both ParetoBandit's $8.3$\,ms
+    For an apples-to-apples comparison, both ParetoBandit's $9.2$\,ms
     and PROTEUS's $8.7$\,ms are \textbf{single-query p50 (median)}
     latencies.
-    ParetoBandit achieves this on \emph{CPU only}, without requiring a
-    dedicated GPU for the routing decision---a meaningful infrastructure
-    advantage in production deployments where GPUs are saturated by
-    LLM inference.
-    ParetoBandit's routing decision itself ($22\,\mu$s) is
-    ${\sim}400\times$ faster than PROTEUS's per-query forward pass,
+    ParetoBandit achieves comparable E2E latency on \emph{CPU only},
+    without requiring a dedicated GPU for the routing decision---a
+    meaningful infrastructure advantage in production deployments where
+    GPUs are saturated by LLM inference.
+    ParetoBandit's routing decision itself ($22.5\,\mu$s) is
+    ${\sim}390\times$ faster than PROTEUS's per-query forward pass,
     though the embedding step dominates both systems' end-to-end latency.
     PROTEUS's batch-32 figure ($2.6$\,ms) reflects throughput-optimised
     amortisation and is not directly comparable to single-query latency.
@@ -155,9 +181,10 @@ Because routing sits on the user-facing critical path while updates can be proce
     \textbf{End-to-end critical path (embedding included).}
     In production, ParetoBandit's critical path includes prompt embedding
     (MiniLM-L6-v2) and PCA projection before the \texttt{route()} call.
-    We benchmark this full pipeline on CPU (Apple M-series,
-    single-threaded, 100 iterations, 3-pass warmup) and report
-    p50 (median) and p95 latencies:
+    We benchmark this full pipeline on CPU (Apple M-series arm64,
+    single-threaded, 200 iterations, 50-iteration warmup; pool of 20
+    diverse prompts cycled deterministically) and report p50 (median) and
+    p95 latencies:
 
     \begin{center}
     \small
@@ -165,17 +192,17 @@ Because routing sits on the user-facing critical path while updates can be proce
     \toprule
     \textbf{Stage} & \textbf{p50} & \textbf{p95} & \textbf{\% of total} \\
     \midrule
-    Embed (MiniLM-L6-v2, CPU) & $8.1$\,ms & $9.0$\,ms & $97.4\%$ \\
-    PCA + whitening            & $0.15$\,ms & $0.17$\,ms & $1.8\%$ \\
-    \texttt{route()}           & $0.058$\,ms & $0.069$\,ms & $0.7\%$ \\
+    Embed (MiniLM-L6-v2, CPU) & $9.0$\,ms & $9.9$\,ms & $98.0\%$ \\
+    PCA + whitening            & $0.15$\,ms & $0.18$\,ms & $1.7\%$ \\
+    \texttt{route()}           & $0.071$\,ms & $0.083$\,ms & $0.8\%$ \\
     \midrule
-    \textbf{Total E2E (CPU)}   & $\mathbf{8.3}$\,\textbf{ms} & $\mathbf{9.3}$\,\textbf{ms} & $100\%$ \\
+    \textbf{Total E2E (CPU)}   & $\mathbf{9.2}$\,\textbf{ms} & $\mathbf{10.3}$\,\textbf{ms} & $100\%$ \\
     \bottomrule
     \end{tabular}
     \end{center}
 
     \noindent
-    The embedding step dominates at $97\%$ of total time; the routing
+    The embedding step dominates at $98\%$ of total time; the routing
     decision contributes $<$\,1\%.
     This cost structure has a direct implication: \emph{the routing
     algorithm is not the bottleneck}---prompt embedding is, and it is
@@ -185,7 +212,7 @@ Because routing sits on the user-facing critical path while updates can be proce
     router face the same floor.
     The vLLM Semantic Router avoids a separate embedding step by folding
     it into the ModernBERT classification forward pass, but at a higher
-    total cost ($9$--$22$\,ms on GPU vs.\ $8.3$\,ms on CPU for
+    total cost ($9$--$22$\,ms on GPU vs.\ $9.2$\,ms on CPU for
     ParetoBandit).
 
     Practitioner-reported latencies corroborate this picture.
@@ -210,6 +237,11 @@ Because routing sits on the user-facing critical path while updates can be proce
     MiniLM-L6-v2), the total E2E critical path would drop to
     ${\sim}0.5$--$1$\,ms---an order of magnitude below both neural
     classification alternatives and the embedding-bound CPU floor.
+
+    \noindent\emph{Reproducibility:} The stage-decomposition table above
+    is generated by \texttt{run\_e2e\_latency\_benchmark.py} and stored
+    in \texttt{results/e2e\_latency\_results.json}; the microbenchmark
+    table is produced by \texttt{run\_latency\_benchmark.py}.
 \end{enumerate}
 
 \begin{table}[h]
@@ -232,8 +264,8 @@ $\S$\,Practitioner-reported (not peer-reviewed).
 \textbf{System} & \textbf{Category} & \textbf{Scope} & \textbf{Latency} & \textbf{HW} \\
 \midrule
 \multicolumn{5}{@{}l}{\emph{Bandit-based LLM routers}} \\
-ParetoBandit & LinUCB + Sherman-Morrison & decision only & $22\,\mu$s & CPU \\
-ParetoBandit & \quad + MiniLM-L6 + PCA & E2E (CPU) & $8.3$\,ms & CPU \\
+ParetoBandit & LinUCB + Sherman-Morrison & decision only & $22.5\,\mu$s & CPU \\
+ParetoBandit & \quad + MiniLM-L6 + PCA & E2E (CPU) & $9.2$\,ms & CPU \\
 LLM Bandit~\cite{li2025llmbandit} & contextual MAB & --- & --- & --- \\
 BaRP~\cite{wang2025barp} & contextual dueling bandits & --- & --- & --- \\
 MixLLM~\cite{wang2025mixllm} & contextual bandits + MLP & --- & --- & --- \\
@@ -276,7 +308,7 @@ latency across representative models and prompt
 lengths~\cite{ganglani2026llmlatency}.
 \emph{TTFT} = time to first token (streaming); \emph{Total} = full response
 latency.
-Routing overhead is the $8.3$\,ms end-to-end critical path (embedding +
+Routing overhead is the $9.2$\,ms end-to-end critical path (embedding +
 PCA + \texttt{route()}) on CPU.}
 \label{tab:overhead_vs_inference}
 \small
@@ -285,11 +317,11 @@ PCA + \texttt{route()}) on CPU.}
 \textbf{LLM} & \textbf{Prompt} & \textbf{TTFT (ms)} & \textbf{Total (ms)}
   & \textbf{Routing / Total} \\
 \midrule
-Claude Haiku 4.5 & short  & 639   & 952    & $0.87\%$ \\
-Claude Haiku 4.5 & medium & 597   & 3{,}954  & $0.21\%$ \\
-Gemini 2.5 Flash & medium & 730   & 1{,}729  & $0.48\%$ \\
-GPT-4.1          & short  & 889   & 1{,}770  & $0.47\%$ \\
-Claude Sonnet 4  & long   & 1{,}216 & 20{,}445 & $0.04\%$ \\
+Claude Haiku 4.5 & short  & 639   & 952    & $0.97\%$ \\
+Claude Haiku 4.5 & medium & 597   & 3{,}954  & $0.23\%$ \\
+Gemini 2.5 Flash & medium & 730   & 1{,}729  & $0.53\%$ \\
+GPT-4.1          & short  & 889   & 1{,}770  & $0.52\%$ \\
+Claude Sonnet 4  & long   & 1{,}216 & 20{,}445 & $0.05\%$ \\
 GPT-4.1 Mini     & long   & 2{,}501 & 18{,}075 & $0.05\%$ \\
 \bottomrule
 \end{tabular}
@@ -300,14 +332,14 @@ Even against the fastest production model and shortest prompt (Claude Haiku
 4.5, 952\,ms total latency), ParetoBandit's full end-to-end routing pipeline
 adds $<$\,1\% overhead.
 For typical workloads (2--5\,s total latency), routing contributes
-0.2--0.4\%; for long-form generation (7--20\,s), the overhead drops below
+0.2--0.5\%; for long-form generation (7--20\,s), the overhead drops below
 0.1\%.
-The \texttt{route()} decision alone ($22\,\mu$s) is $<$\,0.004\% of any
+The \texttt{route()} decision alone ($22.5\,\mu$s) is $<$\,0.003\% of any
 LLM call---effectively unmeasurable in production traces.
 In practical terms, \textbf{the routing decision is invisible to the
 end user}: the time spent selecting the optimal model is orders of magnitude
 smaller than the time spent waiting for that model to respond.
 PROTEUS achieves a similar end-to-end overhead ($8.7$\,ms p50, single query,
 or $0.9\%$ of the fastest LLM call), but requires an A100 GPU for the
-DeBERTa-v3 forward pass; ParetoBandit matches this overhead ($8.3$\,ms p50)
-on CPU alone, freeing GPU resources for LLM inference.
+DeBERTa-v3 forward pass; ParetoBandit achieves comparable overhead
+($9.2$\,ms p50) on CPU alone, freeing GPU resources for LLM inference.

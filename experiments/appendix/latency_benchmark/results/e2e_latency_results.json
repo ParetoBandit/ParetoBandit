@@ -1,0 +1,26 @@
+{
+  "platform": "arm64 macOS-26.3-arm64-arm-64bit",
+  "rounds": 200,
+  "warmup": 50,
+  "prompt_pool_size": 20,
+  "stages": {
+    "embed_p50_ms": 9.012604,
+    "embed_p95_ms": 9.92963095,
+    "embed_p99_ms": 10.179796839999998,
+    "pca_p50_ms": 0.154104,
+    "pca_p95_ms": 0.18401104999999998,
+    "pca_p99_ms": 0.21625383999999997,
+    "route_p50_ms": 0.070834,
+    "route_p95_ms": 0.08268365,
+    "route_p99_ms": 0.08983858,
+    "total_p50_ms": 9.1923545,
+    "total_p95_ms": 10.30827915,
+    "total_p99_ms": 10.71074625,
+    "sum_stages_p50_ms": 9.2375,
+    "rounds_measured": 200
+  },
+  "fractions": {
+    "embed_pct_of_total_p50": 98.04,
+    "route_pct_of_total_p50": 0.77
+  }
+}
