@@ -37,22 +37,22 @@ We construct five prior-quality levels forming a mismatch gradient:
 Each level is tested at three $n_\mathit{eff}$ values (10, 100, 1000).
 Two no-prior baselines are included:
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Tabula Rasa} ($\gamma{=}0.995$): the independently
+  \item \textbf{Tabula Rasa} ($\gamma{=}\prmTRGamma$): the independently
     optimised production default (Experiment~05 Pareto knee-point
     sweep).
-  \item \textbf{Tabula Rasa ($\gamma$-matched)} ($\gamma{=}0.997$,
-    $\alpha{=}0.01$): no priors, but the same forgetting factor as all
+  \item \textbf{Tabula Rasa ($\gamma$-matched)} ($\gamma{=}\prmGamma$,
+    $\alpha{=}\prmAlpha$): no priors, but the same forgetting factor as all
     warmup conditions.  This control isolates the prior's informational
-    benefit from the longer effective memory that $\gamma{=}0.997$
-    provides (${{\sim}67\%}$ longer than $\gamma{=}0.995$).
+    benefit from the longer effective memory that $\gamma{=}\prmGamma$
+    provides (${{\sim}67\%}$ longer than $\gamma{=}\prmTRGamma$).
 \end{itemize}
 This yields $5 \times 3 + 2 = 17$ conditions.
-All warmup conditions use $\alpha{=}0.01$, $\gamma{=}0.997$ (disjoint
+All warmup conditions use $\alpha{=}\prmAlpha$, $\gamma{=}\prmGamma$ (disjoint
 LinUCB).  The warmup hyperparameters were \emph{not} re-optimised per
 prior-quality level---matching the production scenario where prior
 quality degrades after deployment without hyperparameter adjustment.
 Throughout, the $\gamma$-matched Tabula Rasa serves as the primary
-controlled baseline; the production Tabula Rasa ($\gamma{=}0.995$) is
+controlled baseline; the production Tabula Rasa ($\gamma{=}\prmTRGamma$) is
 reported for operational relevance.
 Evaluation follows the same cumulative-regret protocol as the warmup
 ablation: held-out test split ($n{=}1{,}824$), 20 seeds

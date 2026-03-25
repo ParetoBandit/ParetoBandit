@@ -20,12 +20,12 @@ enable warmup priors?
 
 \paragraph{Q2: Mechanistic control (matched-$\gamma$).}
 Because the Pareto-knee sweep selects a different forgetting factor
-for each condition ($\gamma{=}0.997$ for warmup vs.\ $0.995$ for
+for each condition ($\gamma{=}\waGamma$ for warmup vs.\ $\waTRGamma$ for
 Tabula Rasa), the ``best vs best'' comparison confounds the prior
 contribution with the effect of longer memory (${\sim}333$ vs.\
 ${\sim}200$ effective-memory steps).
 A matched-$\gamma$ control runs Tabula Rasa at warmup's
-$\gamma{=}0.997$ (cold start, $n_\mathit{eff}{=}1$), isolating
+$\gamma{=}\waGamma$ (cold start, $n_\mathit{eff}{=}1$), isolating
 the prior contribution at matched memory length.
 
 \begin{center}
@@ -166,7 +166,7 @@ The matched-$\gamma$ control sharpens this conclusion by ruling
 out the alternative hypothesis that the forgetting-factor difference
 drives the advantage.
 The warmup benefit is transient by design---geometric forgetting
-($\gamma{=}0.997$) replaces priors within ${\sim}333$
+($\gamma{=}\waGamma$) replaces priors within ${\sim}333$
 effective-memory steps; after sufficient learning, warmup and
 tabula-rasa conditions converge
 (Appendix~\ref{appendix:val_burnin_ablation}).
