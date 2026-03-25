@@ -16,9 +16,12 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
-from utils.latex_gen import CommandSet, fmt_cost_sci, fmt_int, fmt_num, load_json
+from utils.bootstrap import bootstrap_ci
+from utils.latex_gen import CommandSet, ci_from_seeds_or_normal, fmt_cost_sci, fmt_int, fmt_num, load_json
 
 FULL_RECOVERY_THRESHOLD = 0.97
 
@@ -92,11 +95,26 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
             ratio_pct = entry["p3_p1_ratio"] * 100
             cs.num(f"StdDeg{deg_int}Recovery", ratio_pct, digits=1)
 
+            phases = entry.get("phases", {})
+            p1_seeds = phases.get("phase1", {}).get("per_seed_reward", [])
+            p3_seeds = phases.get("phase3", {}).get("per_seed_reward", [])
+            ci_lo_pct, ci_hi_pct = None, None
+            if p1_seeds and p3_seeds and len(p1_seeds) == len(p3_seeds):
+                a1 = np.array(p1_seeds)
+                a3 = np.array(p3_seeds)
+                ratio_seeds = a3 / np.where(a1 > 0, a1, 1e-12) * 100
+                ci_lo_pct, ci_hi_pct = bootstrap_ci(ratio_seeds)
+                cs.ci_bounds(f"StdDeg{deg_int}Recovery",
+                             ci_lo_pct, ci_hi_pct, digits=1)
+
             fr = entry.get("failure_reward")
             if fr is not None:
                 fr_int = round(fr * 100)
                 cs.num(f"StdFR{fr_int}Recovery", ratio_pct, digits=1)
                 cs.num(f"StdFR{fr_int}DegPct", entry["degradation_pct"], digits=0)
+                if ci_lo_pct is not None:
+                    cs.ci_bounds(f"StdFR{fr_int}Recovery",
+                                 ci_lo_pct, ci_hi_pct, digits=1)
 
     if ext:
         boundary_ext = _find_recovery_boundary(ext)
@@ -111,10 +129,25 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
             ratio_pct = entry["p3_p1_ratio"] * 100
             cs.num(f"ExtDeg{deg_int}Recovery", ratio_pct, digits=1)
 
+            phases = entry.get("phases", {})
+            p1_seeds = phases.get("phase1", {}).get("per_seed_reward", [])
+            p3_seeds = phases.get("phase3", {}).get("per_seed_reward", [])
+            ci_lo_pct, ci_hi_pct = None, None
+            if p1_seeds and p3_seeds and len(p1_seeds) == len(p3_seeds):
+                a1 = np.array(p1_seeds)
+                a3 = np.array(p3_seeds)
+                ratio_seeds = a3 / np.where(a1 > 0, a1, 1e-12) * 100
+                ci_lo_pct, ci_hi_pct = bootstrap_ci(ratio_seeds)
+                cs.ci_bounds(f"ExtDeg{deg_int}Recovery",
+                             ci_lo_pct, ci_hi_pct, digits=1)
+
             fr = entry.get("failure_reward")
             if fr is not None:
                 fr_int = round(fr * 100)
                 cs.num(f"ExtFR{fr_int}Recovery", ratio_pct, digits=1)
+                if ci_lo_pct is not None:
+                    cs.ci_bounds(f"ExtFR{fr_int}Recovery",
+                                 ci_lo_pct, ci_hi_pct, digits=1)
 
     return cs
 

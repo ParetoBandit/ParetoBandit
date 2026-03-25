@@ -332,7 +332,7 @@ learns the reward structure regardless of evaluator.
 The Random baseline's cumulative regret under GPT-4.1-mini (\jrGPTUncRandRegret)
 is 32\% lower than under R1 (\jrROneUncRandRegret), consistent with
 GPT-4.1-mini's smaller inter-model margins.  The GPT/R1 regret ratio is
-stable across budget regimes (\jrUncGPTROneRatio--\jrTightGPTROneRatio;
+stable across budget regimes (\jrUncGPTROneRatio\,[$\jrUncGPTROneRatioCILo$, $\jrUncGPTROneRatioCIHi$] to \jrTightGPTROneRatio\,[$\jrTightGPTROneRatioCILo$, $\jrTightGPTROneRatioCIHi$];
 Figure~\ref{fig:cross_judge_regret}), confirming
 proportional compression rather than a structural change in learning
 dynamics.  The wide Tabula~Rasa CIs reflect the bimodal cold-start

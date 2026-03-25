@@ -13,12 +13,16 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci
 from utils.latex_gen import (
     BINDING_RATIO_HIGH,
     BINDING_RATIO_LOW,
     CommandSet,
+    ci_from_seeds_or_normal,
     fmt_cost_sci,
     fmt_num,
     fmt_pct,
@@ -89,6 +93,11 @@ def add_fixed_model_commands(
         cs.reward(f"Fixed{label}Reward", r["mean_reward"], se)
         cs.cost_sci(f"Fixed{label}Cost", r["mean_cost"])
 
+        per_seed_r = r.get("per_seed_rewards")
+        if per_seed_r and np.std(per_seed_r) > 1e-8:
+            lo, hi = bootstrap_ci(np.array(per_seed_r))
+            cs.ci_bounds(f"Fixed{label}Reward", lo, hi, digits=3)
+
 
 def add_annotation_commands(
     cs: CommandSet,
@@ -128,6 +137,21 @@ def add_annotation_commands(
     cs.cost_sci("AnnotBudget", annot_r["target_spend"])
     cs.num("AnnotSavingPctGemini", saving_pct, digits=0)
 
+    gemini_r_seeds = np.array(gemini.get("per_seed_rewards", []))
+    gemini_c_seeds = np.array(gemini.get("per_seed_costs", []))
+    annot_r_seeds = np.array(annot_r.get("per_seed_rewards", []))
+    annot_c_seeds = np.array(annot_r.get("per_seed_costs", []))
+
+    if len(annot_r_seeds) >= 2 and len(gemini_r_seeds) >= 2:
+        q_pct_seeds = annot_r_seeds / gemini_r_seeds * 100
+        lo, hi = bootstrap_ci(q_pct_seeds)
+        cs.ci_bounds("AnnotQualPct", lo, hi, digits=0)
+
+    if len(annot_c_seeds) >= 2 and len(gemini_c_seeds) >= 2:
+        saving_seeds = (1.0 - annot_c_seeds / gemini_c_seeds) * 100
+        lo, hi = bootstrap_ci(saving_seeds)
+        cs.ci_bounds("AnnotSavingPctGemini", lo, hi, digits=0)
+
     fracs = annot_r.get("model_fractions", {})
     for mid, frac in fracs.items():
         short = mid.split("/")[-1]
@@ -151,6 +175,17 @@ def add_annotation_commands(
         cs.num(f"Pacer{name}QualPctGemini", q_pct, digits=1)
         cs.num(f"Pacer{name}SavingPctGemini", c_saving, digits=1)
 
+        p_r_seeds = np.array(p.get("per_seed_rewards", []))
+        p_c_seeds = np.array(p.get("per_seed_costs", []))
+        if len(p_r_seeds) >= 2 and len(gemini_r_seeds) >= 2:
+            pq = p_r_seeds / gemini_r_seeds * 100
+            lo, hi = bootstrap_ci(pq)
+            cs.ci_bounds(f"Pacer{name}QualPctGemini", lo, hi, digits=1)
+        if len(p_c_seeds) >= 2 and len(gemini_c_seeds) >= 2:
+            ps = (1.0 - p_c_seeds / gemini_c_seeds) * 100
+            lo, hi = bootstrap_ci(ps)
+            cs.ci_bounds(f"Pacer{name}SavingPctGemini", lo, hi, digits=1)
+
 
 def add_pacer_commands(
     cs: CommandSet,
@@ -170,6 +205,21 @@ def add_pacer_commands(
         cs.num(f"Pacer{name}FinalLambda", p.get("final_lambda", 0.0), digits=2)
         lq = p.get("lambda_quartiles") or {}
         cs.num(f"Pacer{name}LambdaMedian", lq.get("q50", 0.0), digits=2)
+
+        per_seed_r = p.get("per_seed_rewards")
+        if per_seed_r:
+            arr = np.array(per_seed_r)
+            lo, hi = bootstrap_ci(arr)
+            cs.ci_bounds(f"Pacer{name}Reward", lo, hi, digits=3)
+
+        per_seed_c = p.get("per_seed_costs")
+        if per_seed_c and target > 0:
+            arr_c = np.array(per_seed_c)
+            lo_c, hi_c = bootstrap_ci(arr_c)
+            cs.ci_bounds(f"Pacer{name}Cost", lo_c, hi_c, digits=6)
+            util_arr = arr_c / target
+            lo_u, hi_u = bootstrap_ci(util_arr)
+            cs.ci_bounds(f"Pacer{name}Util", lo_u, hi_u, digits=2)
 
 
 def add_derived_commands(
@@ -200,6 +250,11 @@ def add_derived_commands(
                 loosest_pacer["mean_reward"] / data["oracle_mean_reward"] * 100
             )
             cs.num("CeilingOraclePct", ceiling_pct, digits=1)
+            lp_seeds = loosest_pacer.get("per_seed_rewards")
+            if lp_seeds:
+                ceil_seeds = np.array(lp_seeds) / data["oracle_mean_reward"] * 100
+                lo, hi = bootstrap_ci(ceil_seeds)
+                cs.ci_bounds("CeilingOraclePct", lo, hi, digits=1)
 
     if data and "oracle_mean_reward" in data:
         cs.reward("OracleReward", data["oracle_mean_reward"])
@@ -304,9 +359,14 @@ def format_pacer_row(
         LaTeX table row string.
     """
     budget_str = fmt_cost_sci(target)
-    reward_str = fmt_reward(r["mean_reward"], r.get("se_reward"))
+    mean_r = r["mean_reward"]
+    reward_str = fmt_reward(mean_r)
+    per_seed_r = r.get("per_seed_rewards")
+    if per_seed_r and len(per_seed_r) >= 2:
+        lo, hi = bootstrap_ci(np.array(per_seed_r))
+        reward_str += f"\\,[{lo:.3f},\\,{hi:.3f}]"
     cost_str = fmt_cost_sci(r["mean_cost"])
-    q_pct = r["mean_reward"] / gemini_reward * 100
+    q_pct = mean_r / gemini_reward * 100
     saving = (1.0 - r["mean_cost"] / gemini_cost) * 100
     q_pct_str = fmt_num(q_pct, digits=1)
     saving_str = fmt_pct(saving / 100, digits=1)

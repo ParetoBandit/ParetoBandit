@@ -119,6 +119,11 @@ def _add_regret_commands(
         cs.num(f"{pfx}RegretCILo", s["ci_lo"], digits=1)
         cs.num(f"{pfx}RegretCIHi", s["ci_hi"], digits=1)
 
+    groups_raw: Dict[Tuple[str, str, str], List[float]] = defaultdict(list)
+    for t in trials:
+        key = (t["judge"], t["budget_label"], t["method"])
+        groups_raw[key].append(t["cumulative_regret"])
+
     for judge in regret_data["judges"]:
         j = JUDGE_SHORT.get(judge, judge)
         for budget in ["unconstrained", "tight", "moderate", "loose"]:
@@ -131,6 +136,13 @@ def _add_regret_commands(
                 reduction = (1 - tr_mean / rand_mean) * 100
                 cs.num(f"{j}{b}ReductionPct", reduction, digits=0)
 
+                tr_seeds = groups_raw.get(tr_key)
+                rand_seeds = groups_raw.get(rand_key)
+                if tr_seeds and rand_seeds:
+                    red_seeds = (1 - np.array(tr_seeds) / np.array(rand_seeds)) * 100
+                    lo, hi = bootstrap_ci(red_seeds)
+                    cs.ci_bounds(f"{j}{b}ReductionPct", lo, hi, digits=0)
+
     for budget in ["unconstrained", "tight", "moderate", "loose"]:
         b = BUDGET_SHORT.get(budget, budget)
         gpt_key = ("GPT-4.1-mini", budget, "tabula_rasa")
@@ -138,6 +150,13 @@ def _add_regret_commands(
         if gpt_key in stats and r1_key in stats:
             ratio = stats[gpt_key]["mean"] / stats[r1_key]["mean"]
             cs.num(f"{b}GPTROneRatio", ratio, digits=2)
+
+            gpt_seeds = groups_raw.get(gpt_key)
+            r1_seeds = groups_raw.get(r1_key)
+            if gpt_seeds and r1_seeds:
+                ratio_seeds = np.array(gpt_seeds) / np.array(r1_seeds)
+                lo, hi = bootstrap_ci(ratio_seeds)
+                cs.ci_bounds(f"{b}GPTROneRatio", lo, hi, digits=2)
 
 
 def _add_agreement_commands(

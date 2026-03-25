@@ -30,7 +30,9 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
 
 
 # ======================================================================
@@ -152,6 +154,40 @@ def fmt_int(val: float) -> str:
     return str(int(round(val)))
 
 
+def ci_from_seeds_or_normal(
+    per_seed: Optional[Sequence[float]],
+    mean: float,
+    se: float,
+    *,
+    ci_level: float = 0.95,
+) -> Tuple[float, float]:
+    """Compute a 95% CI from per-seed data (bootstrap) or normal approximation.
+
+    Parameters
+    ----------
+    per_seed:
+        Per-seed scalar observations.  If provided and length >= 2,
+        a percentile-bootstrap CI is computed via ``bootstrap_ci``.
+    mean:
+        Point estimate (used only for the normal-approximation fallback).
+    se:
+        Standard error of the mean (fallback only).
+    ci_level:
+        Confidence level for both methods.
+
+    Returns
+    -------
+    lo, hi : float
+        Lower and upper CI bounds.
+    """
+    if per_seed is not None and len(per_seed) >= 2:
+        from .bootstrap import bootstrap_ci
+        return bootstrap_ci(np.asarray(per_seed, dtype=np.float64),
+                            ci_level=ci_level)
+    z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(ci_level, 1.96)
+    return mean - z * se, mean + z * se
+
+
 # ======================================================================
 # LaTeX command accumulator
 # ======================================================================
@@ -213,6 +249,12 @@ class CommandSet:
 
     def raw(self, name: str, val: str) -> None:
         self.add(name, val)
+
+    def ci_bounds(self, name: str, lo: float, hi: float,
+                  digits: int = 1) -> None:
+        """Emit paired ``{name}CILo`` / ``{name}CIHi`` macros."""
+        self.num(f"{name}CILo", lo, digits=digits)
+        self.num(f"{name}CIHi", hi, digits=digits)
 
     # -- emitters --
 

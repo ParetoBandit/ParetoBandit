@@ -23,6 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from utils.latex_gen import (
     CommandSet,
+    ci_from_seeds_or_normal,
     fmt_cost_eng,
     fmt_int,
     fmt_num,
@@ -77,10 +78,33 @@ def _add_summary_commands(
     cs.reward(f"{pfx}OverallReward", s["overall_reward"]["mean"])
     cs.raw(f"{pfx}OverallCost", fmt_cost_eng(s["overall_cost"]["mean"]))
 
+    for metric_name, macro_suffix in (
+        ("phase2_reward", "PhaseTwoReward"),
+        ("overall_reward", "OverallReward"),
+    ):
+        m = s.get(metric_name, {})
+        if "mean" in m and "se" in m:
+            lo, hi = ci_from_seeds_or_normal(None, m["mean"], m["se"])
+            cs.ci_bounds(f"{pfx}{macro_suffix}", lo, hi, digits=3)
+
+    for metric_name, macro_suffix in (
+        ("phase2_cost", "PhaseTwoCost"),
+        ("overall_cost", "OverallCost"),
+    ):
+        m = s.get(metric_name, {})
+        if "mean" in m and "se" in m:
+            lo, hi = ci_from_seeds_or_normal(None, m["mean"], m["se"])
+            cs.ci_bounds(f"{pfx}{macro_suffix}", lo, hi, digits=6)
+
     fracs = s.get("phase2_model_fractions", {})
     for mid, frac_data in fracs.items():
         if "flash" in mid.lower():
             cs.num(f"{pfx}FlashPct", frac_data["mean"] * 100, digits=1)
+            if "se" in frac_data:
+                lo, hi = ci_from_seeds_or_normal(
+                    None, frac_data["mean"] * 100, frac_data["se"] * 100,
+                )
+                cs.ci_bounds(f"{pfx}FlashPct", lo, hi, digits=1)
 
     adoption = s.get("flash_adoption", {})
     if adoption:
@@ -88,13 +112,28 @@ def _add_summary_commands(
         sustained_step = adoption.get("mean_sustained_step")
         if sustained_step is not None:
             cs.raw(f"{pfx}SustainedStep", fmt_int(sustained_step))
+            se_step = adoption.get("se_sustained_step")
+            if se_step is not None:
+                lo, hi = ci_from_seeds_or_normal(None, sustained_step, se_step)
+                cs.ci_bounds(f"{pfx}SustainedStep", lo, hi, digits=0)
         final_share = adoption.get("flash_final_share", {})
         if final_share:
             cs.num(f"{pfx}FlashFinalPct", final_share["mean"] * 100, digits=1)
+            if "se" in final_share:
+                lo, hi = ci_from_seeds_or_normal(
+                    None, final_share["mean"] * 100, final_share["se"] * 100,
+                )
+                cs.ci_bounds(f"{pfx}FlashFinalPct", lo, hi, digits=1)
 
     compliance = s.get("budget_compliance")
     if compliance and budget_label != "unconstrained":
         cs.num(f"{pfx}CostRatio", compliance.get("mean_cost_target_ratio", 0.0), digits=2)
+        se_ratio = compliance.get("se_cost_target_ratio")
+        if se_ratio is not None:
+            lo, hi = ci_from_seeds_or_normal(
+                None, compliance["mean_cost_target_ratio"], se_ratio,
+            )
+            cs.ci_bounds(f"{pfx}CostRatio", lo, hi, digits=2)
 
 
 def build_command_set(data: Dict[str, Any]) -> CommandSet:

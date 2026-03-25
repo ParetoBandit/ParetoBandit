@@ -23,8 +23,10 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci
 from utils.latex_gen import (
     CommandSet,
+    ci_from_seeds_or_normal,
     fmt_int,
     fmt_num,
     load_json,
@@ -57,11 +59,23 @@ def _add_condition_commands(
     cs.num(f"{pfx}RegretStd", tr["std"], digits=1)
     cs.num(f"{pfx}RegretSE", tr["se"], digits=1)
 
+    per_seed_regret = cond.get("per_seed_cumulative_regret")
+    lo, hi = ci_from_seeds_or_normal(per_seed_regret, tr["mean"], tr["se"])
+    cs.ci_bounds(f"{pfx}RegretMean", lo, hi, digits=1)
+
     rw = cond["mean_reward"]
     cs.num(f"{pfx}Reward", rw["mean"], digits=3)
+    per_seed_reward = cond.get("per_seed_reward")
+    rw_se = rw.get("se", rw.get("std", 0.0) / 20**0.5)
+    lo, hi = ci_from_seeds_or_normal(per_seed_reward, rw["mean"], rw_se)
+    cs.ci_bounds(f"{pfx}Reward", lo, hi, digits=3)
 
     r200 = cond["regret_at_200"]
     cs.num(f"{pfx}RAtTwoHundred", r200["mean"], digits=1)
+    per_seed_r200 = cond.get("per_seed_regret_at_200")
+    r200_se = r200.get("se", r200.get("std", 0.0) / 20**0.5)
+    lo, hi = ci_from_seeds_or_normal(per_seed_r200, r200["mean"], r200_se)
+    cs.ci_bounds(f"{pfx}RAtTwoHundred", lo, hi, digits=1)
 
 
 def _add_pairwise_commands(

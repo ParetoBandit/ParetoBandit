@@ -21,6 +21,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci
 from utils.latex_gen import (
     BINDING_RATIO_HIGH,
     BINDING_RATIO_LOW,
@@ -31,6 +32,7 @@ from utils.latex_gen import (
     fmt_cost_eng,
     fmt_cost_sci,
     fmt_int,
+    fmt_num,
     fmt_ratio,
     load_json,
 )
@@ -133,6 +135,13 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                     )
                     cs.num(f"{short}Phase{phase_name}RatioSE", ratio_se, digits=2)
 
+                    arr = np.array(per_seed_costs)
+                    if target > 0:
+                        ratio_seeds = arr / target
+                        lo, hi = bootstrap_ci(ratio_seeds)
+                        cs.ci_bounds(f"{short}Phase{phase_name}Ratio",
+                                     lo, hi, digits=2)
+
             if condition == "ParetoBandit":
                 for phase_num in (1, 2, 3):
                     phase_key = f"phase{phase_num}_summary"
@@ -163,6 +172,11 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                             f"ParetoBandit{short_budget}RewardPhase{phase_name}SE",
                             reward_se, digits=4,
                         )
+                        r_lo, r_hi = bootstrap_ci(np.array(per_seed_rewards))
+                        cs.ci_bounds(
+                            f"ParetoBandit{short_budget}RewardPhase{phase_name}",
+                            r_lo, r_hi, digits=4,
+                        )
 
                 p1 = cond_data.get("phase1_summary") or {}
                 p2 = cond_data.get("phase2_summary") or {}
@@ -179,6 +193,12 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                         f"ParetoBandit{short_budget}RewardLiftSE",
                         lift_se, digits=4,
                     )
+                    d_arr = np.array(deltas)
+                    d_lo, d_hi = bootstrap_ci(d_arr)
+                    cs.ci_bounds(
+                        f"ParetoBandit{short_budget}RewardLift",
+                        d_lo, d_hi, digits=3,
+                    )
 
                 ratio_p1 = p1.get("mean_cost", 0.0) / target if target > 0 else 0.0
                 cs.ratio(f"ParetoBandit{short_budget}PhaseOneUtil", ratio_p1)
@@ -190,6 +210,11 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         uc_reward = uc_p1.get("mean_reward", 0.0)
         cs.raw("UncPhaseOneCostEng", fmt_cost_eng(uc_cost))
         cs.num("UncPhaseOneReward", uc_reward, digits=4)
+
+        uc_ps_r1 = uc_data.get("per_seed_phase1_reward", [])
+        if uc_ps_r1:
+            lo, hi = bootstrap_ci(np.array(uc_ps_r1))
+            cs.ci_bounds("UncPhaseOneReward", lo, hi, digits=4)
 
         for label in budget_labels:
             short_budget = BUDGET_LABEL_TO_SHORT.get(label, label.title())
@@ -215,21 +240,23 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
     return cs
 
 
-def _format_ratio_cell_with_se(
+def _format_ratio_cell_with_ci(
     ratio: float,
-    ratio_se: float,
+    ci_lo: float,
+    ci_hi: float,
     is_paretobandit: bool,
     is_non_binding: bool = False,
 ) -> str:
-    """Format a budget-utilisation ratio cell with SE, optional bold & dagger."""
+    """Format a budget-utilisation ratio cell with 95% CI, optional bold & dagger."""
     within_5pct = BINDING_RATIO_LOW <= ratio <= BINDING_RATIO_HIGH
     should_bold = is_paretobandit or within_5pct
 
     ratio_str = fmt_ratio(ratio)
-    se_str = f"{ratio_se:.2f}"
-    inner = f"{ratio_str}{{\\scriptstyle\\pm{se_str}}}"
+    ci_str = f"[{fmt_num(ci_lo, 2)}, {fmt_num(ci_hi, 2)}]"
     if should_bold:
-        inner = f"\\mathbf{{{ratio_str}}}{{\\scriptstyle\\pm{se_str}}}"
+        inner = f"\\mathbf{{{ratio_str}}}\\,{{\\scriptstyle{ci_str}}}"
+    else:
+        inner = f"{ratio_str}\\,{{\\scriptstyle{ci_str}}}"
 
     if is_non_binding:
         return f"${inner}^{{\\dagger}}$"
@@ -247,7 +274,7 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
         r"\centering",
         r"\caption{Budget compliance under cost drift (Experiment~2,",
         rf"{data['n_seeds']}~seeds, three phases).  Each cell shows realised average cost",
-        r"as a multiple of the budget target ($1.00\times$ = perfect), $\pm$ standard error.",
+        r"as a multiple of the budget target ($1.00\times$ = perfect) with 95\% bootstrap CI.",
         r"\textbf{Bold} marks values within $5\%$ of $1.00\times$.",
         r"$\dagger$~Phase~2 constraint non-binding: the price drop reduces",
         r"all methods' costs below target, regardless of algorithm.",
@@ -274,7 +301,7 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
                 continue
 
             ratios: List[float] = []
-            ratio_ses: List[float] = []
+            ratio_cis: List[tuple] = []
             for phase_num in (1, 2, 3):
                 phase_key = f"phase{phase_num}_summary"
                 pd = cond_data.get(phase_key) or {}
@@ -285,25 +312,25 @@ def generate_budget_compliance_table(data: Dict[str, Any]) -> str:
                     f"per_seed_phase{phase_num}_cost", [],
                 )
                 if per_seed and target > 0:
-                    ratio_ses.append(
-                        _se_from_seeds(per_seed) / target,
-                    )
+                    arr = np.array(per_seed) / target
+                    lo, hi = bootstrap_ci(arr)
+                    ratio_cis.append((lo, hi))
                 else:
-                    ratio_ses.append(0.0)
+                    ratio_cis.append((ratios[-1], ratios[-1]))
 
             is_paretobandit = condition == "ParetoBandit"
             p2_non_binding = ratios[1] < NON_BINDING_RATIO_THRESHOLD
 
             cond_display = "\\textbf{ParetoBandit}" if is_paretobandit else condition
-            cell_p1 = _format_ratio_cell_with_se(
-                ratios[0], ratio_ses[0], is_paretobandit,
+            cell_p1 = _format_ratio_cell_with_ci(
+                ratios[0], ratio_cis[0][0], ratio_cis[0][1], is_paretobandit,
             )
-            cell_p2 = _format_ratio_cell_with_se(
-                ratios[1], ratio_ses[1], is_paretobandit,
+            cell_p2 = _format_ratio_cell_with_ci(
+                ratios[1], ratio_cis[1][0], ratio_cis[1][1], is_paretobandit,
                 is_non_binding=p2_non_binding,
             )
-            cell_p3 = _format_ratio_cell_with_se(
-                ratios[2], ratio_ses[2], is_paretobandit,
+            cell_p3 = _format_ratio_cell_with_ci(
+                ratios[2], ratio_cis[2][0], ratio_cis[2][1], is_paretobandit,
             )
 
             line_end = r"\\[3pt]" if cond_idx == len(CONDITION_ORDER) - 1 else r"\\"

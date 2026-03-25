@@ -92,6 +92,16 @@ configuration on two objectives:
 \providecommand{\hpBootKneeFreq}{--}
 \providecommand{\hpBootNeighborFreq}{--}
 \providecommand{\hpBootNUnique}{--}
+%% Val-split AUC/P2 CIs require per-seed arrays not in current JSON;
+%% provide defaults so macros in the prose degrade gracefully:
+\providecommand{\hpParetoBanditAUCCILo}{--}
+\providecommand{\hpParetoBanditAUCCIHi}{--}
+\providecommand{\hpTabulaAUCCILo}{--}
+\providecommand{\hpTabulaAUCCIHi}{--}
+\providecommand{\hpParetoBanditPTwoRewardCILo}{--}
+\providecommand{\hpParetoBanditPTwoRewardCIHi}{--}
+\providecommand{\hpTabulaPTwoRewardCILo}{--}
+\providecommand{\hpTabulaPTwoRewardCIHi}{--}
 
 We select a single configuration from the scored grid by
 constructing the \emph{Pareto frontier} of non-dominated
@@ -174,13 +184,13 @@ within one standard deviation of seed variance
 ($\pm\hpParetoBanditTestStd$ and $\pm\hpTabulaTestStd$
 respectively), confirming the offline protocol does not overfit.
 The forgetting tax under stationarity is negligible:
-ParetoBandit reaches $\hpParetoBanditTestAUC$ on the test split,
+ParetoBandit reaches $\hpParetoBanditTestAUC$\,[$\hpParetoBanditTestAUCCILo$, $\hpParetoBanditTestAUCCIHi$] on the test split,
 only ${\sim}0.3\%$ below the fixed-model envelope
 ($\hpFixedTestAUC$), despite carrying a forgetting rate designed
 for non-stationary recovery.
 Warmup priors close roughly half the remaining gap to the
-envelope, with ParetoBandit at $\hpParetoBanditTestAUC$ versus
-$\hpTabulaTestAUC$ for Tabula Rasa.
+envelope, with ParetoBandit at $\hpParetoBanditTestAUC$\,[$\hpParetoBanditTestAUCCILo$, $\hpParetoBanditTestAUCCIHi$] versus
+$\hpTabulaTestAUC$\,[$\hpTabulaTestAUCCILo$, $\hpTabulaTestAUCCIHi$] for Tabula Rasa.
 
 \paragraph{Cross-arm validation.}
 Because the Phase-2 objective was tuned on Mistral failure
@@ -190,10 +200,10 @@ targets---we verify that the selected forgetting rate
 generalises by evaluating the knee-point configuration against
 catastrophic failure of each of the $K{=}3$ arms independently
 (val split, 20~seeds, 3~budget targets).
-Phase-2 mean reward is $\hpCrossArmLlamaPTwo$ ($\pm\hpCrossArmLlamaStd$)
-under Llama failure, $\hpCrossArmMistralPTwo$ ($\pm\hpCrossArmMistralStd$)
+Phase-2 mean reward is $\hpCrossArmLlamaPTwo$\,[$\hpCrossArmLlamaPTwoCILo$, $\hpCrossArmLlamaPTwoCIHi$]
+under Llama failure, $\hpCrossArmMistralPTwo$\,[$\hpCrossArmMistralPTwoCILo$, $\hpCrossArmMistralPTwoCIHi$]
 under Mistral failure (the tuning target), and
-$\hpCrossArmGeminiPTwo$ ($\pm\hpCrossArmGeminiStd$) under Gemini failure.
+$\hpCrossArmGeminiPTwo$\,[$\hpCrossArmGeminiPTwoCILo$, $\hpCrossArmGeminiPTwoCIHi$] under Gemini failure (all 95\% CIs).
 Mistral failure remains the hardest case (lowest Phase-2 reward),
 confirming that tuning on the dominant arm is a conservative
 choice and that the forgetting mechanism generalises to all arms.
@@ -221,8 +231,8 @@ Three findings stand out from the joint selection:
 
   \item \textbf{Warmup priors and forgetting are synergistic.}
     ParetoBandit dominates Tabula Rasa on both objectives
-    ($\hpParetoBanditAUC$ vs.\ $\hpTabulaAUC$ AUC;
-    $\hpParetoBanditPTwoReward$ vs.\ $\hpTabulaPTwoReward$
+    ($\hpParetoBanditAUC$\,[$\hpParetoBanditAUCCILo$, $\hpParetoBanditAUCCIHi$] vs.\ $\hpTabulaAUC$\,[$\hpTabulaAUCCILo$, $\hpTabulaAUCCIHi$] AUC;
+    $\hpParetoBanditPTwoReward$\,[$\hpParetoBanditPTwoRewardCILo$, $\hpParetoBanditPTwoRewardCIHi$] vs.\ $\hpTabulaPTwoReward$\,[$\hpTabulaPTwoRewardCILo$, $\hpTabulaPTwoRewardCIHi$]
     Phase-2 reward).
     Forgetting ($\gamma < 1$) down-weights all past evidence,
     including the prior embedded in the sufficient statistics at

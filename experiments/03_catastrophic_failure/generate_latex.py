@@ -25,6 +25,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci
 from utils.latex_gen import (
     BINDING_RATIO_HIGH,
     BINDING_RATIO_LOW,
@@ -127,6 +128,21 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 cs.raw(f"{short}Phase{phase_name}Cost", fmt_cost_eng(mean_cost))
                 cs.num(f"{short}Phase{phase_name}Reward", mean_reward, digits=4)
 
+                per_seed_c = cond_data.get(
+                    f"per_seed_phase{phase_num}_cost", [],
+                )
+                if per_seed_c and target > 0:
+                    arr_c = np.array(per_seed_c) / target
+                    lo, hi = bootstrap_ci(arr_c)
+                    cs.ci_bounds(f"{short}Phase{phase_name}Ratio", lo, hi, digits=2)
+
+                per_seed_r = cond_data.get(
+                    f"per_seed_phase{phase_num}_reward", [],
+                )
+                if per_seed_r:
+                    lo, hi = bootstrap_ci(np.array(per_seed_r))
+                    cs.ci_bounds(f"{short}Phase{phase_name}Reward", lo, hi, digits=4)
+
                 if condition in ("ParetoBandit", "Forgetting Bandit"):
                     arm_fracs = phase_data.get("arm_fractions") or {}
                     failure_arm_short = data["failure_arm_short"]
@@ -151,6 +167,30 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 r3 = p3.get("mean_reward", 0.0)
                 cs.num(f"ParetoBandit{short_budget}RewardDrop", r1 - r2, digits=3)
                 cs.num(f"ParetoBandit{short_budget}RecoveryGap", r1 - r3, digits=3)
+
+                ps_r1 = cond_data.get("per_seed_phase1_reward", [])
+                ps_r2 = cond_data.get("per_seed_phase2_reward", [])
+                ps_r3 = cond_data.get("per_seed_phase3_reward", [])
+                if ps_r1 and ps_r3:
+                    a1 = np.array(ps_r1)
+                    a3 = np.array(ps_r3)
+                    recovery = a3 / np.where(a1 > 0, a1, 1e-12)
+                    lo, hi = bootstrap_ci(recovery)
+                    cs.ci_bounds(
+                        f"ParetoBandit{short_budget}Recovery",
+                        lo, hi, digits=3,
+                    )
+                    cs.num(
+                        f"ParetoBandit{short_budget}RecoveryMean",
+                        float(np.mean(recovery)), digits=3,
+                    )
+                if ps_r1 and ps_r2:
+                    drop_arr = np.array(ps_r1) - np.array(ps_r2)
+                    lo, hi = bootstrap_ci(drop_arr)
+                    cs.ci_bounds(
+                        f"ParetoBandit{short_budget}RewardDrop",
+                        lo, hi, digits=3,
+                    )
 
     # ------------------------------------------------------------------
     # Phase 2 adaptation dynamics and cost-quality tradeoff
@@ -221,6 +261,10 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 f"UncPhase{phase_name}Cost",
                 fmt_cost_eng(phase_data.get("mean_cost", 0.0)),
             )
+            uc_ps_r = uc.get(f"per_seed_phase{phase_num}_reward", [])
+            if uc_ps_r:
+                lo, hi = bootstrap_ci(np.array(uc_ps_r))
+                cs.ci_bounds(f"UncPhase{phase_name}Reward", lo, hi, digits=4)
 
         if "curves" in uc:
             uc_curves = uc["curves"]

@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
-from utils.latex_gen import CommandSet, fmt_int, fmt_num, load_json
+from utils.latex_gen import CommandSet, ci_from_seeds_or_normal, fmt_int, fmt_num, load_json
 
 
 def format_alpha(val: float) -> str:
@@ -58,6 +58,8 @@ def build_command_set(
     # -------------------------------------------------------------------------
     # ParetoBandit selected config (knee-point)
     # -------------------------------------------------------------------------
+    n_seeds = sweep_data.get("n_seeds", 20)
+
     pb_best = best_val.get("paretobandit", {})
     if pb_best:
         cs.raw("ParetoBanditAlpha", format_alpha(pb_best["alpha"]))
@@ -65,6 +67,17 @@ def build_command_set(
         cs.raw("ParetoBanditGamma", format_gamma(pb_best["gamma"]))
         cs.num("ParetoBanditAUC", pb_best["val_pareto_auc"], digits=3)
         cs.num("ParetoBanditPTwoReward", pb_best["val_phase2_reward"], digits=4)
+
+        auc_std = pb_best.get("val_pareto_auc_std")
+        if auc_std is not None:
+            se = auc_std / math.sqrt(n_seeds)
+            lo, hi = ci_from_seeds_or_normal(None, pb_best["val_pareto_auc"], se)
+            cs.ci_bounds("ParetoBanditAUC", lo, hi, digits=3)
+        p2_std = pb_best.get("val_phase2_reward_std")
+        if p2_std is not None:
+            se = p2_std / math.sqrt(n_seeds)
+            lo, hi = ci_from_seeds_or_normal(None, pb_best["val_phase2_reward"], se)
+            cs.ci_bounds("ParetoBanditPTwoReward", lo, hi, digits=4)
 
         gamma = pb_best["gamma"]
         if gamma < 1.0:
@@ -79,6 +92,12 @@ def build_command_set(
         cs.num("ParetoBanditTestStd", pb_test["test_pareto_auc_std"], digits=4)
         cs.num("ParetoBanditTestDelta", pb_test["test_delta_pct"], digits=2)
 
+        test_std = pb_test.get("test_pareto_auc_std")
+        if test_std is not None:
+            se = test_std / math.sqrt(n_seeds)
+            lo, hi = ci_from_seeds_or_normal(None, pb_test["test_pareto_auc"], se)
+            cs.ci_bounds("ParetoBanditTestAUC", lo, hi, digits=4)
+
     # -------------------------------------------------------------------------
     # Tabula Rasa selected config (knee-point)
     # -------------------------------------------------------------------------
@@ -88,6 +107,17 @@ def build_command_set(
         cs.raw("TabulaGamma", format_gamma(tr_best["gamma"]))
         cs.num("TabulaAUC", tr_best["val_pareto_auc"], digits=3)
         cs.num("TabulaPTwoReward", tr_best["val_phase2_reward"], digits=4)
+
+        auc_std = tr_best.get("val_pareto_auc_std")
+        if auc_std is not None:
+            se = auc_std / math.sqrt(n_seeds)
+            lo, hi = ci_from_seeds_or_normal(None, tr_best["val_pareto_auc"], se)
+            cs.ci_bounds("TabulaAUC", lo, hi, digits=3)
+        p2_std = tr_best.get("val_phase2_reward_std")
+        if p2_std is not None:
+            se = p2_std / math.sqrt(n_seeds)
+            lo, hi = ci_from_seeds_or_normal(None, tr_best["val_phase2_reward"], se)
+            cs.ci_bounds("TabulaPTwoReward", lo, hi, digits=4)
 
         tr_gamma = tr_best["gamma"]
         if tr_gamma < 1.0:
@@ -101,6 +131,12 @@ def build_command_set(
         cs.num("TabulaTestAUC", tr_test["test_pareto_auc"], digits=4)
         cs.num("TabulaTestStd", tr_test["test_pareto_auc_std"], digits=4)
         cs.num("TabulaTestDelta", tr_test["test_delta_pct"], digits=2)
+
+        test_std = tr_test.get("test_pareto_auc_std")
+        if test_std is not None:
+            se = test_std / math.sqrt(n_seeds)
+            lo, hi = ci_from_seeds_or_normal(None, tr_test["test_pareto_auc"], se)
+            cs.ci_bounds("TabulaTestAUC", lo, hi, digits=4)
 
     # -------------------------------------------------------------------------
     # Fixed-model baseline (test)
@@ -158,6 +194,13 @@ def build_command_set(
                 arm_data["phase2_reward_std"],
                 digits=4,
             )
+            std = arm_data.get("phase2_reward_std")
+            if std is not None:
+                se = std / math.sqrt(n_seeds)
+                lo, hi = ci_from_seeds_or_normal(
+                    None, arm_data["phase2_reward"], se,
+                )
+                cs.ci_bounds(f"CrossArm{key_suffix}PTwo", lo, hi, digits=4)
 
     # -------------------------------------------------------------------------
     # Cross-arm validation — held-out TEST split
