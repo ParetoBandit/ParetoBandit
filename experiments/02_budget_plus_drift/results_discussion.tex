@@ -33,8 +33,8 @@ the P1-vs-P3 comparison is a controlled within-subject design: any
 difference between the two phases is attributable solely to the
 router's internal state (accumulated Phase~2 learning history), not
 prompt-sampling variability.
-With geometric forgetting $\gamma{=}0.997$, Phase~1 observations are
-down-weighted by $\gamma^{608}\approx 0.16$ by the start of Phase~3,
+With geometric forgetting $\gamma{=}\bdGamma$, Phase~1 observations are
+down-weighted by $\gamma^{608}\approx 0.09$ by the start of Phase~3,
 so the learner retains only modest memory of individual Phase~1
 evaluations.
 The Fixed Policy (no online learning) serves as a null check: its P1
@@ -134,16 +134,16 @@ routing sophistication, each using warmup priors:
     offline recalibration can achieve.
     It answers the question: ``if an oracle re-tuned the cost weight
     whenever prices change, would that be enough?''
-  \item \textbf{Forgetting Bandit ($\gamma{=}0.997$):}
+  \item \textbf{Forgetting Bandit ($\gamma{=}\bdGamma$):}
     Same matched static cost penalty as the Naive Bandit, but with
-    the same forgetting factor as ParetoBandit ($\gamma{=}0.997$).
+    the same forgetting factor as ParetoBandit ($\gamma{=}\bdGamma$).
     No budget pacer.  This is the key ablation: it shares
     ParetoBandit's learning dynamics (forgetting + priors) but
     relies on a static cost penalty instead of the primal-dual
     mechanism.  Any gap between this condition and ParetoBandit
     is attributable \emph{solely to the BudgetPacer}, not to
     differences in the forgetting schedule.
-  \item \textbf{ParetoBandit (Pacer + $\gamma{=}0.997$):}
+  \item \textbf{ParetoBandit (Pacer + $\gamma{=}\bdGamma$):}
     Warmup priors with jointly-tuned forgetting and the
     primal-dual BudgetPacer targeting the dollar budget directly.
     This is the only condition with \emph{closed-loop} cost
@@ -151,7 +151,7 @@ routing sophistication, each using warmup priors:
 \end{enumerate}
 
 \noindent
-An \textbf{unconstrained ParetoBandit} baseline (same $\gamma{=}0.997$,
+An \textbf{unconstrained ParetoBandit} baseline (same $\gamma{=}\bdGamma$,
 same priors, no budget pacer, $\lambda_s{=}0$) is included in
 every panel of Figure~\ref{fig:exp02_adaptation}.
 Because it shares the forgetting factor with ParetoBandit, any gap
@@ -279,7 +279,7 @@ Four failure modes emerge:
 
   \item \textbf{Forgetting Bandit is the worst offender}
     ($\bdForgetLoosePhaseOneRatio$--$\bdForgetTightPhaseOneRatio$).
-    This condition shares ParetoBandit's $\gamma{=}0.997$ but replaces
+    This condition shares ParetoBandit's $\gamma{=}\bdGamma$ but replaces
     the closed-loop pacer with a static cost penalty.
     Geometric forgetting actively \emph{undermines} open-loop cost
     control: as the learner down-weights early observations where the
@@ -431,7 +431,7 @@ infinite memory retains all Phase~1 observations where Gemini was
 penalised, and the learner must accumulate enough Phase~2 evidence
 to overcome the Phase~1 anchor before Gemini's UCB exceeds
 Mistral's.
-The \textbf{Forgetting Bandit} ($\gamma{=}0.997$) shifts faster:
+The \textbf{Forgetting Bandit} ($\gamma{=}\bdGamma$) shifts faster:
 geometric forgetting down-weights Phase~1 observations within
 ${\sim}200$ steps, so the learner discovers post-drop Gemini more
 quickly.
@@ -473,7 +473,7 @@ advantage.
 
 \paragraph{Quality cost decomposition
 (Figure~\ref{fig:exp02_adaptation}b).}
-The unconstrained baseline shares ParetoBandit's $\gamma{=}0.997$ but
+The unconstrained baseline shares ParetoBandit's $\gamma{=}\bdGamma$ but
 removes the budget pacer, isolating the pacer's quality impact.
 In Phase~2, the unconstrained baseline achieves reward $0.933$,
 while ParetoBandit at moderate and loose budgets reaches
@@ -486,7 +486,7 @@ happens to favour the quality-optimal arm (Gemini) when it is also
 the cheapest.
 %
 The $\epsilon$-constraint procedure
-(Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.997$ because
+(Section~\ref{sec:hparam_sweep}) selected $\gamma{=}\bdGamma$ because
 it trades a marginal stationary-quality loss for substantially
 faster adaptation, and the present experiment validates that
 tradeoff end-to-end: ParetoBandit's Phase~2 reward lift
@@ -689,7 +689,7 @@ principled budget pacing}:
     In Phase~3, recalibration produces
     $\bdRecalTightPhaseThreeRatio$--$\bdRecalModPhaseThreeRatio$
     at tight and moderate budgets---still far from target.
-  \item The \textbf{Forgetting Bandit} ($\gamma{=}0.997$, same
+  \item The \textbf{Forgetting Bandit} ($\gamma{=}\bdGamma$, same
     learning dynamics as ParetoBandit, no pacer) is the critical
     ablation: it isolates the BudgetPacer's contribution by
     controlling for the forgetting factor.

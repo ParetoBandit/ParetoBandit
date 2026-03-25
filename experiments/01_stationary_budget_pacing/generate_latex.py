@@ -169,7 +169,7 @@ def add_pacer_commands(
         cs.ratio(f"Pacer{name}Util", p.get("budget_utilization", 0.0))
         cs.num(f"Pacer{name}FinalLambda", p.get("final_lambda", 0.0), digits=2)
         lq = p.get("lambda_quartiles") or {}
-        cs.num(f"Pacer{name}LambdaQ50", lq.get("q50", 0.0), digits=2)
+        cs.num(f"Pacer{name}LambdaMedian", lq.get("q50", 0.0), digits=2)
 
 
 def add_derived_commands(
@@ -227,6 +227,12 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
     cs = CommandSet(prefix="bp")
     results = data.get("results", [])
     budget_targets = data.get("budget_targets", [])
+
+    hp = data.get("warmup_hparams", {})
+    if hp:
+        cs.num("Alpha", hp.get("alpha", 0.01), digits=2)
+        cs.num("Neff", hp.get("prior_n_effective", 0.0), digits=1)
+        cs.num("Gamma", hp.get("forgetting_factor", 0.0), digits=3)
 
     add_fixed_model_commands(cs, results)
     add_pacer_commands(cs, results, budget_targets)

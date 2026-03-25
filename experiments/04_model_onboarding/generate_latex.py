@@ -85,6 +85,9 @@ def _add_summary_commands(
     adoption = s.get("flash_adoption", {})
     if adoption:
         cs.raw(f"{pfx}NSustained", fmt_int(adoption.get("n_sustained", 0)))
+        sustained_step = adoption.get("mean_sustained_step")
+        if sustained_step is not None:
+            cs.raw(f"{pfx}SustainedStep", fmt_int(sustained_step))
         final_share = adoption.get("flash_final_share", {})
         if final_share:
             cs.num(f"{pfx}FlashFinalPct", final_share["mean"] * 100, digits=1)

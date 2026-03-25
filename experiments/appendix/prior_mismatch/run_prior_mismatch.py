@@ -18,7 +18,7 @@ Each prior level is tested at three ``n_eff`` values (10, 100, 1000),
 plus two Tabula Rasa baselines:
 
   - **Tabula Rasa** — independently tuned (γ=0.995), the production default.
-  - **Tabula Rasa (γ-matched)** — same γ=0.997 as warmup conditions but no
+  - **Tabula Rasa (γ-matched)** — same γ=0.996 as warmup conditions but no
     priors.  Isolates the prior's informational benefit from the forgetting-
     factor difference, which otherwise confounds the comparison.
 
@@ -883,7 +883,7 @@ def main() -> None:
         all_pairwise[baseline_label] = pairwise_tests
 
     # --- Baseline-vs-baseline: quantify the γ effect itself ---
-    logger.info("\n--- Baseline Comparison: γ effect (TR γ=0.997 vs TR γ=0.995) ---")
+    logger.info("\n--- Baseline Comparison: γ effect (TR γ=0.996 vs TR γ=0.997) ---")
     baseline_comparison = _paired_tests(
         all_results[GAMMA_MATCHED_TR_LABEL]["per_seed_regret"],
         all_results[TABULA_RASA_LABEL]["per_seed_regret"],

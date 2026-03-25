@@ -38,9 +38,9 @@ def test_router_factory_and_core_methods_with_precomputed_features():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        exploration="safe",
     )
-    assert pytest.approx(0.1) == router.bandit.alpha
+    from pareto_bandit.config import BEST_K3_HPARAMS
+    assert pytest.approx(BEST_K3_HPARAMS["alpha"]) == router.bandit.alpha
 
     context = make_context(seed=7)
     model, log = router.route(

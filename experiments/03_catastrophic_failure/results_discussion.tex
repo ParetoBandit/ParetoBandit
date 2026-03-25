@@ -35,7 +35,7 @@ Four algorithm variants are compared at each of three budget targets
     at moderate budget, it overshoots by \cfNaiveModPhaseTwoRatio{}
     in Phase~2 and \cfNaiveModPhaseThreeRatio{} in Phase~3---a
     persistent, worsening budget violation.
-  \item \textbf{Forgetting Bandit ($\gamma{=}0.997$)} shares
+  \item \textbf{Forgetting Bandit ($\gamma{=}\cfGamma$)} shares
     ParetoBandit's forgetting factor but replaces the closed-loop
     pacer with a static cost penalty.  It detects the failure faster
     than the Naive Bandit (geometric forgetting down-weights stale
@@ -46,7 +46,7 @@ Four algorithm variants are compared at each of three budget targets
     \cfForgetTightPhaseThreeRatio{} in Phase~3---confirming that
     \textbf{the BudgetPacer, not forgetting, is responsible for
     ParetoBandit's cost invariance}.
-  \item \textbf{ParetoBandit ($\gamma{=}0.997$)} detects the failure,
+  \item \textbf{ParetoBandit ($\gamma{=}\cfGamma$)} detects the failure,
     redistributes traffic (Mistral drops to
     \cfParetoBanditModMistralPhaseTwo\% at moderate budget), \emph{and}
     maintains budget compliance: \cfParetoBanditModPhaseOneRatio,

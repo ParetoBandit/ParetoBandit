@@ -1,7 +1,7 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting. Across four experiments the system keeps per-request cost within ${\sim}5$\% of the target for every binding budget. Under cost drift it autonomously exploits a price drop and recovers compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget---while baselines without closed-loop cost control overshoot by up to $7.0{\times}$. Cold-start model onboarding proceeds without reconfiguration. As multi-provider LLM portfolios become the norm, these results suggest that bandit-driven routing with integrated budget pacing can deliver closed-loop cost control without manual intervention.
+We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting. Across four experiments the system keeps per-request cost within ${\sim}5\%$ of the target for every binding budget. Under cost drift it autonomously exploits a price drop and recovers compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget---while baselines without closed-loop cost control overshoot by up to $\ppMaxOvershootX{\times}$. Cold-start model onboarding proceeds without reconfiguration. As multi-provider LLM portfolios become the norm, these results suggest that bandit-driven routing with integrated budget pacing can deliver closed-loop cost control without manual intervention.
 
 \paragraph{Limitations.}
 Six limitations scope the current contribution.

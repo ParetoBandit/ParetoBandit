@@ -19,7 +19,7 @@ Experimental setup
 Forced exploration (burn-in)
 ----------------------------
   With ``alpha=0.01`` and strong K=3 warmup priors
-  (``prior_n_effective=1163.9``), the UCB exploration bonus for a
+  (``prior_n_effective=1604.7``), the UCB exploration bonus for a
   cold-start arm is too small to trigger natural exploration.  Flash
   starts with ``A=I, b=0`` (``theta=0``), and ``alpha * sqrt(x' A_inv x)``
   cannot compete with K=3 arms' learned predictions (~0.5–0.7).
@@ -173,7 +173,7 @@ TEST_K4_PATH = OFFLINE_DATASET_DIR / "test_k4.jsonl"
 # Forced exploration burn-in for newly onboarded arms.
 # Routes the first N Phase 2 prompts unconditionally to Flash so the
 # bandit collects real observations before UCB selection kicks in.
-# With alpha=0.01 and strong K=3 priors (n_eff=1163.9), the UCB
+# With alpha=0.01 and strong K=3 priors (n_eff=1604.7), the UCB
 # exploration bonus alone is too small to trigger natural exploration
 # of a cold-start arm.  20 pulls is ~4% of the test set (~460 prompts).
 BURNIN_PULLS: int = 20

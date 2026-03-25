@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 # sqrt(200) ~ 14x relative to the uninflated baseline -- strong enough to
 # force re-exploration but bounded enough to preserve the cost signal.
 #
-# **This path is active in the default configuration (forgetting_factor=0.997).**
+# **This path is active when forgetting_factor < 1.0 (e.g., 0.996 for ParetoBandit).**
 # Variance inflation is always engaged when gamma < 1.0; the cap ensures
 # the exploration bonus does not overwhelm additive cost penalties.
 #
@@ -374,7 +374,7 @@ class DisjointLinUCBPolicy:
         dim: int = 384,
         alpha: float = 0.01,
         init_lambda: float = 1.0,
-        forgetting_factor: float = 0.997,
+        forgetting_factor: float = 1.0,
         seed: int | None = None,
         max_staleness_dt: int = _MAX_STALENESS_DT,
         reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
@@ -403,8 +403,9 @@ class DisjointLinUCBPolicy:
             init_lambda: Initialization regularization (A_0 = lambda I).
                 Default 1.0 for cold-start stability.
             forgetting_factor: Exponential decay factor (1.0 = stationary,
-                <1.0 = adaptive).  Default 0.997 from T_adapt-constrained
-                Pareto knee-point selection with T_adapt=500.
+                <1.0 = adaptive).  Default 1.0 (stationary); the Router
+                reads production defaults from ``BEST_K3_HPARAMS`` in
+                ``pareto_bandit.config``.
             seed: Seed for the internal ``np.random.Generator`` used by
                 Thompson Sampling (``get_probabilities``).  *None* creates
                 an unseeded generator.

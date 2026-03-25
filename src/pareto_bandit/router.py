@@ -61,7 +61,7 @@ from pareto_bandit.exceptions import (  # noqa: F401 — re-exported for backwar
 )
 
 
-from .config import DEFAULT_SENTENCE_TRANSFORMER
+from .config import BEST_K3_HPARAMS, DEFAULT_SENTENCE_TRANSFORMER
 
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
 
@@ -148,11 +148,11 @@ class BanditRouter:
         feature_service: 'FeatureService | None' = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         pca_path: Path | str | None = None,
-        # Bandit parameters (The Brain)
-        alpha: float = 0.01,
+        # Bandit parameters (The Brain) — defaults from BEST_K3_HPARAMS
+        alpha: float = BEST_K3_HPARAMS["alpha"],
         embedding_dim: int = 384,
         init_lambda: float = 1.0,
-        forgetting_factor: float = 0.997,
+        forgetting_factor: float = BEST_K3_HPARAMS["forgetting_factor"],
         context_store: ContextStore | None = None,
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
@@ -173,10 +173,12 @@ class BanditRouter:
                 *context_model* and *pca_path*.
             context_model: Encoder model name (used if feature_service=None).
             pca_path: Path to PCA model (used if feature_service=None).
-            alpha: Exploration coefficient for UCB
+            alpha: Exploration coefficient for UCB.  Default from
+                ``BEST_K3_HPARAMS`` in ``pareto_bandit.config``.
             embedding_dim: Dimension override (auto-detected if feature_service provided)
             init_lambda: Initialization regularization (A₀ = λI)
-            forgetting_factor: Temporal decay (1.0 = stationary)
+            forgetting_factor: Temporal decay (1.0 = stationary).  Default
+                from ``BEST_K3_HPARAMS`` in ``pareto_bandit.config``.
             context_store: Storage backend for context vectors. Defaults to
                 EphemeralContextStore (RAM-only, no disk). Pass
                 SqliteContextStore() for persistence across restarts
@@ -724,7 +726,7 @@ class BanditRouter:
         model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         priors: str = "warmup",
-        prior_n_effective: float = 1163.9,
+        prior_n_effective: float = BEST_K3_HPARAMS["prior_n_effective"],
         **kwargs
     ) -> "BanditRouter":
         """Factory method to create a fully initialized router.
@@ -753,10 +755,10 @@ class BanditRouter:
                 ``scale = prior_n_effective / A[-1,-1]`` where ``A[-1,-1]``
                 is the total precision mass in the bias direction of the
                 warmup precision matrix (``lambda + sum(weights)``), not the
-                raw number of training samples.  Default 1163.9, derived from
-                the T_adapt-constrained Pareto knee-point selection
-                (Experiment 05) with ``gamma=0.997`` and ``T_adapt=500``
-                via ``n_eff = (gamma^{-T_adapt} - 1) / (1 - gamma)``.
+                raw number of training samples.  Default from
+                ``BEST_K3_HPARAMS["prior_n_effective"]`` in
+                ``pareto_bandit.config`` (derived from the
+                T_adapt-constrained Pareto knee-point selection).
                 Higher values trust priors more (slower adaptation); lower
                 values trust them less (faster override by online evidence).
             **kwargs: Additional arguments passed to __init__ or prior loading.
@@ -806,7 +808,7 @@ class BanditRouter:
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
         warmup_path = kwargs.pop("warmup_path", None)
-        alpha = kwargs.pop("alpha", 0.01)
+        alpha = kwargs.pop("alpha", BEST_K3_HPARAMS["alpha"])
 
         # 2a. Guard: custom encoder with explicit warmup priors path
         #     must have matching priors (encoder embedding space must match)

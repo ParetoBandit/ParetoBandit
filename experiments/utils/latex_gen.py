@@ -156,6 +156,22 @@ def fmt_int(val: float) -> str:
 # ======================================================================
 
 
+_DIGIT_WORD = {
+    "0": "Zero", "1": "One", "2": "Two", "3": "Three", "4": "Four",
+    "5": "Five", "6": "Six", "7": "Seven", "8": "Eight", "9": "Nine",
+}
+
+
+def _sanitize_tex_name(name: str) -> str:
+    """Replace digits with word equivalents so the name is a valid TeX macro.
+
+    TeX control words consist only of letters (category code 11).
+    Digits terminate the token, so ``\\fooP50`` is read as ``\\fooP``
+    followed by ``50``.  This function converts ``P50`` → ``PFiftyZero``.
+    """
+    return "".join(_DIGIT_WORD.get(c, c) for c in name)
+
+
 class CommandSet:
     """Accumulates ``\\newcommand`` definitions for one experiment.
 
@@ -166,14 +182,14 @@ class CommandSet:
     """
 
     def __init__(self, prefix: str) -> None:
-        self.prefix = prefix
+        self.prefix = _sanitize_tex_name(prefix)
         self._cmds: Dict[str, str] = {}
 
     # -- convenience adders --
 
     def add(self, name: str, value: str) -> None:
         """``\\newcommand{\\<prefix><name>}{<value>}``."""
-        self._cmds[f"{self.prefix}{name}"] = value
+        self._cmds[f"{self.prefix}{_sanitize_tex_name(name)}"] = value
 
     def num(self, name: str, val: float, digits: int = 1) -> None:
         self.add(name, fmt_num(val, digits))

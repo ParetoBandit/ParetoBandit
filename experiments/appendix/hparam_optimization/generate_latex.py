@@ -8,6 +8,7 @@ Run from the experiment directory: python generate_latex.py
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -65,6 +66,13 @@ def build_command_set(
         cs.num("ParetoBanditAUC", pb_best["val_pareto_auc"], digits=3)
         cs.num("ParetoBanditPTwoReward", pb_best["val_phase2_reward"], digits=4)
 
+        gamma = pb_best["gamma"]
+        if gamma < 1.0:
+            eff_mem = round(1.0 / (1.0 - gamma))
+            half_life = round(math.log(2) / (1.0 - gamma))
+            cs.raw("EffMemSteps", str(eff_mem))
+            cs.raw("HalfLife", str(half_life))
+
     pb_test = test_per.get("paretobandit", {})
     if pb_test:
         cs.num("ParetoBanditTestAUC", pb_test["test_pareto_auc"], digits=4)
@@ -80,6 +88,13 @@ def build_command_set(
         cs.raw("TabulaGamma", format_gamma(tr_best["gamma"]))
         cs.num("TabulaAUC", tr_best["val_pareto_auc"], digits=3)
         cs.num("TabulaPTwoReward", tr_best["val_phase2_reward"], digits=4)
+
+        tr_gamma = tr_best["gamma"]
+        if tr_gamma < 1.0:
+            tr_eff_mem = round(1.0 / (1.0 - tr_gamma))
+            tr_half_life = round(math.log(2) / (1.0 - tr_gamma))
+            cs.raw("TREffMemSteps", str(tr_eff_mem))
+            cs.raw("TRHalfLife", str(tr_half_life))
 
     tr_test = test_per.get("tabula_rasa", {})
     if tr_test:

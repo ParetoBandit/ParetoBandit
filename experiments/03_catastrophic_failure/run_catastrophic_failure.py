@@ -58,11 +58,11 @@ baseline:
   - **Naive Bandit (γ=1.0)**: infinite memory, static cost penalty,
     online learning.  Detects degradation but Phase 1 inertia slows
     both detection and recovery.
-  - **Forgetting Bandit (γ=0.997)**: same forgetting factor as
+  - **Forgetting Bandit (γ=0.996)**: same forgetting factor as
     ParetoBandit, matched static cost penalty, no BudgetPacer.  Key
     ablation: isolates the BudgetPacer's contribution to budget
     compliance under degradation.
-  - **ParetoBandit (γ=0.997)**: geometric forgetting with BudgetPacer
+  - **ParetoBandit (γ=0.996)**: geometric forgetting with BudgetPacer
     active.  Fast detection, redistribution, and budget maintenance.
   - **Unconstrained**: ParetoBandit without budget constraint (λ=0).
 

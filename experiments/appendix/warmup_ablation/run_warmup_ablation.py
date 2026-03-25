@@ -10,16 +10,16 @@ on the K=3 portfolio under stationary conditions.  Two research questions:
 
   **Q2 (mechanism):** Is the advantage due to *priors*, or to the
     different forgetting factor that the sweep selects for each config?
-    A matched-γ tabula rasa control (cold start at warmup's γ=0.997)
+    A matched-γ tabula rasa control (cold start at warmup's γ=0.996)
     isolates the prior contribution at matched memory length.
 
 Conditions:
   1. **ParetoBandit (warmup)** — offline priors from training set
-     (alpha=0.01, n_eff=1163.9, gamma=0.997; from BEST_K3_HPARAMS)
+     (alpha=0.01, n_eff=1604.7, gamma=0.996; from BEST_K3_HPARAMS)
   2. **Tabula Rasa** — cold start with its own optimal gamma
-     (alpha=0.01, n_eff=1.0, gamma=0.995; from BEST_K3_TABULA_RASA_HPARAMS)
+     (alpha=0.1, n_eff=1.0, gamma=0.997; from BEST_K3_TABULA_RASA_HPARAMS)
   3. **Tabula Rasa (matched-γ)** — cold start at warmup's gamma
-     (alpha=0.01, n_eff=1.0, gamma=0.997; mechanistic control)
+     (alpha=0.01, n_eff=1.0, gamma=0.996; mechanistic control)
   4. **Random** — uniform random arm selection (floor baseline)
 
 Statistical methodology:

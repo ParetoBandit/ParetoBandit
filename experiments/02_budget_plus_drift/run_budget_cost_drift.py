@@ -31,7 +31,7 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
   comparison is a controlled within-subject design: any difference between
   the two phases is attributable solely to the router's internal state
   (accumulated Phase 2 learning history), not prompt-sampling variability.
-  With geometric forgetting γ=0.997, Phase 1 observations are down-weighted
+  With geometric forgetting γ=0.996, Phase 1 observations are down-weighted
   by γ^608 ≈ 0.16 by Phase 3, so the learner retains only modest memory
   of individual Phase 1 evaluations.  The Fixed Policy (no online learning)
   serves as a null check: its P1 and P3 metrics should be nearly identical,
@@ -40,7 +40,7 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
 Three budget targets (tight, moderate, loose) and five conditions
 (Fixed Policy, Naive Bandit, Recalibrated Bandit, Forgetting Bandit,
 ParetoBandit) plus an unconstrained baseline are tested.  The
-Forgetting Bandit (γ=0.997, same static penalty, no pacer) isolates
+Forgetting Bandit (γ=0.996, same static penalty, no pacer) isolates
 the BudgetPacer's contribution from the forgetting factor.
 
 Usage:

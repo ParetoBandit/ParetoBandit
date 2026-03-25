@@ -11,7 +11,7 @@ points are three fixed single-model policies and a uniform-random router.
   offline dataset (the same costs used for Pareto metrics), not the router's
   heuristic token-count estimate.  This mirrors production, where the billing
   system provides exact costs.
-- *Forgetting factor*:  ``ff = 0.997`` — selected jointly with alpha and
+- *Forgetting factor*:  ``ff = 0.996`` — selected jointly with alpha and
   n_eff via the epsilon-constraint hyperparameter sweep.  Mild forgetting
   is applied consistently across all experiments for a fair comparison.
 - *Sweep point selection*:  The pacer's budget targets are log-spaced

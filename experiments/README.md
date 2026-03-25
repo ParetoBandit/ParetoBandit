@@ -58,11 +58,33 @@ Experiment 03 uses conditions 1, 2, and 4 with BudgetPacer integration.
 Full ablation details (warmup priors, validation burn-in, prior mismatch) are in
 the `appendix/` subdirectories.
 
+## Reproducing the Experiments
+
+```bash
+git clone https://github.com/atabernermiller/paretobandit.git
+cd paretobandit
+pip install -e ".[experiments]"
+```
+
+Each experiment has a `run_*.py` script that writes JSON results to
+`results/`, and a `generate_figure.py` / `generate_latex.py` pair that
+produces figures and `_autogen.tex` macros from those results.
+
+```bash
+# Example: run Experiment 01 and regenerate its figure
+python experiments/01_stationary_budget_pacing/run_budget_pacing.py
+python experiments/01_stationary_budget_pacing/generate_figure.py
+python experiments/01_stationary_budget_pacing/generate_latex.py
+```
+
+All experiments are deterministic (seeded RNG, 20 seeds per condition).
+Results are pre-computed in `results/` directories so figures and LaTeX
+macros can be regenerated without re-running the simulations.
+
 ## Dependencies
 
 Shared utilities live in `experiments/utils/` and are imported from there
-via path manipulation (same pattern as the v1 experiments).  Core
-components used:
+via path manipulation.  Core components used:
 
 - `pareto_bandit.budget_pacer.BudgetPacer` -- Primal-Dual CBwK pacing
 - `pareto_bandit.router.BanditRouter` -- core contextual bandit router
