@@ -129,7 +129,7 @@ def _figure_test_regret(data: Dict[str, Any]) -> None:
             x=data["early_step"], color="black", linestyle=":",
             linewidth=0.8, alpha=0.5,
         )
-        ax.set_xlabel("Test Step", fontsize=13)
+        ax.set_xlabel("Prompts Routed", fontsize=13)
         ax.tick_params(axis="both", labelsize=12)
         ax.grid(True, alpha=0.3)
 
@@ -138,7 +138,7 @@ def _figure_test_regret(data: Dict[str, Any]) -> None:
     ax_full.legend(fontsize=10, loc="upper left")
 
     ax_zoom.set_xlim(0, 400)
-    ax_zoom.set_title("(b) First 400 test steps (zoom)", fontsize=13)
+    ax_zoom.set_title("(b) First 400 prompts (zoom)", fontsize=13)
 
     fig.suptitle(
         "Effect of validation burn-in on held-out test regret",
