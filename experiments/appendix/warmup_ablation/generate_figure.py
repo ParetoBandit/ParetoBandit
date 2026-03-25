@@ -3,9 +3,8 @@
 
 Reads ``results/warmup_ablation_results.json`` and produces a
 violin + strip plot (``warmup_ablation.pdf/.png``) showing per-seed
-total regret distributions for warmup vs tabula rasa across all budget
-regimes.  The violin shape reveals the bimodal failure mode of
-cold-start routing under budget constraints.
+total regret distributions for warmup, tabula rasa, and the
+matched-γ mechanistic control across all budget regimes.
 
 Usage:
     python experiments/appendix/warmup_ablation/generate_figure.py
@@ -22,21 +21,21 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import fisher_exact
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
 CB_BLUE = "#0072B2"
 CB_ORANGE = "#E69F00"
+CB_TEAL = "#009E73"
 CB_GRAY = "#999999"
 
-GroupSpec = Tuple[str, str, str]
+GroupSpec = Tuple[str, str, str, str]
 
 BUDGET_GROUPS: List[GroupSpec] = [
-    ("ParetoBandit (warmup)", "Tabula Rasa", "Unconstrained"),
-    ("Warmup (tight budget)", "Tabula Rasa (tight budget)", "Tight"),
-    ("Warmup (moderate budget)", "Tabula Rasa (moderate budget)", "Moderate"),
-    ("Warmup (loose budget)", "Tabula Rasa (loose budget)", "Loose"),
+    ("ParetoBandit (warmup)", "Tabula Rasa", "Tabula Rasa (matched-γ)", "Unconstrained"),
+    ("Warmup (tight budget)", "Tabula Rasa (tight budget)", "TR matched-γ (tight budget)", "Tight"),
+    ("Warmup (moderate budget)", "Tabula Rasa (moderate budget)", "TR matched-γ (moderate budget)", "Moderate"),
+    ("Warmup (loose budget)", "Tabula Rasa (loose budget)", "TR matched-γ (loose budget)", "Loose"),
 ]
 
 
@@ -84,6 +83,17 @@ def _halfviolin(
         ax.plot(center + density, y_grid, color=color, lw=0.8, alpha=0.6)
 
 
+def _format_p(p: float) -> str:
+    """Format a p-value for figure annotation."""
+    if p < 1e-4:
+        return "< 10⁻⁴"
+    if p < 0.001:
+        return f"{p:.4f}"
+    if p < 0.05:
+        return f"{p:.3f}"
+    return f"{p:.2f}"
+
+
 def main() -> None:
     with open(RESULTS_DIR / "warmup_ablation_results.json") as f:
         data = json.load(f)
@@ -99,25 +109,36 @@ def main() -> None:
         if g[0] in conditions and g[1] in conditions
     ]
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5.5))
 
     x_positions = np.arange(len(available))
-    jitter_w = 0.06
-    violin_w = 0.30
-    offset = 0.18
+    jitter_w = 0.05
+    violin_w = 0.22
     rng = np.random.default_rng(42)
+
+    # Three positions per group: warmup (left), matched-γ (center), TR (right)
+    offsets = {"warmup": -0.28, "matched": 0.0, "tabula": 0.28}
 
     random_regrets: np.ndarray | None = None
     if "Random" in conditions:
         random_regrets = np.array(conditions["Random"]["per_seed_regret"])
 
-    for i, (warmup_key, tabula_key, budget_label) in enumerate(available):
+    for i, (warmup_key, tabula_key, matched_key, budget_label) in enumerate(available):
         cx = x_positions[i]
 
-        for cond_key, color, x_off, side, label in [
-            (warmup_key, CB_BLUE, -offset, "left", "Warmup" if i == 0 else None),
-            (tabula_key, CB_ORANGE, offset, "right", "Tabula Rasa" if i == 0 else None),
-        ]:
+        strip_specs: List[Tuple[str, str, float, str, str | None]] = [
+            (warmup_key, CB_BLUE, offsets["warmup"], "left",
+             "Warmup" if i == 0 else None),
+            (tabula_key, CB_ORANGE, offsets["tabula"], "right",
+             "Tabula Rasa" if i == 0 else None),
+        ]
+        if matched_key in conditions:
+            strip_specs.insert(1, (
+                matched_key, CB_TEAL, offsets["matched"], "left",
+                "TR (matched-γ)" if i == 0 else None,
+            ))
+
+        for cond_key, color, x_off, side, label in strip_specs:
             seeds = np.array(conditions[cond_key]["per_seed_regret"])
             pos = cx + x_off
 
@@ -126,54 +147,45 @@ def main() -> None:
             jitter = rng.uniform(-jitter_w, jitter_w, size=len(seeds))
             ax.scatter(
                 pos + jitter, seeds,
-                color=color, s=18, alpha=0.7, zorder=5,
+                color=color, s=16, alpha=0.7, zorder=5,
                 edgecolors="white", linewidths=0.3, label=label,
             )
 
             med = np.median(seeds)
             ax.hlines(
-                med, pos - 0.08, pos + 0.08,
+                med, pos - 0.07, pos + 0.07,
                 color=color, linewidth=2.0, zorder=6,
             )
 
-        test = paired_tests.get((warmup_key, tabula_key))
-        if test is not None:
-            wins = test.get("n_warmup_wins", 0)
-            n_eff = test.get("n_effective", 0)
-            p_sign = test.get("sign_test_p_value", 1.0)
-
-            if p_sign < 1e-4:
-                sign_str = "p_sign < 10⁻⁴"
-            elif p_sign < 0.001:
-                sign_str = f"p_sign = {p_sign:.4f}"
-            elif p_sign < 0.05:
-                sign_str = f"p_sign = {p_sign:.3f}"
-            else:
-                sign_str = f"p_sign = {p_sign:.2f}"
-
+        # Annotations: Holm-corrected p-values for both comparisons
+        anno_lines: List[str] = []
+        for baseline_key, baseline_short in [
+            (tabula_key, "TR"),
+            (matched_key, "TR(γ)"),
+        ]:
+            test = paired_tests.get((warmup_key, baseline_key))
+            if test is None:
+                continue
+            p_sign_key = "sign_test_p_value_holm"
+            p_fisher_key = "fisher_exact_p_value_holm"
+            p_sign = test.get(p_sign_key, test.get("sign_test_p_value", 1.0))
+            p_fisher = test.get(
+                p_fisher_key, test.get("fisher_exact_p_value", 1.0)
+            )
             w_cat = test.get("warmup_catastrophic_count", 0)
             b_cat = test.get("baseline_catastrophic_count", 0)
             n_seeds = len(conditions[warmup_key]["per_seed_regret"])
+            anno_lines.append(
+                f"vs {baseline_short}: sign {_format_p(p_sign)}, "
+                f"cat {w_cat}/{n_seeds} vs {b_cat}/{n_seeds}"
+            )
 
-            fisher_table = [[w_cat, n_seeds - w_cat],
-                            [b_cat, n_seeds - b_cat]]
-            _, p_fisher = fisher_exact(fisher_table, alternative="less")
-
-            if p_fisher < 1e-4:
-                fisher_str = "p_Fisher < 10⁻⁴"
-            elif p_fisher < 0.001:
-                fisher_str = f"p_Fisher = {p_fisher:.4f}"
-            elif p_fisher < 0.05:
-                fisher_str = f"p_Fisher = {p_fisher:.3f}"
-            else:
-                fisher_str = f"p_Fisher = {p_fisher:.2f}"
-
+        if anno_lines:
             ax.annotate(
-                f"Sign: {wins}/{n_eff} wins, {sign_str}\n"
-                f"Cat: {w_cat}/{n_seeds} vs {b_cat}/{n_seeds}, {fisher_str}",
+                "\n".join(anno_lines),
                 xy=(cx, 0), xycoords=("data", "axes fraction"),
                 xytext=(0, -22), textcoords="offset points",
-                ha="center", va="top", fontsize=6.0, color="0.35",
+                ha="center", va="top", fontsize=5.5, color="0.35",
                 style="italic", annotation_clip=False,
                 linespacing=1.4,
             )
@@ -188,13 +200,14 @@ def main() -> None:
         )
 
     ax.set_xticks(x_positions)
-    ax.set_xticklabels([g[2] for g in available], fontsize=10)
+    ax.set_xticklabels([g[3] for g in available], fontsize=10)
     ax.set_xlabel("Budget Regime", fontsize=11, labelpad=55)
     ax.set_ylabel("Total Regret (per seed)", fontsize=11)
     ax.set_title(
-        "Cold-Start Instability: Warmup Priors vs. Tabula Rasa\n"
-        f"(K=3, {data['n_seeds']} seeds, test split n={data['n_prompts']})",
-        fontsize=11, fontweight="bold",
+        "Cold-Start Ablation: Warmup vs. Tabula Rasa vs. γ-Matched Control\n"
+        f"(K=3, {data['n_seeds']} seeds, test split n={data['n_prompts']}; "
+        "Holm-corrected p-values, pooled-median catastrophic threshold)",
+        fontsize=10, fontweight="bold",
     )
     ax.legend(fontsize=8.5, loc="upper left", framealpha=0.9)
     ax.grid(True, axis="y", alpha=0.2, linewidth=0.5)

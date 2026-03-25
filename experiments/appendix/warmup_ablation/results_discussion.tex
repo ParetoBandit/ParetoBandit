@@ -57,12 +57,8 @@ $2{\times}$ the \emph{pooled} median across all conditions in
 that regime (warmup, Tabula Rasa, and matched-$\gamma$), ensuring
 no single condition anchors the threshold.
 All $p$-values are corrected for multiplicity via the
-Holm--Bonferroni procedure across the full family of tests.
-
-\medskip\noindent
-\textbf{Results table.}
-%% NOTE: populate the table below from warmup_ablation_results.json
-%% after re-running the experiment with the matched-γ control.
+Holm--Bonferroni procedure across the full family of tests
+(8 sign tests and 8 Fisher tests, corrected separately per family).
 
 \begin{center}
 \small
@@ -70,75 +66,105 @@ Holm--Bonferroni procedure across the full family of tests.
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Std} & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{Cat.} & $p_\text{sign}^*$ & $p_\text{Fisher}^*$ \\
 \midrule
-None     & Warmup           & \textit{re-run} & & & & & & \\
-         & Tabula Rasa      & \textit{re-run} & & & & & & \\
-         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
-         & Random           & \textit{re-run} & & & & --- & --- & --- \\
+None     & Warmup           & $\mathbf{55.0}$\,[54.3, 55.7]    & $1.6$   & $\mathbf{6.2}$\,[5.8, 6.6]    & $\mathbf{0.933}$ & 0/20 & &  \\
+         & Tabula Rasa      & $113.5$\,[78.2, 148.7]            & $80.3$  & $17.8$\,[12.6, 23.0]           & $0.901$          & 6/20 & $<10^{-5}$ & $0.071$ \\
+         & TR (matched-$\gamma$) & $117.7$\,[79.8, 155.6]       & $86.5$  & $17.9$\,[12.7, 23.1]           & $0.899$          & 6/20 & $<10^{-3}$ & $0.071$ \\
+         & Random           & $146.5$\,[144.3, 148.7]           & $5.0$   & $16.0$\,[15.1, 17.0]           & $0.883$          & ---  & --- & --- \\
 \midrule
-Tight    & Warmup           & \textit{re-run} & & & & & & \\
-         & Tabula Rasa      & \textit{re-run} & & & & & & \\
-         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
+Tight    & Warmup           & $\mathbf{161.2}$\,[159.2, 163.1]  & $4.6$   & $\mathbf{19.5}$\,[18.0, 21.0] & $\mathbf{0.875}$ & 0/20 & & \\
+         & Tabula Rasa      & $252.0$\,[224.6, 279.4]            & $62.6$  & $29.9$\,[27.1, 32.7]           & $0.825$          & 0/20 & $0.001$ & $1.00$ \\
+         & TR (matched-$\gamma$) & $255.6$\,[227.0, 284.3]      & $65.4$  & $29.9$\,[27.1, 32.7]           & $0.823$          & 0/20 & $0.006$ & $1.00$ \\
 \midrule
-Moderate & Warmup           & \textit{re-run} & & & & & & \\
-         & Tabula Rasa      & \textit{re-run} & & & & & & \\
-         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
+Moderate & Warmup           & $\mathbf{133.9}$\,[129.0, 138.7]  & $11.0$  & $\mathbf{14.7}$\,[12.9, 16.6] & $\mathbf{0.890}$ & 0/20 & & \\
+         & Tabula Rasa      & $178.8$\,[138.1, 219.6]            & $93.1$  & $25.6$\,[21.2, 30.1]           & $0.865$          & 6/20 & $0.59$ & $0.071$ \\
+         & TR (matched-$\gamma$) & $191.4$\,[148.2, 234.5]      & $98.4$  & $26.0$\,[21.6, 30.4]           & $0.858$          & 8/20 & $0.50$ & $\mathbf{0.013}$ \\
 \midrule
-Loose    & Warmup           & \textit{re-run} & & & & & & \\
-         & Tabula Rasa      & \textit{re-run} & & & & & & \\
-         & TR (matched-$\gamma$) & \textit{re-run} & & & & & & \\
+Loose    & Warmup           & $\mathbf{83.6}$\,[81.3, 85.8]     & $5.1$   & $\mathbf{8.6}$\,[8.2, 9.1]    & $\mathbf{0.918}$ & 0/20 & & \\
+         & Tabula Rasa      & $159.0$\,[121.9, 196.1]            & $84.6$  & $24.9$\,[20.6, 29.1]           & $0.876$          & 6/20 & $0.083$ & $0.071$ \\
+         & TR (matched-$\gamma$) & $162.9$\,[123.5, 202.3]      & $89.9$  & $25.1$\,[20.9, 29.4]           & $0.874$          & 6/20 & $0.083$ & $0.071$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
-Twenty seeds; 95\% bootstrap CI; test split ($n{=}1{,}824$).
-$^*$Holm--Bonferroni corrected.
+Twenty seeds; 95\% normal-approximation CI (mean $\pm$ 1.96\,SE); test split ($n{=}1{,}824$).
+$^*$Holm--Bonferroni corrected; $p$-values reported for each baseline vs.\ warmup.
 \textbf{Cat.}\ = catastrophic failures (regret $> 2\times$
 \emph{pooled} median of all conditions in each budget regime).
-$p_\text{sign}$: exact sign test on per-seed regret.
-$p_\text{Fisher}$: one-sided Fisher exact test on the $2{\times}2$
-catastrophic-failure table.
-
-%% After re-running, populate the narrative paragraphs below with
-%% actual numbers from warmup_ablation_results.json.
-%% The matched-γ control answers Q2: if warmup still beats matched-γ
-%% with the same gamma, the advantage is attributable to priors.
-%% If the gap closes, gamma was doing most of the work.
 
 \paragraph{Deployment comparison (Q1).}
-%% TODO: fill with actual numbers after re-run.
-%% Report: warmup vs TR total regret, R@200, sign test p, Fisher p
-%% for each budget regime.
+Warmup priors consistently reduce mean regret across all budget
+regimes: by 52\% unconstrained ($55.0$ vs.\ $113.5$;
+$p_\text{sign}^* < 10^{-5}$), 36\% under tight budget ($161.2$
+vs.\ $252.0$; $p_\text{sign}^* {=} 0.001$), 25\% at moderate
+budget ($133.9$ vs.\ $178.8$; $p_\text{sign}^* {=} 0.59$, n.s.),
+and 47\% at loose budget ($83.6$ vs.\ $159.0$;
+$p_\text{sign}^* {=} 0.083$, n.s.).
+After Holm correction, only the unconstrained and tight
+comparisons remain significant at $\alpha{=}0.05$ for the
+location shift.
+The non-significance at moderate and loose budgets reflects Tabula
+Rasa's bimodal distribution: ``lucky'' cold-start seeds that avoid
+early expensive-arm exploration achieve comparable or lower regret
+than warmup, while ``unlucky'' seeds catastrophically fail.
+The mean comparison averages over these two modes and is neither
+a reliable summary of typical Tabula Rasa performance nor evidence
+that warmup is unnecessary.
 
 \paragraph{Mechanistic control (Q2).}
-%% TODO: fill with warmup vs matched-γ comparison.
-%% Key question: does warmup still beat matched-γ at matched gamma?
-%% If yes → priors are the active ingredient.
-%% If the gap closes substantially → gamma was confounded.
+The matched-$\gamma$ control performs nearly identically to the
+original Tabula Rasa across all regimes (unconstrained: $117.7$
+vs.\ $113.5$; tight: $255.6$ vs.\ $252.0$; moderate: $191.4$
+vs.\ $178.8$; loose: $162.9$ vs.\ $159.0$), and in fact slightly
+\emph{worse} in every case.
+This rules out the forgetting-factor confound: running a cold
+start at warmup's $\gamma{=}0.997$ (longer memory of an
+uninformative prior) is counterproductive rather than helpful.
+Warmup's advantage is attributable to the \emph{priors themselves},
+not to the higher $\gamma$ that the Pareto-knee sweep selects
+when priors are available.
+The sign tests confirm this: warmup beats the matched-$\gamma$
+control with comparable significance to the original Tabula Rasa
+(unconstrained: $p_\text{sign}^* < 10^{-3}$; tight:
+$p_\text{sign}^* {=} 0.006$).
 
 \paragraph{Cold-start bimodality.}
-The budget-stratified results reveal a qualitative finding
-beyond mean regret reduction: Tabula Rasa's per-seed regret is
+The budget-stratified results reveal a qualitative finding beyond
+mean regret reduction: Tabula Rasa's per-seed regret is
 \emph{bimodal} under every budget constraint tested
 (Figure~\ref{fig:warmup_ablation}).
-The bimodality is a deterministic consequence of the interaction
+The matched-$\gamma$ control exhibits the same bimodal pattern
+with similar catastrophic failure rates (e.g.\ moderate budget:
+8/20 vs.\ 6/20), confirming that the bimodality arises from
+\emph{missing priors}, not from the different forgetting rate.
+The mechanism is a deterministic consequence of the interaction
 between UCB exploration and the budget pacer: the cold-start router
 has high initial uncertainty, so UCB occasionally selects the
 expensive frontier arm (Gemini-Pro) during early exploration.
 This triggers a dual-variable spike in the primal-dual pacer,
 which then penalises all future expensive-arm selections,
-permanently locking out the expensive arm before its quality
-is learned.
-Seeds where early exploration happens to probe cheap arms first
-avoid this trap and converge normally.
-The matched-$\gamma$ control clarifies whether this bimodality
-arises from the missing priors or from the different forgetting
-rate in the ``best vs best'' comparison.
+permanently locking out the expensive arm before its quality is
+learned.
+
+Under tight budgets, the pooled-median catastrophic threshold
+($360.6$) exceeds all individual seed regrets, so no seeds are
+formally classified as catastrophic despite clear bimodality in
+the Tabula Rasa distribution (median $297.7$,
+range~${\sim}170$--$310$).
+This is a consequence of the conservative pooled threshold:
+warmup's low-regret seeds pull the pooled median down, and
+$2{\times}$ that value exceeds the Tabula Rasa ceiling.
+The bimodality is nevertheless visible in
+Figure~\ref{fig:warmup_ablation} and in the $14{\times}$ standard
+deviation gap ($4.6$ vs.\ $62.6$).
 
 \paragraph{Discussion.}
 Warmup priors are best understood as a \emph{deployment
 reliability mechanism}: they eliminate both the cold-start
 transient and the catastrophic pacer-interaction failure mode.
+The matched-$\gamma$ control sharpens this conclusion by ruling
+out the alternative hypothesis that the forgetting-factor difference
+drives the advantage.
 The warmup benefit is transient by design---geometric forgetting
 ($\gamma{=}0.997$) replaces priors within ${\sim}333$
 effective-memory steps; after sufficient learning, warmup and
@@ -161,9 +187,11 @@ In our $K{=}3$ portfolio, oracle routing achieves 3.3\% higher
 quality than routing all traffic to the frontier model while
 reducing per-request cost by 66\%.
 Warmup priors protect routing quality during the critical but
-transient cold-start window.
-%% TODO: after re-run, report specific regret reduction percentages
-%% and catastrophic failure rates from the new results.
+transient cold-start window: under tight budgets, the 36\% regret
+reduction ($161.2$ vs.\ $252.0$; $p_\text{sign}^* {=} 0.001$)
+represents a substantial fraction of the router's total
+quality--cost value recovered solely by starting with informed
+priors.
 These projections are illustrative: the per-request costs are
 specific to our three-model portfolio and March 2026 pricing,
 and the traffic volumes are drawn from public platform statistics
@@ -171,4 +199,4 @@ rather than a single organisation's logs.
 Nevertheless, warmup priors are easy to justify when calibrated
 on representative data: computing them from a labelled offline
 dataset takes minutes and requires no ongoing
-maintenance~\cite{oetomo2023warmstart}.
+maintenance~\cite{kveton2023warmstart}.

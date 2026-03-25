@@ -2,20 +2,33 @@
 """Appendix: Cold-Start vs Warmup Prior Regret.
 
 Compares ParetoBandit with warmup priors against a tabula-rasa cold start
-on the K=3 portfolio under stationary conditions.  Demonstrates that
-warmup priors substantially reduce early regret and improve sample
-efficiency — the router begins with informed beliefs rather than
-blindly exploring all arms.
+on the K=3 portfolio under stationary conditions.  Two research questions:
 
-Each condition uses its own separately-tuned hyperparameters from the
-Experiment 05 Pareto knee-point sweep, so the comparison is
-"best warmup vs best cold-start" — the deployment-relevant question.
+  **Q1 (deployment):** Does warmup beat the best cold-start config?
+    Each condition uses its own Pareto-knee hyperparameters from the
+    Experiment 05 sweep → "best warmup vs best cold-start."
 
+  **Q2 (mechanism):** Is the advantage due to *priors*, or to the
+    different forgetting factor that the sweep selects for each config?
+    A matched-γ tabula rasa control (cold start at warmup's γ=0.997)
+    isolates the prior contribution at matched memory length.
+
+Conditions:
   1. **ParetoBandit (warmup)** — offline priors from training set
      (alpha=0.01, n_eff=1163.9, gamma=0.997; from BEST_K3_HPARAMS)
-  2. **Tabula Rasa** — cold start (A=λI, b=0)
+  2. **Tabula Rasa** — cold start with its own optimal gamma
      (alpha=0.01, n_eff=1.0, gamma=0.995; from BEST_K3_TABULA_RASA_HPARAMS)
-  3. **Random** — uniform random arm selection (floor baseline)
+  3. **Tabula Rasa (matched-γ)** — cold start at warmup's gamma
+     (alpha=0.01, n_eff=1.0, gamma=0.997; mechanistic control)
+  4. **Random** — uniform random arm selection (floor baseline)
+
+Statistical methodology:
+  - Sign test (exact binomial) for location shift.
+  - Fisher exact test on catastrophic-failure counts for tail risk.
+  - Catastrophic threshold: 2× the *pooled* median across all
+    conditions in each budget regime (condition-independent).
+  - Holm–Bonferroni correction applied across all tests to control
+    the family-wise error rate.
 
 Usage:
     python experiments/appendix/warmup_ablation/run_warmup_ablation.py
@@ -86,12 +99,17 @@ TABULA_ALPHA: float = BEST_K3_TABULA_RASA_HPARAMS["alpha"]
 TABULA_N_EFF: float = BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"]
 TABULA_GAMMA: float = BEST_K3_TABULA_RASA_HPARAMS["forgetting_factor"]
 
+# Mechanistic control: cold start at warmup's forgetting rate.
+# Isolates prior contribution from the confounding effect of
+# different gamma values in the "best vs best" comparison.
+MATCHED_GAMMA_FORGETTING: float = WARMUP_GAMMA
+
 EARLY_STEP: int = 200
 """Step at which to report Regret@200 for the early-learning comparison."""
 
 CATASTROPHIC_MULTIPLIER: float = 2.0
 """A seed is 'catastrophic' if its regret exceeds this multiple of the
-warmup median for the same budget regime."""
+pooled median across all conditions in the same budget regime."""
 
 
 def _snapshot_trace_A_inv(
@@ -506,11 +524,81 @@ def _aggregate_seeds(
 
 _COMPARISONS: List[tuple] = [
     ("ParetoBandit (warmup)", "Tabula Rasa", "unconstrained"),
+    ("ParetoBandit (warmup)", "Tabula Rasa (matched-γ)", "unconstrained"),
 ]
 for _bl in K3_BUDGET_LABELS:
     _COMPARISONS.append(
         (f"Warmup ({_bl} budget)", f"Tabula Rasa ({_bl} budget)", _bl)
     )
+    _COMPARISONS.append(
+        (f"Warmup ({_bl} budget)", f"TR matched-γ ({_bl} budget)", _bl)
+    )
+
+_BUDGET_CONDITIONS: Dict[str, List[str]] = {
+    "unconstrained": [
+        "ParetoBandit (warmup)",
+        "Tabula Rasa",
+        "Tabula Rasa (matched-γ)",
+    ],
+}
+for _bl in K3_BUDGET_LABELS:
+    _BUDGET_CONDITIONS[_bl] = [
+        f"Warmup ({_bl} budget)",
+        f"Tabula Rasa ({_bl} budget)",
+        f"TR matched-γ ({_bl} budget)",
+    ]
+
+
+def _compute_pooled_catastrophic_thresholds(
+    all_results: Dict[str, Dict[str, Any]],
+) -> Dict[str, float]:
+    """Compute per-regime catastrophic thresholds from pooled medians.
+
+    For each budget regime, pools per-seed regret across all (non-random)
+    conditions and sets the threshold at
+    ``CATASTROPHIC_MULTIPLIER × pooled_median``.  Using the pooled median
+    avoids anchoring on the condition expected to win.
+
+    Returns
+    -------
+    dict[str, float]
+        ``{budget_label: threshold}``.
+    """
+    thresholds: Dict[str, float] = {}
+    for regime, cond_keys in _BUDGET_CONDITIONS.items():
+        pooled: List[float] = []
+        for key in cond_keys:
+            if key in all_results:
+                pooled.extend(all_results[key]["per_seed_regret"])
+        if pooled:
+            thresholds[regime] = CATASTROPHIC_MULTIPLIER * float(
+                np.median(pooled)
+            )
+    return thresholds
+
+
+def _apply_holm_correction(tests: List[Dict[str, Any]]) -> None:
+    """Apply Holm-Bonferroni correction to sign and Fisher p-values in-place.
+
+    For each test family, computes adjusted p-values that control the
+    family-wise error rate.  Adds ``*_holm`` keys to each test dict.
+
+    Parameters
+    ----------
+    tests : list[dict]
+        Paired-test results; modified in place with ``sign_test_p_holm``
+        and ``fisher_exact_p_holm`` keys.
+    """
+    for key in ("sign_test_p_value", "fisher_exact_p_value"):
+        indexed = [(i, t[key]) for i, t in enumerate(tests)]
+        indexed.sort(key=lambda x: x[1])
+        m = len(indexed)
+        running_max = 0.0
+        for rank, (idx, pval) in enumerate(indexed):
+            adj = min(pval * (m - rank), 1.0)
+            adj = max(adj, running_max)
+            running_max = adj
+            tests[idx][f"{key}_holm"] = adj
 
 
 def _compute_paired_tests(
@@ -525,17 +613,23 @@ def _compute_paired_tests(
       distributional assumptions — answers "does warmup have lower regret
       seed-by-seed?"
     - **Catastrophic failure rate**: fraction of seeds where regret exceeds
-      ``CATASTROPHIC_MULTIPLIER × median(warmup regret)``.
+      ``CATASTROPHIC_MULTIPLIER × pooled_median(all conditions in regime)``.
+      The pooled median is condition-independent — no single condition
+      anchors the threshold.
     - **Fisher exact test** on the 2×2 catastrophic-failure table
       (warmup vs baseline × catastrophic vs safe).  H0: equal failure
       rates.  One-sided alternative: warmup has fewer catastrophic
       failures.  Answers "does warmup reduce tail risk?"
+    - **Holm-Bonferroni correction** applied across all tests to control
+      the family-wise error rate.
 
     Returns
     -------
     list[dict]
         One entry per comparison with test statistics and failure rates.
     """
+    pooled_thresholds = _compute_pooled_catastrophic_thresholds(all_results)
+
     tests: List[Dict[str, Any]] = []
     for warmup_key, baseline_key, budget_label in _COMPARISONS:
         if warmup_key not in all_results or baseline_key not in all_results:
@@ -554,8 +648,9 @@ def _compute_paired_tests(
         else:
             p_val = 1.0
 
-        warmup_median = float(np.median(w_regrets))
-        catastrophic_threshold = CATASTROPHIC_MULTIPLIER * warmup_median
+        catastrophic_threshold = pooled_thresholds.get(
+            budget_label, float("inf")
+        )
         w_catastrophic = int(np.sum(w_regrets > catastrophic_threshold))
         b_catastrophic = int(np.sum(b_regrets > catastrophic_threshold))
         n_seeds = len(w_regrets)
@@ -575,7 +670,7 @@ def _compute_paired_tests(
             "n_ties": n_ties,
             "n_effective": n_effective,
             "sign_test_p_value": float(p_val),
-            "warmup_median_regret": warmup_median,
+            "warmup_median_regret": float(np.median(w_regrets)),
             "baseline_median_regret": float(np.median(b_regrets)),
             "catastrophic_threshold": catastrophic_threshold,
             "warmup_catastrophic_rate": w_catastrophic / n_seeds,
@@ -595,6 +690,7 @@ def _compute_paired_tests(
             fisher_p, catastrophic_threshold,
         )
 
+    _apply_holm_correction(tests)
     return tests
 
 
@@ -650,6 +746,15 @@ def main() -> None:
             "forgetting_factor": TABULA_GAMMA,
             "budget_target": None,
         },
+        {
+            "label": "Tabula Rasa (matched-γ)",
+            "warmup": False,
+            "is_random": False,
+            "alpha": TABULA_ALPHA,
+            "prior_n_effective": TABULA_N_EFF,
+            "forgetting_factor": MATCHED_GAMMA_FORGETTING,
+            "budget_target": None,
+        },
     ]
 
     # -- Budget-constrained conditions (tight, moderate, loose) --
@@ -670,6 +775,15 @@ def main() -> None:
             "alpha": TABULA_ALPHA,
             "prior_n_effective": TABULA_N_EFF,
             "forgetting_factor": TABULA_GAMMA,
+            "budget_target": target,
+        })
+        conditions.append({
+            "label": f"TR matched-γ ({blabel} budget)",
+            "warmup": False,
+            "is_random": False,
+            "alpha": TABULA_ALPHA,
+            "prior_n_effective": TABULA_N_EFF,
+            "forgetting_factor": MATCHED_GAMMA_FORGETTING,
             "budget_target": target,
         })
 
@@ -752,10 +866,17 @@ def main() -> None:
                 "prior_n_effective": TABULA_N_EFF,
                 "forgetting_factor": TABULA_GAMMA,
             },
+            "matched_gamma": {
+                "alpha": TABULA_ALPHA,
+                "prior_n_effective": TABULA_N_EFF,
+                "forgetting_factor": MATCHED_GAMMA_FORGETTING,
+            },
             "policy": "disjoint",
             "pacer_lr": DEFAULT_PACER_LR,
             "pacer_lambda_max": DEFAULT_PACER_LAMBDA_MAX,
         },
+        "catastrophic_threshold_method": "pooled_median",
+        "multiple_testing_correction": "holm_bonferroni",
         "budget_targets": {
             label: target
             for label, target in zip(K3_BUDGET_LABELS, K3_BUDGET_TARGETS)

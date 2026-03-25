@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate the uncertainty-evolution figure for the warmup ablation appendix.
 
-Compares tr(A_inv) per arm between the warmup-prior and tabula-rasa
-conditions, showing how warmup priors give the router an immediate
-information advantage that the cold-start condition must earn online.
+Compares tr(A_inv) per arm between the warmup-prior, tabula-rasa, and
+matched-γ tabula-rasa conditions.  The matched-γ control isolates the
+contribution of priors vs. the forgetting-factor difference.
 
 Reads ``results/warmup_ablation_results.json`` (which must include
 ``uncertainty_curves``).
@@ -44,60 +44,76 @@ def _load() -> Dict[str, Any]:
         return json.load(f)
 
 
+_CONDITION_STYLES: Dict[str, tuple] = {
+    "ParetoBandit (warmup)": ("-", "warmup"),
+    "Tabula Rasa": ("--", "cold start"),
+    "Tabula Rasa (matched-γ)": (":", "cold start γ-matched"),
+}
+
+
+def _plot_uncertainty_curves(
+    ax: plt.Axes,
+    curves: List[Dict[str, Any]],
+    arm: str,
+    color: str,
+    linestyle: str,
+    label: str,
+) -> None:
+    """Plot one condition's uncertainty curve for a single arm."""
+    steps = [c["step"] for c in curves]
+    means = [c["trace_A_inv_mean"][arm] for c in curves]
+    matrix = np.array([c["per_seed_trace_A_inv"][arm] for c in curves])
+    lo, hi = bootstrap_ci_series(matrix)
+
+    ax.plot(
+        steps, means,
+        color=color, linewidth=2.0, linestyle=linestyle,
+        label=f"{arm} ({label})", zorder=4,
+    )
+    ax.fill_between(steps, lo, hi, alpha=0.08, color=color, zorder=2)
+
+
 def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = _load()
 
-    warmup = data["conditions"]["ParetoBandit (warmup)"]
-    tabula = data["conditions"]["Tabula Rasa"]
+    cond_data = {
+        key: data["conditions"][key]
+        for key in _CONDITION_STYLES
+        if key in data["conditions"]
+    }
 
-    w_curves = warmup["uncertainty_curves"]
-    t_curves = tabula["uncertainty_curves"]
-
-    if not w_curves or not t_curves:
-        print("ERROR: No uncertainty_curves in results. Re-run run_warmup_ablation.py.")
+    has_curves = all(
+        cond.get("uncertainty_curves") for cond in cond_data.values()
+    )
+    if not has_curves:
+        print(
+            "ERROR: Missing uncertainty_curves. "
+            "Re-run run_warmup_ablation.py."
+        )
         sys.exit(1)
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 4.5))
 
     for arm in ARM_ORDER:
         color = ARM_COLORS[arm]
-
-        # Warmup (solid)
-        w_steps = [c["step"] for c in w_curves]
-        w_means = [c["trace_A_inv_mean"][arm] for c in w_curves]
-        w_matrix = np.array([c["per_seed_trace_A_inv"][arm] for c in w_curves])
-        w_lo, w_hi = bootstrap_ci_series(w_matrix)
-
-        ax.plot(
-            w_steps, w_means,
-            color=color, linewidth=2.0, linestyle="-",
-            label=f"{arm} (warmup)", zorder=4,
-        )
-        ax.fill_between(w_steps, w_lo, w_hi, alpha=0.10, color=color, zorder=2)
-
-        # Tabula rasa (dashed)
-        t_steps = [c["step"] for c in t_curves]
-        t_means = [c["trace_A_inv_mean"][arm] for c in t_curves]
-        t_matrix = np.array([c["per_seed_trace_A_inv"][arm] for c in t_curves])
-        t_lo, t_hi = bootstrap_ci_series(t_matrix)
-
-        ax.plot(
-            t_steps, t_means,
-            color=color, linewidth=2.0, linestyle="--",
-            label=f"{arm} (cold start)", zorder=4,
-        )
-        ax.fill_between(t_steps, t_lo, t_hi, alpha=0.08, color=color, zorder=2)
+        for cond_key, (ls, ls_label) in _CONDITION_STYLES.items():
+            if cond_key not in cond_data:
+                continue
+            curves = cond_data[cond_key]["uncertainty_curves"]
+            _plot_uncertainty_curves(ax, curves, arm, color, ls, ls_label)
 
     ax.set_yscale("log")
     ax.set_xlabel("Step", fontsize=11)
     ax.set_ylabel(r"$\mathrm{tr}(A_a^{-1})$  (total uncertainty)", fontsize=11)
+
+    n_seeds = data.get("n_seeds", 20)
     ax.set_title(
-        "Uncertainty Evolution: Warmup Priors vs. Cold Start\n"
-        "(K=3 stationary, 20 seeds, 95% bootstrap CI)",
+        "Uncertainty Evolution: Warmup vs. Cold Start vs. γ-Matched\n"
+        f"(K=3 stationary, {n_seeds} seeds, 95% bootstrap CI)",
         fontsize=11, fontweight="bold",
     )
-    ax.legend(fontsize=7.5, ncol=2, loc="upper right", framealpha=0.9)
+    ax.legend(fontsize=6.5, ncol=3, loc="upper right", framealpha=0.9)
     ax.grid(True, alpha=0.2, linewidth=0.5, which="both")
     ax.tick_params(labelsize=9)
 
