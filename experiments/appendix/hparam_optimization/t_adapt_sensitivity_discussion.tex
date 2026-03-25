@@ -14,7 +14,7 @@ Three observations support robustness:
 %
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{$\alpha$ is perfectly stable.}
-    The exploration coefficient is $\hpSens500Alpha$ at every
+    The exploration coefficient is $\hpSensMidAlpha$ at every
     $T_{\text{adapt}}$.  This is expected: $\alpha$ governs the
     exploration--exploitation balance, which is orthogonal to the
     adaptation horizon.  The coupling formula only links
@@ -23,8 +23,8 @@ Three observations support robustness:
 
   \item \textbf{$\gamma$ varies monotonically by one grid step per
     $T_{\text{adapt}}$ doubling.}
-    The selected forgetting factors---$\hpSens250Gamma$ ($T{=}250$),
-    $\hpSens500Gamma$ ($T{=}500$), $\hpSens1000Gamma$
+    The selected forgetting factors---$\hpSensLoGamma$ ($T{=}250$),
+    $\hpSensMidGamma$ ($T{=}500$), $\hpSensHiGamma$
     ($T{=}1000$)---form a smooth, monotonically decreasing sequence.
     This is a direct consequence of the coupling formula:
     a larger $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$ for
@@ -37,22 +37,23 @@ Three observations support robustness:
 
   \item \textbf{Budget-paced Pareto AUC is effectively flat.}
     The AUC varies by less than $0.05\%$ across the three horizons
-    ($\hpSens250AUC$ to $\hpSens500AUC$), well within the standard
+    ($\hpSensLoAUC$ to $\hpSensMidAUC$), well within the standard
     error of the mean across seeds.
     This means the stationary routing quality of the selected
     configuration is insensitive to $T_{\text{adapt}}$ within a
     $4{\times}$ range.
     Phase-2 reward increases modestly with $T_{\text{adapt}}$
-    ($\hpSens250P2 \to \hpSens500P2 \to \hpSens1000P2$), reflecting
+    ($\hpSensLoPTwo \to \hpSensMidPTwo \to \hpSensHiPTwo$), reflecting
     the heavier prior's advantage in the post-failure recovery period.
 \end{enumerate}
 %
 In summary, the Pareto knee-point selection identifies essentially
 the same operating region of the $(\alpha, \gamma)$ space regardless
 of the exact $T_{\text{adapt}}$ anchor.
-The variation in $\gamma$ is a predictable, one-grid-step mechanical
-shift rather than an erratic sensitivity, and the routing quality
-(AUC) is invariant.
+The variation in $\gamma$ is a predictable, one-grid-step-per-doubling
+mechanical shift (total range of two grid steps across a $4{\times}$
+range of $T_{\text{adapt}}$), and the routing quality (AUC) is
+invariant.
 A practitioner can set $T_{\text{adapt}}$ based on their operational
 requirement---shortest acceptable reaction time to a model
 degradation---without risk of materially altering the selected

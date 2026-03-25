@@ -1,7 +1,7 @@
 % Appendix: Reward Signal Robustness Across Judges
 % Validates that the paper's conclusions are robust to evaluator choice.
 
-\subsection{Reward Signal Robustness (Three-Judge Validation)}
+\section{Reward Signal Robustness (Three-Judge Validation)}
 \label{sec:judge_robustness}
 
 All main-paper experiments use DeepSeek-R1 as the sole evaluator.
@@ -12,7 +12,7 @@ three-judge validation designed to answer the reviewer's question
 directly: \emph{would the paper's conclusions change with a different
 evaluator?}
 
-\subsubsection{Setup}
+\subsection{Setup}
 
 We draw a stratified random sample of $n = 2{,}000$ prompts from the full
 12{,}000-prompt benchmark, preserving proportional representation of all
@@ -103,7 +103,7 @@ Format your response EXACTLY as follows:
 <0.0 to 1.0>
 \end{quote}
 
-\subsubsection{All Judges Agree on the Expected Reward Ordering}
+\subsection{All Judges Agree on the Expected Reward Ordering}
 
 The bandit's converged policy depends on the expected reward ordering
 $\mathbb{E}[r(x, a)]$ across arms---not on individual per-prompt scores.
@@ -139,7 +139,7 @@ inter-model gaps, providing evidence that the conditional ordering
 $\mathbb{E}[r(x,a) \mid x]$ is also largely preserved in the regions
 where routing decisions have the greatest impact.
 
-\subsubsection{R1's Oracle Captures 97.5\% of Other Judges' Oracle Reward}
+\subsection{R1's Oracle Captures 97.5\% of Other Judges' Oracle Reward}
 
 Even where per-prompt routing decisions differ, the practical cost is
 small.  Following R1's oracle policy---selecting the model that R1 scores
@@ -189,7 +189,7 @@ Claude-3.7-Sonnet
 \end{tabular}
 \end{table}
 
-\subsubsection{The Paper's Claims Are About Relative Method Performance}
+\subsection{The Paper's Claims Are About Relative Method Performance}
 
 The main paper compares ParetoBandit against baselines (Tabula~Rasa, Random,
 static policies) using cumulative regret---a \emph{relative} measure.
@@ -211,7 +211,7 @@ recovers quality---depend on the expected reward ordering
 (Section~\ref{sec:judge_robustness}, Table~\ref{tab:expected_ordering}),
 which is invariant across judges.
 
-\subsubsection{Why R1 Rather Than a Panel Average}
+\subsection{Why R1 Rather Than a Panel Average}
 
 A natural alternative to using a single judge is to average scores across
 the three-judge panel, which is standard practice for reducing evaluator
@@ -290,7 +290,7 @@ demonstrated under conditions that maximise its visibility, while this
 appendix fully characterises the extent of agreement with alternative
 evaluators and the degree to which effect sizes depend on judge choice.
 
-\subsubsection{Per-Response Agreement Metrics}
+\subsection{Per-Response Agreement Metrics}
 
 For completeness, Table~\ref{tab:judge_agreement} reports per-response
 agreement statistics.  We use Lin's
@@ -330,7 +330,7 @@ response, but that their disagreement is structured in a way that preserves
 the paper's conclusions: the expected ordering is invariant, the routing
 regret is bounded, and the population-level policy is stable.
 
-\subsubsection{Gap-Conditioned Concordance}
+\subsection{Gap-Conditioned Concordance}
 
 Per-prompt best-model agreement is ${\sim}50\%$---the judges disagree on
 which model to route to for roughly half of all prompts.  However, this
@@ -410,7 +410,7 @@ Claude-3.7-Sonnet & 35.1\% & 42.0\% & 22.8\% \\
 \end{tabular}
 \end{table}
 
-\subsubsection{End-to-End Regret Under an Alternative Judge}
+\subsection{End-to-End Regret Under an Alternative Judge}
 \label{sec:cross_judge_regret}
 
 The preceding analysis establishes that judges agree on the expected reward
@@ -495,7 +495,7 @@ beyond it.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{experiments/appendix/judge_robustness/results/cross_judge_regret.pdf}
+    \includegraphics[width=\linewidth]{../experiments/appendix/judge_robustness/results/cross_judge_regret.png}
     \caption{Cold-start bandit regret under R1 vs.\ GPT-4.1-mini evaluation
     on the same 2{,}000 prompts.  \textbf{(A)}~Under R1, Tabula~Rasa reduces
     cumulative regret by 37\% relative to Random.  \textbf{(B)}~Under
@@ -514,7 +514,7 @@ beyond it.
     \label{fig:cross_judge_regret}
 \end{figure}
 
-\subsubsection{Scope and Limitations}
+\subsection{Scope and Limitations}
 
 This analysis validates reward \emph{consistency} across judges, not
 reward \emph{accuracy} against ground-truth human preferences.  All three
@@ -537,7 +537,7 @@ smaller under a less discriminative evaluator.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{experiments/appendix/judge_robustness/results/judge_robustness.pdf}
+    \includegraphics[width=\linewidth]{../experiments/appendix/judge_robustness/results/judge_robustness.png}
     \caption{Per-response reward scatter.
     \textbf{Left:} DeepSeek-R1 vs.\ Claude-3.7-Sonnet.
     \textbf{Right:} DeepSeek-R1 vs.\ GPT-4.1-mini.

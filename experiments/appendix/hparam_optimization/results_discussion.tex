@@ -1,7 +1,7 @@
 % Section: Hyperparameter Optimization for Non-Stationary Routing
-% Include from paper/sections/results.tex (main paper, not appendix)
+% Include from paper appendix
 
-\subsection{Hyperparameter Optimization for Non-Stationary Routing}
+\section{Hyperparameter Optimization for Non-Stationary Routing}
 \label{sec:hparam_sweep}
 
 \paragraph{The challenge.}
@@ -14,7 +14,7 @@ single stationary metric (e.g., reward or Pareto AUC), which
 selects near-stationary forgetting ($\gamma \geq 0.999$)
 because forgetting \emph{always} hurts stationary performance.
 However, $\gamma{=}1.0$ fails catastrophically under distribution
-shift: as shown in Section~\ref{sec:nonstationarity}, the
+shift: as shown in Section~\ref{sec:eval_nonstationary}, the
 no-forgetting Naive Bandit accumulates $34\%$ more cumulative regret
 than the tuned ParetoBandit ($\gamma{=}0.997$) after a reward swap.
 Conversely, optimising solely for adaptability yields
@@ -117,6 +117,18 @@ after min--max normalisation for scale invariance.
 The knee point represents the inflection where improving one
 objective begins to require disproportionate sacrifice of the
 other, and requires no weight specification or tolerance parameter.
+%% Fallbacks if bootstrap commands not yet generated:
+\providecommand{\hpBootNIter}{2000}
+\providecommand{\hpBootKneeFreq}{--}
+\providecommand{\hpBootNeighborFreq}{--}
+\providecommand{\hpBootNUnique}{--}
+%%
+Seed-level bootstrap resampling (\hpBootNIter{} iterations)
+confirms the selection is stable: the knee-point configuration is
+chosen in \hpBootKneeFreq\% of bootstrap samples, and a
+configuration within one $\gamma$ grid step is chosen in
+\hpBootNeighborFreq\% of samples (only \hpBootNUnique{} unique
+configs are ever selected across all resamples).
 
 \paragraph{Results.}
 Table~\ref{tab:hparam_selection} summarises the selection outcome
@@ -151,10 +163,10 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
 \midrule
 \multirow{2}{*}{ParetoBandit}
   & AUC-only     & $\hpAUCOnlyAlpha$ & $\hpAUCOnlyNeff$ & $\hpAUCOnlyGamma$ & $\hpAUCOnlyAUC$ & --- \\
-  & Knee-point   & $\hpParetoBanditAlpha$ & $\hpParetoBanditNeff$ & $\hpParetoBanditGamma$ & $\hpParetoBanditAUC$ & $\hpParetoBanditP2Reward$ \\[3pt]
+  & Knee-point   & $\hpParetoBanditAlpha$ & $\hpParetoBanditNeff$ & $\hpParetoBanditGamma$ & $\hpParetoBanditAUC$ & $\hpParetoBanditPTwoReward$ \\[3pt]
 \multirow{2}{*}{Tabula Rasa}
   & AUC-only     & $\hpTabulaAUCOnlyAlpha$ & --- & $\hpTabulaAUCOnlyGamma$ & $\hpTabulaAUCOnlyAUC$ & --- \\
-  & Knee-point   & $\hpTabulaAlpha$ & --- & $\hpTabulaGamma$ & $\hpTabulaAUC$ & $\hpTabulaP2Reward$ \\
+  & Knee-point   & $\hpTabulaAlpha$ & --- & $\hpTabulaGamma$ & $\hpTabulaAUC$ & $\hpTabulaPTwoReward$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -162,7 +174,7 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
 AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
 both variants---confirming that single-objective tuning converges
 on the stationary optimum, which
-Section~\ref{sec:nonstationarity} shows is catastrophic under drift.
+Section~\ref{sec:eval_nonstationary} shows is catastrophic under drift.
 The Pareto knee-point method introduces moderate forgetting for
 \emph{both} variants: $\gamma{=}\hpParetoBanditGamma$ (ParetoBandit)
 and $\gamma{=}\hpTabulaGamma$ (Tabula Rasa), trading a small amount
@@ -207,9 +219,9 @@ of budget targets.
 \toprule
 \textbf{Failed Arm} & \textbf{P2 Reward} & \textbf{Std} \\
 \midrule
-Llama-8B             & $\hpCrossArmLlamaP2$   & $\pm\hpCrossArmLlamaStd$ \\
-Mistral-Large (tuned on) & $\hpCrossArmMistralP2$ & $\pm\hpCrossArmMistralStd$ \\
-Gemini-Pro           & $\hpCrossArmGeminiP2$  & $\pm\hpCrossArmGeminiStd$ \\
+Llama-8B             & $\hpCrossArmLlamaPTwo$   & $\pm\hpCrossArmLlamaStd$ \\
+Mistral-Large (tuned on) & $\hpCrossArmMistralPTwo$ & $\pm\hpCrossArmMistralStd$ \\
+Gemini-Pro           & $\hpCrossArmGeminiPTwo$  & $\pm\hpCrossArmGeminiStd$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -251,8 +263,8 @@ Three findings merit attention:
     While both variants now adopt forgetting, ParetoBandit's
     configuration is strictly superior on both objectives:
     higher AUC ($\hpParetoBanditAUC$ vs.\ $\hpTabulaAUC$) and
-    higher P2 reward ($\hpParetoBanditP2Reward$ vs.\
-    $\hpTabulaP2Reward$), with substantially lower variance.
+    higher P2 reward ($\hpParetoBanditPTwoReward$ vs.\
+    $\hpTabulaPTwoReward$), with substantially lower variance.
     The mechanism is unchanged: under exponential discounting, the
     Discounted LinUCB estimate shrinks toward its prior.
     For Tabula Rasa, that prior is $(\lambda I, \mathbf{0})$---the

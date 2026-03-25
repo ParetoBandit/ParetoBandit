@@ -63,7 +63,7 @@ def build_command_set(
         cs.raw("ParetoBanditNeff", fmt_int(pb_best["n_eff"]))
         cs.raw("ParetoBanditGamma", format_gamma(pb_best["gamma"]))
         cs.num("ParetoBanditAUC", pb_best["val_pareto_auc"], digits=3)
-        cs.num("ParetoBanditP2Reward", pb_best["val_phase2_reward"], digits=4)
+        cs.num("ParetoBanditPTwoReward", pb_best["val_phase2_reward"], digits=4)
 
     pb_test = test_per.get("paretobandit", {})
     if pb_test:
@@ -79,7 +79,7 @@ def build_command_set(
         cs.raw("TabulaAlpha", format_alpha(tr_best["alpha"]))
         cs.raw("TabulaGamma", format_gamma(tr_best["gamma"]))
         cs.num("TabulaAUC", tr_best["val_pareto_auc"], digits=3)
-        cs.num("TabulaP2Reward", tr_best["val_phase2_reward"], digits=4)
+        cs.num("TabulaPTwoReward", tr_best["val_phase2_reward"], digits=4)
 
     tr_test = test_per.get("tabula_rasa", {})
     if tr_test:
@@ -134,7 +134,7 @@ def build_command_set(
         arm_data = pb_cross.get(short_name, {})
         if arm_data:
             cs.num(
-                f"CrossArm{key_suffix}P2",
+                f"CrossArm{key_suffix}PTwo",
                 arm_data["phase2_reward"],
                 digits=4,
             )
@@ -157,7 +157,7 @@ def build_command_set(
         arm_data = pb_cross_test.get(short_name, {})
         if arm_data:
             cs.num(
-                f"TestCrossArm{key_suffix}P2",
+                f"TestCrossArm{key_suffix}PTwo",
                 arm_data["phase2_reward"],
                 digits=4,
             )
@@ -168,19 +168,36 @@ def build_command_set(
             )
 
     # -------------------------------------------------------------------------
+    # Bootstrap knee-point stability
+    # -------------------------------------------------------------------------
+    boot_data = best_data.get("bootstrap_knee_stability", {})
+    pb_boot = boot_data.get("paretobandit", {})
+    if pb_boot:
+        cs.num("BootKneeFreq", pb_boot["original_knee_frequency"] * 100, digits=1)
+        cs.num("BootNeighborFreq", pb_boot["neighborhood_frequency"] * 100, digits=1)
+        cs.raw("BootNUnique", str(pb_boot["n_unique_selections"]))
+        cs.raw("BootNIter", str(pb_boot["n_bootstrap"]))
+
+    tr_boot = boot_data.get("tabula_rasa", {})
+    if tr_boot:
+        cs.num("TabulaBootKneeFreq", tr_boot["original_knee_frequency"] * 100, digits=1)
+        cs.num("TabulaBootNeighborFreq", tr_boot["neighborhood_frequency"] * 100, digits=1)
+
+    # -------------------------------------------------------------------------
     # T_adapt sensitivity (if results exist)
     # -------------------------------------------------------------------------
+    _T_ADAPT_TAG: Dict[str, str] = {"250": "Lo", "500": "Mid", "1000": "Hi"}
     sensitivity_path = Path(__file__).resolve().parent / "results" / "t_adapt_sensitivity.json"
     if sensitivity_path.exists():
         sens_data = load_json(sensitivity_path)
         per_t = sens_data.get("per_t_adapt", {})
         for t_val_str, t_result in per_t.items():
-            t_tag = t_val_str.replace(".", "")
+            t_tag = _T_ADAPT_TAG.get(t_val_str.replace(".", ""), t_val_str.replace(".", ""))
             cs.raw(f"Sens{t_tag}Alpha", format_alpha(t_result["alpha"]))
             cs.raw(f"Sens{t_tag}Gamma", format_gamma(t_result["gamma"]))
             cs.raw(f"Sens{t_tag}Neff", fmt_int(t_result["n_eff"]))
             cs.num(f"Sens{t_tag}AUC", t_result["val_pareto_auc"], digits=4)
-            cs.num(f"Sens{t_tag}P2", t_result["val_phase2_reward"], digits=4)
+            cs.num(f"Sens{t_tag}PTwo", t_result["val_phase2_reward"], digits=4)
         if "stable" in sens_data:
             cs.raw("SensStable", "yes" if sens_data["stable"] else "no")
 

@@ -1,6 +1,6 @@
 % Appendix: Cold-Start vs Warmup Prior Regret
 
-\subsection{Cold-Start vs Warmup Priors (Figure~\ref{fig:warmup_ablation})}
+\section{Cold-Start vs Warmup Priors}
 \label{sec:warmup_ablation}
 
 We isolate the contribution of warmup priors with two complementary
@@ -199,4 +199,11 @@ rather than a single organisation's logs.
 Nevertheless, warmup priors are easy to justify when calibrated
 on representative data: computing them from a labelled offline
 dataset takes minutes and requires no ongoing
-maintenance~\cite{kveton2023warmstart}.
+maintenance~\cite{oetomo2023warmstart}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.png}
+\caption{Per-seed cumulative regret distributions for warmup priors vs.\ Tabula Rasa (cold start) across four budget regimes (20~seeds, test split).  Warmup priors (blue) produce tight, unimodal distributions; Tabula Rasa (orange/green) exhibits bimodal heavy tails under budget constraints, with catastrophic seeds that never recover due to the pacer--exploration interaction.}
+\label{fig:warmup_ablation}
+\end{figure}

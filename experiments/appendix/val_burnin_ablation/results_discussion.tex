@@ -1,13 +1,13 @@
 % Appendix: Validation Burn-In Ablation
 
-\subsection{Validation Burn-In Ablation (Figures~\ref{fig:val_burnin_ablation}--\ref{fig:val_burnin_budget})}
+\section{Validation Burn-In Ablation}
 \label{appendix:val_burnin_ablation}
 
 The validation split ($n{=}1{,}785$) serves two roles in the
 experimental pipeline: (i)~hyperparameter selection---$\alpha$,
 $\gamma$, and $n_\mathit{eff}$ are tuned on val via the
 T\textsubscript{adapt}-constrained Pareto knee-point method
-(Appendix~\ref{sec:hparam_optimization}), and (ii)~online learning
+(Appendix~\ref{sec:hparam_sweep}), and (ii)~online learning
 ---the bandit processes val prompts before the held-out test split
 ($n{=}1{,}824$), providing reward-model burn-in and BudgetPacer
 calibration.  The first role is essential for preventing test-set
@@ -223,3 +223,17 @@ Moderate & Warmup      & 0\%   & 134.5\,$\pm$\,2.2   & 13.4 & 1.00 & $+10.8$\%  
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_test_regret.png}
+\caption{Cumulative test regret as a function of validation burn-in fraction (unconstrained regime, 20~seeds, 95\% CI).  Warmup conditions show a monotonic increase in regret with burn-in: intact priors ($n_\mathit{eff}{=}1{,}163.9$) outperform the ${\sim}333$ effective online observations retained at $\gamma{=}0.997$.  Tabula Rasa without burn-in incurs $+66\%$ regret.}
+\label{fig:val_burnin_ablation}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_budget_summary.png}
+\caption{Budget-constrained burn-in ablation summary (20~seeds).  Under tight budget, burn-in is non-significant; under moderate budget, burn-in improves bandit--pacer co-adaptation.  Tabula Rasa fails to achieve budget compliance in both regimes, severely underspending (cost/target ratios of 0.39--0.42 without burn-in).}
+\label{fig:val_burnin_budget}
+\end{figure}

@@ -71,8 +71,8 @@
 \input{../experiments/01_stationary_budget_pacing/_autogen.tex}
 \input{../experiments/02_budget_plus_drift/_autogen.tex}
 \input{../experiments/03_catastrophic_failure/_autogen.tex}
-% \input{../experiments/appendix/hparam_optimization/_autogen.tex}
-% \input{../experiments/appendix/cost_heuristic_validation/results/_autogen.tex}
+\input{../experiments/appendix/hparam_optimization/_autogen.tex}
+\input{../experiments/appendix/cost_heuristic_validation/results/_autogen.tex}
 
 % ---------- Main body ----------
 \input{sections/introduction}
@@ -89,7 +89,25 @@
 
 % ---------- Appendix ----------
 \appendix
+% A — Hyperparameter selection (referenced from intro, system design, evaluation)
+\input{../experiments/appendix/hparam_optimization/results_discussion}
+\input{../experiments/appendix/hparam_optimization/t_adapt_sensitivity_discussion}
+\input{../experiments/appendix/hparam_optimization/table_t_adapt_sensitivity}
+% B — Cost heuristic validation (validates Eq. budget_ucb design choice)
+\input{../experiments/appendix/cost_heuristic_validation/results_discussion}
+% C — Cold-start vs warmup priors (foundational prior analysis)
+\input{../experiments/appendix/warmup_ablation/results_discussion}
+% D — Validation burn-in ablation (extends warmup analysis)
+\input{../experiments/appendix/val_burnin_ablation/results_discussion}
+% E — Prior mismatch sensitivity (stress-tests priors)
+\input{../experiments/appendix/prior_mismatch/results_discussion}
+% F — Judge robustness (validates reward signal choice)
+\input{../experiments/appendix/judge_robustness/results_discussion}
+% G — Latency microbenchmark (validates computational efficiency)
+\input{../experiments/appendix/latency_benchmark/results_discussion}
+% H — Recovery limit under quality degradation
 \input{sections/appendix_recovery_limit}
+% I — Reward granularity and K>2 collapse
 \input{sections/appendix_reward_discrimination}
 
 \end{document}

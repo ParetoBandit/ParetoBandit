@@ -1,9 +1,9 @@
 % Appendix: Prior Mismatch Sensitivity Analysis
 
-\subsection{Prior Mismatch Sensitivity (Figures~\ref{fig:prior_mismatch_heatmap}--\ref{fig:prior_mismatch_distribution})}
+\section{Prior Mismatch Sensitivity}
 \label{appendix:prior_mismatch}
 
-The warmup ablation (Section~\ref{sec:warmup_ablation}) demonstrated
+The warmup ablation (Appendix~\ref{sec:warmup_ablation}) demonstrated
 that well-calibrated priors substantially reduce regret and eliminate
 catastrophic cold-start failures under stationary conditions.
 All experiments in this paper use priors trained on a representative
@@ -61,7 +61,7 @@ ablation: held-out test split ($n{=}1{,}824$), 20 seeds
 We deliberately restrict this experiment to the unconstrained regime
 to isolate the effect of prior quality from the budget-pacer
 interaction.
-The warmup ablation (Section~\ref{sec:warmup_ablation}) already
+The warmup ablation (Appendix~\ref{sec:warmup_ablation}) already
 characterises the pacer interaction for well-calibrated priors vs.\
 tabula rasa; adding budget constraints here would conflate two
 failure modes (prior mismatch and pacer-induced catastrophic
@@ -196,7 +196,7 @@ calibration quality.
 
 This reliability guarantee is arguably more deployment-relevant
 than the regret reduction.
-The warmup ablation (Section~\ref{sec:warmup_ablation}) shows that
+The warmup ablation (Appendix~\ref{sec:warmup_ablation}) shows that
 under budget constraints, Tabula Rasa's heavy tail becomes
 catastrophic: 40\% of seeds fail at moderate and loose budgets
 ($p_\text{Fisher}{=}0.002$), while warmup priors eliminate
@@ -239,3 +239,17 @@ The $n_\mathit{eff}$ parameter serves as a safety knob:
     inverted---a scenario implying a fundamental error in the
     offline reward pipeline.
 \end{itemize}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
+\caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (20~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines ($\gamma{=}0.995$ and $\gamma$-matched $0.997$).}
+\label{fig:prior_mismatch_heatmap}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
+\caption{Per-seed regret distributions across prior-quality levels at $n_\mathit{eff}{=}1{,}000$ (20~seeds, unconstrained).  Tabula Rasa baselines exhibit wide, heavy-tailed distributions ($\mathit{std} \approx 82$--$86$) with 25\% catastrophic failure rate.  All warmup conditions---including domain-mismatched and inverted priors---produce tight, unimodal distributions ($\mathit{std} \leq 4.9$) with zero catastrophic failures.}
+\label{fig:prior_mismatch_distribution}
+\end{figure}

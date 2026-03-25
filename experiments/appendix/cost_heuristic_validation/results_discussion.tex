@@ -1,6 +1,6 @@
 % Appendix: Cost Heuristic Validation
 
-\subsection{Cost Heuristic Validation (Figure~\ref{fig:cost_heuristic})}
+\section{Cost Heuristic Validation}
 \label{sec:cost_heuristic_validation}
 
 The selection utility (Equation~\ref{eq:budget_ucb}) uses a static log-normalized cost
@@ -103,3 +103,10 @@ downstream impact of these inversions:
         the cost penalty for all expensive arms until compliance
         is restored.
 \end{enumerate}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/cost_heuristic_validation/results/cost_heuristic_validation.png}
+\caption{Cost heuristic validation.  Per-request realised cost distributions for the $K{=}3$ and $K{=}4$ portfolios, with the heuristic ordering overlaid.  The static log-normalized cost $\tilde{c}_a$ preserves the true per-request cost ranking on 100\% of $K{=}3$ prompts and ${\sim}80\%$ of $K{=}4$ prompts (the Mistral-Large vs.\ Gemini-Flash pair is the only source of inversions).}
+\label{fig:cost_heuristic}
+\end{figure}

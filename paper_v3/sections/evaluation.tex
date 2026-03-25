@@ -19,7 +19,7 @@ Three conditions represent increasing routing sophistication, all sharing warmup
   \item \textbf{Naive Bandit ($\gamma{=}1.0$):} LinUCB with online learning but infinite memory and a static cost penalty.
   \item \textbf{ParetoBandit ($\gamma{=}0.997$):} Geometric forgetting with warmup priors and an active BudgetPacer.
 \end{enumerate}
-Experiment~2 additionally includes a \textbf{Recalibrated Bandit} (oracle knowledge of price changes) and a \textbf{Forgetting Bandit} ($\gamma{=}0.997$, no pacer) as ablations. Hyperparameters are selected via the epsilon-constraint procedure described in Appendix~\ref{sec:hparam_sweep}.
+Experiment~2 additionally includes a \textbf{Recalibrated Bandit} (oracle knowledge of price changes) and a \textbf{Forgetting Bandit} ($\gamma{=}0.997$, no pacer) as ablations. Hyperparameters are selected via the Pareto knee-point procedure described in Appendix~\ref{sec:hparam_sweep}.
 
 \paragraph{Non-stationary protocol.}
 Experiments 2--3 follow a three-phase stress-test: normal operation (608 prompts), abrupt perturbation (608 prompts), and recovery (608 prompts). Phase~3 reuses Phase~1 prompts for a controlled within-subject comparison.
