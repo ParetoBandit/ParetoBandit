@@ -18,7 +18,7 @@ The $K{=}3$ portfolio follows a \emph{train-then-evaluate} pipeline
 The router first online-learns on the validation split
 ($n{=}1{,}785$) under normal pricing without recording evaluation
 metrics; priors are trained on the disjoint training split
-($n_{\mathrm{eff}}{=}\bdNeff$, $\alpha{=}0.1$;
+($n_{\mathrm{eff}}{=}\bdNeff$, $\alpha{=}\bdAlpha$;
 Section~\ref{sec:hparam_sweep}).
 Evaluation uses the held-out test split ($n{=}1{,}824$),
 partitioned into three phases of $608$ steps each
@@ -34,7 +34,7 @@ difference between the two phases is attributable solely to the
 router's internal state (accumulated Phase~2 learning history), not
 prompt-sampling variability.
 With geometric forgetting $\gamma{=}\bdGamma$, Phase~1 observations are
-down-weighted by $\gamma^{608}\approx 0.09$ by the start of Phase~3,
+down-weighted by $\gamma^{608}\approx 0.16$ by the start of Phase~3,
 so the learner retains only modest memory of individual Phase~1
 evaluations.
 The Fixed Policy (no online learning) serves as a null check: its P1
@@ -433,7 +433,7 @@ to overcome the Phase~1 anchor before Gemini's UCB exceeds
 Mistral's.
 The \textbf{Forgetting Bandit} ($\gamma{=}\bdGamma$) shifts faster:
 geometric forgetting down-weights Phase~1 observations within
-${\sim}200$ steps, so the learner discovers post-drop Gemini more
+${\sim}333$ steps ($1/(1{-}\gamma)$), so the learner discovers post-drop Gemini more
 quickly.
 In Phase~3, when pricing is restored, both traces decline---but
 the Naive Bandit is slower to revert (Phase~2 pro-Gemini evidence
@@ -611,7 +611,7 @@ At moderate and loose budgets, $\lambda_t$ decays to near-zero,
 reverting to quality-only optimisation.
 
 In Phase~3, when original pricing is restored, ParetoBandit
-recovers to $\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditModPhaseThreeRatio$
+recovers to $\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$
 of the target---the only condition to achieve compliance in all
 three phases.  By contrast, the Recalibrated Bandit (which
 re-tunes its penalty at the Phase~3 boundary) reaches only

@@ -31,8 +31,8 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
   comparison is a controlled within-subject design: any difference between
   the two phases is attributable solely to the router's internal state
   (accumulated Phase 2 learning history), not prompt-sampling variability.
-  With geometric forgetting γ=0.996, Phase 1 observations are down-weighted
-  by γ^608 ≈ 0.16 by Phase 3, so the learner retains only modest memory
+  With geometric forgetting γ={gamma}, Phase 1 observations are down-weighted
+  by γ^608 ≈ {gamma_608} by Phase 3, so the learner retains only modest memory
   of individual Phase 1 evaluations.  The Fixed Policy (no online learning)
   serves as a null check: its P1 and P3 metrics should be nearly identical,
   confirming that any P1-vs-P3 gap in other conditions is algorithmic.
@@ -40,7 +40,7 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
 Three budget targets (tight, moderate, loose) and five conditions
 (Fixed Policy, Naive Bandit, Recalibrated Bandit, Forgetting Bandit,
 ParetoBandit) plus an unconstrained baseline are tested.  The
-Forgetting Bandit (γ=0.996, same static penalty, no pacer) isolates
+Forgetting Bandit (γ={gamma}, same static penalty, no pacer) isolates
 the BudgetPacer's contribution from the forgetting factor.
 
 Usage:
@@ -113,6 +113,12 @@ CHECKPOINT_INTERVAL: int = 20
 
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
+FORGETTING_FACTOR: float = BEST_K3_HPARAMS["forgetting_factor"]
+
+__doc__ = __doc__.format(
+    gamma=FORGETTING_FACTOR,
+    gamma_608=f"{FORGETTING_FACTOR ** 608:.2f}",
+)
 
 PACER_LR: float = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX

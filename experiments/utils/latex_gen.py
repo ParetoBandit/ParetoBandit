@@ -22,6 +22,7 @@ Experiment prefixes (to avoid command-name collisions):
 - Appendix warmup ablation:           ``\\wa``
 - Appendix val burn-in ablation:      ``\\vb``
 - Appendix prior mismatch:            ``\\prm``
+- Appendix judge robustness:          ``\\jr``
 """
 
 from __future__ import annotations

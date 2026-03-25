@@ -16,7 +16,7 @@ deployments.
 \paragraph{Three-phase design.}
 The test split ($n{=}608$ prompts per phase) is divided into:
 Phase~1 (normal operation), Phase~2 (Mistral failure: reward
-$\to 0.05$, cost $\to \$0$), and Phase~3 (Mistral recovered,
+$\to\cfFailureReward$, cost unchanged), and Phase~3 (Mistral recovered,
 reusing Phase~1 prompts).  The model registry is \emph{not} mutated
 at boundaries; adaptation is driven purely by observed rewards.
 
@@ -32,9 +32,10 @@ Four algorithm variants are compared at each of three budget targets
   \item \textbf{Naive Bandit ($\gamma{=}1.0$)} detects the failure
     and reduces Mistral traffic, recovering reward.  However, its
     static cost penalty cannot adjust to the changed cost landscape:
-    at moderate budget, it overshoots by \cfNaiveModPhaseTwoRatio{}
-    in Phase~2 and \cfNaiveModPhaseThreeRatio{} in Phase~3---a
-    persistent, worsening budget violation.
+    at moderate budget, it under-spends at \cfNaiveModPhaseTwoRatio{}
+    in Phase~2 as traffic shifts to cheaper Llama-8B, while at loose
+    budget the Naive Bandit over-spends to fill the gap left by
+    Mistral with expensive Gemini traffic.
   \item \textbf{Forgetting Bandit ($\gamma{=}\cfGamma$)} shares
     ParetoBandit's forgetting factor but replaces the closed-loop
     pacer with a static cost penalty.  It detects the failure faster
@@ -55,7 +56,7 @@ Four algorithm variants are compared at each of three budget targets
 \end{itemize}
 
 \paragraph{Budget compliance is the key differentiator.}
-ParetoBandit maintains budget ratios within $0.97$--$1.03\times$
+ParetoBandit maintains budget ratios within $0.95$--$1.00\times$
 across all twelve phase--budget combinations.  The Naive Bandit, despite
 recovering reward, violates the budget by up to
 \cfNaiveTightPhaseThreeRatio{} (tight, Phase~3).  The Forgetting Bandit
@@ -68,19 +69,21 @@ routing: the dual-variable mechanism is essential for maintaining cost
 invariance through disruptions.
 
 \paragraph{Phase~2 cost mechanism.}
-The pacer's closed-loop response to catastrophic failure involves an
-asymmetric shock: Mistral's cost drops to \$0 (the provider does not
-charge for failed requests) while its reward collapses.  In early
-Phase~2, residual Mistral traffic costs nothing, pulling the cost EMA
-below target and reducing $\lambda_t$.  The reward signal then drives
-traffic away from Mistral toward Gemini-Pro (expensive) and Llama-8B
-(cheap).  As the routing mix shifts, costs rise, the EMA climbs,
-$\lambda_t$ increases, and the pacer re-tightens.  This closed-loop
-rebalancing occurs \emph{within} the failure window, maintaining
-compliance even though the cost landscape changed abruptly.
+The pacer's closed-loop response to catastrophic failure involves a
+\emph{silent quality regression}: Mistral's reward drops to
+\cfFailureReward{} while its cost remains unchanged---the provider
+continues charging full price for degraded responses.
+The reward signal drives traffic away from Mistral toward Llama-8B
+(cheap) and, at looser budgets, Gemini-Pro (expensive).  Because
+Mistral's cost is intermediate (normalized $\tilde{c}{=}0.33$), the
+net cost impact of redistribution depends on where traffic lands: shifts
+toward Llama reduce cost, while shifts toward Gemini increase it.
+The BudgetPacer continuously adjusts $\lambda_t$ to absorb these
+routing-induced cost changes, maintaining compliance throughout the
+failure window.
 No other condition achieves this: the Naive and Forgetting Bandits
-shift traffic to expensive models without any mechanism to detect and
-correct the resulting overspend.
+shift traffic without any mechanism to detect and correct the
+resulting budget deviations.
 
 \paragraph{Figure traces (Figure~\ref{fig:catastrophic_failure}).}
 The three panels overlay five conditions: ParetoBandit at three
@@ -111,7 +114,7 @@ constrained conditions.  The unconstrained baseline retains elevated
 Gemini selection because its routing is quality-dominated.
 
 \emph{Panel~(b): Windowed mean reward.}
-Phase~1 reward is stable across conditions (${\sim}0.87$--$0.92$).
+Phase~1 reward is stable across conditions (${\sim}0.85$--$0.93$).
 At the Phase~2 boundary, all conditions suffer an initial reward
 trough as residual Mistral traffic returns garbage (reward
 $\to\cfFailureReward$).  The depth of this trough depends on how
@@ -132,20 +135,22 @@ Phase~1 Mistral rewards, enabling quicker re-routing.
 In Phase~3, all adaptive conditions recover toward Phase~1 reward
 levels.  The Forgetting Bandit recovers slightly faster than the
 Naive Bandit because Phase~2 failure observations fade within the
-${\sim}200$-step effective memory window.
+${\sim}333$-step effective memory window ($1/(1{-}\gamma)$).
 
 \emph{Panel~(c): Windowed cost.}
 This panel exposes the critical difference.  ParetoBandit's cost
 traces hug the budget target lines throughout all three phases:
 the BudgetPacer continuously adjusts $\lambda_t$ to absorb the
 Phase~2 cost shock (see Phase~2 cost mechanism above).
-The Naive Bandit's cost (grey dashed) explodes in Phase~2: as
-traffic shifts from zero-cost failed Mistral to expensive
-Gemini/Llama, the static penalty cannot tighten, and cost
-rises to $\cfNaiveModPhaseTwoRatio$ of the moderate target.
-Worse, the cost continues to climb in Phase~3
-($\cfNaiveModPhaseThreeRatio$) because infinite memory retains
-the Phase~2 routing mix.
+The Naive Bandit's cost (grey dashed) drops to
+$\cfNaiveModPhaseTwoRatio$ of the moderate target in Phase~2:
+traffic shifts from Mistral (intermediate cost) primarily to
+Llama-8B (cheapest arm), and the static penalty cannot loosen
+to exploit the freed budget for higher-quality routing.
+In Phase~3, the Naive Bandit recovers to
+$\cfNaiveModPhaseThreeRatio$ as infinite memory anchors the
+routing mix, but this compliance is coincidental---the static
+penalty offers no guarantee across budget regimes.
 The Forgetting Bandit's cost (orange dashed) shows a similar
 pattern: already overshooting in Phase~1
 ($\cfForgetModPhaseOneRatio$), spiking in Phase~2
@@ -162,7 +167,7 @@ When Mistral is restored in Phase~3, geometric forgetting
 ($\gamma{=}\cfGamma$) allows re-discovery via UCB exploration
 as Phase~2 failure memory is discounted.  Phase~3 reward
 approaches but does not fully match Phase~1 levels within the
-608-step phase---consistent with the ${\sim}200$-step effective
+608-step phase---consistent with the ${\sim}333$-step effective
 memory window requiring time to accumulate sufficient positive
 evidence.
 

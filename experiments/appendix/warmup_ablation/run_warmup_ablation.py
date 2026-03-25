@@ -10,16 +10,16 @@ on the K=3 portfolio under stationary conditions.  Two research questions:
 
   **Q2 (mechanism):** Is the advantage due to *priors*, or to the
     different forgetting factor that the sweep selects for each config?
-    A matched-γ tabula rasa control (cold start at warmup's γ=0.996)
+    A matched-γ tabula rasa control (cold start at warmup's γ={warmup_gamma})
     isolates the prior contribution at matched memory length.
 
 Conditions:
   1. **ParetoBandit (warmup)** — offline priors from training set
-     (alpha=0.01, n_eff=1604.7, gamma=0.996; from BEST_K3_HPARAMS)
+     (alpha={warmup_alpha}, n_eff={warmup_n_eff}, gamma={warmup_gamma}; from BEST_K3_HPARAMS)
   2. **Tabula Rasa** — cold start with its own optimal gamma
-     (alpha=0.1, n_eff=1.0, gamma=0.997; from BEST_K3_TABULA_RASA_HPARAMS)
+     (alpha={tabula_alpha}, n_eff={tabula_n_eff}, gamma={tabula_gamma}; from BEST_K3_TABULA_RASA_HPARAMS)
   3. **Tabula Rasa (matched-γ)** — cold start at warmup's gamma
-     (alpha=0.01, n_eff=1.0, gamma=0.996; mechanistic control)
+     (alpha={tabula_alpha}, n_eff={tabula_n_eff}, gamma={matched_gamma}; mechanistic control)
   4. **Random** — uniform random arm selection (floor baseline)
 
 Statistical methodology:
@@ -50,6 +50,7 @@ from scipy.stats import binomtest, fisher_exact
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci
 
 from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 from pareto_bandit.config import (
@@ -104,6 +105,16 @@ TABULA_GAMMA: float = BEST_K3_TABULA_RASA_HPARAMS["forgetting_factor"]
 # Isolates prior contribution from the confounding effect of
 # different gamma values in the "best vs best" comparison.
 MATCHED_GAMMA_FORGETTING: float = WARMUP_GAMMA
+
+__doc__ = __doc__.format(
+    warmup_alpha=WARMUP_ALPHA,
+    warmup_n_eff=WARMUP_N_EFF,
+    warmup_gamma=WARMUP_GAMMA,
+    tabula_alpha=TABULA_ALPHA,
+    tabula_n_eff=TABULA_N_EFF,
+    tabula_gamma=TABULA_GAMMA,
+    matched_gamma=MATCHED_GAMMA_FORGETTING,
+)
 
 EARLY_STEP: int = 200
 """Step at which to report Regret@200 for the early-learning comparison."""
@@ -488,6 +499,9 @@ def _aggregate_seeds(
     per_seed_agree = [sr.oracle_agreement(window=50) for sr in seed_results]
     per_seed_regret_early = [sr.regret_at(EARLY_STEP) for sr in seed_results]
 
+    regret_ci = bootstrap_ci(np.array(per_seed_regret))
+    regret_early_ci = bootstrap_ci(np.array(per_seed_regret_early))
+
     return {
         "label": seed_results[0].condition,
         "curves": curves,
@@ -495,6 +509,8 @@ def _aggregate_seeds(
             "mean": float(np.mean(per_seed_regret)),
             "std": float(np.std(per_seed_regret)),
             "se": float(np.std(per_seed_regret) / np.sqrt(n_seeds)),
+            "bootstrap_ci_lo": regret_ci[0],
+            "bootstrap_ci_hi": regret_ci[1],
         },
         "mean_reward": {
             "mean": float(np.mean(per_seed_reward)),
@@ -510,6 +526,8 @@ def _aggregate_seeds(
             "mean": float(np.mean(per_seed_regret_early)),
             "std": float(np.std(per_seed_regret_early)),
             "se": float(np.std(per_seed_regret_early) / np.sqrt(n_seeds)),
+            "bootstrap_ci_lo": regret_early_ci[0],
+            "bootstrap_ci_hi": regret_early_ci[1],
         },
         "per_seed_regret": per_seed_regret,
         "per_seed_reward": per_seed_reward,

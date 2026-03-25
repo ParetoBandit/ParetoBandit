@@ -236,20 +236,20 @@ Test BP AUC = 0.9221 (delta = -0.35%).
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.01,
+    "alpha": 0.05,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 0.996,
+    "forgetting_factor": 0.994,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
 Selected via T_adapt-constrained Pareto knee-point method (same protocol
 as ParetoBandit but with n_eff=1.0, no warmup priors).
-- Val BP AUC = 0.9246, val P2 reward = 0.7256.
-- Test BP AUC = 0.9177 (delta = -0.83%).
+- Val BP AUC = 0.9211, val P2 reward = 0.7451.
+- Test BP AUC = 0.9185 (delta = -0.74%).
 Unlike AUC-only optimisation (which locks Tabula Rasa to gamma=1.0),
-the knee-point method selects gamma=0.996 with alpha=0.01 —
-the cold-start variant benefits from minimal exploration and moderate
+the knee-point method selects gamma=0.994 with alpha=0.05 —
+the cold-start variant benefits from moderate exploration and aggressive
 forgetting when the selection criterion is a balanced trade-off rather
 than a hard AUC floor.  However, stationary AUC and failure resilience
 both remain lower than ParetoBandit, confirming that warmup priors provide

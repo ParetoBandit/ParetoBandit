@@ -121,8 +121,8 @@ and Tabula Rasa (cold start).
 \centering
 \caption{%
   \textbf{$T_{\text{adapt}}$-constrained Pareto knee-point selection.}
-  AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting)
-  for both variants.
+  AUC-only optimisation selects $\gamma{=}\hpAUCOnlyGamma$ for
+  ParetoBandit and $\gamma{=}\hpTabulaAUCOnlyGamma$ for Tabula Rasa.
   The knee-point method selects moderate forgetting for
   \emph{both} variants: $\gamma{=}\hpParetoBanditGamma$ for
   ParetoBandit and $\gamma{=}\hpTabulaGamma$ for Tabula Rasa.
@@ -156,9 +156,10 @@ and Tabula Rasa (cold start).
 \end{table*}
 
 The contrast between the two selection methods is stark.
-AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
-both variants, converging on the stationary optimum that
-Section~\ref{sec:eval_catastrophic} shows is catastrophic under
+AUC-only optimisation selects $\gamma{=}\hpAUCOnlyGamma$ (no forgetting) for
+ParetoBandit and $\gamma{=}\hpTabulaAUCOnlyGamma$ for Tabula Rasa,
+converging on stationary optima that
+Section~\ref{sec:eval_catastrophic} shows are vulnerable under
 quality degradation.
 The knee-point method instead selects moderate forgetting for
 \emph{both} variants---$\gamma{=}\hpParetoBanditGamma$ for
@@ -174,7 +175,7 @@ within one standard deviation of seed variance
 respectively), confirming the offline protocol does not overfit.
 The forgetting tax under stationarity is negligible:
 ParetoBandit reaches $\hpParetoBanditTestAUC$ on the test split,
-only ${\sim}0.2\%$ below the fixed-model envelope
+only ${\sim}0.3\%$ below the fixed-model envelope
 ($\hpFixedTestAUC$), despite carrying a forgetting rate designed
 for non-stationary recovery.
 Warmup priors close roughly half the remaining gap to the
@@ -248,7 +249,8 @@ Because the secondary objective uses a synthetic failure
 simulation, the entire protocol runs on a static validation
 split---safe, offline, and repeatable.
 The empirical result that single-objective tuning selects
-$\gamma{=}1.0$ for \emph{all} variants is itself a cautionary
-finding: standard cross-validation often converges on no forgetting,
-leaving the router with zero protection against
+$\gamma{=}\hpAUCOnlyGamma$ for ParetoBandit (and
+$\gamma{=}\hpTabulaAUCOnlyGamma$ for Tabula Rasa) is itself a
+cautionary finding: standard cross-validation converges on minimal
+forgetting, leaving the router with little protection against
 non-stationarity.

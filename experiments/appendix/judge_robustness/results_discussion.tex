@@ -62,9 +62,9 @@ $t$-test, $n = 2{,}000$).}
 \toprule
 \textbf{Judge} & \textbf{Gemini-Pro} & \textbf{Mistral-Large} & \textbf{Llama-8B} \\
 \midrule
-DeepSeek-R1       & 0.935 & 0.923 & 0.799 \\
-GPT-4.1-mini      & 0.964 & 0.952 & 0.857 \\
-Claude-3.7-Sonnet & 0.928 & 0.915 & 0.779 \\
+DeepSeek-R1       & \jrROneGeminiMean{} & \jrROneMistralMean{} & \jrROneLlamaMean{} \\
+GPT-4.1-mini      & \jrGPTGeminiMean{} & \jrGPTMistralMean{} & \jrGPTLlamaMean{} \\
+Claude-3.7-Sonnet & \jrClaudeGeminiMean{} & \jrClaudeMistralMean{} & \jrClaudeLlamaMean{} \\
 \bottomrule
 \end{tabular}
 }
@@ -143,8 +143,9 @@ only affect the \emph{magnitude} of regret differences.
 
 The effect sizes we report are large relative to judge noise.
 For reference, the warmup ablation (Appendix~\ref{sec:warmup_ablation})
-shows a regret gap of 32.1 between ParetoBandit and Tabula~Rasa over
-1{,}785 steps, corresponding to a per-step advantage of 0.018.
+shows a cumulative regret of \waUncTRRegret{} for Tabula~Rasa vs.\
+\waUncWarmupRegret{} for ParetoBandit over \waNPrompts{} steps
+(\waUncRegretReductionPct\% reduction).
 R1's oracle lift over the best-fixed policy is 0.031 per step; under
 GPT-4.1-mini the same quantity is 0.016, and under Claude it is 0.020.
 Using a different judge would therefore compress absolute effect sizes
@@ -159,12 +160,13 @@ which is invariant across judges.
 A natural alternative is to average scores across the three-judge
 panel~\cite{zheng2023judging}.  Panel averaging compresses the
 \emph{routing margin}---the gap between the best and second-best model
-on a given prompt---from 0.049 (R1 alone) to 0.034 (\textbf{30\%
-compression}), with 63\% of prompts losing margin.  At a margin
+on a given prompt---from \jrROneMargin{} (R1 alone) to \jrPanelMargin{}
+(\textbf{\jrMarginCompressionPct\% compression}), with \jrFracCompressed\%
+of prompts losing margin.  At a margin
 threshold of 0.05, R1 provides 31\% actionable prompts vs.\ only 17\%
 for the panel---nearly \textbf{half as many informative observations}.
-The signal-to-noise ratio (mean margin / std) is similar (0.617 vs.\
-0.586), so averaging compresses noise in proportion to signal; the
+The signal-to-noise ratio (mean margin / std) is similar (\jrROneSNR{} vs.\
+\jrPanelSNR), so averaging compresses noise in proportion to signal; the
 issue is not degraded SNR but smaller absolute gaps, which directly
 increase per-step regret for UCB-style bandits.
 
@@ -195,7 +197,7 @@ because the reward distribution is ceiling-compressed (most scores in
 $[0.8, 1.0]$) and discretised by the rubric's weighted components, both
 of which attenuate Pearson.  Bland--Altman analysis confirms that
 disagreement does not vary systematically with score level (mean bias
-$+0.039$ for GPT-4.1-mini, $-0.012$ for Claude; neither exhibits
+$+\jrGPTBias$ for GPT-4.1-mini, $\jrClaudeBias$ for Claude; neither exhibits
 proportional bias).
 
 \begin{table}[h]
@@ -210,17 +212,17 @@ but is attenuated by ceiling compression.}
 \toprule
 \textbf{Metric} & \textbf{GPT-4.1-mini} & \textbf{Claude-3.7-Sonnet} \\
 \midrule
-Lin's CCC                    & 0.649 & \textbf{0.718} \\
-MAD                          & \textbf{0.074} & 0.075 \\
-Mean bias (judge $-$ R1)     & $+0.039$ & $-0.012$ \\
-95\% Bland--Altman LoA       & [$-0.19$, $+0.27$] & [$-0.26$, $+0.24$] \\
-Pearson $r$ (ref.)           & 0.691 & \textbf{0.722} \\
+Lin's CCC                    & \jrGPTCCC{} & \textbf{\jrClaudeCCC} \\
+MAD                          & \textbf{\jrGPTMAD} & \jrClaudeMAD{} \\
+Mean bias (judge $-$ R1)     & $+\jrGPTBias$ & $\jrClaudeBias$ \\
+95\% Bland--Altman LoA       & [$\jrGPTBALo$, $+\jrGPTBAHi$] & [$\jrClaudeBALo$, $+\jrClaudeBAHi$] \\
+Pearson $r$ (ref.)           & \jrGPTPearson{} & \textbf{\jrClaudePearson} \\
 \bottomrule
 \end{tabular}
 }
 \end{table}
 
-CCC values of 0.65--0.72 reflect moderate per-response agreement.
+CCC values of \jrGPTCCC--\jrClaudeCCC{} reflect moderate per-response agreement.
 This is expected: any single LLM-as-judge assigns individual rewards with
 substantial noise.  The key finding is not that the judges agree on every
 response, but that their disagreement is structured in a way that preserves
@@ -313,20 +315,25 @@ tight, moderate, loose), with 20 seeds per condition.
 \paragraph{The bandit converges under both judges.}
 Figure~\ref{fig:cross_judge_regret} shows per-step cumulative regret under
 unconstrained routing.  Under R1, Tabula~Rasa achieves a final cumulative
-regret of $67.9$ [$51.2$, $88.8$] (mean [95\% bootstrap CI]), compared to
-$107.3$ [$106.0$, $108.6$] for Random---a \textbf{37\% reduction}.  Under
-GPT-4.1-mini, Tabula~Rasa achieves $47.9$ [$29.9$, $69.6$] vs.\ $73.0$
-[$71.7$, $74.4$] for Random---a \textbf{34\% reduction}.  The
-near-identical reduction percentages (37\% vs.\ 34\%) demonstrate that the
-bandit's learning effectiveness is preserved across judges.  Both curves are
+regret of $\jrROneUncTRRegret$ [$\jrROneUncTRRegretCILo$, $\jrROneUncTRRegretCIHi$]
+(mean [95\% bootstrap CI]), compared to
+$\jrROneUncRandRegret$ [$\jrROneUncRandRegretCILo$, $\jrROneUncRandRegretCIHi$]
+for Random---a \textbf{\jrROneUncReductionPct\% reduction}.  Under
+GPT-4.1-mini, Tabula~Rasa achieves $\jrGPTUncTRRegret$ [$\jrGPTUncTRRegretCILo$,
+$\jrGPTUncTRRegretCIHi$] vs.\ $\jrGPTUncRandRegret$
+[$\jrGPTUncRandRegretCILo$, $\jrGPTUncRandRegretCIHi$] for Random---a
+\textbf{\jrGPTUncReductionPct\% reduction}.  The
+similar reduction percentages (\jrROneUncReductionPct\% vs.\ \jrGPTUncReductionPct\%)
+demonstrate that the bandit's learning effectiveness is preserved across judges.  Both curves are
 sublinear with decreasing slope, indicating that the bandit progressively
 learns the reward structure regardless of evaluator.
 
 \paragraph{Effect sizes are compressed; learning dynamics are not.}
-The Random baseline's cumulative regret under GPT-4.1-mini (73.0) is 32\%
-lower than under R1 (107.3), consistent with GPT-4.1-mini's smaller
-inter-model margins.  The GPT/R1 regret ratio is stable across budget
-regimes (0.70--0.88; Figure~\ref{fig:cross_judge_regret}), confirming
+The Random baseline's cumulative regret under GPT-4.1-mini (\jrGPTUncRandRegret)
+is 32\% lower than under R1 (\jrROneUncRandRegret), consistent with
+GPT-4.1-mini's smaller inter-model margins.  The GPT/R1 regret ratio is
+stable across budget regimes (\jrUncGPTROneRatio--\jrTightGPTROneRatio;
+Figure~\ref{fig:cross_judge_regret}), confirming
 proportional compression rather than a structural change in learning
 dynamics.  The wide Tabula~Rasa CIs reflect the bimodal cold-start
 distribution documented in Appendix~\ref{sec:warmup_ablation}; despite
@@ -347,10 +354,11 @@ beyond the choice of evaluator.
     \centering
     \includegraphics[width=0.92\textwidth]{../experiments/appendix/judge_robustness/results/cross_judge_regret.png}
     \caption{Cold-start bandit regret under R1 vs.\ GPT-4.1-mini evaluation
-    on the same 2{,}000 prompts.  \textbf{(A)}~Under R1, Tabula~Rasa reduces
-    cumulative regret by 37\% relative to Random.  \textbf{(B)}~Under
-    GPT-4.1-mini, the same mechanism achieves a 34\% reduction.  Shaded bands
-    show 95\% bootstrap CIs over 20 seeds.  The wide Tabula~Rasa bands
+    on the same \jrNSubset{} prompts.  \textbf{(A)}~Under R1, Tabula~Rasa
+    reduces cumulative regret by \jrROneUncReductionPct\% relative to Random.
+    \textbf{(B)}~Under GPT-4.1-mini, the same mechanism achieves a
+    \jrGPTUncReductionPct\% reduction.  Shaded bands show 95\% bootstrap CIs
+    over \jrNseeds{} seeds.  The wide Tabula~Rasa bands
     reflect bimodal cold-start dynamics: most seeds converge quickly, but
     a minority lock onto a suboptimal arm early and accumulate excess regret
     before correcting (see Appendix~\ref{sec:warmup_ablation} for detailed

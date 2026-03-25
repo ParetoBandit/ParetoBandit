@@ -24,6 +24,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci
 from utils.latex_gen import (
     CommandSet,
     fmt_int,
@@ -77,8 +78,12 @@ def _add_condition_commands(
     r200 = cond_data["regret_at_200"]
     cs.num(f"{name_prefix}RAtTwoHundred", r200["mean"], digits=1)
 
-    ci_lo = tr["mean"] - 1.96 * tr["se"]
-    ci_hi = tr["mean"] + 1.96 * tr["se"]
+    per_seed = cond_data.get("per_seed_regret")
+    if per_seed is not None:
+        ci_lo, ci_hi = bootstrap_ci(np.array(per_seed))
+    else:
+        ci_lo = tr["mean"] - 1.96 * tr["se"]
+        ci_hi = tr["mean"] + 1.96 * tr["se"]
     cs.num(f"{name_prefix}RegretCILo", ci_lo, digits=1)
     cs.num(f"{name_prefix}RegretCIHi", ci_hi, digits=1)
 
@@ -119,6 +124,42 @@ def _add_paired_test_commands(
     cs.raw(f"{pfx}WarmupCat", fmt_int(test_data["warmup_catastrophic_count"]))
     cs.raw(f"{pfx}BaselineCat", fmt_int(test_data["baseline_catastrophic_count"]))
     cs.num(f"{pfx}BaselineCatRate", test_data["baseline_catastrophic_rate"] * 100, digits=0)
+
+
+_DIFF_PAIRS: List[tuple] = [
+    ("ParetoBandit (warmup)", "Tabula Rasa", "Unc", "TR"),
+    ("ParetoBandit (warmup)", "Tabula Rasa (matched-γ)", "Unc", "TRMatched"),
+]
+for _bl, _bs in BUDGET_SHORT.items():
+    if _bl == "unconstrained":
+        continue
+    _DIFF_PAIRS.append(
+        (f"Warmup ({_bl} budget)", f"Tabula Rasa ({_bl} budget)", _bs, "TR")
+    )
+    _DIFF_PAIRS.append(
+        (f"Warmup ({_bl} budget)", f"TR matched-γ ({_bl} budget)", _bs, "TRMatched")
+    )
+
+
+def _add_diff_ci_commands(
+    cs: CommandSet,
+    conditions: Dict[str, Any],
+) -> None:
+    """Emit bootstrap CI commands for paired regret differences."""
+    for warmup_key, baseline_key, budget_pfx, bl_pfx in _DIFF_PAIRS:
+        w = conditions.get(warmup_key)
+        b = conditions.get(baseline_key)
+        if w is None or b is None:
+            continue
+        w_seeds = np.array(w["per_seed_regret"])
+        b_seeds = np.array(b["per_seed_regret"])
+        diff = b_seeds - w_seeds  # positive = warmup better
+        mean_diff = float(np.mean(diff))
+        ci_lo, ci_hi = bootstrap_ci(diff)
+        pfx = f"{budget_pfx}Vs{bl_pfx}"
+        cs.num(f"{pfx}DiffMean", mean_diff, digits=1)
+        cs.num(f"{pfx}DiffCILo", ci_lo, digits=1)
+        cs.num(f"{pfx}DiffCIHi", ci_hi, digits=1)
 
 
 def build_command_set(data: Dict[str, Any]) -> CommandSet:
@@ -173,6 +214,8 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         _add_paired_test_commands(
             cs, test, test["budget"], test["baseline"],
         )
+
+    _add_diff_ci_commands(cs, conditions)
 
     return cs
 

@@ -3,52 +3,76 @@
 \section{Cold-Start vs Warmup Priors}
 \label{sec:warmup_ablation}
 
-We isolate the contribution of warmup priors with two complementary
-comparisons on the $K{=}3$ stationary portfolio under four budget
-regimes: unconstrained (no pacer), tight
+Section~\ref{sec:warmup} introduces offline-to-online warmup priors,
+which let the router begin with informed beliefs about each model's
+strengths by loading sufficient statistics fitted on historical data.
+Two natural questions arise when deciding whether to enable this
+feature.
+
+\paragraph{Q1: Do warmup priors reduce cold-start regret in practice?}
+A practitioner choosing between enabling warmup priors or deploying
+with a blank slate needs an apples-to-apples comparison where
+\emph{each} condition uses its own best hyperparameters---the
+configuration the practitioner would actually run.
+We therefore compare ParetoBandit with warmup priors
+($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}\waNeff$,
+$\gamma{=}\waGamma$) against Tabula Rasa
+($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}1$,
+$\gamma{=}\waTRGamma$), each tuned independently via the
+Pareto-knee procedure (Appendix~\ref{sec:hparam_sweep}).
+
+\paragraph{Q2: Is the improvement actually from the priors, or from
+a confounded hyperparameter?}
+The ``best vs best'' comparison above has a subtle confound.
+Because the Pareto-knee sweep selects different forgetting factors
+for each condition ($\gamma{=}\waGamma$ for warmup vs.\
+$\waTRGamma$ for Tabula Rasa), a skeptic could attribute the
+improvement to the different memory lengths (${\sim}333$ vs.\
+${\sim}250$ effective-memory steps) rather than to the priors
+themselves.
+To isolate the prior contribution, we add a \emph{matched-$\gamma$
+control}: Tabula Rasa run at warmup's $\gamma{=}\waGamma$
+(cold start, $n_\mathit{eff}{=}1$), so the only remaining
+difference is prior strength.
+All three conditions share $\alpha{=}\waAlpha$ and differ only in
+prior strength ($n_\mathit{eff}{=}\waNeff$ for warmup vs.\ $1$
+for both cold starts) and forgetting factor
+($\gamma{=}\waGamma$ for warmup and the matched control vs.\
+$\gamma{=}\waTRGamma$ for Tabula Rasa's independently optimised
+configuration).
+
+\medskip\noindent
+Both questions are evaluated on the $K{=}3$ stationary portfolio
+under four budget regimes: unconstrained (no pacer), tight
 ($B{=}\$3.0{\times}10^{-4}$/req), moderate
 ($B{=}\$6.6{\times}10^{-4}$/req), and loose
 ($B{=}\$1.87{\times}10^{-3}$/req).
 
-\paragraph{Q1: Deployment comparison (``best vs best'').}
-ParetoBandit (warmup) uses its own Pareto-knee hyperparameters
-($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}\waNeff$,
-$\gamma{=}\waGamma$); Tabula Rasa uses its own
-($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}1$, $\gamma{=}\waTRGamma$).
-This answers the deployment-relevant question: should a practitioner
-enable warmup priors?
-
-\paragraph{Q2: Mechanistic control (matched-$\gamma$).}
-Because the Pareto-knee sweep selects a different forgetting factor
-for each condition ($\gamma{=}\waGamma$ for warmup vs.\ $\waTRGamma$ for
-Tabula Rasa), the ``best vs best'' comparison confounds the prior
-contribution with the effect of different memory lengths (${\sim}250$ vs.\
-${\sim}333$ effective-memory steps).
-A matched-$\gamma$ control runs Tabula Rasa at warmup's
-$\gamma{=}\waGamma$ (cold start, $n_\mathit{eff}{=}1$), isolating
-the prior contribution at matched (shorter) memory length.
-All three conditions share $\alpha{=}\waAlpha$; the
-conditions differ only in prior strength
-($n_\mathit{eff}{=}\waNeff$ for warmup vs.\ $1$ for both cold
-starts) and forgetting factor ($\gamma{=}\waGamma$ for warmup
-and the matched control vs.\ $\gamma{=}\waTRGamma$ for Tabula
-Rasa's independently optimised configuration).
-
 \paragraph{Statistical methodology.}
-Two complementary tests formalise each comparison:
+We assess each comparison along two dimensions.
+The first is \emph{typical-case} regret: does warmup
+tend to outperform seed-by-seed?
+The second is \emph{tail risk}: does warmup avoid
+outlier runs where regret is disproportionately high?
+We call a seed a \textbf{catastrophic failure} when its
+cumulative regret exceeds $2{\times}$ the pooled median across
+all conditions in that budget regime (warmup, Tabula Rasa,
+and matched-$\gamma$); pooling ensures no single condition
+anchors the threshold.
+These two dimensions require different tests because a method
+can improve the median while still leaving heavy tails, or
+eliminate outliers without shifting the centre.
 \begin{itemize}[nosep,leftmargin=*]
-  \item The \textbf{sign test} (exact binomial) asks whether warmup
-    has lower regret seed-by-seed (location shift).
+  \item \textbf{Sign test} (exact binomial): tests whether warmup
+    has lower regret seed-by-seed, capturing the typical-case
+    comparison.
     H$_0$: P(warmup wins)${}= 0.5$.
-  \item The \textbf{Fisher exact test} on a $2{\times}2$
-    catastrophic-failure table asks whether warmup has fewer
-    catastrophic failures (tail risk).
+  \item \textbf{Fisher exact test} on a $2{\times}2$ table of
+    catastrophic vs.\ non-catastrophic seeds: tests whether warmup
+    has a lower catastrophic-failure rate, capturing the tail-risk
+    comparison.
     H$_0$: equal failure rates.
 \end{itemize}
-The catastrophic threshold for each budget regime is
-$2{\times}$ the \emph{pooled} median across all conditions in
-that regime (warmup, Tabula Rasa, and matched-$\gamma$), ensuring
-no single condition anchors the threshold.
 All $p$-values are corrected for multiplicity via the
 Holm--Bonferroni procedure across the full family of tests
 (8 sign tests and 8 Fisher tests, corrected separately per family).
@@ -87,45 +111,60 @@ Loose    & Warmup           & $\mathbf{\waLooseWarmupRegret}$\,[\waLooseWarmupRe
 \vspace{6pt}
 
 \noindent
-Twenty seeds; 95\% normal-approximation CI (mean $\pm$ 1.96\,SE); test split ($n{=}1{,}824$).
+Twenty seeds; 95\% percentile-bootstrap CI (10{,}000 resamples); test split ($n{=}1{,}824$).
 $^*$Holm--Bonferroni corrected; $p$-values reported for each baseline vs.\ warmup.
 \textbf{Cat.}\ = catastrophic failures (regret $> 2\times$
 \emph{pooled} median of all conditions in each budget regime).
 
-\paragraph{Deployment comparison (Q1).}
-Warmup priors consistently reduce mean regret across all budget
-regimes: by \waUncRegretReductionPct\% unconstrained ($\waUncWarmupRegret$ vs.\ $\waUncTRRegret$;
-$p_\text{sign}^*{=}\waUncVsTRSignP$), \waTightRegretReductionPct\% under tight budget ($\waTightWarmupRegret$
-vs.\ $\waTightTRRegret$; $p_\text{sign}^* {=} \waTightVsTRSignP$), \waModRegretReductionPct\% at moderate
-budget ($\waModWarmupRegret$ vs.\ $\waModTRRegret$; $p_\text{sign}^* {=} \waModVsTRSignP$, n.s.),
-and \waLooseRegretReductionPct\% at loose budget ($\waLooseWarmupRegret$ vs.\ $\waLooseTRRegret$;
-$p_\text{sign}^* {=} \waLooseVsTRSignP$).
-After Holm correction, the unconstrained, tight, and loose
-comparisons are significant at $\alpha{=}0.05$; the moderate
-comparison is borderline ($p{=}\waModVsTRSignP$).
-The reductions are modest in magnitude (\waModRegretReductionPct--\waUncRegretReductionPct\%),
-reflecting that the Tabula Rasa baseline converges within the
-${\sim}250$ effective-memory window afforded by its
-$\gamma{=}\waTRGamma$; warmup's advantage is concentrated in the
+\paragraph{Q1 result: warmup priors reduce cold-start regret.}
+Relative to Tabula Rasa, warmup priors reduce mean cumulative regret
+across all budget regimes.
+We report the paired difference $\Delta{=}\text{Tabula Rasa} -
+\text{Warmup}$ (positive favours warmup) with 95\% bootstrap CIs:
+unconstrained $\Delta{=}\waUncVsTRDiffMean$\,[\waUncVsTRDiffCILo,
+\waUncVsTRDiffCIHi],
+tight $\Delta{=}\waTightVsTRDiffMean$\,[\waTightVsTRDiffCILo,
+\waTightVsTRDiffCIHi],
+moderate $\Delta{=}\waModVsTRDiffMean$\,[\waModVsTRDiffCILo,
+\waModVsTRDiffCIHi],
+and loose $\Delta{=}\waLooseVsTRDiffMean$\,[\waLooseVsTRDiffCILo,
+\waLooseVsTRDiffCIHi].
+The CI excludes zero for unconstrained, tight, and loose regimes;
+the moderate regime is inconclusive
+($\Delta{=}\waModVsTRDiffMean$, CI spans zero).
+The reductions correspond to
+\waTightRegretReductionPct--\waUncRegretReductionPct\% of Tabula
+Rasa's total regret, reflecting that the cold-start baseline
+converges within the ${\sim}250$ effective-memory window afforded by
+its $\gamma{=}\waTRGamma$; warmup's advantage is concentrated in the
 early learning phase (R@200) and narrows as online evidence
 accumulates.
 
-\paragraph{Mechanistic control (Q2).}
-The matched-$\gamma$ control performs nearly identically to the
-original Tabula Rasa across all regimes (unconstrained: $\waUncTRMatchedRegret$
-vs.\ $\waUncTRRegret$; tight: $\waTightTRMatchedRegret$ vs.\ $\waTightTRRegret$; moderate: $\waModTRMatchedRegret$
-vs.\ $\waModTRRegret$; loose: $\waLooseTRMatchedRegret$ vs.\ $\waLooseTRRegret$), and in fact slightly
-\emph{worse} in every case.
+\paragraph{Q2 result: the improvement comes from the priors, not the
+forgetting factor.}
+Warmup's advantage over the matched-$\gamma$ control
+($\Delta{=}\text{matched-}\gamma - \text{Warmup}$) is at least as
+large as against the original Tabula Rasa:
+unconstrained $\Delta{=}\waUncVsTRMatchedDiffMean$\,[\waUncVsTRMatchedDiffCILo,
+\waUncVsTRMatchedDiffCIHi],
+tight $\Delta{=}\waTightVsTRMatchedDiffMean$\,[\waTightVsTRMatchedDiffCILo,
+\waTightVsTRMatchedDiffCIHi],
+moderate $\Delta{=}\waModVsTRMatchedDiffMean$\,[\waModVsTRMatchedDiffCILo,
+\waModVsTRMatchedDiffCIHi],
+and loose $\Delta{=}\waLooseVsTRMatchedDiffMean$\,[\waLooseVsTRMatchedDiffCILo,
+\waLooseVsTRMatchedDiffCIHi].
+The matched-$\gamma$ control in fact performs slightly \emph{worse}
+than the original Tabula Rasa in every regime (unconstrained:
+$\waUncTRMatchedRegret$ vs.\ $\waUncTRRegret$; tight:
+$\waTightTRMatchedRegret$ vs.\ $\waTightTRRegret$; moderate:
+$\waModTRMatchedRegret$ vs.\ $\waModTRRegret$; loose:
+$\waLooseTRMatchedRegret$ vs.\ $\waLooseTRRegret$).
 This rules out the forgetting-factor confound: running a cold
 start at warmup's $\gamma{=}\waGamma$ (longer memory of an
 uninformative prior) is counterproductive rather than helpful.
 Warmup's advantage is attributable to the \emph{priors themselves},
 not to the higher $\gamma$ that the Pareto-knee sweep selects
 when priors are available.
-The sign tests confirm this: warmup beats the matched-$\gamma$
-control with comparable significance to the original Tabula Rasa
-(unconstrained: $p_\text{sign}^*{=}\waUncVsTRMatchedSignP$; tight:
-$p_\text{sign}^* {=} \waTightVsTRMatchedSignP$).
 
 \paragraph{Cold-start variability.}
 Warmup priors produce tighter per-seed regret distributions
