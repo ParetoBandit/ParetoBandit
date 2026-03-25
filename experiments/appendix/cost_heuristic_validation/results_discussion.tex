@@ -82,27 +82,17 @@ magnitude in pricing.  For denser price clusters (e.g., Mistral-Large
 vs.\ Gemini-Flash, $d = \chMFCohensD$),
 the ranking holds for ${\sim}$\chMistralFlashPW\% of prompts but inverts when
 Flash generates unusually short responses.
-Three structural properties of the routing architecture limit the
-downstream impact of these inversions:
-\begin{enumerate}[nosep,leftmargin=*]
-  \item $\tilde{c}_a$ enters \emph{only} the soft penalty
-        (Eq.~\ref{eq:budget_ucb}); the hard ceiling
-        and the budget pacer's EMA cost signal both operate on actual
-        per-request costs, so heuristic errors cannot cause budget
-        violations.
-  \item For closely priced arms, the absolute penalty gap
-        $(\lambda_c + \lambda_t)\,\Delta\tilde{c}$ is small.
-        At baseline ($\lambda_t{=}0$), the Mistral--Flash gap
-        contributes only $0.3 \times \chMistralFlashGap \approx 0.015$
-        to the score---negligible relative to the $[0,1]$ reward
-        signal that dominates arm selection.
-  \item The dual variable $\lambda_t$ updates on \emph{actual} costs
-        (Eq.~\ref{eq:dual_update}).  If heuristic error causes
-        persistent over-selection of a costly arm, the resulting
-        spending increase drives $\lambda_t$ upward, tightening
-        the cost penalty for all expensive arms until compliance
-        is restored.
-\end{enumerate}
+Three structural properties limit downstream impact:
+(i)~$\tilde{c}_a$ enters only the soft penalty
+(Eq.~\ref{eq:budget_ucb}); the hard ceiling and the pacer's EMA cost
+signal operate on actual per-request costs, so heuristic errors cannot
+cause budget violations.
+(ii)~For closely priced arms the absolute penalty gap is small
+(${\sim}0.015$ for Mistral--Flash at $\lambda_t{=}0$)---negligible
+relative to the $[0,1]$ reward signal.
+(iii)~The dual variable $\lambda_t$ updates on actual costs
+(Eq.~\ref{eq:dual_update}), self-correcting any persistent
+over-selection of a costly arm.
 
 \begin{figure}[t]
 \centering

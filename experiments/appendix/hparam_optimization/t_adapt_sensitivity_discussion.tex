@@ -13,51 +13,25 @@ adaptation (Table~\ref{tab:t_adapt_sensitivity}).
 Three observations support robustness:
 %
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{$\alpha$ is perfectly stable.}
-    The exploration coefficient is $\hpSensMidAlpha$ at every
-    $T_{\text{adapt}}$.  This is expected: $\alpha$ governs the
-    exploration--exploitation balance, which is orthogonal to the
-    adaptation horizon.  The coupling formula only links
-    $n_{\text{eff}}$ and $\gamma$; $\alpha$ is selected independently
-    on the Pareto surface.
+  \item \textbf{$\alpha$ is perfectly stable}
+    ($\hpSensMidAlpha$ at every $T_{\text{adapt}}$), as expected:
+    $\alpha$ is orthogonal to the adaptation horizon.
 
   \item \textbf{$\gamma$ varies by at most two grid steps and
     stabilises.}
-    The selected forgetting factors---$\hpSensLoGamma$ ($T{=}250$),
+    The selected values---$\hpSensLoGamma$ ($T{=}250$),
     $\hpSensMidGamma$ ($T{=}500$), $\hpSensHiGamma$
-    ($T{=}1000$)---form a monotonically non-increasing sequence.
-    The largest shift occurs between $T{=}250$ and $T{=}500$ (two grid
-    steps), after which $\gamma$ is unchanged.
-    This follows from the coupling formula:
-    a larger $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$ for
-    the same $\gamma$, creating a heavier prior that needs more
-    aggressive forgetting (lower $\gamma$) to maintain the same
-    balance between stationary AUC and failure resilience on the
-    Pareto frontier.
-    The total range of $\gamma$ across a $4{\times}$ range of
-    $T_{\text{adapt}}$ is only two grid steps, and the selection
-    converges for the larger horizons.
+    ($T{=}1000$)---form a monotonically non-increasing sequence
+    that converges for the larger horizons.  A larger
+    $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$, requiring
+    more aggressive forgetting to maintain the same Pareto balance.
 
-  \item \textbf{Budget-paced Pareto AUC is effectively flat.}
-    The AUC varies by less than $0.15\%$ across the three horizons
-    ($\hpSensMidAUC$ to $\hpSensHiAUC$), well within the standard
-    error of the mean across seeds.
-    This means the stationary routing quality of the selected
-    configuration is insensitive to $T_{\text{adapt}}$ within a
-    $4{\times}$ range.
-    Phase-2 reward is similarly stable, spanning
-    $\hpSensLoPTwo$--$\hpSensMidPTwo$ with no monotonic trend,
-    indicating that failure-recovery quality is not meaningfully
-    affected by the choice of $T_{\text{adapt}}$.
+  \item \textbf{Both objectives are effectively flat.}
+    AUC varies by $<$\,0.15\% ($\hpSensMidAUC$ to $\hpSensHiAUC$);
+    Phase-2 reward spans $\hpSensLoPTwo$--$\hpSensMidPTwo$ with no
+    monotonic trend.
 \end{enumerate}
 %
-In summary, the Pareto knee-point selection identifies essentially
-the same operating region of the $(\alpha, \gamma)$ space regardless
-of the exact $T_{\text{adapt}}$ anchor.
-The variation in $\gamma$ is confined to two grid steps and converges
-for the larger horizons, while the routing quality (AUC) and
-failure resilience (Phase-2 reward) are effectively invariant.
-A practitioner can set $T_{\text{adapt}}$ based on their operational
-requirement---shortest acceptable reaction time to a model
-degradation---without risk of materially altering the selected
+A practitioner can set $T_{\text{adapt}}$ to their operational
+requirement without risk of materially altering the selected
 configuration.

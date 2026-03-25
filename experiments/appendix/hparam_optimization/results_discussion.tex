@@ -7,49 +7,29 @@
 \paragraph{The challenge.}
 ParetoBandit's core hyperparameters---exploration coefficient
 $\alpha$, prior strength $n_{\text{eff}}$, and forgetting factor
-$\gamma$---interact non-trivially with the stationarity of the
-deployment environment.
-Standard cross-validation assumes i.i.d.\ data and optimises a
-single stationary metric (e.g., reward or Pareto AUC), which
-selects near-stationary forgetting ($\gamma \geq 0.999$)
-because forgetting \emph{always} hurts stationary performance.
-However, $\gamma{=}1.0$ fails catastrophically under distribution
-shift: as shown in Section~\ref{sec:eval_nonstationary}, the
-no-forgetting Naive Bandit accumulates $34\%$ more cumulative regret
-than the tuned ParetoBandit ($\gamma{=}\hpParetoBanditGamma$) after a reward swap.
-Conversely, optimising solely for adaptability yields
-$\gamma \ll 1$ with excessive forgetting that destabilises the
-stationary policy.
-This creates a fundamental tension absent from supervised routing:
-\emph{the same hyperparameter must simultaneously protect stationary
-efficiency and enable non-stationary recovery}.
+$\gamma$---interact non-trivially with stationarity.
+Standard cross-validation optimises a single stationary metric,
+which selects $\gamma \geq 0.999$ because forgetting always hurts
+stationary performance.  However, $\gamma{=}1.0$ fails under
+distribution shift (Section~\ref{sec:eval_nonstationary}: $+34\%$
+regret after a reward swap), while optimising solely for adaptability
+yields excessive forgetting that destabilises the stationary policy.
+\emph{The same hyperparameter must simultaneously protect stationary
+efficiency and enable non-stationary recovery.}
 
-Existing bandit-based LLM routers do not address this tension.
-PILOT~\cite{panda2025pilot} grid-searches the exploration rate
-$\alpha$ to maximise a single reward metric on held-out data,
-with no forgetting mechanism and no non-stationarity consideration
-in the selection protocol.
-BaRP~\cite{wang2025barp} and LLM Bandit~\cite{li2025llmbandit}
-omit forgetting entirely.
-MixLLM~\cite{wang2025mixllm} delegates adaptation to periodic
-neural-network retraining rather than tuning bandit-specific
-parameters.
-In the general bandit literature, the CDT framework~\cite{kang2024cdt}
-proposes online hyperparameter tuning via a double-layer bandit that
-treats $\alpha$ selection as a non-stationary continuum-armed problem,
-extending earlier discrete methods~\cite{bouneffouf2020oplinucb}.
-However, CDT remains \emph{single-objective} (maximise cumulative
-reward) and does not tune the forgetting factor $\gamma$ or address
-the efficiency--adaptability tradeoff.
-The foundational Discounted UCB analysis by
-Garivier and Moulines~\cite{garivier2011switching} derives $\gamma$
-theoretically from the number of breakpoints, but this quantity is
-unknown in every production deployment.
-To the best of our knowledge, no prior work---in LLM routing or in
-the broader non-stationary bandit literature---proposes a
-multi-objective protocol for jointly selecting $(\alpha, n_{\text{eff}},
-\gamma)$ to balance stationary efficiency against non-stationary
-recovery.
+Existing bandit-based LLM routers do not address this tension:
+PILOT~\cite{panda2025pilot} grid-searches $\alpha$ on a single
+stationary metric; BaRP~\cite{wang2025barp} and LLM
+Bandit~\cite{li2025llmbandit} omit forgetting entirely;
+MixLLM~\cite{wang2025mixllm} delegates adaptation to neural-network
+retraining.  In the general bandit literature,
+CDT~\cite{kang2024cdt} tunes $\alpha$ online but remains
+single-objective and does not tune $\gamma$, while
+Garivier and Moulines~\cite{garivier2011switching} derive $\gamma$
+from the number of breakpoints---unknown in production.
+To our knowledge, no prior work proposes a multi-objective protocol
+for jointly selecting $(\alpha, n_{\text{eff}}, \gamma)$ to balance
+stationary efficiency against non-stationary recovery.
 
 \paragraph{Adaptation-horizon coupling.}
 Rather than treating $\alpha$, $n_{\text{eff}}$, and $\gamma$ as three
@@ -231,108 +211,43 @@ Three findings merit attention:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{The adaptation-horizon coupling eliminates a
     hyperparameter.}
-    By deriving $n_{\text{eff}}$ from $\gamma$ and $T_{\text{adapt}}$, the 3D search
-    space $(\alpha, n_{\text{eff}}, \gamma)$ collapses to 2D
-    $(\alpha, \gamma)$ with a single, interpretable control:
-    $T_{\text{adapt}}$ specifies how many queries the router needs to
-    override its prior after a shift.
-    Every configuration in the sweep shares the same adaptation
-    speed by construction, so the knee-point selection operates on
-    a surface where all candidates can detect and respond to
-    distributional changes within the same horizon.
-    The practitioner tunes a single deployment-meaningful parameter
-    ($T_{\text{adapt}}$) rather than two abstract statistical quantities
-    ($n_{\text{eff}}$ and $\gamma$).
+    The 3D search collapses to 2D $(\alpha, \gamma)$ with
+    $n_{\text{eff}}$ derived, so the practitioner tunes a single
+    deployment-meaningful parameter ($T_{\text{adapt}}$) rather than
+    two abstract statistical quantities.
 
   \item \textbf{The knee-point method selects forgetting for both
     variants.}
-    A hard-threshold approach (e.g., retaining only configurations
-    within $\epsilon$ of the best AUC) would lock Tabula Rasa to
-    $\gamma{=}1.0$, because even mild forgetting pushes the
-    cold-start variant outside any reasonable AUC tolerance.
-    The Pareto knee-point avoids this failure mode:
-    it selects $\gamma{=}\hpTabulaGamma$ for Tabula Rasa by
-    identifying the inflection where the marginal AUC cost of
-    additional forgetting begins to accelerate, rather than
-    imposing a binary feasibility cutoff.
-    For Tabula Rasa, this balance point still involves some
-    forgetting, even though the cold-start variant pays a steeper
-    AUC price for it than ParetoBandit does.
+    A hard-threshold approach ($\epsilon$-best AUC) would lock
+    Tabula Rasa to $\gamma{=}1.0$; the Pareto knee-point instead
+    identifies the inflection where the marginal AUC cost of
+    additional forgetting accelerates, selecting
+    $\gamma{=}\hpTabulaGamma$ for Tabula Rasa despite its steeper
+    AUC price.
 
   \item \textbf{Warmup priors remain the structural enabler.}
-    While both variants now adopt forgetting, ParetoBandit's
-    configuration is strictly superior on both objectives:
-    higher AUC ($\hpParetoBanditAUC$ vs.\ $\hpTabulaAUC$) and
-    higher P2 reward ($\hpParetoBanditPTwoReward$ vs.\
-    $\hpTabulaPTwoReward$), with substantially lower variance.
-    The mechanism is unchanged: under exponential discounting, the
-    Discounted LinUCB estimate shrinks toward its prior.
-    For Tabula Rasa, that prior is $(\lambda I, \mathbf{0})$---the
-    estimate shrinks toward ignorance.
-    For ParetoBandit, the prior encodes $\hpParetoBanditNeff$
-    pseudo-observations per arm from the training split; forgetting
-    erodes only the online residual corrections, not the baseline
-    policy.
-    The cross-arm validation (Table~\ref{tab:cross_arm_validation})
-    further confirms that this advantage generalises: the
-    forgetting mechanism is arm-agnostic, and the selected
-    configuration recovers effectively regardless of which arm
-    fails.
+    ParetoBandit is strictly superior on both objectives
+    ($\hpParetoBanditAUC$ vs.\ $\hpTabulaAUC$ AUC;
+    $\hpParetoBanditPTwoReward$ vs.\ $\hpTabulaPTwoReward$ P2 reward).
+    Under exponential discounting, the estimate shrinks toward its
+    prior: for Tabula Rasa, toward ignorance
+    $(\lambda I, \mathbf{0})$; for ParetoBandit, toward
+    $\hpParetoBanditNeff$ informative pseudo-observations per arm.
+    The cross-arm validation
+    (Table~\ref{tab:cross_arm_validation}) confirms that the
+    forgetting mechanism generalises across all arms.
 \end{enumerate}
 
-\paragraph{Novelty and significance.}
-This $T_{\text{adapt}}$-constrained Pareto knee-point protocol is, to our
-knowledge, the first multi-objective hyperparameter selection
-framework for non-stationary bandit routing.
-It addresses a gap that spans both the LLM routing and the general
-bandit literatures:
-existing systems either assume stationarity in their tuning
-protocol~\cite{panda2025pilot,wang2025barp,li2025llmbandit},
-delegate adaptation to model retraining rather than tuning bandit
-parameters~\cite{wang2025mixllm}, or derive $\gamma$ from
-theoretical quantities (number of breakpoints) that are unknown in
-production~\cite{garivier2011switching}.
-The CDT framework~\cite{kang2024cdt} demonstrates that online
-hyperparameter tuning is feasible for contextual bandits, but it
-optimises a single reward objective and does not address the
-stability--plasticity tradeoff that arises when the router must
-simultaneously serve stationary traffic well and recover from shifts.
-
-Our contribution is threefold:
-(i)~the adaptation-horizon coupling
-(Equation~\ref{eq:t_adapt}) reduces the search space from 3D to 2D
-and replaces two abstract parameters ($n_{\text{eff}}$, $\gamma$) with a
-single deployment-meaningful quantity ($T_{\text{adapt}}$);
-(ii)~the Pareto knee-point selection is parameter-free (no weights
-or tolerance to specify) and naturally identifies the balanced
-trade-off between stationary efficiency and non-stationary
-resilience;
-(iii)~the cross-arm validation step
-(Table~\ref{tab:cross_arm_validation}) provides empirical evidence
-that the selected forgetting rate generalises beyond the specific
-failure scenario used for tuning.
-
-The empirical result that single-objective tuning
-selects $\gamma{=}1.0$ (no forgetting) for \emph{all} variants
-is itself a cautionary finding: any practitioner who tunes via
-standard cross-validation will converge on no forgetting,
-offering zero protection against distribution shift---despite
-this being the failure mode they are most likely to encounter
-in production.
-
 \paragraph{Practical implications.}
-From a deployment perspective, the protocol requires the
-practitioner to specify two quantities: (i)~the adaptation horizon
-$T_{\text{adapt}}$ (how quickly the router should be able to react to a
-distributional shift), and (ii)~a grid of $(\alpha, \gamma)$
-candidates.
-The output is a single configuration that is
-near-optimal for budget-paced routing and maximally adaptive within
-that quality budget, with no weight or tolerance parameter to
-calibrate.
-Because the secondary objective uses a synthetic catastrophic-failure
-simulation, the protocol requires no live non-stationary data and
-can be run entirely on a static validation split before deployment.
-This makes the tuning procedure safe, offline, and repeatable---a
-necessary property for production systems subject to change-management
-governance.
+The protocol requires the practitioner to specify $T_{\text{adapt}}$
+(shortest acceptable reaction time) and a grid of
+$(\alpha, \gamma)$ candidates; it outputs a single configuration
+that is near-optimal for budget-paced routing and maximally
+adaptive, with no weight or tolerance parameter.
+Because the secondary objective uses a synthetic failure simulation,
+the protocol runs entirely on a static validation split---safe,
+offline, and repeatable.
+The empirical result that single-objective tuning selects
+$\gamma{=}1.0$ for \emph{all} variants is itself a cautionary
+finding: standard cross-validation converges on no forgetting,
+offering zero protection against distribution shift.

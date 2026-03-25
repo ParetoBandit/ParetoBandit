@@ -22,11 +22,11 @@ enable warmup priors?
 Because the Pareto-knee sweep selects a different forgetting factor
 for each condition ($\gamma{=}\waGamma$ for warmup vs.\ $\waTRGamma$ for
 Tabula Rasa), the ``best vs best'' comparison confounds the prior
-contribution with the effect of longer memory (${\sim}333$ vs.\
-${\sim}200$ effective-memory steps).
+contribution with the effect of different memory lengths (${\sim}250$ vs.\
+${\sim}333$ effective-memory steps).
 A matched-$\gamma$ control runs Tabula Rasa at warmup's
 $\gamma{=}\waGamma$ (cold start, $n_\mathit{eff}{=}1$), isolating
-the prior contribution at matched memory length.
+the prior contribution at matched (shorter) memory length.
 
 \begin{center}
 \small
@@ -99,17 +99,16 @@ $p_\text{sign}^*{=}\waUncVsTRSignP$), \waTightRegretReductionPct\% under tight b
 vs.\ $\waTightTRRegret$; $p_\text{sign}^* {=} \waTightVsTRSignP$), \waModRegretReductionPct\% at moderate
 budget ($\waModWarmupRegret$ vs.\ $\waModTRRegret$; $p_\text{sign}^* {=} \waModVsTRSignP$, n.s.),
 and \waLooseRegretReductionPct\% at loose budget ($\waLooseWarmupRegret$ vs.\ $\waLooseTRRegret$;
-$p_\text{sign}^* {=} \waLooseVsTRSignP$, n.s.).
-After Holm correction, only the unconstrained and tight
-comparisons remain significant at $\alpha{=}0.05$ for the
-location shift.
-The non-significance at moderate and loose budgets reflects Tabula
-Rasa's bimodal distribution: ``lucky'' cold-start seeds that avoid
-early expensive-arm exploration achieve comparable or lower regret
-than warmup, while ``unlucky'' seeds catastrophically fail.
-The mean comparison averages over these two modes and is neither
-a reliable summary of typical Tabula Rasa performance nor evidence
-that warmup is unnecessary.
+$p_\text{sign}^* {=} \waLooseVsTRSignP$).
+After Holm correction, the unconstrained, tight, and loose
+comparisons are significant at $\alpha{=}0.05$; the moderate
+comparison is borderline ($p{=}\waModVsTRSignP$).
+The reductions are modest in magnitude (\waModRegretReductionPct--\waUncRegretReductionPct\%),
+reflecting that the Tabula Rasa baseline converges within the
+${\sim}333$ effective-memory window afforded by its
+$\gamma{=}\waTRGamma$; warmup's advantage is concentrated in the
+early learning phase (R@200) and narrows as online evidence
+accumulates.
 
 \paragraph{Mechanistic control (Q2).}
 The matched-$\gamma$ control performs nearly identically to the
@@ -128,78 +127,43 @@ control with comparable significance to the original Tabula Rasa
 (unconstrained: $p_\text{sign}^*{=}\waUncVsTRMatchedSignP$; tight:
 $p_\text{sign}^* {=} \waTightVsTRMatchedSignP$).
 
-\paragraph{Cold-start bimodality.}
-The budget-stratified results reveal a qualitative finding beyond
-mean regret reduction: Tabula Rasa's per-seed regret is
-\emph{bimodal} under every budget constraint tested
+\paragraph{Cold-start variability.}
+Warmup priors produce tighter per-seed regret distributions
 (Figure~\ref{fig:warmup_ablation}).
-The matched-$\gamma$ control exhibits the same bimodal pattern
-with similar catastrophic failure rates (e.g.\ moderate budget:
-\waModVsTRMatchedBaselineCat/\waNseeds vs.\ \waModVsTRBaselineCat/\waNseeds), confirming that the bimodality arises from
-\emph{missing priors}, not from the different forgetting rate.
-The mechanism is a deterministic consequence of the interaction
-between UCB exploration and the budget pacer: the cold-start router
-has high initial uncertainty, so UCB occasionally selects the
-expensive frontier arm (Gemini-Pro) during early exploration.
-This triggers a dual-variable spike in the primal-dual pacer,
-which then penalises all future expensive-arm selections,
-permanently locking out the expensive arm before its quality is
-learned.
-
-Under tight budgets, the pooled-median catastrophic threshold
-($360.6$) exceeds all individual seed regrets, so no seeds are
-formally classified as catastrophic despite clear bimodality in
-the Tabula Rasa distribution (median $297.7$,
-range~${\sim}170$--$310$).
-This is a consequence of the conservative pooled threshold:
-warmup's low-regret seeds pull the pooled median down, and
-$2{\times}$ that value exceeds the Tabula Rasa ceiling.
-The bimodality is nevertheless visible in
-Figure~\ref{fig:warmup_ablation} and in the $14{\times}$ standard
-deviation gap ($\waTightWarmupRegretStd$ vs.\ $\waTightTRRegretStd$).
+Under tight budgets, the standard deviation gap is
+$\waTightWarmupRegretStd$ vs.\ $\waTightTRRegretStd$
+(${\sim}2.4{\times}$).
+No catastrophic failures (regret $> 2{\times}$ pooled median)
+are observed for any condition in the current runs
+(\waUncVsTRBaselineCat/\waNseeds unconstrained,
+\waTightVsTRBaselineCat/\waNseeds tight,
+\waModVsTRBaselineCat/\waNseeds moderate,
+\waLooseVsTRBaselineCat/\waNseeds loose),
+reflected in the non-significant Fisher tests
+($p_\text{Fisher}^* {=} \waUncVsTRFisherP$ across all regimes).
+The matched-$\gamma$ control exhibits similar variance
+(\waModVsTRMatchedBaselineCat/\waNseeds catastrophic at moderate),
+confirming that the variability reduction is attributable to
+informative priors, not to the different forgetting rate.
 
 \paragraph{Discussion.}
 Warmup priors are best understood as a \emph{deployment
-reliability mechanism}: they eliminate both the cold-start
-transient and the catastrophic pacer-interaction failure mode.
+reliability mechanism}: they reduce cold-start regret and
+tighten the per-seed distribution.
 The matched-$\gamma$ control sharpens this conclusion by ruling
 out the alternative hypothesis that the forgetting-factor difference
 drives the advantage.
 The warmup benefit is transient by design---geometric forgetting
-($\gamma{=}\waGamma$) replaces priors within ${\sim}333$
+($\gamma{=}\waGamma$) replaces priors within ${\sim}250$
 effective-memory steps; after sufficient learning, warmup and
 tabula-rasa conditions converge
 (Appendix~\ref{appendix:val_burnin_ablation}).
-Under budget constraints, however, catastrophic seeds never
-recover because the budget pacer's dual variable permanently
-locks out the expensive arm.
 
-Importantly, these gains assume the prior is directionally correct.
+These gains assume the prior is directionally correct.
 A dedicated prior-mismatch sensitivity analysis
 (Appendix~\ref{appendix:prior_mismatch}) quantifies trade-offs
 across five quality levels---from well-calibrated through
 domain-restricted to actively inverted priors.
-
-\paragraph{Business perspective.}
-Intelligent LLM routing delivers simultaneous quality and cost
-gains because no single model dominates all queries.
-In our $K{=}3$ portfolio, oracle routing achieves 3.3\% higher
-quality than routing all traffic to the frontier model while
-reducing per-request cost by 66\%.
-Warmup priors protect routing quality during the critical but
-transient cold-start window: under tight budgets, the \waTightRegretReductionPct\% regret
-reduction ($\waTightWarmupRegret$ vs.\ $\waTightTRRegret$; $p_\text{sign}^* {=} \waTightVsTRSignP$)
-represents a substantial fraction of the router's total
-quality--cost value recovered solely by starting with informed
-priors.
-These projections are illustrative: the per-request costs are
-specific to our three-model portfolio and March 2026 pricing,
-and the traffic volumes are drawn from public platform statistics
-rather than a single organisation's logs.
-Nevertheless, warmup priors are easy to justify when calibrated
-on representative data: computing them from a labelled offline
-dataset takes minutes and requires no ongoing
-maintenance~\cite{oetomo2023warmstart}.
 
 \begin{figure}[t]
 \centering

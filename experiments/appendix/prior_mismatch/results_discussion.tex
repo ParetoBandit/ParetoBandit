@@ -70,28 +70,13 @@ threshold for harm is determined by the bandit's learning dynamics,
 not the pacer.
 
 \paragraph{Statistical methodology.}
-Pairwise comparisons use two complementary non-parametric tests.
-The \textbf{exact binomial sign test} (two-sided,
-$H_0$: $P(\text{condition wins}) = 0.5$) counts per-seed paired
-wins and tests for a location shift.
-The \textbf{Fisher exact test} on the $2{\times}2$ catastrophic-failure
-table ($H_0$: equal failure rates; one-sided, condition $<$ baseline)
-tests whether the condition reduces tail risk.
-A seed is classified as \emph{catastrophic} if its total regret
-exceeds $2{\times}$ the $\gamma$-matched Tabula Rasa's median---a
-fixed, condition-independent threshold that avoids inflating the
-cutoff for high-regret conditions.
-Because Tabula Rasa's per-seed regret is heavy-tailed and
-multimodal, the standard assumptions of the Wilcoxon signed-rank
-test (symmetric paired differences) and the paired $t$-test
-(normally distributed differences) are both violated.
-The sign test requires only that paired observations are independent
-and makes no distributional assumptions; the Fisher test requires
-only a fixed marginal total.
-All 15 pairwise $p$-values (per baseline) are corrected for
-multiplicity via the \textbf{Holm--Bonferroni} step-down procedure;
-we report both raw and corrected values, and significance
-statements use the corrected $p$.
+We use the same paired-comparison protocol as
+Appendix~\ref{sec:warmup_ablation}: exact binomial sign test for
+location shift, Fisher exact test on a $2{\times}2$
+catastrophic-failure table for tail risk, with Holm--Bonferroni
+correction across all 15 pairwise comparisons per baseline.
+A seed is classified as catastrophic if its regret exceeds
+$2{\times}$ the $\gamma$-matched Tabula Rasa's median.
 
 \paragraph{Results.}
 Figure~\ref{fig:prior_mismatch_heatmap} summarises total regret
@@ -209,36 +194,19 @@ related domain, retain the same variance reduction as those
 with a perfectly calibrated 8K-prompt training set.
 
 \paragraph{Practical implications.}
-The experiment establishes two key findings.
-First, the prior-quality threshold for harm is high: priors must be
-\emph{actively wrong} (systematically inverting model rankings) before
-they degrade performance.
-Domain mismatch, reduced sample size, and even near-zero arm
-differentiation (GSM8K-only) do not cross this threshold.
-Second, the reliability guarantee---tight, unimodal per-seed
-distributions vs.\ Tabula Rasa's heavy tail---is robust across the
-entire quality gradient.
-
+The prior-quality threshold for harm is high: priors must be
+\emph{actively wrong} (inverting model rankings) before they degrade
+performance.  The reliability guarantee---tight, unimodal distributions
+vs.\ Tabula Rasa's heavy tail---is robust across the entire quality
+gradient.
 The $n_\mathit{eff}$ parameter serves as a safety knob:
-\begin{itemize}[nosep,leftmargin=*]
-  \item $n_\mathit{eff}{=}1{,}000$ (representative prior):
-    median $\prmWellCalThousandRegretMedian$ with $\mathit{std}{=}\prmWellCalThousandRegretStd$---a
-    $\prmWellCalThousandReductionPct\%$ reduction from the $\gamma$-matched baseline ($\prmCatRefMedian$).
-    Use when the training set comes from the deployment distribution.
-  \item $n_\mathit{eff}{=}100$ (domain-shifted prior):
-    median $\prmWellCalHundredRegretMedian$ with $\mathit{std}{=}\prmWellCalHundredRegretStd$---a $\prmWellCalHundredReductionPct\%$ reduction.
-    Safe default when the prior comes from a related but different
-    domain.
-  \item $n_\mathit{eff}{=}10$ (unknown quality):
-    worst-case damage limited to a modest median increase
-    (Inverted: $\prmInvTenRegretMedian$, a $6.5\%$ increase), while any non-adversarial
-    prior still reduces regret by $9$--$11\%$.
-    Use when prior quality is entirely uncertain.
-  \item Tabula rasa ($n_\mathit{eff}{=}1$):
-    appropriate only when the prior is known to be systematically
-    inverted---a scenario implying a fundamental error in the
-    offline reward pipeline.
-\end{itemize}
+$1{,}000$ for representative priors ($\prmWellCalThousandReductionPct\%$ regret
+reduction), $100$ as a safe default for domain-shifted priors
+($\prmWellCalHundredReductionPct\%$ reduction), and $10$ when quality is
+entirely uncertain (worst-case damage limited to $+6.5\%$, while
+non-adversarial priors still reduce regret by $9$--$11\%$).
+Tabula rasa is appropriate only when the prior is known to be
+systematically inverted.
 
 \begin{figure}[t]
 \centering

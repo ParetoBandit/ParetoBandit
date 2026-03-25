@@ -37,71 +37,10 @@ weighted average
 $r = 0.4\,s_{\text{reason}} + 0.3\,s_{\text{instr}} + 0.3\,s_{\text{comm}}$.
 The judge panel spans three independent providers (DeepSeek, OpenAI,
 Anthropic), none of which overlaps with the model providers being routed
-(Meta, Mistral, Google).  The full prompt template is reproduced below for
-reproducibility.
-
-\begin{quote}
-\small\ttfamily
-You are a Discriminative Router Judge.\ Your goal is to evaluate how well
-an LLM response addresses the given prompt.
-
-\medskip
-Score on three continuous dimensions (0.0--1.0).\ Use the FULL range; do
-NOT default to 0 or 1.
-
-\medskip
-1.\ \textbf{Reasoning Quality (40\,\%)} --- How sound is the reasoning?\\
-\hspace*{1em}0.9--1.0\; Flawless; every step correct and clearly justified.\\
-\hspace*{1em}0.7--0.8\; Sound overall; minor inefficiency or a trivial error
-that does not change the conclusion.\\
-\hspace*{1em}0.5--0.6\; Partially correct; approach is reasonable but
-important steps are wrong or missing.\\
-\hspace*{1em}0.3--0.4\; Weak; only fragments of correct logic.\\
-\hspace*{1em}0.0--0.2\; No coherent reasoning, or completely wrong approach.\\
-If the prompt needs no multi-step reasoning, score factual accuracy and
-depth of explanation.
-
-\medskip
-2.\ \textbf{Instruction Following (30\,\%)} --- Were all explicit and
-implicit constraints satisfied?\\
-\hspace*{1em}0.9--1.0\; Every constraint followed precisely.\\
-\hspace*{1em}0.7--0.8\; All major constraints met; one minor instruction
-partially missed.\\
-\hspace*{1em}0.5--0.6\; Some important instructions missed or only
-partially addressed.\\
-\hspace*{1em}0.3--0.4\; Multiple instructions ignored or misinterpreted.\\
-\hspace*{1em}0.0--0.2\; Response largely ignores the prompt's requirements.
-
-\medskip
-3.\ \textbf{Communication Quality (30\,\%)} --- How clear,
-well-structured, and useful is the response?\\
-\hspace*{1em}0.9--1.0\; Exceptionally clear, well-organized, appropriate
-detail.\\
-\hspace*{1em}0.7--0.8\; Clear and competent; minor improvements possible.\\
-\hspace*{1em}0.5--0.6\; Adequate but noticeably unclear, verbose, or
-poorly organized.\\
-\hspace*{1em}0.3--0.4\; Hard to follow; significant clarity issues.\\
-\hspace*{1em}0.0--0.2\; Unintelligible, unhelpful, or inappropriate tone.
-
-\medskip
-Format your response EXACTLY as follows:
-
-\medskip
-\#\# Reasoning\\
-<Concise chain-of-thought analysis>
-
-\medskip
-\#\# Reasoning Quality\\
-<0.0 to 1.0>
-
-\medskip
-\#\# Instruction Following\\
-<0.0 to 1.0>
-
-\medskip
-\#\# Communication Quality\\
-<0.0 to 1.0>
-\end{quote}
+(Meta, Mistral, Google).  The structured CoT prompt instructs each judge
+to produce a reasoning analysis, then score three dimensions on $[0,1]$
+with five-level anchor descriptions at 0.2 intervals.  The exact template
+is available in the reproducibility code.
 
 \subsection{All Judges Agree on the Expected Reward Ordering}
 
@@ -213,82 +152,34 @@ which is invariant across judges.
 
 \subsection{Why R1 Rather Than a Panel Average}
 
-A natural alternative to using a single judge is to average scores across
-the three-judge panel, which is standard practice for reducing evaluator
-variance~\cite{zheng2023judging}.  We examine whether this would help or
-harm the bandit's ability to learn routing preferences.
+A natural alternative is to average scores across the three-judge
+panel~\cite{zheng2023judging}.  Panel averaging compresses the
+\emph{routing margin}---the gap between the best and second-best model
+on a given prompt---from 0.049 (R1 alone) to 0.034 (\textbf{30\%
+compression}), with 63\% of prompts losing margin.  At a margin
+threshold of 0.05, R1 provides 31\% actionable prompts vs.\ only 17\%
+for the panel---nearly \textbf{half as many informative observations}.
+The signal-to-noise ratio (mean margin / std) is similar (0.617 vs.\
+0.586), so averaging compresses noise in proportion to signal; the
+issue is not degraded SNR but smaller absolute gaps, which directly
+increase per-step regret for UCB-style bandits.
 
-\paragraph{Panel averaging compresses the routing margin.}
-The \emph{routing margin}---the gap between the best and second-best model
-on a given prompt---is the signal the bandit must detect to make the
-correct routing decision.  Under R1 alone, the mean routing margin is
-0.049; under the three-judge panel average, it drops to 0.034---a
-\textbf{30\% compression}.  This
-compression is not uniform: 63\% of prompts have a smaller gap under
-averaging, and only 34\% have a larger gap.
+The compression is driven by GPT-4.1-mini, whose inter-model gaps are
+37\% smaller than R1's; when averaged with R1 and Claude, its compressed
+signal pulls the margin toward indifference on prompts where the other
+judges see a clear winner.
+We also evaluated z-score calibration~\cite{hedges1985statistical} and
+recent multi-judge aggregation methods
+(PoLL~\cite{verga2024poll}, CARE~\cite{zhao2025care}); z-score
+calibration recovered fewer than 3 percentage points of the 30\%
+compression, confirming that the reduction reflects genuine inter-judge
+disagreement in model preferences, not scale mismatch.
 
-\paragraph{Averaging halves the number of actionable prompts.}
-Define an ``actionable'' prompt as one where the routing margin exceeds a
-threshold---i.e., the bandit has enough signal to distinguish between the
-best and second-best arm.  At a margin threshold of 0.05, R1 provides
-31\% actionable prompts; the panel average provides only 17\%.
-The bandit has nearly
-\textbf{half as many informative observations} to learn from.  At a
-threshold of 0.02, the gap is 54\% (R1) vs.\ 41\% (panel)---a loss of
-13~percentage points.
-
-\paragraph{Signal-to-noise ratio is largely preserved.}
-A critical nuance: the 30\% margin compression does not
-straightforwardly translate to a 30\% loss in learning speed.  The
-signal-to-noise ratio (SNR; mean margin / standard deviation of margin)
-is 0.617 under R1 and 0.586 under the panel---a difference of only
-${\sim}5\%$.  This means averaging compresses noise roughly in proportion
-to signal.  The practical consequence is twofold:
-\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \emph{Regret per step:} For UCB-style bandits, the per-step
-    regret bound scales inversely with the absolute gap, so the 30\%
-    smaller margins under panel averaging imply proportionally more
-    rounds to achieve the same cumulative regret.
-    \item \emph{Convergence rate:} Because SNR is nearly identical, the
-    rate at which the bandit \emph{distinguishes} arms is similar under
-    both approaches---the issue is not that the panel signal is
-    noisier, but that the absolute reward of correct routing is lower.
-\end{enumerate}
-\noindent In summary, R1 provides the largest absolute routing margins,
-which directly benefit per-step regret; panel averaging compresses
-margins but does not degrade signal quality relative to noise.  We
-select R1 primarily because it maximises the reward impact of correct
-routing, not because it suppresses noise.
-
-\paragraph{The mechanism.}
-GPT-4.1-mini's inter-model gaps are 37\% smaller than R1's.  When its
-scores are averaged with R1 and Claude, the compressed GPT-4.1-mini
-signal pulls the mean toward indifference.  On prompts where R1 and
-Claude see a clear winner but GPT-4.1-mini sees models as nearly tied,
-the panel average dilutes the margin below the bandit's detection
-threshold.
-
-\paragraph{Why not a more sophisticated aggregation?}
-Recent multi-judge aggregation methods---PoLL~\cite{verga2024poll}
-(diverse-panel averaging) and CARE~\cite{zhao2025care}
-(confounder-aware tensor decomposition)---target biases from shared
-confounders such as verbosity or style.  In our setting the three judges
-already use an identical rubric and come from independent providers,
-so confounder-induced correlation is minimal; the residual disagreement
-is genuine and irreducible.  We additionally evaluated z-score
-calibration~\cite{hedges1985statistical} (location-scale standardisation
-before averaging), which recovered fewer than 3 percentage points of the
-30\% margin compression, confirming that the margin reduction is caused by
-inter-judge disagreement in model preferences, not scale mismatch.
-
-\paragraph{Transparency.}
-Because R1 sees the largest oracle lift from contextual routing (0.031
-per step vs.\ 0.016--0.020 for the supplementary judges), our main-paper
-results present the most favourable case for the value of adaptive
-routing.  We consider this an appropriate trade-off: the mechanism is
-demonstrated under conditions that maximise its visibility, while this
-appendix fully characterises the extent of agreement with alternative
-evaluators and the degree to which effect sizes depend on judge choice.
+Because R1 sees the largest oracle lift (0.031 per step vs.\
+0.016--0.020 for the supplementary judges), our main-paper results
+present the most favourable case for adaptive routing.  This appendix
+fully characterises the degree to which effect sizes depend on judge
+choice.
 
 \subsection{Per-Response Agreement Metrics}
 
@@ -375,19 +266,12 @@ $W$ drops to 0.17, but routing the ``wrong'' model on these prompts
 costs at most 0.05 reward---less than the typical per-response judge
 noise (MAD ${\approx}$ 0.075).
 
-\paragraph{Non-monotonic best-model agreement.}
-Best-model agreement with R1 is lower in the $[0.05, 0.10)$ bin than
-in the $[0.00, 0.05)$ bin for both supplementary judges.  This is
-expected: when R1's gap is near zero, the ``best'' model is essentially
-arbitrary, and shared biases across judges (e.g., mild verbosity
-preferences) can cause above-random agreement on near-tied prompts.
-In the $[0.05, 0.10)$ bin, R1 expresses a weak but definite preference
-that the other judges may not share, driving agreement below the
-near-tie baseline.  Importantly, Kendall's~$W$ increases monotonically
-across all bins (0.17 $\to$ 0.29 $\to$ 0.43 $\to$ 0.57 $\to$ 0.71),
-confirming that full-ranking concordance improves steadily with gap
-size even when the binary ``who is best'' metric does not.
-
+Best-model agreement dips in the $[0.05, 0.10)$ bin because R1 expresses
+a weak preference that the other judges may not share, while near-zero-gap
+prompts inflate agreement through shared biases on effectively tied outputs.
+Kendall's~$W$ increases monotonically across all bins
+(0.17\,$\to$\,0.71), confirming that full-ranking concordance improves
+steadily with gap size.
 Population-level model selection frequencies are consistent across judges
 (Table~\ref{tab:model_selection}), confirming that per-prompt disagreement
 does not propagate to the aggregate routing policy.
@@ -446,52 +330,26 @@ bandit's learning effectiveness is preserved across judges.  Both curves are
 sublinear with decreasing slope, indicating that the bandit progressively
 learns the reward structure regardless of evaluator.
 
-\paragraph{Effect sizes are compressed, learning dynamics are not.}
+\paragraph{Effect sizes are compressed; learning dynamics are not.}
 The Random baseline's cumulative regret under GPT-4.1-mini (73.0) is 32\%
-lower than under R1 (107.3), consistent with GPT-4.1-mini's ${\sim}37\%$
-smaller inter-model margins.  The GPT/R1 regret ratio is stable across
-budget regimes (0.70--0.88; see summary table in
-Figure~\ref{fig:cross_judge_regret}), confirming proportional compression
-rather than a structural change in learning dynamics.
-
-\paragraph{Wide confidence bands reflect bimodal cold-start dynamics.}
-The Tabula~Rasa 95\% bootstrap CIs are substantially wider than the Random
-baseline's (CI half-widths of ${\sim}19$ vs.\ ${\sim}1.3$).  This is not
-noise---it reflects the bimodal cold-start distribution documented in
-Appendix~\ref{sec:warmup_ablation}: 15--17 of 20 seeds converge to the
-correct arm quickly (regret ${\sim}38$--62 under R1), while 3 seeds lock
-onto a suboptimal arm during burn-in and accumulate substantially higher
-regret (98--202) before correcting.  Random, by contrast, is a memoryless
-policy with no path dependence, so its variance across seeds is governed
-purely by the law of large numbers over ${\sim}1{,}300$ i.i.d.\ model
-assignments.  Despite the wide \emph{marginal} CIs, the paired difference
-(Random~$-$~Tabula~Rasa) is significant for both judges because per-seed
-differences are positively correlated: a hard seed is hard for both methods,
-so the shared variance cancels in the paired test.
-
-\paragraph{Budget-constrained behaviour is consistent.}
-Under budget constraints, the bandit appropriately trades quality for cost
-compliance under both judges.  The summary table in
-Figure~\ref{fig:cross_judge_regret} shows that Tabula~Rasa's regret
-increases with tighter budgets---reflecting the pacer's cost penalty.  The
-Random baseline is unconstrained across all regimes and therefore invariant.
-The qualitative pattern is identical across judges: tight budgets force more
-regret than moderate or loose budgets, and loose-budget regret approaches
-the unconstrained level.
+lower than under R1 (107.3), consistent with GPT-4.1-mini's smaller
+inter-model margins.  The GPT/R1 regret ratio is stable across budget
+regimes (0.70--0.88; Figure~\ref{fig:cross_judge_regret}), confirming
+proportional compression rather than a structural change in learning
+dynamics.  The wide Tabula~Rasa CIs reflect the bimodal cold-start
+distribution documented in Appendix~\ref{sec:warmup_ablation}; despite
+wide marginal CIs, the paired difference (Random~$-$~Tabula~Rasa) is
+significant for both judges.  Under budget constraints, the qualitative
+pattern is identical across judges: tighter budgets force more regret,
+and loose-budget regret approaches the unconstrained level.
 
 \paragraph{Why these results justify R1 as the sole judge.}
-If the bandit learns equally well under either evaluator, why use R1?
-Three reasons.  First, R1 provides larger inter-model margins
-(mean gap 0.049 vs.\ 0.034 for the panel average), which yield faster
-convergence and greater statistical power for detecting differences between
-methods.  Second, DeepSeek-R1 is substantially cheaper per evaluation than
-GPT-4.1-mini, making it the cost-efficient choice.  Third, this experiment
-demonstrates that the paper's \emph{conclusions}---method rankings,
-convergence behaviour, budget-pacing dynamics---are not artefacts of
-R1's scoring; it does not argue that GPT-4.1-mini would be an equally
-effective production judge.  R1 is the better instrument (higher SNR,
-lower cost), and this experiment shows that the findings generalise
-beyond it.
+R1 provides the largest inter-model margins (faster convergence, greater
+statistical power) and is substantially cheaper per evaluation than
+GPT-4.1-mini.  This experiment demonstrates that the paper's
+conclusions---method rankings, convergence behaviour, budget-pacing
+dynamics---are not artefacts of R1's scoring; the findings generalise
+beyond the choice of evaluator.
 
 \begin{figure}[h]
     \centering
@@ -518,22 +376,15 @@ beyond it.
 
 This analysis validates reward \emph{consistency} across judges, not
 reward \emph{accuracy} against ground-truth human preferences.  All three
-judges share the same rubric and may exhibit correlated blind spots.  The
-per-prompt best-model agreement of ${\sim}50\%$ is an honest limitation
-of the LLM-as-judge paradigm: individual reward assignments are noisy.
-We have shown that this noise does not compromise the paper's
-conclusions, because the expected ordering is invariant, the cross-judge
-routing regret is small and bounded, R1's decisions capture
-$\geq 97\%$ of any alternative judge's oracle reward, and the bandit's
-learning dynamics replicate under GPT-4.1-mini evaluation
-(Figure~\ref{fig:cross_judge_regret}).
-
-We also note that R1 sees the largest contextual-routing benefit (oracle
-lift 0.031 vs.\ 0.016--0.020), so our main-paper effect sizes represent
-an upper bound on the absolute advantage of adaptive routing.  The
-relative ordering of methods (ParetoBandit $>$ Tabula~Rasa $>$ Random) is
-preserved under all judges, but the magnitude of improvement would be
-smaller under a less discriminative evaluator.
+judges share the same rubric and may exhibit correlated blind spots.
+Per-prompt best-model agreement of ${\sim}50\%$ is an honest limitation
+of the LLM-as-judge paradigm, but this noise does not compromise the
+paper's conclusions: the expected ordering is invariant, cross-judge
+routing regret is bounded (${\geq}97\%$ oracle capture), and learning
+dynamics replicate under GPT-4.1-mini
+(Figure~\ref{fig:cross_judge_regret}).  Because R1 sees the largest
+oracle lift (0.031 vs.\ 0.016--0.020), our effect sizes represent an
+upper bound; the relative method ordering is preserved under all judges.
 
 \begin{figure}[h]
     \centering
