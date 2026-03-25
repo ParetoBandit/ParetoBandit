@@ -80,7 +80,7 @@ LinUCB models the expected reward as $\mathbb{E}[r_t \mid x_t, a] = \theta_a^{*\
     b_a = \textstyle\sum_{\tau:\, a_\tau = a} r_\tau\, x_\tau
     \label{eq:sufficient_stats}
 \end{equation}
-are the per-arm \emph{sufficient statistics}. At cold start ($A_a = \lambda_0 I$), the confidence bonus is maximal, driving exploration; as observations accumulate, the confidence set shrinks toward exploitation.
+are the per-arm \emph{sufficient statistics}, the running aggregates that fully summarize past observations for parameter estimation, eliminating the need to store raw history. At cold start ($A_a = \lambda_0 I$), the confidence bonus is maximal, driving exploration; as observations accumulate, the confidence set shrinks toward exploitation.
 
 \paragraph{Log-normalized cost.}
 The term $\tilde{c}_a \in [0,1]$ is a log-normalized unit cost:
