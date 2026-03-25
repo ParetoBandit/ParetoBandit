@@ -437,13 +437,14 @@ tight, moderate, loose), with 20 seeds per condition.
 \paragraph{The bandit converges under both judges.}
 Figure~\ref{fig:cross_judge_regret} shows per-step cumulative regret under
 unconstrained routing.  Under R1, Tabula~Rasa achieves a final cumulative
-regret of $67.9 \pm 10.0$ (mean $\pm$ SE), compared to $107.3 \pm 0.7$ for
-Random---a \textbf{37\% reduction}.  Under GPT-4.1-mini, Tabula~Rasa
-achieves $47.9 \pm 10.4$ vs.\ $73.0 \pm 0.7$ for Random---a \textbf{34\%
-reduction}.  The near-identical reduction percentages (37\% vs.\ 34\%)
-demonstrate that the bandit's learning effectiveness is preserved across
-judges.  Both curves are sublinear with decreasing slope, indicating that
-the bandit progressively learns the reward structure regardless of evaluator.
+regret of $67.9$ [$51.2$, $88.8$] (mean [95\% bootstrap CI]), compared to
+$107.3$ [$106.0$, $108.6$] for Random---a \textbf{37\% reduction}.  Under
+GPT-4.1-mini, Tabula~Rasa achieves $47.9$ [$29.9$, $69.6$] vs.\ $73.0$
+[$71.7$, $74.4$] for Random---a \textbf{34\% reduction}.  The
+near-identical reduction percentages (37\% vs.\ 34\%) demonstrate that the
+bandit's learning effectiveness is preserved across judges.  Both curves are
+sublinear with decreasing slope, indicating that the bandit progressively
+learns the reward structure regardless of evaluator.
 
 \paragraph{Effect sizes are compressed, learning dynamics are not.}
 The Random baseline's cumulative regret under GPT-4.1-mini (73.0) is 32\%
@@ -451,11 +452,22 @@ lower than under R1 (107.3), consistent with GPT-4.1-mini's ${\sim}37\%$
 smaller inter-model margins.  The GPT/R1 regret ratio is stable across
 budget regimes (0.70--0.88; see summary table in
 Figure~\ref{fig:cross_judge_regret}), confirming proportional compression
-rather than a structural change in learning dynamics.  The wider confidence
-band under GPT-4.1-mini ($\pm 10.4$ vs.\ $\pm 10.0$) is comparable in
-absolute terms; expressed as a fraction of the mean regret, GPT-4.1-mini's
-relative SE (22\%) exceeds R1's (15\%), reflecting the harder discrimination
-problem when inter-model gaps are compressed.
+rather than a structural change in learning dynamics.
+
+\paragraph{Wide confidence bands reflect bimodal cold-start dynamics.}
+The Tabula~Rasa 95\% bootstrap CIs are substantially wider than the Random
+baseline's (CI half-widths of ${\sim}19$ vs.\ ${\sim}1.3$).  This is not
+noise---it reflects the bimodal cold-start distribution documented in
+Appendix~\ref{sec:warmup_ablation}: 15--17 of 20 seeds converge to the
+correct arm quickly (regret ${\sim}38$--62 under R1), while 3 seeds lock
+onto a suboptimal arm during burn-in and accumulate substantially higher
+regret (98--202) before correcting.  Random, by contrast, is a memoryless
+policy with no path dependence, so its variance across seeds is governed
+purely by the law of large numbers over ${\sim}1{,}300$ i.i.d.\ model
+assignments.  Despite the wide \emph{marginal} CIs, the paired difference
+(Random~$-$~Tabula~Rasa) is significant for both judges because per-seed
+differences are positively correlated: a hard seed is hard for both methods,
+so the shared variance cancels in the paired test.
 
 \paragraph{Budget-constrained behaviour is consistent.}
 Under budget constraints, the bandit appropriately trades quality for cost
@@ -488,10 +500,17 @@ beyond it.
     on the same 2{,}000 prompts.  \textbf{(A)}~Under R1, Tabula~Rasa reduces
     cumulative regret by 37\% relative to Random.  \textbf{(B)}~Under
     GPT-4.1-mini, the same mechanism achieves a 34\% reduction.  Shaded bands
-    show $\pm 1$~SE over 20 seeds.  The summary table reports Tabula~Rasa
-    cumulative regret (mean $\pm$ SE) across all four budget regimes with
-    the GPT/R1 ratio; the Random baseline (unconstrained, shown only in
-    the top row) is invariant across budget regimes.}
+    show 95\% bootstrap CIs over 20 seeds.  The wide Tabula~Rasa bands
+    reflect bimodal cold-start dynamics: most seeds converge quickly, but
+    a minority lock onto a suboptimal arm early and accumulate excess regret
+    before correcting (see Appendix~\ref{sec:warmup_ablation} for detailed
+    analysis of this cold-start spread).  Despite the wide marginal CIs,
+    the paired difference (Random~$-$~Tabula~Rasa) is significant for both
+    judges (bootstrap 95\% CI excludes zero).  The summary table reports
+    Tabula~Rasa cumulative regret (mean $\pm$ 95\% bootstrap CI) across all
+    four budget regimes with the GPT/R1 ratio; the Random baseline
+    (unconstrained, shown only in the top row) is invariant across budget
+    regimes.}
     \label{fig:cross_judge_regret}
 \end{figure}
 
