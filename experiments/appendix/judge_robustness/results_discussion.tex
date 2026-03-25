@@ -280,29 +280,11 @@ prompts inflate agreement through shared biases on effectively tied outputs.
 Kendall's~$W$ increases monotonically across all bins
 (0.17\,$\to$\,0.71), confirming that full-ranking concordance improves
 steadily with gap size.
-Population-level model selection frequencies are consistent across judges
-(Table~\ref{tab:model_selection}), confirming that per-prompt disagreement
-does not propagate to the aggregate routing policy.
-
-\begin{table}[h]
-\centering
-\caption{Model selection frequencies: fraction of prompts where each judge's
-oracle routes to each model.  All three judges produce similar routing
-distributions ($L_1$ distance from R1 $\leq 0.10$).}
-\label{tab:model_selection}
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
-\toprule
-\textbf{Judge} & \textbf{Llama-8B} & \textbf{Mistral-Large} & \textbf{Gemini-Pro} \\
-\midrule
-DeepSeek-R1       & 32.9\% & 39.1\% & 28.0\% \\
-GPT-4.1-mini      & 35.2\% & 41.5\% & 23.2\% \\
-Claude-3.7-Sonnet & 35.1\% & 42.0\% & 22.8\% \\
-\bottomrule
-\end{tabular}
-}
-\end{table}
+Population-level model selection frequencies are consistent across
+judges, confirming that per-prompt disagreement does not propagate to
+the aggregate routing policy: all three judges route 33--35\% of
+prompts to Llama-8B, 39--42\% to Mistral-Large, and 23--28\% to
+Gemini-Pro ($L_1$ distance from R1 $\leq 0.10$).
 
 \subsection{End-to-End Regret Under an Alternative Judge}
 \label{sec:cross_judge_regret}

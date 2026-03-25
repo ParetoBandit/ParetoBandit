@@ -8,8 +8,7 @@ approximately match the catastrophic-failure phase length.
 To test robustness, we repeat the full Pareto knee-point selection
 for $T_{\text{adapt}} \in \{250, 500, 1000\}$---a $4{\times}$ range
 that spans reaction times from rapid detection to conservative
-adaptation (Table~\ref{tab:t_adapt_sensitivity}).
-
+adaptation.
 Three observations support robustness:
 %
 \begin{enumerate}[nosep,leftmargin=*]
@@ -22,12 +21,15 @@ Three observations support robustness:
     The selected values---$\hpSensLoGamma$ ($T{=}250$),
     $\hpSensMidGamma$ ($T{=}500$), $\hpSensHiGamma$
     ($T{=}1000$)---form a monotonically non-increasing sequence
-    that converges for the larger horizons.  A larger
-    $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$, requiring
-    more aggressive forgetting to maintain the same Pareto balance.
+    that converges for the larger horizons, with derived
+    $n_{\text{eff}}$ of $\hpSensLoNeff$, $\hpSensMidNeff$, and
+    $\hpSensHiNeff$ respectively.
+    A larger $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$,
+    requiring more aggressive forgetting to maintain the same
+    Pareto balance.
 
   \item \textbf{Both objectives are effectively flat.}
-    AUC varies by $<$\,0.15\% ($\hpSensMidAUC$ to $\hpSensHiAUC$);
+    AUC varies by $<$\,0.15\% ($\hpSensLoAUC$--$\hpSensHiAUC$);
     Phase-2 reward spans $\hpSensLoPTwo$--$\hpSensMidPTwo$ with no
     monotonic trend.
 \end{enumerate}
@@ -35,7 +37,5 @@ Three observations support robustness:
 A practitioner can set $T_{\text{adapt}}$ to their operational
 requirement without risk of materially altering the selected
 configuration.
-
-\input{../experiments/appendix/hparam_optimization/table_t_adapt_sensitivity}
 
 \FloatBarrier

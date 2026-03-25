@@ -32,25 +32,41 @@
     "250": {
       "t_adapt": 250,
       "alpha": 0.01,
-      "n_eff": 324.8,
-      "gamma": 0.998,
-      "val_pareto_auc": 0.927712,
-      "val_phase2_reward": 0.7936,
+      "n_eff": 430.9,
+      "gamma": 0.996,
+      "val_pareto_auc": 0.925477,
+      "val_phase2_reward": 0.7934,
       "pareto_frontier": [
+        {
+          "alpha": 0.1,
+          "n_eff": 430.9,
+          "gamma": 0.996,
+          "val_pareto_auc": 0.919176,
+          "phase2_reward": 0.7951,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.1,
+          "n_eff": 373.1,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.921207,
+          "phase2_reward": 0.7948,
+          "is_knee": false
+        },
         {
           "alpha": 0.05,
           "n_eff": 500.3,
           "gamma": 0.995,
           "val_pareto_auc": 0.921645,
-          "phase2_reward": 0.7965,
+          "phase2_reward": 0.794,
           "is_knee": false
         },
         {
           "alpha": 0.05,
-          "n_eff": 430.9,
-          "gamma": 0.996,
-          "val_pareto_auc": 0.922338,
-          "phase2_reward": 0.7954,
+          "n_eff": 373.1,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.923316,
+          "phase2_reward": 0.7937,
           "is_knee": false
         },
         {
@@ -58,7 +74,23 @@
           "n_eff": 324.8,
           "gamma": 0.998,
           "val_pareto_auc": 0.92384,
-          "phase2_reward": 0.7953,
+          "phase2_reward": 0.7936,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 430.9,
+          "gamma": 0.996,
+          "val_pareto_auc": 0.925477,
+          "phase2_reward": 0.7934,
+          "is_knee": true
+        },
+        {
+          "alpha": 0.05,
+          "n_eff": 324.8,
+          "gamma": 0.998,
+          "val_pareto_auc": 0.925901,
+          "phase2_reward": 0.7923,
           "is_knee": false
         },
         {
@@ -66,7 +98,7 @@
           "n_eff": 373.1,
           "gamma": 0.997,
           "val_pareto_auc": 0.926614,
-          "phase2_reward": 0.7947,
+          "phase2_reward": 0.7922,
           "is_knee": false
         },
         {
@@ -74,7 +106,7 @@
           "n_eff": 284.2,
           "gamma": 0.999,
           "val_pareto_auc": 0.926933,
-          "phase2_reward": 0.7939,
+          "phase2_reward": 0.792,
           "is_knee": false
         },
         {
@@ -82,15 +114,15 @@
           "n_eff": 324.8,
           "gamma": 0.998,
           "val_pareto_auc": 0.927712,
-          "phase2_reward": 0.7936,
-          "is_knee": true
+          "phase2_reward": 0.7912,
+          "is_knee": false
         },
         {
           "alpha": 0.05,
           "n_eff": 284.2,
           "gamma": 0.999,
           "val_pareto_auc": 0.927802,
-          "phase2_reward": 0.793,
+          "phase2_reward": 0.791,
           "is_knee": false
         },
         {
@@ -98,7 +130,7 @@
           "n_eff": 284.2,
           "gamma": 0.999,
           "val_pareto_auc": 0.928178,
-          "phase2_reward": 0.7927,
+          "phase2_reward": 0.7908,
           "is_knee": false
         },
         {
@@ -106,7 +138,7 @@
           "n_eff": 250.0,
           "gamma": 1.0,
           "val_pareto_auc": 0.928222,
-          "phase2_reward": 0.7895,
+          "phase2_reward": 0.7885,
           "is_knee": false
         },
         {
@@ -114,7 +146,7 @@
           "n_eff": 250.0,
           "gamma": 1.0,
           "val_pareto_auc": 0.928452,
-          "phase2_reward": 0.789,
+          "phase2_reward": 0.7878,
           "is_knee": false
         }
       ]
@@ -122,25 +154,25 @@
     "500": {
       "t_adapt": 500,
       "alpha": 0.01,
-      "n_eff": 1604.7,
-      "gamma": 0.996,
-      "val_pareto_auc": 0.926746,
-      "val_phase2_reward": 0.7958,
+      "n_eff": 1163.9,
+      "gamma": 0.997,
+      "val_pareto_auc": 0.927698,
+      "val_phase2_reward": 0.7933,
       "pareto_frontier": [
         {
           "alpha": 0.25,
           "n_eff": 1604.7,
           "gamma": 0.996,
           "val_pareto_auc": 0.914177,
-          "phase2_reward": 0.7966,
+          "phase2_reward": 0.7952,
           "is_knee": false
         },
         {
           "alpha": 0.05,
-          "n_eff": 3211.3,
-          "gamma": 0.994,
-          "val_pareto_auc": 0.921782,
-          "phase2_reward": 0.796,
+          "n_eff": 1163.9,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.925316,
+          "phase2_reward": 0.7945,
           "is_knee": false
         },
         {
@@ -148,7 +180,15 @@
           "n_eff": 1604.7,
           "gamma": 0.996,
           "val_pareto_auc": 0.926746,
-          "phase2_reward": 0.7958,
+          "phase2_reward": 0.7935,
+          "is_knee": false
+        },
+        {
+          "alpha": 0.01,
+          "n_eff": 1163.9,
+          "gamma": 0.997,
+          "val_pareto_auc": 0.927698,
+          "phase2_reward": 0.7933,
           "is_knee": true
         },
         {
@@ -156,7 +196,7 @@
           "n_eff": 860.5,
           "gamma": 0.998,
           "val_pareto_auc": 0.927733,
-          "phase2_reward": 0.7944,
+          "phase2_reward": 0.7926,
           "is_knee": false
         },
         {
@@ -164,15 +204,7 @@
           "n_eff": 860.5,
           "gamma": 0.998,
           "val_pareto_auc": 0.928061,
-          "phase2_reward": 0.7937,
-          "is_knee": false
-        },
-        {
-          "alpha": 0.1,
-          "n_eff": 649.1,
-          "gamma": 0.999,
-          "val_pareto_auc": 0.928079,
-          "phase2_reward": 0.7932,
+          "phase2_reward": 0.7921,
           "is_knee": false
         },
         {
@@ -180,15 +212,7 @@
           "n_eff": 649.1,
           "gamma": 0.999,
           "val_pareto_auc": 0.928329,
-          "phase2_reward": 0.7923,
-          "is_knee": false
-        },
-        {
-          "alpha": 0.05,
-          "n_eff": 500.0,
-          "gamma": 1.0,
-          "val_pareto_auc": 0.92835,
-          "phase2_reward": 0.7882,
+          "phase2_reward": 0.7911,
           "is_knee": false
         },
         {
@@ -196,7 +220,7 @@
           "n_eff": 500.0,
           "gamma": 1.0,
           "val_pareto_auc": 0.928466,
-          "phase2_reward": 0.7876,
+          "phase2_reward": 0.7872,
           "is_knee": false
         }
       ]
@@ -204,17 +228,17 @@
     "1000": {
       "t_adapt": 1000,
       "alpha": 0.01,
-      "n_eff": 13509.5,
-      "gamma": 0.996,
-      "val_pareto_auc": 0.927982,
-      "val_phase2_reward": 0.795,
+      "n_eff": 68297.7,
+      "gamma": 0.994,
+      "val_pareto_auc": 0.926737,
+      "val_phase2_reward": 0.7945,
       "pareto_frontier": [
         {
-          "alpha": 0.05,
-          "n_eff": 68297.7,
-          "gamma": 0.994,
-          "val_pareto_auc": 0.925687,
-          "phase2_reward": 0.7968,
+          "alpha": 0.25,
+          "n_eff": 13509.5,
+          "gamma": 0.996,
+          "val_pareto_auc": 0.922857,
+          "phase2_reward": 0.7946,
           "is_knee": false
         },
         {
@@ -222,15 +246,15 @@
           "n_eff": 68297.7,
           "gamma": 0.994,
           "val_pareto_auc": 0.926737,
-          "phase2_reward": 0.7961,
-          "is_knee": false
+          "phase2_reward": 0.7945,
+          "is_knee": true
         },
         {
           "alpha": 0.01,
           "n_eff": 29857.3,
           "gamma": 0.995,
           "val_pareto_auc": 0.927552,
-          "phase2_reward": 0.7953,
+          "phase2_reward": 0.7936,
           "is_knee": false
         },
         {
@@ -238,15 +262,7 @@
           "n_eff": 13509.5,
           "gamma": 0.996,
           "val_pareto_auc": 0.927982,
-          "phase2_reward": 0.795,
-          "is_knee": true
-        },
-        {
-          "alpha": 0.01,
-          "n_eff": 6392.1,
-          "gamma": 0.997,
-          "val_pareto_auc": 0.928047,
-          "phase2_reward": 0.7939,
+          "phase2_reward": 0.7928,
           "is_knee": false
         },
         {
@@ -254,7 +270,7 @@
           "n_eff": 3201.9,
           "gamma": 0.998,
           "val_pareto_auc": 0.928352,
-          "phase2_reward": 0.7932,
+          "phase2_reward": 0.7923,
           "is_knee": false
         }
       ]
@@ -262,12 +278,12 @@
   },
   "stability": {
     "selected_gammas": {
-      "250": 0.998,
-      "500": 0.996,
-      "1000": 0.996
+      "250": 0.996,
+      "500": 0.997,
+      "1000": 0.994
     },
-    "gamma_range": 0.002,
-    "max_consecutive_shift": 0.002,
+    "gamma_range": 0.003,
+    "max_consecutive_shift": 0.003,
     "gamma_grid_step": 0.001,
     "within_one_consecutive_step": false
   },

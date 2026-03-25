@@ -27,27 +27,12 @@ ${\sim}333$ effective-memory steps).
 A matched-$\gamma$ control runs Tabula Rasa at warmup's
 $\gamma{=}\waGamma$ (cold start, $n_\mathit{eff}{=}1$), isolating
 the prior contribution at matched (shorter) memory length.
-
-\begin{table*}[t]
-\centering
-\caption{Experimental conditions for the warmup-prior ablation.
-Warmup and Tabula Rasa use their own Pareto-knee-selected hyperparameters; the matched-$\gamma$ control isolates the effect of the prior by reusing warmup's forgetting factor with a cold start.}
-\label{tab:warmup_ablation_conditions}
-\footnotesize
-{
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{@{}p{0.23\columnwidth}ccc p{0.31\columnwidth}@{}}
-\toprule
-\textbf{Condition} & $\boldsymbol{\alpha}$ & $\boldsymbol{n_\mathit{eff}}$ & $\boldsymbol{\gamma}$ & \textbf{Source / Role} \\
-\midrule
-Warmup (ParetoBandit) & $\waAlpha$ & $\waNeff$ & $\waGamma$ & \shortstack[l]{\textsc{Best\_K3}\\\textsc{Hparams}} \\
-Tabula Rasa           & $\waAlpha$ & $1.0$     & $\waTRGamma$ & \shortstack[l]{\textsc{Best\_K3\_Tabula}\\\textsc{Rasa\_Hparams}} \\
-TR (matched-$\gamma$) & $\waAlpha$ & $1.0$     & $\waGamma$ & \shortstack[l]{Mechanistic\\control} \\
-\bottomrule
-\end{tabular}
-}
-\end{table*}
+All three conditions share $\alpha{=}\waAlpha$; the
+conditions differ only in prior strength
+($n_\mathit{eff}{=}\waNeff$ for warmup vs.\ $1$ for both cold
+starts) and forgetting factor ($\gamma{=}\waGamma$ for warmup
+and the matched control vs.\ $\gamma{=}\waTRGamma$ for Tabula
+Rasa's independently optimised configuration).
 
 \paragraph{Statistical methodology.}
 Two complementary tests formalise each comparison:
@@ -171,8 +156,7 @@ drives the advantage.
 The warmup benefit is transient by design---geometric forgetting
 ($\gamma{=}\waGamma$) replaces priors within ${\sim}333$
 effective-memory steps; after sufficient learning, warmup and
-tabula-rasa conditions converge
-(Appendix~\ref{appendix:val_burnin_ablation}).
+tabula-rasa conditions converge.
 
 These gains assume the prior is directionally correct.
 A dedicated prior-mismatch sensitivity analysis

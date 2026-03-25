@@ -124,23 +124,26 @@ separately from the algorithmic comparison.
     $385$ to $26$ improves throughput by ${\sim}\latSpeedupPcaVsRawProdThroughput\times$
     ($\latPBdTwentySixThroughput$ vs.\ $\latPBdFullThroughput$\,req/s), consistent
     with $O(d^2)$ scaling compressed by fixed overhead constants.
-  \item \textbf{Comparison with published routing systems}
-    (Table~\ref{tab:latency_comparison}).
-    No other bandit-based LLM router (LLM Bandit~\cite{li2025llmbandit},
-    BaRP~\cite{wang2025barp}, MixLLM~\cite{wang2025mixllm}) or
-    classifier-based router (RouteLLM~\cite{ong2024routellm},
-    HybridLLM~\cite{ding2024hybridllm}) reports per-decision latency.
+  \item \textbf{Comparison with published routing systems.}
+    We surveyed all bandit-based LLM routers we are aware of---LLM Bandit~\cite{li2025llmbandit},
+    BaRP~\cite{wang2025barp}, MixLLM~\cite{wang2025mixllm}---as well as
+    classifier- and embedding-based routers---RouteLLM~\cite{ong2024routellm},
+    HybridLLM~\cite{ding2024hybridllm}, OmniRouter~\cite{ma2025omnirouter},
+    Lookahead~\cite{sun2025lookahead}---and none reports per-decision latency.
     CSCR~\cite{shirkavand2025cscr} claims ``microsecond'' $k$-NN lookups
     but excludes the encoder forward pass.
-    PROTEUS~\cite{bhatti2026proteus} is the only peer-reviewed system to
-    report E2E routing latency: $8.7$\,ms (p50, single query) on an A100
+    PROTEUS~\cite{bhatti2026proteus} is the only peer-reviewed quality-cost
+    router to report E2E routing latency: $8.7$\,ms (p50, single query) on an A100
     GPU.  ParetoBandit achieves comparable E2E latency ($\latEteTotalMedianMs$\,ms p50) on
     \emph{CPU only}, with the routing decision itself
     ($\latPBdTwentySixRouteMedian\,\mu$s) ${\sim}340\times$ faster than PROTEUS's per-query
     forward pass.
-    The vLLM Semantic Router~\cite{liu2026vllmsr}\footnote{Content
-    classification for backend selection, not quality-cost optimisation.}
-    reports $9$--$22$\,ms on an MI300X GPU.
+    The vLLM Semantic Router~\cite{liu2026vllmsr}, a system-level domain/safety
+    classifier rather than a quality-cost router, reports $9$--$22$\,ms on an
+    MI300X GPU; infrastructure-layer proxies such as Portkey
+    Gateway~\cite{portkey2025} (${<}\,1$\,ms) and Kong AI
+    Gateway~\cite{konghq2025benchmark} ($24$\,ms p95) provide a lower bound
+    on non-routing overhead.
 
     \textbf{End-to-end critical path.}
     ParetoBandit's production pipeline (MiniLM-L6-v2 embedding + PCA +
@@ -185,58 +188,6 @@ separately from the algorithmic comparison.
     routing literature showing that the routing decision contributes
     $<$\,1\% of total overhead.
 \end{enumerate}
-
-\begin{table*}[t]
-\centering
-\caption{Routing latency comparison across system types.
-All numeric latencies are single-query p50 (median) where available;
-ranges indicate the reported interval when percentiles were not specified.
-\emph{Decision only} isolates the model-selection computation;
-\emph{E2E} includes prompt encoding.
-$\dagger$\,System-level router (domain/safety classification for
-backend selection, not quality-cost optimisation).
-$\ddagger$\,Reports only the $k$-NN index lookup, excluding the
-encoder forward pass.
-$\S$\,Practitioner-reported (not peer-reviewed).
-``---'' indicates latency was not reported.}
-\label{tab:latency_comparison}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}l l l r l@{}}
-\toprule
-\textbf{System} & \textbf{Category} & \textbf{Scope} & \textbf{Latency} & \textbf{HW} \\
-\midrule
-\multicolumn{5}{@{}l}{\emph{Bandit-based LLM routers}} \\
-ParetoBandit & LinUCB + Sherman-Morrison & decision only & $\latPBdTwentySixRouteMedian\,\mu$s & CPU \\
-ParetoBandit & \quad + MiniLM-L6 + PCA & E2E (CPU) & $\latEteTotalMedianMs$\,ms & CPU \\
-LLM Bandit~\cite{li2025llmbandit} & contextual MAB & --- & --- & --- \\
-BaRP~\cite{wang2025barp} & contextual dueling bandits & --- & --- & --- \\
-MixLLM~\cite{wang2025mixllm} & contextual bandits + MLP & --- & --- & --- \\
-\midrule
-\multicolumn{5}{@{}l}{\emph{Classifier / embedding-based LLM routers}} \\
-RouteLLM~\cite{ong2024routellm} & BERT / MF / causal LLM & E2E & --- & GPU \\
-CSCR$^{\ddagger}$~\cite{shirkavand2025cscr} & $k$-NN via FAISS & lookup only & $\mu$s (claimed) & CPU \\
-HybridLLM~\cite{ding2024hybridllm} & BERT classifier & E2E & --- & GPU \\
-PROTEUS~\cite{bhatti2026proteus} & Lagrangian RL (DeBERTa-v3) & E2E & $8.7$\,ms & A100 GPU \\
-OmniRouter~\cite{ma2025omnirouter} & constrained optimisation & E2E & --- & --- \\
-Lookahead~\cite{sun2025lookahead} & causal/masked LM predictor & E2E & --- & GPU \\
-\midrule
-\multicolumn{5}{@{}l}{\emph{Practitioner LLM routers$^{\S}$ (not peer-reviewed)}} \\
-NadirClaw$^{\S}$~\cite{nadirclaw2026} & sentence embed + classifier & E2E & $8$--$12$\,ms & CPU \\
-Orq.ai Auto Router$^{\S}$~\cite{orqai2026} & undisclosed (commercial) & E2E & ${<}\,40$\,ms & Cloud \\
-\midrule
-\multicolumn{5}{@{}l}{\emph{Neural system-level routers (not quality-cost LLM routers)}} \\
-vLLM SR$^{\dagger}$ (1 clf.)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & E2E & $9$--$14$\,ms & MI300X \\
-vLLM SR$^{\dagger}$ (3 clf.)~\cite{liu2026vllmsr} & ModernBERT + FlashAttn & E2E & $22$\,ms & MI300X \\
-vLLM SR$^{\dagger}$ (8K tok.)~\cite{liu2026vllmsr} & ModernBERT + compression & E2E & $50$\,ms & MI300X \\
-\midrule
-\multicolumn{5}{@{}l}{\emph{Infrastructure baselines (no model selection)}} \\
-Portkey Gateway~\cite{portkey2025} & L7 proxy & proxy only & ${<}\,1$\,ms & Cloud \\
-Kong AI Gateway~\cite{konghq2025benchmark} & L7 proxy & proxy only & $24$\,ms\,(p95) & 16\,vCPU \\
-\bottomrule
-\end{tabular}
-}
-\end{table*}
 
 \paragraph{Routing overhead relative to LLM inference.}
 Table~\ref{tab:overhead_vs_inference} contextualises ParetoBandit's

@@ -56,7 +56,7 @@ def build_command_set() -> CommandSet:
                 cs.raw("EffMemSteps", str(eff_mem))
                 cs.raw("HalfLife", str(half_life))
                 efold_1000 = gamma ** 1000
-                cs.num("GammaDecayOneK", efold_1000 * 100, digits=0)
+                cs.num("GammaDecayOneK", efold_1000, digits=2)
 
     # ------------------------------------------------------------------
     # Budget + drift (Exp 02): quality lift

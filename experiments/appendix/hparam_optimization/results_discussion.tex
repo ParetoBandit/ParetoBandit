@@ -185,42 +185,17 @@ $\hpTabulaTestAUC$ for Tabula Rasa.
 Because the Phase-2 objective was tuned on Mistral failure
 alone---the most operationally stressful scenario, as it is
 the dominant arm across the widest range of budget
-targets---we should verify that the selected forgetting rate
-generalises.
-Table~\ref{tab:cross_arm_validation} evaluates the knee-point
-configuration against catastrophic failure of each of the
-$K{=}3$ arms independently.
-Phase-2 recovery is robust across all failure scenarios: Mistral
-failure remains the hardest case (lowest Phase-2 reward),
+targets---we verify that the selected forgetting rate
+generalises by evaluating the knee-point configuration against
+catastrophic failure of each of the $K{=}3$ arms independently
+(val split, 20~seeds, 3~budget targets).
+Phase-2 mean reward is $\hpCrossArmLlamaPTwo$ ($\pm\hpCrossArmLlamaStd$)
+under Llama failure, $\hpCrossArmMistralPTwo$ ($\pm\hpCrossArmMistralStd$)
+under Mistral failure (the tuning target), and
+$\hpCrossArmGeminiPTwo$ ($\pm\hpCrossArmGeminiStd$) under Gemini failure.
+Mistral failure remains the hardest case (lowest Phase-2 reward),
 confirming that tuning on the dominant arm is a conservative
-choice.
-
-\begin{table}[t]
-\centering
-\caption{%
-  \textbf{Cross-arm failure validation} for the selected
-  ParetoBandit configuration
-  ($\alpha{=}\hpParetoBanditAlpha$,
-   $\gamma{=}\hpParetoBanditGamma$,
-   $n_{\text{eff}}{=}\hpParetoBanditNeff$).
-  Phase-2 mean reward under catastrophic failure of each arm
-  independently (val split, 20~seeds, 3~budget targets).
-  Mistral failure (the tuning target) is the hardest scenario,
-  confirming it as the appropriate arm for tuning.
-  The forgetting mechanism generalises to all arms.%
-}
-\label{tab:cross_arm_validation}
-\small
-\begin{tabular}{@{}lcc@{}}
-\toprule
-\textbf{Failed Arm} & \textbf{P2 Reward} & \textbf{Std} \\
-\midrule
-Llama-8B             & $\hpCrossArmLlamaPTwo$   & $\pm\hpCrossArmLlamaStd$ \\
-Mistral-Large (tuned on) & $\hpCrossArmMistralPTwo$ & $\pm\hpCrossArmMistralStd$ \\
-Gemini-Pro           & $\hpCrossArmGeminiPTwo$  & $\pm\hpCrossArmGeminiStd$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+choice and that the forgetting mechanism generalises to all arms.
 
 Three findings stand out from the joint selection:
 
@@ -258,8 +233,8 @@ Three findings stand out from the joint selection:
     Warmup priors therefore matter \emph{more} when forgetting
     is active, because they determine the fallback the router
     reverts to after a disruption.
-    Cross-arm validation (Table~\ref{tab:cross_arm_validation})
-    confirms that this advantage generalises to all arms.
+    Cross-arm validation confirms that this advantage
+    generalises to all arms.
 \end{enumerate}
 
 \paragraph{Practical implications.}
