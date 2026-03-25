@@ -106,14 +106,14 @@ def fmt_reward(val: float, se: Optional[float] = None, digits: int = 3) -> str:
 
 
 def fmt_cost_sci(val: float) -> str:
-    r"""Format cost in scientific notation: ``\$2.3{\times}10^{-4}``."""
+    r"""Format cost in scientific notation: ``\$2.3\ensuremath{{\times}10^{-4}}``."""
     if val == 0:
         return "\\$0"
     exp = int(math.floor(math.log10(abs(val))))
     mantissa = val / (10 ** exp)
     if exp == 0:
         return f"\\${mantissa:.2f}"
-    return f"\\${mantissa:.1f}{{\\times}}10^{{{exp}}}"
+    return f"\\${mantissa:.1f}\\ensuremath{{{{\\times}}10^{{{exp}}}}}"
 
 
 def fmt_cost_dollar(val: float) -> str:
