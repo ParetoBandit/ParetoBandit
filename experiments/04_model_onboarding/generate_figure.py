@@ -276,7 +276,10 @@ def _panel_cost_compliance(
     )
     ax.set_xlabel("Prompts Routed", fontsize=16)
     ax.set_ylabel(
-        r"Avg Cost / Request ($\times 10^{-3}$ USD)", fontsize=16,
+        r"Avg Cost / Request"
+        "\n"
+        r"($\times 10^{-3}$ USD)",
+        fontsize=14,
     )
     ax.grid(True, alpha=0.2, linewidth=0.5)
     ax.tick_params(labelsize=14)
@@ -404,7 +407,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     if "good_cheap" in scenarios and "budget_targets" in data:
         fig2, (ax_cost, ax_reward) = plt.subplots(
-            1, 2, figsize=(14, 5),
+            1, 2, figsize=(16, 7),
         )
         _panel_cost_compliance(
             ax_cost,
@@ -422,12 +425,16 @@ def main() -> None:
 
         ax_cost.legend(
             fontsize=13,
-            loc="center right",
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.38),
+            ncol=3,
             framealpha=0.9,
         )
         ax_reward.legend(
             fontsize=13,
-            loc="lower right",
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.38),
+            ncol=4,
             framealpha=0.9,
         )
 
@@ -438,7 +445,7 @@ def main() -> None:
             fontweight="bold",
             y=1.01,
         )
-        fig2.tight_layout(rect=[0, 0, 1, 0.97])
+        fig2.tight_layout(rect=[0.04, 0.12, 1, 0.97])
         for fmt in ("pdf", "png"):
             out = RESULTS_DIR / f"model_onboarding_cost.{fmt}"
             fig2.savefig(out, dpi=300, bbox_inches="tight")
