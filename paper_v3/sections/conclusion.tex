@@ -1,10 +1,16 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting. Across four experiments the system keeps per-request cost within ${\sim}5\%$ of the target for every binding budget. Under cost drift it autonomously exploits a price drop and recovers compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget---while baselines without closed-loop cost control overshoot by up to $\ppMaxOvershootX{\times}$. Cold-start model onboarding proceeds without reconfiguration. As multi-provider LLM portfolios become the norm, these results suggest that bandit-driven routing with integrated budget pacing can deliver closed-loop cost control without manual intervention.
+We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting.
+Production LLM serving is inherently non-stationary: providers revise pricing, model quality can regress silently, and new endpoints must be absorbed without downtime, yet existing routers have not been evaluated under these conditions.
+ParetoBandit addresses this gap directly.
+Across four experiments the system never exceeds the ceiling by more than ${\sim}2\%$ for any binding budget; under cost drift it autonomously exploits a price drop and maintains compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget, while baselines without closed-loop cost control overshoot by up to $\ppMaxOvershootX{\times}$; and cold-start model onboarding proceeds without reconfiguration.
+
+Beyond the empirical results, the Pareto knee-point hyperparameter protocol (Appendix~\ref{sec:hparam_sweep}) provides a principled method---the first we are aware of---for jointly tuning bandit hyperparameters to balance two competing production requirements, stationary routing efficiency and rapid adaptation to price and quality shifts, replacing the single-objective tuning that, as we show, invariably selects zero forgetting and leaves a deployed system blind to non-stationarity.
+As multi-provider LLM portfolios become the norm, these results suggest that bandit-driven routing with integrated budget pacing and non-stationarity awareness is not merely desirable but essential for reliable, cost-controlled LLM serving in production.
 
 \paragraph{Limitations.}
-Six limitations scope the current contribution.
+Six limitations scope the current contribution, most of which are addressable through extensions of the existing framework (see Future Work).
 \emph{(i)~Offline evaluation:} all experiments use a fixed reward matrix with injected non-stationarity; live deployment would add stochastic feedback delays and distribution shift.
 \emph{(ii)~Deterministic rewards:} we evaluate with LLM-judge scores; the noise and sparsity of human-in-the-loop feedback remain untested.
 \emph{(iii)~Rate vs.\ aggregate budget:} $B$ is a per-request rate, so traffic spikes can exceed an aggregate dollar cap even while per-request compliance holds.
@@ -13,7 +19,12 @@ Six limitations scope the current contribution.
 \emph{(vi)~Cost-only constraint:} ParetoBandit constrains cost and maximizes quality, but some deployments require the dual formulation---minimizing cost subject to a quality floor.
 
 \paragraph{Future work.}
-Most limitations are addressable within the existing framework.
-Live deployment~(i,\,ii) requires engineering atop the cached context-vector architecture and adapting $\gamma$ to sparse label arrival rates.
-On the formulation side, latency awareness~(v) maps onto the BwK framework as a second dual variable, a token-bucket layer would enforce aggregate budgets~(iii), and the quality-constrained mode~(vi) inverts the pacer to track reward against a floor~$\tau$, providing an online counterpart to PROTEUS~\cite{bhatti2026proteus}.
-Validating these extensions under realistic deployment conditions is the most immediate next step.
+\emph{Live deployment}~(i,\,ii) is the most immediate next step. This requires computing prompt embeddings online rather than from a cached offline matrix, and tuning $\gamma$ for the reality that reward labels arrive for only a fraction of requests and with variable delay. Closing this gap would validate that the adaptation and budget-pacing behaviours observed in simulation transfer to real serving conditions.
+
+\emph{Latency awareness}~(v) maps naturally onto the BwK framework as a second dual variable. Adding it would let the router jointly respect cost ceilings and tail-latency SLAs, avoiding the scenario where a budget-optimal route violates a response-time guarantee.
+
+\emph{Aggregate budget enforcement}~(iii) can be layered on via a token-bucket mechanism, capping total spend over a billing window. That said, practitioners who set the per-request ceiling at a profitable operating point may find an aggregate cap unnecessary, since higher traffic then increases both spend and revenue.
+
+\emph{Quality-constrained routing}~(vi) inverts the pacer to track reward against a floor~$\tau$, providing an online counterpart to PROTEUS~\cite{bhatti2026proteus}. This would serve deployments where a minimum quality SLA is the binding requirement and cost should be minimized subject to it.
+
+Validating these extensions under realistic deployment conditions is the natural next step.
