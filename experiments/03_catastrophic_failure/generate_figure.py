@@ -805,39 +805,6 @@ def main() -> None:
     plt.close(fig)
     print("Saved catastrophic_failure_dynamics.{pdf,png}")
 
-    blog_dir = PROJECT_ROOT / "blog"
-    blog_dir.mkdir(parents=True, exist_ok=True)
-    fig_blog = plot_adaptation_dynamics(data, figsize=(16, 14), font_scale=1.4)
-    fig_blog.savefig(
-        blog_dir / "experiment_03_catastrophic_failure.png",
-        bbox_inches="tight",
-        dpi=200,
-    )
-    plt.close(fig_blog)
-    print("Saved blog/experiment_03_catastrophic_failure.png")
-
-    slide_dir = blog_dir / "slides"
-    slide_dir.mkdir(parents=True, exist_ok=True)
-
-    fig_slide = plot_adaptation_dynamics(data, figsize=(16, 12), font_scale=1.6)
-    fig_slide.savefig(
-        slide_dir / "exp03_stacked.png", bbox_inches="tight", dpi=150,
-    )
-    plt.close(fig_slide)
-
-    slide_panels = [
-        ("exp03_gemini_fraction", plot_slide_gemini_fraction),
-        ("exp03_reward", plot_slide_reward),
-        ("exp03_cost", plot_slide_cost),
-    ]
-    for name, plot_fn in slide_panels:
-        fig_s = plot_fn(data)
-        fig_s.savefig(
-            slide_dir / f"{name}.png", bbox_inches="tight", dpi=150,
-        )
-        plt.close(fig_s)
-    print("Saved slide panels + stacked to blog/slides/")
-
 
 if __name__ == "__main__":
     main()
