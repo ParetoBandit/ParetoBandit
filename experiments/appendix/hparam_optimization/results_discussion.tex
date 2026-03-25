@@ -93,22 +93,24 @@ configuration on two objectives:
 \providecommand{\hpBootNeighborFreq}{--}
 \providecommand{\hpBootNUnique}{--}
 
-Rather than scalarising the two objectives with arbitrary
-weights or imposing an $\epsilon$-constraint, we build the
-\emph{Pareto frontier} of non-dominated (AUC, P2\_reward)
-configurations and select the \textbf{knee point}---the
-configuration with maximum perpendicular distance from the
-line connecting the two extreme endpoints of the frontier,
-after min--max normalisation for scale invariance.
-The knee point represents the inflection where improving one
-objective begins to require disproportionate sacrifice of the
-other, and requires no weight specification or tolerance parameter.
+We select a single configuration from the scored grid by
+constructing the \emph{Pareto frontier} of non-dominated
+$(\text{AUC},\;\text{Phase-2 reward})$ pairs and identifying
+the \textbf{knee point}---the configuration whose perpendicular
+distance to the line connecting the frontier's two extreme
+endpoints is maximal, after min--max normalisation for scale
+invariance.
+Geometrically, the knee marks the inflection beyond which
+improving either objective demands a disproportionate sacrifice
+of the other; unlike scalarisation weights or
+$\epsilon$-constraints, it requires no user-specified trade-off
+parameter.
 Seed-level bootstrap resampling (\hpBootNIter{} iterations)
-confirms the selection is stable: the knee-point configuration is
-chosen in \hpBootKneeFreq\% of bootstrap samples, and a
-configuration within one $\gamma$ grid step is chosen in
-\hpBootNeighborFreq\% of samples (only \hpBootNUnique{} unique
-configs are ever selected across all resamples).
+confirms the selection is stable: the knee configuration is
+chosen in \hpBootKneeFreq\% of resamples, and a configuration
+within one $\gamma$-grid step in \hpBootNeighborFreq\%
+(only \hpBootNUnique{} unique configurations appear across all
+resamples).
 
 \paragraph{Results.}
 Table~\ref{tab:hparam_selection} summarises the selection outcome
