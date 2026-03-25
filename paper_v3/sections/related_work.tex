@@ -18,6 +18,7 @@ MixLLM~\cite{wang2025mixllm} extends the scope further by jointly modelling down
 Despite these advances, two gaps remain among the systems surveyed above: none provides closed-loop budget pacing over an open-ended stream (PILOT requires a known horizon; BaRP and LLM~Bandit track preference weights, not dollars; PROTEUS freezes its dual variables at deployment), and all appear to use infinite memory ($\gamma{=}1.0$) with no evaluation under non-stationarity.
 ParetoBandit addresses both gaps with an online dual variable for rate-constrained budget pacing and geometric forgetting for bounded-memory adaptation.
 
+\vspace{-4pt}
 \paragraph{Constrained and non-stationary bandits.}
 ParetoBandit composes three theoretical streams: Lagrangian relaxation of BwK~\cite{badanidiyuru2013bwk, agrawal2016linear} adapted to a rate constraint with smoothed duals~\cite{balseiro2019learning}; geometric discounting~\cite{garivier2011switching, russac2019weighted} for non-stationarity; and warm-start priors~\cite{oetomo2023warmstart, pan2024cbli}. Each ingredient is well-studied individually; the contribution is their joint integration and empirical evaluation under cost drift, quality degradation, and cold-start onboarding.
 \par\endgroup
