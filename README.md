@@ -2,7 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Tests](https://img.shields.io/badge/tests-135%20passed-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-505%20passed-brightgreen.svg)](#testing)
 
 **An adaptive, local-first router that learns which LLM works best for *your* prompts.**
 
@@ -24,7 +24,7 @@ ParetoBandit is an open-source contextual bandit framework for LLM routing. Inst
 | Warm-start prior size | < 1 MB |
 | Supports | Arbitrary model portfolios (K ≥ 2) |
 
-📄 **Paper**: *Density-Based Warm-Start for Adaptive LLM Routing* — See [`paper/`](paper/README.md)
+📄 **Paper**: *ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving* — See [`paper_v3/`](paper_v3/)
 
 ---
 
@@ -307,7 +307,7 @@ ParetoBandit compresses prompt embeddings from 1024 dimensions down to 32 via PC
 
 ### What ships and how it was trained
 
-The bundled `pca_32.joblib` (~133 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`BAAI/bge-m3`). This dataset is independent of ParetoBandit's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture **32.7%** of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/03_figure/run_pca_neff_ablation.py`).
+The bundled `pca_32.joblib` (~133 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`BAAI/bge-m3`). This dataset is independent of ParetoBandit's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture **32.7%** of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/appendix/hparam_optimization/`).
 
 ### When the default PCA is enough
 
@@ -639,13 +639,13 @@ python -m pytest tests/ -v          # All tests (~2 min)
 python -m pytest tests/test_lock_contention.py -v   # Concurrency tests
 ```
 
-See [`tests/README.md`](tests/README.md) for details on the 135-test suite covering router workflow, feedback loops, prior management, optimization profiles, and concurrency.
+See [`tests/README.md`](tests/README.md) for details on the 505-test suite covering router workflow, feedback loops, prior management, optimization profiles, and concurrency.
 
 ---
 
 ## The Paper
 
-This repository accompanies *"Density-Based Warm-Start for Adaptive LLM Routing"* (2025).
+This repository accompanies *"ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving"* (2025).
 
 ### Key Findings
 
@@ -662,13 +662,13 @@ Each experiment directory maps 1:1 to a figure or table in the paper:
 
 | Paper Object | Directory | Script |
 |-------------|-----------|--------|
-| Figure 1: Model Preference Heterogeneity | [`experiments/01_figure/`](experiments/01_figure/) | `plot_figure1.py` |
-| Table 2: Dataset Description | [`experiments/02_table/`](experiments/02_table/) | `generate_table1.py` |
-| Figure 3: Pareto Frontier | [`experiments/03_figure/`](experiments/03_figure/) | `generate_pareto_frontier.py` |
-| Figure 4: Multi-Model Pareto | [`experiments/04_figure/`](experiments/04_figure/) | `run_multimodel_pareto.py` |
-| Figure 9: Catastrophic Failure | [`experiments/appendix/E_catastrophic_failure_experiment/`](experiments/appendix/E_catastrophic_failure_experiment/) | `generate_figure9_5model.py` |
+| Figure 1: Budget Pacing Pareto Frontier | [`experiments/01_stationary_budget_pacing/`](experiments/01_stationary_budget_pacing/) | `run_budget_pacing.py` |
+| Figure 2: Adaptation Under Cost Drift | [`experiments/02_budget_plus_drift/`](experiments/02_budget_plus_drift/) | `run_budget_cost_drift.py` |
+| Figure 3: Catastrophic Failure Recovery | [`experiments/03_catastrophic_failure/`](experiments/03_catastrophic_failure/) | `run_catastrophic_failure.py` |
+| Figure 4: Model Onboarding | [`experiments/04_model_onboarding/`](experiments/04_model_onboarding/) | `run_model_onboarding.py` |
+| Appendices A–I | [`experiments/appendix/`](experiments/appendix/) | See subdirectory READMEs |
 
-See [`paper/README.md`](paper/README.md) for the complete artifact guide and [`experiments/README.md`](experiments/README.md) for reproduction instructions.
+See [`experiments/README.md`](experiments/README.md) for full reproduction instructions.
 
 ---
 
@@ -726,9 +726,9 @@ paretobandit/
 │   ├── baselines.py         # Baseline comparison implementations
 │   └── utils/               # Warmup, heuristics
 ├── docs/                    # API reference and documentation
-├── paper/                   # LaTeX source and figures
+├── paper_v3/                # LaTeX source and figures
 ├── experiments/             # Reproducible experiments (1:1 with paper figures)
-├── tests/                   # 440+ tests across 40+ files
+├── tests/                   # 505 tests across 51 files
 ├── scripts/                 # Data processing and prior generation
 └── data/                    # Experimental datasets
 ```

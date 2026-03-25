@@ -106,13 +106,13 @@ def _add_paired_test_commands(
 
     p_sign = test_data.get("sign_test_p_value_holm", test_data.get("sign_test_p_value", 1.0))
     if p_sign < 1e-4:
-        cs.raw(f"{pfx}SignP", f"$<10^{{-{int(-np.floor(np.log10(p_sign)))}}}$")
+        cs.raw(f"{pfx}SignP", f"{{<}}10^{{-{int(-np.floor(np.log10(p_sign)))}}}")
     else:
         cs.num(f"{pfx}SignP", p_sign, digits=3)
 
     p_fisher = test_data.get("fisher_exact_p_value_holm", test_data.get("fisher_exact_p_value", 1.0))
     if p_fisher < 1e-4:
-        cs.raw(f"{pfx}FisherP", f"$<10^{{-{int(-np.floor(np.log10(p_fisher)))}}}$")
+        cs.raw(f"{pfx}FisherP", f"{{<}}10^{{-{int(-np.floor(np.log10(p_fisher)))}}}")
     else:
         cs.num(f"{pfx}FisherP", p_fisher, digits=3)
 

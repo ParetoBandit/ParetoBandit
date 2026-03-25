@@ -105,7 +105,7 @@ The exact binomial sign test finds no significant difference
 ($p{=}\prmGammaSignP$, \prmGammaCondWins~condition wins, \prmGammaBaseWins~baseline wins, \prmGammaTies~ties out of
 \prmNseeds~seeds), and both baselines produce the same catastrophic-failure
 rate ($\prmTestWellCalTenBaseCat/\prmNseeds{=}25\%$; Fisher $p{=}\prmGammaFisherP$).
-This confirms that the $\gamma{=}0.997$ vs.\ $\gamma{=}0.995$
+This confirms that the $\gamma{=}\prmGamma$ vs.\ $\gamma{=}\prmTRGamma$
 difference has no material effect, and the comparisons below
 reflect the prior's informational contribution rather than a
 memory-length artefact.
@@ -176,7 +176,7 @@ $1.6$--$3.2$); even the worst condition (Inverted at
 $n_\mathit{eff}{=}10$) achieves $\mathit{std}{=}\prmInvTenRegretStd$.
 The $\gamma$-matched baseline's $\mathit{std}{=}\prmTRMatchedRegretStd$ confirms that
 this variance collapse is attributable to the prior itself, not to
-the longer effective memory of $\gamma{=}0.997$: the control has the
+the longer effective memory of $\gamma{=}\prmGamma$: the control has the
 same forgetting factor but the same heavy-tailed distribution as
 production Tabula Rasa.
 
@@ -243,7 +243,7 @@ The $n_\mathit{eff}$ parameter serves as a safety knob:
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
-\caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (20~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines ($\gamma{=}0.995$ and $\gamma$-matched $0.997$).}
+\caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines ($\gamma{=}\prmTRGamma$ and $\gamma$-matched $\prmGamma$).}
 \label{fig:prior_mismatch_heatmap}
 \end{figure}
 

@@ -171,7 +171,7 @@ The router sits on the critical path of every LLM request, so per-step latency m
 \paragraph{$O(d^2)$ updates via Sherman--Morrison.}
 Rather than recomputing $A_a^{-1}$ from scratch after each observation ($O(d^3)$), ParetoBandit maintains a cached inverse and applies the standard Sherman--Morrison rank-1 update in $O(d^2)$. When $\gamma < 1.0$, discounting $A_a \leftarrow \gamma A_a$ requires only a scalar division $A_a^{-1} \leftarrow A_a^{-1} / \gamma$, keeping the total per-update cost at $O(d^2)$. A full $O(d^3)$ recomputation is triggered only as a rare numerical-stability safeguard; in practice fewer than one in every thousand updates.
 
-\paragraph{$O(Kd)$ arm selection.}
+\paragraph{$O(Kd^2)$ arm selection.}
 The expected reward $\hat\theta_a^\top x_t$ is a single $O(d)$ dot product per arm because $\hat\theta_a = A_a^{-1} b_a$ is cached and refreshed only at update time. The UCB exploration bonus requires one $O(d^2)$ quadratic form $x_t^\top A_a^{-1} x_t$ per arm. With $K{=}3$ arms and $d{=}26$, the full selection pass amounts to ${\sim}2{,}100$ floating-point operations.
 
 \paragraph{Empirical validation.}

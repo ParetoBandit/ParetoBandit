@@ -49,8 +49,8 @@ should be compared.}
 Less burn-in yields \emph{lower} test regret for warmup conditions:
 0\% burn-in achieves $\vbWarmupZeroRegret$ cumulative regret, significantly below the
 100\% reference ($\vbWarmupHundredRegret$; $\Delta{=}\vbStatWarmupZeroDeltaPct\%$,
-$p_\mathrm{adj}$\vbStatWarmupZeroPAdj).  The 25\% and 50\% conditions
-are also significantly lower ($\vbWarmupTwentyFiveRegret$, $p_\mathrm{adj}$\vbStatWarmupTwentyFivePAdj;
+$p_\mathrm{adj}{=}\vbStatWarmupZeroPAdj$).  The 25\% and 50\% conditions
+are also significantly lower ($\vbWarmupTwentyFiveRegret$, $p_\mathrm{adj}{=}\vbStatWarmupTwentyFivePAdj$;
 $\vbWarmupFiftyRegret$, $p_\mathrm{adj}{=}\vbStatWarmupFiftyPAdj$), with only 75\% approaching the
 reference ($\vbWarmupSeventyFiveRegret$, $p_\mathrm{adj}{=}\vbStatWarmupSeventyFivePAdj$).  This monotonic trend
 reflects the forgetting--burn-in interaction: with $\gamma{=}\vbGamma$,
@@ -68,7 +68,7 @@ above the warmup reference ($p_\mathrm{adj}{=}\vbStatTRZeroPAdj$), with the
 penalty concentrated in the first ${\sim}200$ steps (R@200: $\vbTRZeroRAtTwoHundred$
 vs.\ $\vbWarmupHundredRAtTwoHundred$).  After 100\% burn-in, tabula rasa narrows the gap
 ($\vbTRHundredRegret$, $+\vbTRHundredGroupDeltaPct\%$) but this difference does not survive Bonferroni
-correction ($p_\mathrm{adj}$~\vbStatTRHundredPAdj), consistent with partial
+correction ($p_\mathrm{adj}{=}\vbStatTRHundredPAdj$), consistent with partial
 convergence: both systems operate predominantly on recent online
 evidence, though the different effective memory lengths
 (${\sim}333$ vs.\ ${\sim}200$ steps) and residual prior contribution
@@ -183,14 +183,14 @@ regime (6~tests).}
 \toprule
 \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & $\boldsymbol{\Delta}$ & $\boldsymbol{p_\mathrm{adj}}$ \\
 \midrule
-Warmup & 0\%   & \vbWarmupZeroRegret\,$\pm$\,\vbWarmupZeroRegretSE  & \vbWarmupZeroRAtTwoHundred  & $\vbStatWarmupZeroDeltaPct$\%  & \vbStatWarmupZeroPAdj \\
-Warmup & 25\%  & \vbWarmupTwentyFiveRegret\,$\pm$\,\vbWarmupTwentyFiveRegretSE  & \vbWarmupTwentyFiveRAtTwoHundred  & $\vbStatWarmupTwentyFiveDeltaPct$\%  & \vbStatWarmupTwentyFivePAdj \\
-Warmup & 50\%  & \vbWarmupFiftyRegret\,$\pm$\,\vbWarmupFiftyRegretSE  & \vbWarmupFiftyRAtTwoHundred  & $\vbStatWarmupFiftyDeltaPct$\%  & \vbStatWarmupFiftyPAdj \\
-Warmup & 75\%  & \vbWarmupSeventyFiveRegret\,$\pm$\,\vbWarmupSeventyFiveRegretSE  & \vbWarmupSeventyFiveRAtTwoHundred  & $\vbStatWarmupSeventyFiveDeltaPct$\%  & \vbStatWarmupSeventyFivePAdj \\
+Warmup & 0\%   & \vbWarmupZeroRegret\,$\pm$\,\vbWarmupZeroRegretSE  & \vbWarmupZeroRAtTwoHundred  & $\vbStatWarmupZeroDeltaPct$\%  & $\vbStatWarmupZeroPAdj$ \\
+Warmup & 25\%  & \vbWarmupTwentyFiveRegret\,$\pm$\,\vbWarmupTwentyFiveRegretSE  & \vbWarmupTwentyFiveRAtTwoHundred  & $\vbStatWarmupTwentyFiveDeltaPct$\%  & $\vbStatWarmupTwentyFivePAdj$ \\
+Warmup & 50\%  & \vbWarmupFiftyRegret\,$\pm$\,\vbWarmupFiftyRegretSE  & \vbWarmupFiftyRAtTwoHundred  & $\vbStatWarmupFiftyDeltaPct$\%  & $\vbStatWarmupFiftyPAdj$ \\
+Warmup & 75\%  & \vbWarmupSeventyFiveRegret\,$\pm$\,\vbWarmupSeventyFiveRegretSE  & \vbWarmupSeventyFiveRAtTwoHundred  & $\vbStatWarmupSeventyFiveDeltaPct$\%  & $\vbStatWarmupSeventyFivePAdj$ \\
 Warmup & 100\% & \vbWarmupHundredRegret\,$\pm$\,\vbWarmupHundredRegretSE  & \vbWarmupHundredRAtTwoHundred  & ---       & --- \\
 \midrule
-Tabula Rasa & 0\%   & \vbTRZeroRegret\,$\pm$\,\vbTRZeroRegretSE & \vbTRZeroRAtTwoHundred & $+\vbTRZeroGroupDeltaPct$\% & \vbStatTRZeroPAdj \\
-Tabula Rasa & 100\% & \vbTRHundredRegret\,$\pm$\,\vbTRHundredRegretSE   & \vbTRHundredRAtTwoHundred  & $+\vbTRHundredGroupDeltaPct$\% & \vbStatTRHundredPAdj \\
+Tabula Rasa & 0\%   & \vbTRZeroRegret\,$\pm$\,\vbTRZeroRegretSE & \vbTRZeroRAtTwoHundred & $+\vbTRZeroGroupDeltaPct$\% & $\vbStatTRZeroPAdj$ \\
+Tabula Rasa & 100\% & \vbTRHundredRegret\,$\pm$\,\vbTRHundredRegretSE   & \vbTRHundredRAtTwoHundred  & $+\vbTRHundredGroupDeltaPct$\% & $\vbStatTRHundredPAdj$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -211,15 +211,15 @@ achieve budget compliance, severely underspending.}
 \toprule
 \textbf{Budget} & \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & \textbf{Cost/T} & $\boldsymbol{\Delta}$ & $\boldsymbol{p_\mathrm{adj}}$ \\
 \midrule
-Tight    & Warmup      & 0\%   & \vbWarmupZeroTightRegret\,$\pm$\,\vbWarmupZeroTightRegretSE   & \vbWarmupZeroTightRAtTwoHundred & \vbWarmupZeroTightCostRatio & $\vbStatWarmupZeroTightDeltaPct$\%   & \vbStatWarmupZeroTightPAdj \\
+Tight    & Warmup      & 0\%   & \vbWarmupZeroTightRegret\,$\pm$\,\vbWarmupZeroTightRegretSE   & \vbWarmupZeroTightRAtTwoHundred & \vbWarmupZeroTightCostRatio & $\vbStatWarmupZeroTightDeltaPct$\%   & $\vbStatWarmupZeroTightPAdj$ \\
          & Warmup      & 100\% & \vbWarmupHundredTightRegret\,$\pm$\,\vbWarmupHundredTightRegretSE   & \vbWarmupHundredTightRAtTwoHundred & \vbWarmupHundredTightCostRatio & ---        & --- \\
-         & Tabula Rasa & 0\%   & \vbTRZeroTightRegret\,$\pm$\,\vbTRZeroTightRegretSE  & \vbTRZeroTightRAtTwoHundred & \vbTRZeroTightCostRatio & $+\vbTRZeroTightGroupDeltaPct$\%  & \vbStatTRZeroTightPAdj \\
-         & Tabula Rasa & 100\% & \vbTRHundredTightRegret\,$\pm$\,\vbTRHundredTightRegretSE  & \vbTRHundredTightRAtTwoHundred & \vbTRHundredTightCostRatio & $\vbTRHundredTightGroupDeltaPct$\%  & \vbStatTRHundredTightPAdj \\
+         & Tabula Rasa & 0\%   & \vbTRZeroTightRegret\,$\pm$\,\vbTRZeroTightRegretSE  & \vbTRZeroTightRAtTwoHundred & \vbTRZeroTightCostRatio & $+\vbTRZeroTightGroupDeltaPct$\%  & $\vbStatTRZeroTightPAdj$ \\
+         & Tabula Rasa & 100\% & \vbTRHundredTightRegret\,$\pm$\,\vbTRHundredTightRegretSE  & \vbTRHundredTightRAtTwoHundred & \vbTRHundredTightCostRatio & $\vbTRHundredTightGroupDeltaPct$\%  & $\vbStatTRHundredTightPAdj$ \\
 \midrule
-Moderate & Warmup      & 0\%   & \vbWarmupZeroModRegret\,$\pm$\,\vbWarmupZeroModRegretSE   & \vbWarmupZeroModRAtTwoHundred & \vbWarmupZeroModCostRatio & $+\vbStatWarmupZeroModDeltaPct$\%  & \vbStatWarmupZeroModPAdj \\
+Moderate & Warmup      & 0\%   & \vbWarmupZeroModRegret\,$\pm$\,\vbWarmupZeroModRegretSE   & \vbWarmupZeroModRAtTwoHundred & \vbWarmupZeroModCostRatio & $+\vbStatWarmupZeroModDeltaPct$\%  & $\vbStatWarmupZeroModPAdj$ \\
          & Warmup      & 100\% & \vbWarmupHundredModRegret\,$\pm$\,\vbWarmupHundredModRegretSE   & \vbWarmupHundredModRAtTwoHundred & \vbWarmupHundredModCostRatio & ---        & --- \\
-         & Tabula Rasa & 0\%   & \vbTRZeroModRegret\,$\pm$\,\vbTRZeroModRegretSE  & \vbTRZeroModRAtTwoHundred & \vbTRZeroModCostRatio & $+\vbTRZeroModGroupDeltaPct$\%  & \vbStatTRZeroModPAdj \\
-         & Tabula Rasa & 100\% & \vbTRHundredModRegret\,$\pm$\,\vbTRHundredModRegretSE  & \vbTRHundredModRAtTwoHundred & \vbTRHundredModCostRatio & $+\vbTRHundredModGroupDeltaPct$\%  & \vbStatTRHundredModPAdj \\
+         & Tabula Rasa & 0\%   & \vbTRZeroModRegret\,$\pm$\,\vbTRZeroModRegretSE  & \vbTRZeroModRAtTwoHundred & \vbTRZeroModCostRatio & $+\vbTRZeroModGroupDeltaPct$\%  & $\vbStatTRZeroModPAdj$ \\
+         & Tabula Rasa & 100\% & \vbTRHundredModRegret\,$\pm$\,\vbTRHundredModRegretSE  & \vbTRHundredModRAtTwoHundred & \vbTRHundredModCostRatio & $+\vbTRHundredModGroupDeltaPct$\%  & $\vbStatTRHundredModPAdj$ \\
 \bottomrule
 \end{tabular}
 \end{table}

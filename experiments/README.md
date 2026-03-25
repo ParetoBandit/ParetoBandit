@@ -10,19 +10,27 @@ Mistral-Large-2512, Gemini-2.5-Pro) unless otherwise noted.
 
 ```
 experiments/
-├── utils/                             # Shared utilities (see experiments/utils/)
+├── utils/                             # Shared utilities (simulation, bootstrap, latex gen)
+├── tests/                             # Experiment regression tests + pinned references
 ├── 01_stationary_budget_pacing/       # BudgetPacer vs static cost-penalty Pareto
-│   └── results/
-├── 02_nonstationary_k3_drift/         # K=3 reward-shift adaptation (5 conditions)
 │   └── results/
 ├── 02_budget_plus_drift/              # Interaction: budget pacing under model drift
 │   └── results/
 ├── 03_catastrophic_failure/           # Catastrophic model failure (3-phase)
 │   └── results/
-├── 04_model_onboarding/              # Cold-start model onboarding (K=3→K=4)
+├── 04_model_onboarding/               # Cold-start model onboarding (K=3→K=4)
 │   └── results/
-└── 05_hparam_optimization/            # Epsilon-constraint hyperparameter selection
-    └── results/
+├── appendix/
+│   ├── hparam_optimization/           # Epsilon-constraint hyperparameter selection
+│   ├── cost_heuristic_validation/     # Cost-target heuristic vs oracle
+│   ├── warmup_ablation/               # Warmup prior ablation
+│   ├── val_burnin_ablation/           # Validation burn-in ablation
+│   ├── prior_mismatch/                # Prior mismatch robustness
+│   ├── judge_robustness/              # Judge agreement analysis
+│   ├── latency_benchmark/             # Routing latency profiling
+│   └── recovery_limit/                # Recovery limit analysis
+└── legacy/
+    └── 02_nonstationary_k3_drift/     # Original drift experiment (superseded by 02_budget_plus_drift)
 ```
 
 ## Experiment Overview
@@ -33,7 +41,6 @@ experiments/
 | 02 | Budget + Cost Drift | Does the BudgetPacer maintain budget compliance under cost drift where static penalties fail? | 3x1 stacked adaptation dynamics |
 | 03 | Catastrophic Model Failure | Can ParetoBandit detect failure, redistribute traffic, and maintain budget compliance? | 3x1 stacked adaptation dynamics |
 | 04 | Model Onboarding | Can a single register_model() call onboard a new model with zero offline evaluation? | 3-panel: Flash adoption, arm composition, cost compliance |
-| 05 | Hparam Optimization | How should alpha, n_eff, and gamma be jointly selected? | Epsilon-constraint selection (budget-paced AUC + Phase-2 regret) |
 
 ### Main-text baselines (Experiments 02 and 03)
 
@@ -48,8 +55,8 @@ Four conditions of increasing sophistication are compared in Experiment 02:
 
 Experiment 03 uses conditions 1, 2, and 4 with BudgetPacer integration.
 
-Full ablation details (Fast forgetting, Tabula Rasa, pacer variants) are in
-`appendix/forgetting_factor_sweep/`.
+Full ablation details (warmup priors, validation burn-in, prior mismatch) are in
+the `appendix/` subdirectories.
 
 ## Dependencies
 
@@ -60,9 +67,8 @@ components used:
 - `pareto_bandit.budget_pacer.BudgetPacer` -- Primal-Dual CBwK pacing
 - `pareto_bandit.router.BanditRouter` -- core contextual bandit router
 
-## Relationship to experiments/
+## Legacy Experiments
 
-The `experiments/` directory contains the original paper experiments
-(Figures 1--4, appendix).  This directory (`experiments/`) contains
-the new experiments for the budget-constrained non-stationarity pivot.
-Both directories coexist; no original experiments are modified.
+The `legacy/` subdirectory contains superseded experiments from earlier
+iterations of the paper.  They are retained for reference but are not
+used in the current manuscript.

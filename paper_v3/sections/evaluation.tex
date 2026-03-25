@@ -86,23 +86,23 @@ $\dagger$: Phase~2 constraint non-binding (price drop reduces all costs below ta
   & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
 \multirow{5}{*}{\shortstack[l]{Tight\\($\$3.0{\times}10^{-4}$)}}
-  & Fixed Policy        & $0.79{\times}$ & $0.89{\times}^{\dagger}$ & $0.79{\times}$ \\
-  & Naive Bandit        & $1.07{\times}$ & $0.89{\times}^{\dagger}$ & $1.09{\times}$ \\
-  & Recalibrated        & $1.07{\times}$ & $\mathbf{0.99{\times}}$ & $1.44{\times}$ \\
-  & Forgetting Bandit   & $2.62{\times}$ & $0.88{\times}^{\dagger}$ & $5.50{\times}$ \\
-  & \textbf{ParetoBandit} & $\mathbf{1.01{\times}}$ & $\mathbf{0.95{\times}}$ & $\mathbf{1.04{\times}}$ \\[3pt]
+  & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio^{\dagger}$ & $\bdFixedTightPhaseThreeRatio$ \\
+  & Naive Bandit        & $\mathbf{\bdNaiveTightPhaseOneRatio}$ & $\bdNaiveTightPhaseTwoRatio^{\dagger}$ & $\bdNaiveTightPhaseThreeRatio$ \\
+  & Recalibrated        & $\mathbf{\bdRecalTightPhaseOneRatio}$ & $\mathbf{\bdRecalTightPhaseTwoRatio}$ & $\bdRecalTightPhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetTightPhaseOneRatio$ & $\bdForgetTightPhaseTwoRatio^{\dagger}$ & $\bdForgetTightPhaseThreeRatio$ \\
+  & \textbf{ParetoBandit} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\bdParetoBanditTightPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditTightPhaseThreeRatio}$ \\[3pt]
 \multirow{5}{*}{\shortstack[l]{Moderate\\($\$6.6{\times}10^{-4}$)}}
-  & Fixed Policy        & $0.55{\times}$ & $0.40{\times}^{\dagger}$ & $0.55{\times}$ \\
-  & Naive Bandit        & $0.57{\times}$ & $0.40{\times}^{\dagger}$ & $0.61{\times}$ \\
-  & Recalibrated        & $0.57{\times}$ & $0.44{\times}^{\dagger}$ & $2.14{\times}$ \\
-  & Forgetting Bandit   & $1.50{\times}$ & $0.43{\times}^{\dagger}$ & $4.13{\times}$ \\
-  & \textbf{ParetoBandit} & $\mathbf{0.99{\times}}$ & $0.65{\times}^{\dagger}$ & $\mathbf{1.00{\times}}$ \\[3pt]
+  & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ & $\bdFixedModPhaseThreeRatio$ \\
+  & Naive Bandit        & $\bdNaiveModPhaseOneRatio$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ & $\bdNaiveModPhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalModPhaseOneRatio$ & $\bdRecalModPhaseTwoRatio^{\dagger}$ & $\bdRecalModPhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetModPhaseOneRatio$ & $\bdForgetModPhaseTwoRatio^{\dagger}$ & $\bdForgetModPhaseThreeRatio$ \\
+  & \textbf{ParetoBandit} & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & $\bdParetoBanditModPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditModPhaseThreeRatio}$ \\[3pt]
 \multirow{5}{*}{\shortstack[l]{Loose\\($\$1.9{\times}10^{-3}$)}}
-  & Fixed Policy        & $3.28{\times}$ & $0.14{\times}^{\dagger}$ & $3.28{\times}$ \\
-  & Naive Bandit        & $3.07{\times}$ & $0.14{\times}^{\dagger}$ & $3.26{\times}$ \\
-  & Recalibrated        & $3.07{\times}$ & $0.17{\times}^{\dagger}$ & $0.94{\times}$ \\
-  & Forgetting Bandit   & $3.08{\times}$ & $0.17{\times}^{\dagger}$ & $4.93{\times}$ \\
-  & \textbf{ParetoBandit} & $\mathbf{0.96{\times}}$ & $0.23{\times}^{\dagger}$ & $\mathbf{0.95{\times}}$ \\[3pt]
+  & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoosePhaseTwoRatio^{\dagger}$ & $\bdFixedLoosePhaseThreeRatio$ \\
+  & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio^{\dagger}$ & $\bdNaiveLoosePhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio^{\dagger}$ & $\bdRecalLoosePhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetLoosePhaseOneRatio$ & $\bdForgetLoosePhaseTwoRatio^{\dagger}$ & $\bdForgetLoosePhaseThreeRatio$ \\
+  & \textbf{ParetoBandit} & $\bdParetoBanditLoosePhaseOneRatio$ & $\bdParetoBanditLoosePhaseTwoRatio^{\dagger}$ & $\bdParetoBanditLoosePhaseThreeRatio$ \\[3pt]
 \bottomrule
 \end{tabular}%
 }

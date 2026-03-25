@@ -72,8 +72,8 @@ def _add_summary_commands(
     budget = BUDGET_SHORT.get(budget_label, budget_label.title())
     pfx = f"{scenario_prefix}{strat}{budget}"
 
-    cs.reward(f"{pfx}Phase2Reward", s["phase2_reward"]["mean"])
-    cs.raw(f"{pfx}Phase2Cost", fmt_cost_eng(s["phase2_cost"]["mean"]))
+    cs.reward(f"{pfx}PhaseTwoReward", s["phase2_reward"]["mean"])
+    cs.raw(f"{pfx}PhaseTwoCost", fmt_cost_eng(s["phase2_cost"]["mean"]))
     cs.reward(f"{pfx}OverallReward", s["overall_reward"]["mean"])
     cs.raw(f"{pfx}OverallCost", fmt_cost_eng(s["overall_cost"]["mean"]))
 

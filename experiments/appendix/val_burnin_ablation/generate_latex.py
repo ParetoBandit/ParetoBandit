@@ -80,7 +80,7 @@ def _add_stat_test_commands(
 
     p = test["p_value"]
     if p < 1e-4:
-        cs.raw(f"{pfx}PAdj", f"$<10^{{-{int(-np.floor(np.log10(p)))}}}$")
+        cs.raw(f"{pfx}PAdj", f"{{<}}10^{{-{int(-np.floor(np.log10(p)))}}}")
     else:
         cs.num(f"{pfx}PAdj", p, digits=3)
 

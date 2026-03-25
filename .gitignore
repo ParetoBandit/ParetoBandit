@@ -55,6 +55,21 @@ outputs/
 temp_reference/
 tmp/
 
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+
 # HELM framework (cloned repository)
 helm/
 

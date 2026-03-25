@@ -67,7 +67,7 @@ Holm--Bonferroni procedure across the full family of tests
 \textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Std} & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{Cat.} & $p_\text{sign}^*$ & $p_\text{Fisher}^*$ \\
 \midrule
 None     & Warmup           & $\mathbf{\waUncWarmupRegret}$\,[\waUncWarmupRegretCILo, \waUncWarmupRegretCIHi]    & $\waUncWarmupRegretStd$   & $\mathbf{\waUncWarmupRAtTwoHundred}$\,[5.8, 6.6]    & $\mathbf{\waUncWarmupReward}$ & 0/\waNseeds & &  \\
-         & Tabula Rasa      & $\waUncTRRegret$\,[\waUncTRRegretCILo, \waUncTRRegretCIHi]            & $\waUncTRRegretStd$  & $\waUncTRRAtTwoHundred$\,[12.6, 23.0]           & $\waUncTRReward$          & \waUncVsTRBaselineCat/\waNseeds & \waUncVsTRSignP & $\waUncVsTRFisherP$ \\
+         & Tabula Rasa      & $\waUncTRRegret$\,[\waUncTRRegretCILo, \waUncTRRegretCIHi]            & $\waUncTRRegretStd$  & $\waUncTRRAtTwoHundred$\,[12.6, 23.0]           & $\waUncTRReward$          & \waUncVsTRBaselineCat/\waNseeds & $\waUncVsTRSignP$ & $\waUncVsTRFisherP$ \\
          & TR (matched-$\gamma$) & $\waUncTRMatchedRegret$\,[\waUncTRMatchedRegretCILo, \waUncTRMatchedRegretCIHi]       & $\waUncTRMatchedRegretStd$  & $\waUncTRMatchedRAtTwoHundred$\,[12.7, 23.1]           & $\waUncTRMatchedReward$          & \waUncVsTRMatchedBaselineCat/\waNseeds & $\waUncVsTRMatchedSignP$ & $\waUncVsTRMatchedFisherP$ \\
          & Random           & $\waUncRandomRegret$\,[\waUncRandomRegretCILo, \waUncRandomRegretCIHi]           & $\waUncRandomRegretStd$   & $\waUncRandomRAtTwoHundred$\,[15.1, 17.0]           & $\waUncRandomReward$          & ---  & --- & --- \\
 \midrule
@@ -95,7 +95,7 @@ $^*$Holm--Bonferroni corrected; $p$-values reported for each baseline vs.\ warmu
 \paragraph{Deployment comparison (Q1).}
 Warmup priors consistently reduce mean regret across all budget
 regimes: by \waUncRegretReductionPct\% unconstrained ($\waUncWarmupRegret$ vs.\ $\waUncTRRegret$;
-$p_\text{sign}^*$~\waUncVsTRSignP), \waTightRegretReductionPct\% under tight budget ($\waTightWarmupRegret$
+$p_\text{sign}^*{=}\waUncVsTRSignP$), \waTightRegretReductionPct\% under tight budget ($\waTightWarmupRegret$
 vs.\ $\waTightTRRegret$; $p_\text{sign}^* {=} \waTightVsTRSignP$), \waModRegretReductionPct\% at moderate
 budget ($\waModWarmupRegret$ vs.\ $\waModTRRegret$; $p_\text{sign}^* {=} \waModVsTRSignP$, n.s.),
 and \waLooseRegretReductionPct\% at loose budget ($\waLooseWarmupRegret$ vs.\ $\waLooseTRRegret$;

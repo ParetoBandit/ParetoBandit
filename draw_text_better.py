@@ -83,7 +83,7 @@ def draw_text_on_curve(image_path, output_path, text, center, radius, font_path,
         final_img = final_img.convert(img.mode)
     final_img.save(output_path)
 
-base_path = "/Users/annette/repostitories/banditGPT/blog"
+base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blog")
 font = "/System/Library/Fonts/Avenir.ttc"
 
 radii = [250, 300, 350, 400]

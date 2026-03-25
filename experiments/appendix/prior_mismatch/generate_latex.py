@@ -78,7 +78,7 @@ def _add_pairwise_commands(
 
     p_sign = test.get("sign_test_p_holm", test.get("sign_test_p", 1.0))
     if p_sign < 1e-4:
-        cs.raw(f"{pfx}SignPHolm", f"$<10^{{-{int(-np.floor(np.log10(p_sign)))}}}$")
+        cs.raw(f"{pfx}SignPHolm", f"{{<}}10^{{-{int(-np.floor(np.log10(p_sign)))}}}")
     else:
         cs.num(f"{pfx}SignPHolm", p_sign, digits=4)
 
