@@ -1,13 +1,7 @@
 \section{System Design}
 \label{sec:system_design}
 
-To our knowledge, no existing algorithm jointly learns reward surfaces from bandit feedback, enforces a long-run budget constraint, and adapts to non-stationarity. ParetoBandit composes four foundational results, each addressing one facet of the problem: LinUCB~\cite{li2010contextual} for contextual reward learning, Lagrangian relaxation of the BwK framework~\cite{badanidiyuru2013bwk, agrawal2016linear} for budget enforcement, geometric discounting~\cite{garivier2011switching, russac2019weighted} for non-stationarity, and offline-to-online warm-start priors~\cite{oetomo2023warmstart} for cold-start elimination. The composition is enabled by LinUCB's sufficient-statistic representation ($A_a$, $b_a$ per arm): forgetting reduces to a scalar multiply, warmup to a matrix addition, and updates to incremental rank-1 operations. Linear Thompson Sampling~\cite{agrawal2013thompson} shares this structure and could support all four ingredients; we chose UCB because its deterministic score interacts more predictably with the Lagrangian penalty, simplifying tuning and debugging. Neural bandits~\cite{zhou2020neural} and learned routing policies such as BaRP~\cite{wang2025barp} lack closed-form sufficient statistics, making this composition considerably more involved.
-
-\paragraph{Why a linear reward model?}
-A linear model is a deliberate architectural choice, not a simplification.
-The closed-form sufficient statistics $(A_a, b_a)$ are the enabling structure for all four system ingredients: geometric forgetting reduces to a scalar multiply, warmup to a matrix addition, updates to $O(d^2)$ Sherman--Morrison operations, and the deterministic UCB score interacts predictably with the Lagrangian penalty.
-MLP-based routing policies~\cite{wang2025barp, li2025llmbandit, bhatti2026proteus} lack this structure, requiring separate mechanisms for each capability (e.g., offline fine-tuning for warmup, dropout ensembles for uncertainty) and offering no principled way to exponentially discount stale evidence when quality or pricing shifts.
-Additionally, LinUCB's confidence bonus $x_t^\top A_a^{-1} x_t$ is the exact posterior variance under a Gaussian linear model, providing \emph{context-dependent} calibrated exploration from the first request---unlike the global entropy regularization used by policy-gradient routers.
+To our knowledge, no existing algorithm jointly learns reward surfaces from bandit feedback, enforces a long-run budget constraint, and adapts to non-stationarity. ParetoBandit composes four foundational results: LinUCB~\cite{li2010contextual} for contextual reward learning, Lagrangian relaxation of the BwK framework~\cite{badanidiyuru2013bwk, agrawal2016linear} for budget enforcement, geometric discounting~\cite{garivier2011switching, russac2019weighted} for non-stationarity, and offline-to-online warm-start priors~\cite{oetomo2023warmstart} for cold-start elimination. This composition rests on LinUCB's sufficient-statistic representation ($A_a$, $b_a$ per arm): forgetting reduces to a scalar multiply, warmup to a matrix addition, and updates to $O(d^2)$ Sherman--Morrison operations. The confidence bonus $x_t^\top A_a^{-1} x_t$ is the exact posterior variance under a Gaussian linear model, providing context-dependent calibrated exploration from the first request. We chose UCB over Thompson Sampling~\cite{agrawal2013thompson} because its deterministic score interacts more predictably with the Lagrangian penalty. MLP-based policies~\cite{wang2025barp, li2025llmbandit, bhatti2026proteus} lack closed-form sufficient statistics, requiring separate mechanisms for each capability and offering no principled way to discount stale evidence under drift.\looseness=-1
 
 Although each ingredient is well-established individually, combining them creates cross-component interactions. For example, geometric forgetting shrinks $A_a$ toward singularity over time, inflating LinUCB's confidence bonus. This inflation makes expensive but uncertain arms more attractive, which drives up $\lambda_t$ and tightens the budget penalty. The forgetting rate $\gamma$ and the budget pacer's step size $\eta$ must therefore be calibrated jointly, not in isolation. Appendix~\ref{sec:hparam_sweep} describes the Pareto knee-point procedure that resolves these interactions.
 
@@ -77,7 +71,7 @@ The first term is the router's current best estimate of the expected reward for 
     \lambda_{t+1} &= \bigl[\lambda_t + \eta\,(\bar{c}_t / B - 1)\bigr]_{0}^{\bar\lambda}
     \label{eq:dual_update}
 \end{align}
-where $\bar{c}_t$ is an EMA-smoothed cost signal ($\alpha_{\mathrm{ema}}{=}0.05$, half-life ${\approx}14$ requests), $\eta{=}0.05$ is the step size, and $[\cdot]_0^{\bar\lambda}$ projects onto $[0, \bar\lambda{=}5]$. The EMA prevents sawtooth oscillations from single expensive requests; normalizing the gradient by $B$ makes $\eta$ portfolio-independent. When $\bar{c}_t / B > 1$ (overspending), $\lambda_t$ rises, penalizing expensive models; when below, $\lambda_t$ falls, releasing the router to pursue quality.
+where $\bar{c}_t$ is an EMA-smoothed cost signal ($\alpha_{\mathrm{ema}}{=}0.05$, half-life ${\approx}14$ requests), $\eta{=}0.05$ is the step size, and $[\cdot]_0^{\bar\lambda}$ projects onto $[0, \bar\lambda{=}5]$. The EMA prevents sawtooth oscillations from single expensive requests; normalizing the gradient by $B$ makes $\eta$ portfolio-independent. When $\bar{c}_t / B > 1$ (overspending), $\lambda_t$ rises, penalizing expensive models; when below, $\lambda_t$ falls, releasing the router to pursue quality.\looseness=-1
 
 \paragraph{Reward model and parameter estimation.}
 LinUCB models the expected reward as $\mathbb{E}[r_t \mid x_t, a] = \theta_a^{*\top} x_t$~\cite{li2010contextual}. The estimate $\hat\theta_a = A_a^{-1} b_a$ is the ridge regression solution, where
@@ -86,7 +80,7 @@ LinUCB models the expected reward as $\mathbb{E}[r_t \mid x_t, a] = \theta_a^{*\
     b_a = \textstyle\sum_{\tau:\, a_\tau = a} r_\tau\, x_\tau
     \label{eq:sufficient_stats}
 \end{equation}
-are the per-arm \emph{sufficient statistics}. All learning, forgetting, and warmup operations reduce to manipulations of $(A_a, b_a)$. At cold start ($A_a = \lambda_0 I$), the confidence bonus is maximal, driving exploration; as observations accumulate, the confidence set shrinks toward exploitation. Section~\ref{sec:adaptive_learning} modifies the rank-1 updates with geometric discounting.
+are the per-arm \emph{sufficient statistics}. At cold start ($A_a = \lambda_0 I$), the confidence bonus is maximal, driving exploration; as observations accumulate, the confidence set shrinks toward exploitation.
 
 \paragraph{Log-normalized cost.}
 The term $\tilde{c}_a \in [0,1]$ is a log-normalized unit cost:
@@ -94,7 +88,7 @@ The term $\tilde{c}_a \in [0,1]$ is a log-normalized unit cost:
     \tilde{c}_a = \frac{\log c_a - \log c_{\mathrm{floor}}}{\log c_{\mathrm{ceil}} - \log c_{\mathrm{floor}}}
     \label{eq:cost_norm}
 \end{equation}
-where $c_{\mathrm{floor}}$ and $c_{\mathrm{ceil}}$ are fixed market-floor and market-ceiling blended rates (respectively \$0.0001 and \$0.10 per 1k tokens). The logarithmic scale compresses the $\ppPriceRangeX{\times}$ cost differential into a bounded penalty commensurate with the $[0,1]$ reward scale. Appendix~\ref{sec:cost_heuristic_validation} validates that $\tilde{c}_a$ preserves the true per-request cost ranking across prompts.
+where $c_{\mathrm{floor}}{=}\$0.0001$ and $c_{\mathrm{ceil}}{=}\$0.10$ per 1k tokens are fixed market bounds. The logarithmic scale compresses the $\ppPriceRangeX{\times}$ cost range into a bounded penalty commensurate with the $[0,1]$ reward scale (validated in Appendix~\ref{sec:cost_heuristic_validation}).
 
 \paragraph{Two-layer enforcement (Adaptive mode).}
 The budget pacer combines two mechanisms simultaneously:
@@ -105,7 +99,7 @@ The budget pacer combines two mechanisms simultaneously:
 The hard ceiling provides per-request worst-case cost bounds independent of $\lambda_t$; the soft penalty provides smooth, quality-maximizing allocation within those bounds.
 
 \paragraph{Theoretical status.}
-Eq.~\ref{eq:budget_ucb} is a Lagrangian relaxation of the constrained routing problem (Eq.~\ref{eq:objective}); the cost penalty couples the reward learner to the budget. Standard LinUCB regret bounds~\cite{abbasi2011improved} measure against the unconstrained oracle, while the correct comparator here is the best feasible policy satisfying $\limsup \bar{c}_t \leq B$. Four departures from the classical BwK analysis~\cite{badanidiyuru2013bwk}---rate constraint, EMA smoothing, hard ceiling, and log-normalized costs in the primal vs.\ raw dollars in the dual---void the formal $\tilde{O}(\sqrt{T})$ bounds (see Balseiro and Gur~\cite{balseiro2019learning} for smoothed dual analysis). Three properties do hold: $\lambda_t \in [0, \bar\lambda]$; staleness inflation provides self-correction for neglected arms; and the hard ceiling bounds per-request worst-case cost.
+Eq.~\ref{eq:budget_ucb} is a Lagrangian relaxation of Eq.~\ref{eq:objective}. Four departures from the classical BwK analysis~\cite{badanidiyuru2013bwk}---rate constraint, EMA smoothing, hard ceiling, and log-normalized costs---void the formal $\tilde{O}(\sqrt{T})$ bounds (see Balseiro and Gur~\cite{balseiro2019learning} for smoothed dual analysis). Three guarantees do hold: $\lambda_t \in [0, \bar\lambda]$; staleness inflation self-corrects neglected arms; and the hard ceiling bounds per-request worst-case cost.
 
 \subsection{Non-Stationary Adaptation via Geometric Forgetting}
 \label{sec:adaptive_learning}
@@ -117,7 +111,7 @@ A standard LinUCB ($\gamma{=}1.0$) accumulates infinite memory, requiring hundre
     b_{a_t} &\leftarrow \gamma^{\mathrm{dt}} \, b_{a_t} + r_t \, x_t
     \label{eq:forget_b}
 \end{align}
-where $\mathrm{dt} = t - \text{last\_update}_{a_t}$ is the number of intervening requests since $a_t$'s last update. This batched exponentiation avoids redundant per-step multiplications for arms that were not selected. The exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps and an e-folding time of $1 / (1 - \gamma)$. For $\gamma{=}\ppGamma$, the e-folding time is ${\approx}\ppEffMemSteps$ steps: an observation from \ppEffMemSteps{} steps ago retains weight $\gamma^{\ppEffMemSteps} \approx e^{-1} \approx 0.37$, and after ${\sim}1{,}000$ steps the prior's contribution is reduced to $\gamma^{1000} \approx 0.\ppGammaDecayOneK$.
+where $\mathrm{dt} = t - \text{last\_update}_{a_t}$ is the number of intervening requests since $a_t$'s last update. This batched exponentiation avoids redundant per-step multiplications for arms that were not selected. The exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps and an e-folding time of $1 / (1 - \gamma)$. For $\gamma{=}\ppGamma$, the e-folding time is ${\approx}\ppEffMemSteps$ steps: an observation from \ppEffMemSteps{} steps ago retains weight $\gamma^{\ppEffMemSteps} \approx e^{-1} \approx 0.37$, and after ${\sim}1{,}000$ steps the prior's contribution is reduced to $\gamma^{1000} \approx 0.\ppGammaDecayOneK$.\looseness=-1
 
 \paragraph{Staleness-based variance inflation.}
 Geometric forgetting passively increases $x_t^\top A_a^{-1} x_t$ for idle arms, but this may be too slow when the environment shifts. The router explicitly inflates the UCB variance using the \emph{exploration staleness} $\mathrm{dt}_a = t - \max(\text{last\_update}_a,\, \text{last\_played}_a)$, which tracks steps since an arm was last updated \emph{or selected} (preventing re-selection of arms with pending asynchronous rewards):
@@ -128,7 +122,7 @@ Geometric forgetting passively increases $x_t^\top A_a^{-1} x_t$ for idle arms, 
 A capacity cap $V_{\max} = 200$ bounds the worst-case inflation to $\sqrt{V_{\max}} \approx 14{\times}$ the uninflated bonus, preventing the exploration term from overwhelming the cost penalty.
 
 \paragraph{Interaction with the budget pacer.}
-Geometric forgetting interacts with budget pacing through a feedback loop. As $\gamma$ shrinks $A_a$ over time, the confidence bonus grows, increasing the probability of selecting expensive arms that happen to be uncertain. This drives up $\lambda_t$, which penalizes those arms, partially counteracting the inflation. The EMA smoothing in the dual update (Eq.~\ref{eq:cost_ema}) further dampens the resulting oscillations. The parameter $\gamma$ thus controls a bias-variance tradeoff between \emph{stability} (trusting historical evidence) and \emph{plasticity} (responding quickly to drift). The forgetting rate is selected jointly with $\alpha$ via the Pareto knee-point procedure in Appendix~\ref{sec:hparam_sweep}.
+Geometric forgetting interacts with budget pacing through a feedback loop. As $\gamma$ shrinks $A_a$ over time, the confidence bonus grows, increasing the probability of selecting expensive arms that happen to be uncertain. This drives up $\lambda_t$, which penalizes those arms, partially counteracting the inflation. The EMA smoothing in the dual update (Eq.~\ref{eq:cost_ema}) further dampens the resulting oscillations. The parameter $\gamma$ thus controls a bias-variance tradeoff between \emph{stability} (trusting historical evidence) and \emph{plasticity} (responding quickly to drift). The forgetting rate is selected jointly with $\alpha$ via the Pareto knee-point procedure in Appendix~\ref{sec:hparam_sweep}.\looseness=-1
 
 \subsection{Offline-to-Online Warmup Priors}
 \label{sec:warmup}
@@ -147,7 +141,7 @@ where $A_a^{\mathrm{off}}[d, d]$ is the total precision mass in the bias directi
 \end{align}
 The $\lambda_0 \hat\theta_a^{\mathrm{off}}$ term in $b_a$ prevents $\lambda_0 I$ regularization from shrinking the posterior mean toward zero, ensuring $A_a^{-1} b_a \approx \hat\theta_a^{\mathrm{off}}$ at the desired confidence level. For models absent from the offline data, a heuristic prior places $n_\mathit{eff}$ pseudo-observations at isotropic uncertainty with a bias-only reward prediction.
 
-Geometric forgetting ensures priors decay naturally: after ${\sim}1{,}000$ steps at $\gamma{=}\ppGamma$, the prior's contribution falls to ${\sim}\ppGammaDecayOneK\%$ of its original weight, so steady-state quality is determined by online evidence regardless of initialization. Priors are beneficial but not necessary---the UCB exploration bonus drives sufficient exploration from a cold start (Section~\ref{sec:eval_onboarding}). Appendices~\ref{sec:warmup_ablation}--\ref{appendix:prior_mismatch} provide ablations on cold-start convergence, burn-in sensitivity, and prior mismatch robustness.
+Geometric forgetting ensures priors decay naturally (Section~\ref{sec:adaptive_learning}), so steady-state quality is determined by online evidence regardless of initialization. Priors are beneficial but not necessary---cold-start convergence is demonstrated in Section~\ref{sec:eval_onboarding} and ablated in Appendices~\ref{sec:warmup_ablation}--\ref{appendix:prior_mismatch}.
 
 \subsection{Computational Efficiency}
 \label{sec:efficiency}

@@ -13,10 +13,7 @@ Six limitations scope the current contribution.
 \emph{(vi)~Cost-only constraint:} ParetoBandit constrains cost and maximizes quality, but some deployments require the dual formulation---minimizing cost subject to a quality floor.
 
 \paragraph{Future work.}
-Most limitations above are addressable within the existing framework without modifying the core LinUCB update, geometric forgetting, or warmup priors.
-Shadow routing and live A/B evaluation~(i) require only engineering atop the cached context-vector architecture.
-Sparse human labels~(ii) can be accommodated by adapting $\gamma$ to the label arrival rate.
-A token-bucket layer would enforce aggregate budgets~(iii); transfer priors and shadow evaluation could reduce onboarding burn-in~(iv).
-Latency awareness~(v) maps directly onto the BwK formulation as a second dual variable $\mu_t$.
-The quality-constrained mode~(vi) inverts the pacer to track EMA-smoothed reward against a floor~$\tau$, providing an online counterpart to PROTEUS's offline SLA enforcement~\cite{bhatti2026proteus}.
+Most limitations are addressable within the existing framework.
+Live deployment~(i,\,ii) requires engineering atop the cached context-vector architecture and adapting $\gamma$ to sparse label arrival rates.
+On the formulation side, latency awareness~(v) maps onto the BwK framework as a second dual variable, a token-bucket layer would enforce aggregate budgets~(iii), and the quality-constrained mode~(vi) inverts the pacer to track reward against a floor~$\tau$, providing an online counterpart to PROTEUS~\cite{bhatti2026proteus}.
 Validating these extensions under realistic deployment conditions is the most immediate next step.

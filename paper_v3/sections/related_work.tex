@@ -2,31 +2,22 @@
 \label{sec:related}
 
 \paragraph{Supervised and static routers.}
-A rich line of work learns routing policies offline.
 Cost-aware cascading~\cite{chen2023frugalgpt} queries models cheapest-first until a quality threshold is met.
 Single-dispatch classifiers learn from preference data~\cite{ong2024routellm}, contrastive embeddings~\cite{chen2024routerdc, shirkavand2025cscr}, graph-structured interactions~\cite{feng2025graphrouter}, or lightweight binary triage~\cite{ding2024hybridllm, pulishetty2025onehead}.
 OmniRouter~\cite{ma2025omnirouter} formulates budget-aware routing as a batch-level constrained optimisation over a fixed prompt set.
-These methods perform well when deployment matches training, yet three structural limitations persist:
-(i)~cost enters as a manually tuned scalarisation rather than a closed-loop budget constraint;
-(ii)~none detects price changes or quality regressions autonomously---adaptation requires retraining or operator intervention; and
-(iii)~frozen policies provide no exploration mechanism to discover where an underexplored or newly added model excels.
-OmniRouter's batch formulation further requires the full workload upfront, precluding open-ended serving, and RouteLLM's matrix-factorisation variant requires paired preference data for each new model.
-ParetoBandit retains the same quality--cost objective but replaces the frozen policy with online learning, enabling adaptation to price drops, quality regressions, and portfolio changes without retraining or downtime.
+These methods perform well when deployment matches training, but share three structural limitations: cost enters as a manually tuned weight rather than a closed-loop constraint; none adapts autonomously to price or quality shifts; and frozen policies cannot discover where a new model excels.
+ParetoBandit replaces the frozen policy with online learning, enabling adaptation without retraining or downtime.
 
 \paragraph{Adaptive and bandit-based routers.}
-A growing line of work frames routing as an online learning problem, enabling the router to improve from deployment traffic.
-PILOT~\cite{panda2025pilot} provides a principled integration of LinUCB with budget awareness, using preference-prior initialization and an online knapsack algorithm to enforce cumulative spend limits; it demonstrates that contextual bandits can outperform supervised baselines when deployment prompts differ from training data.
-BaRP~\cite{wang2025barp} introduces entropy-regularized policy gradients conditioned on a user preference vector, enabling operators to sweep the quality--cost trade-off at inference time without retraining.
-LLM Bandit~\cite{li2025llmbandit} generalizes further by conditioning on model identity features, allowing the policy to transfer to unseen models without re-evaluation.
-MixLLM~\cite{wang2025mixllm} is, to our knowledge, the only bandit-based router to explicitly model downstream latency, penalising endpoint congestion via an estimated waiting-time signal and accommodating evolving model pools through continual learning.
-xRouter~\cite{qian2025xrouter} fine-tunes a small LM as an RL orchestration agent, achieving competitive routing quality.
-PROTEUS~\cite{bhatti2026proteus} lets operators specify a hard accuracy floor $\tau$ and trains a Lagrangian RL policy to minimize cost subject to it, demonstrating strong compliance across large portfolios.
-ParetoBandit solves the dual problem: given a dollar budget~$B$, maximize quality (Eq.~\ref{eq:objective}). Both use Lagrangian relaxation but constrain opposite quantities; the choice depends on whether the operator's binding constraint is dollars or accuracy.
-Despite these advances, two gaps remain.
-First, none of the above provides closed-loop online budget pacing over an open-ended request stream: PILOT's knapsack requires a known finite horizon; BaRP and LLM Bandit accept preference weights but do not track realized spend against a dollar target; PROTEUS freezes its dual variables at deployment, and the authors themselves identify post-deployment cost drift as an open problem.
-Second, to our knowledge all use infinite memory ($\gamma{=}1.0$), and none evaluates router behaviour under non-stationarity---neither price changes nor quality drift.
-ParetoBandit extends this adaptive line of work by making the Lagrangian dual variable online: a rate-constrained budget pacer enforces the per-request dollar target in closed loop, while geometric forgetting gives the bandit a bounded memory window for tracking environment shifts.
+A growing line of work frames routing as online learning.
+PILOT~\cite{panda2025pilot} integrates LinUCB with an online knapsack to enforce cumulative spend limits over a known horizon.
+BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients conditioned on a preference vector;
+LLM Bandit~\cite{li2025llmbandit} conditions on model identity features to transfer across unseen models;
+MixLLM~\cite{wang2025mixllm} models downstream latency and evolving model pools;
+xRouter~\cite{qian2025xrouter} fine-tunes a small LM as an RL orchestrator.
+PROTEUS~\cite{bhatti2026proteus} trains a Lagrangian RL policy to minimize cost subject to an accuracy floor~$\tau$; ParetoBandit solves the dual: maximize quality given a dollar budget (Eq.~\ref{eq:objective}).
+Despite these advances, two gaps remain: no system provides closed-loop budget pacing over an open-ended stream (PILOT requires a known horizon; BaRP and LLM Bandit track preference weights, not dollars; PROTEUS freezes its dual variables at deployment), and to our knowledge all use infinite memory ($\gamma{=}1.0$) with no evaluation under non-stationarity.
+ParetoBandit addresses both gaps with an online dual variable for rate-constrained budget pacing and geometric forgetting for bounded-memory adaptation.
 
 \paragraph{Constrained and non-stationary bandits.}
-ParetoBandit composes three theoretical streams: Lagrangian relaxation of Bandits with Knapsacks~\cite{badanidiyuru2013bwk, agrawal2016linear} adapted from a cumulative constraint to a rate constraint with smoothed dual updates~\cite{balseiro2019learning}; geometric discounting~\cite{garivier2011switching} and weighted ridge regression~\cite{russac2019weighted} for non-stationarity; and warm-start priors~\cite{oetomo2023warmstart, pan2024cbli} for cold-start elimination.
-Each ingredient is individually well-studied; the contribution is their joint integration within a single contextual bandit LLM router, together with empirical evaluation under cost drift, quality degradation, and cold-start onboarding---scenarios that, to our knowledge, no prior LLM routing paper has addressed.
+ParetoBandit composes three theoretical streams: Lagrangian relaxation of BwK~\cite{badanidiyuru2013bwk, agrawal2016linear} adapted to a rate constraint with smoothed duals~\cite{balseiro2019learning}; geometric discounting~\cite{garivier2011switching, russac2019weighted} for non-stationarity; and warm-start priors~\cite{oetomo2023warmstart, pan2024cbli}. Each ingredient is well-studied individually; the contribution is their joint integration and empirical evaluation under cost drift, quality degradation, and cold-start onboarding.
