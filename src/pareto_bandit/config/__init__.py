@@ -212,8 +212,8 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 BEST_K3_HPARAMS: Dict[str, Any] = {
     "alpha": 0.01,
     "pca_components": 25,
-    "prior_n_effective": 1604.7,
-    "forgetting_factor": 0.996,
+    "prior_n_effective": 1163.9,
+    "forgetting_factor": 0.997,
 }
 """Best K=3 ParetoBandit config (warmup priors, PCA-25, disjoint LinUCB).
 
@@ -226,28 +226,30 @@ Selected via T_adapt-constrained Pareto knee-point method:
 - The Pareto frontier of (budget-paced AUC, Phase-2 failure reward)
   is built across all configs; the knee point (maximum perpendicular
   distance from the endpoint line) is selected.
+- Phase-2 failure: reward degraded to 0.50 (~46% below normal),
+  cost unchanged (silent quality regression).
 - Cross-arm validation confirms the selected config generalises to
   failure of all K arms (not just the tuning arm, Mistral).
 - Source: experiments/appendix/hparam_optimization/results/best_hparams.json
-Val BP AUC = 0.9267, val P2 reward = 0.7958.
-Test BP AUC = 0.9232 (delta = -0.23%).
+Val BP AUC = 0.9277, val P2 reward = 0.7312.
+Test BP AUC = 0.9221 (delta = -0.35%).
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.1,
+    "alpha": 0.01,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 0.997,
+    "forgetting_factor": 0.996,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
 Selected via T_adapt-constrained Pareto knee-point method (same protocol
 as ParetoBandit but with n_eff=1.0, no warmup priors).
-- Val BP AUC = 0.9212, val P2 reward = 0.7943.
-- Test BP AUC = 0.9180 (delta = -0.80%).
-Unlike the prior epsilon-constraint protocol (which locked Tabula Rasa to
-gamma=1.0), the knee-point method selects gamma=0.997 with alpha=0.1 —
-the cold-start variant benefits from moderate exploration and mild
+- Val BP AUC = 0.9246, val P2 reward = 0.7256.
+- Test BP AUC = 0.9177 (delta = -0.83%).
+Unlike AUC-only optimisation (which locks Tabula Rasa to gamma=1.0),
+the knee-point method selects gamma=0.996 with alpha=0.01 —
+the cold-start variant benefits from minimal exploration and moderate
 forgetting when the selection criterion is a balanced trade-off rather
 than a hard AUC floor.  However, stationary AUC and failure resilience
 both remain lower than ParetoBandit, confirming that warmup priors provide

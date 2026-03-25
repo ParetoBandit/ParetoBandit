@@ -64,10 +64,11 @@ on two objectives:
 2. **Catastrophic-failure Phase-2 reward** (secondary) — two-phase
    simulation on the val split with BudgetPacer active.
    Phase 1 (first half): normal rewards.  Phase 2 (second half):
-   one model's reward drops to near-zero and its cost drops to $0
-   (simulating catastrophic failure).  Mean Phase-2 reward is the
-   metric.  Higher = faster detection and reallocation away from the
-   failed arm.  Averaged over budget targets.
+   one model's reward degrades to K3_FAILURE_REWARD (~18% below
+   normal) while its cost remains unchanged (silent quality
+   regression).  Mean Phase-2 reward is the metric.  Higher = faster
+   detection and reallocation away from the failed arm.  Averaged
+   over budget targets.
 
    **Single-arm tuning rationale.**  Only Mistral failure is used for
    the tuning objective (not an all-arms average) for three reasons:
@@ -191,7 +192,15 @@ measurement noise that could destabilise the Pareto frontier.
 Cross-arm validation (step 5b on val, step 6b on held-out test) evaluates
 all K arms post-hoc to confirm generalisation."""
 
-FAILURE_REWARD: float = K3_FAILURE_REWARD
+FAILURE_REWARD: float = 0.50
+"""Degraded reward for the tuning objective (~46% below Mistral's normal ~0.92).
+
+Stronger than the main experiment's K3_FAILURE_REWARD (0.75, ~18% degradation)
+because: (a) the tuning objective needs to discriminate gamma values on
+detection speed alone (cost is unchanged during failure), and (b) the recovery
+limit study (Appendix H) demonstrates the system recovers from degradations
+well beyond this level given sufficient horizon.  The main experiment uses 0.75
+to show full recovery within the standard phase length."""
 FAILURE_BUDGET_TARGETS: List[float] = K3_BUDGET_TARGETS
 
 
@@ -565,9 +574,9 @@ def _simulate_catastrophic_failure(
 
     Phase 1 (first half of ``val_data``): normal rewards for all arms.
     Phase 2 (second half): ``failure_arm`` returns ``failure_reward``
-    regardless of the prompt, and its cost drops to zero (the failed
-    model returns garbage but doesn't charge).  The bandit must detect
-    the quality collapse and reallocate traffic.
+    regardless of the prompt while its cost remains unchanged (silent
+    quality regression).  The bandit must detect the quality collapse
+    purely from the reward signal and reallocate traffic.
 
     BudgetPacer is active throughout, matching the deployment
     conditions tested in Experiment 03.
@@ -640,12 +649,12 @@ def _simulate_catastrophic_failure(
     phase2_rewards: List[float] = []
     for idx in val_order[mid:]:
         model, log = router.route(val_data.embeddings[idx])
+        cost = float(val_data.costs[model][idx])
         if model == failure_arm:
             reward = failure_reward
-            log.cost_usd = 0.0
         else:
             reward = float(val_data.rewards[model][idx])
-            log.cost_usd = float(val_data.costs[model][idx])
+        log.cost_usd = cost
         router.process_feedback(log.request_id, reward=reward)
         phase2_rewards.append(reward)
 
@@ -1133,7 +1142,7 @@ def main() -> None:
         len(FAILURE_ARMS), len(FAILURE_BUDGET_TARGETS), FAILURE_REWARD,
     )
     for fa in FAILURE_ARMS:
-        logger.info("  fail: %s → reward=%.2f, cost=$0", ARM_SHORT[fa], FAILURE_REWARD)
+        logger.info("  fail: %s → reward=%.2f, cost unchanged", ARM_SHORT[fa], FAILURE_REWARD)
     logger.info(
         "  budget targets: %s",
         [f"${t:.6f}" for t in FAILURE_BUDGET_TARGETS],

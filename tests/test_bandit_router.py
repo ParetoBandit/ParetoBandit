@@ -134,9 +134,9 @@ def test_save_load(sample_registry, tmp_path):
     assert np.allclose(router.bandit.b[model], router2.bandit.b[model])
 
 
-# TODO: Re-enable after investigating exploration behavior with dynamic Pareto filtering
-# This test fails because model0 (cheapest) dominates all routing decisions.
-# Need to investigate whether this is correct behavior or if exploration mechanism needs tuning.
+# Disabled: this test fails because model0 (cheapest) dominates all routing decisions
+# under dynamic Pareto filtering. Requires investigation into whether that reflects
+# correct exploitation behavior or a gap in the exploration mechanism before re-enabling.
 def _test_no_zombie_models():
     """
     Integration test: Verify that models don't get stuck in "zombie mode".

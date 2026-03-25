@@ -113,7 +113,7 @@ def fmt_cost_sci(val: float) -> str:
     mantissa = val / (10 ** exp)
     if exp == 0:
         return f"\\${mantissa:.2f}"
-    return f"\\${mantissa:.1f}${{\\times}}10^{{{exp}}}$"
+    return f"\\${mantissa:.1f}{{\\times}}10^{{{exp}}}"
 
 
 def fmt_cost_dollar(val: float) -> str:
