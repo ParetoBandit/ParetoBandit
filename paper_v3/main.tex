@@ -1,4 +1,4 @@
-%%%%%%%% ParetoBandit — MLSys 2026 Submission %%%%%%%%%%%%%%%%%
+%%%%%%%% ParetoBandit — Working Draft %%%%%%%%%%%%%%%%%
 
 \documentclass{article}
 
@@ -36,10 +36,7 @@
 \renewcommand{\dblfloatpagefraction}{0.8}
 
 
-% Blind submission:
 \usepackage{mlsys2025}
-% Camera-ready:
-% \usepackage[accepted]{mlsys2025}
 
 \mlsystitlerunning{ParetoBandit: Budget-Paced Adaptive LLM Routing}
 
@@ -73,6 +70,10 @@
 \input{../experiments/03_catastrophic_failure/_autogen.tex}
 \input{../experiments/appendix/hparam_optimization/_autogen.tex}
 \input{../experiments/appendix/cost_heuristic_validation/results/_autogen.tex}
+\input{../experiments/04_model_onboarding/_autogen.tex}
+\input{../experiments/appendix/warmup_ablation/_autogen.tex}
+\input{../experiments/appendix/val_burnin_ablation/_autogen.tex}
+\input{../experiments/appendix/prior_mismatch/_autogen.tex}
 
 % ---------- Main body ----------
 \input{sections/introduction}
