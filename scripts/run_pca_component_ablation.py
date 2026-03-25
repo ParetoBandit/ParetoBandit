@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PCA component-count ablation for ParetoBandit (KDD-style).
+PCA component-count ablation for ParetoBandit.
 
 This script answers the reviewer question: "How many PCA components do we need
 before routing performance saturates?"

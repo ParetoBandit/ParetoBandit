@@ -15,7 +15,7 @@ judge scores from ``judge_robustness_rewards.jsonl``, then produces:
 4. **Simulated CostSave@Q**: Run the bandit with R1 rewards vs panel-
    averaged rewards to check whether headline results change.
 5. **Publication-quality figures**: Scatter plots, gap distributions,
-   and a summary table suitable for a KDD appendix.
+   and a summary table suitable for an appendix.
 
 Usage
 -----

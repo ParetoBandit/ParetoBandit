@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Diagnostic: would the paper's conclusions change with a different judge?
 
-Computes the quantities a KDD reviewer would demand:
+Computes the quantities a rigorous reviewer would demand:
 
 1. Expected reward ordering — do all judges agree on E[r_A] > E[r_B] for
    every model pair?  If yes, the bandit converges to the same policy.
