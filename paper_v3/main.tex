@@ -98,6 +98,8 @@
 
 % ---------- Appendix ----------
 \appendix
+\begingroup
+\setlength{\parskip}{2pt}
 % A — Hyperparameter selection (referenced from intro, system design, evaluation)
 \input{../experiments/appendix/hparam_optimization/results_discussion}
 \input{../experiments/appendix/hparam_optimization/t_adapt_sensitivity_discussion}
@@ -118,5 +120,6 @@
 \input{sections/appendix_recovery_limit}
 % I — Reward granularity and K>2 collapse
 \input{sections/appendix_reward_discrimination}
+\endgroup
 
 \end{document}

@@ -11,13 +11,13 @@ $\gamma$---interact non-trivially with stationarity.
 Standard cross-validation optimises a single stationary metric,
 which selects $\gamma \geq 0.999$ because forgetting always hurts
 stationary performance.  However, $\gamma{=}1.0$ fails under
-distribution shift (Section~\ref{sec:eval_nonstationary}: $+34\%$
-regret after a reward swap), while optimising solely for adaptability
+non-stationarity (Section~\ref{sec:eval_nonstationary}: $+34\%$
+regret after a mid-stream price change), while optimising solely for adaptability
 yields excessive forgetting that destabilises the stationary policy.
-\emph{The same hyperparameter must simultaneously protect stationary
-efficiency and enable non-stationary recovery.}
+\emph{A good hyperparameter configuration must balance stationary
+efficiency against non-stationary recovery.}
 
-Existing bandit-based LLM routers do not address this tension:
+Among bandit-based LLM routers we surveyed, none addresses this tension directly:
 PILOT~\cite{panda2025pilot} grid-searches $\alpha$ on a single
 stationary metric; BaRP~\cite{wang2025barp} and LLM
 Bandit~\cite{li2025llmbandit} omit forgetting entirely;
@@ -51,7 +51,7 @@ by L'H\^opital's rule.
 Fixing $T_{\text{adapt}}$ collapses the 3D grid
 $(\alpha, n_{\text{eff}}, \gamma)$ to a 2D search over
 $(\alpha, \gamma)$ with $n_{\text{eff}}$ derived, ensuring that every
-configuration in the sweep adapts to distributional shifts at
+configuration in the sweep adapts to non-stationarity at
 the same rate---only the exploration--exploitation balance
 and the granularity of forgetting differ.
 
@@ -77,7 +77,7 @@ configuration on two objectives:
     resilience):
     two-phase simulation on the validation split---Phase~1 (first
     half) with normal rewards, Phase~2 (second half) with the failed
-    arm's reward collapsed to near-zero and cost set to \$0.
+    arm's reward degraded to $\cfFailureReward$ (${\sim}\ppCfDegPct$\% below normal) while cost remains unchanged.
     Mean Phase-2 reward captures how quickly the router detects the
     failure and reallocates traffic.
     We tune on Mistral failure, the most operationally stressful
@@ -87,6 +87,12 @@ configuration on two objectives:
 \end{enumerate}
 
 \paragraph{Pareto knee-point selection.}
+%% Fallbacks if bootstrap commands not yet generated:
+\providecommand{\hpBootNIter}{2000}
+\providecommand{\hpBootKneeFreq}{--}
+\providecommand{\hpBootNeighborFreq}{--}
+\providecommand{\hpBootNUnique}{--}
+
 Rather than scalarising the two objectives with arbitrary
 weights or imposing an $\epsilon$-constraint, we build the
 \emph{Pareto frontier} of non-dominated (AUC, P2\_reward)
@@ -97,12 +103,6 @@ after min--max normalisation for scale invariance.
 The knee point represents the inflection where improving one
 objective begins to require disproportionate sacrifice of the
 other, and requires no weight specification or tolerance parameter.
-%% Fallbacks if bootstrap commands not yet generated:
-\providecommand{\hpBootNIter}{2000}
-\providecommand{\hpBootKneeFreq}{--}
-\providecommand{\hpBootNeighborFreq}{--}
-\providecommand{\hpBootNUnique}{--}
-%%
 Seed-level bootstrap resampling (\hpBootNIter{} iterations)
 confirms the selection is stable: the knee-point configuration is
 chosen in \hpBootKneeFreq\% of bootstrap samples, and a
@@ -114,7 +114,7 @@ configs are ever selected across all resamples).
 Table~\ref{tab:hparam_selection} summarises the selection outcome
 for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{%
   \textbf{$T_{\text{adapt}}$-constrained Pareto knee-point selection.}
@@ -149,7 +149,8 @@ for both ParetoBandit (warmup priors) and Tabula Rasa (cold start).
   & Knee-point   & $\hpTabulaAlpha$ & --- & $\hpTabulaGamma$ & $\hpTabulaAUC$ & $\hpTabulaPTwoReward$ \\
 \bottomrule
 \end{tabular}
-\end{table}
+\vspace{4pt}
+\end{table*}
 
 AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
 both variants---confirming that single-objective tuning converges
