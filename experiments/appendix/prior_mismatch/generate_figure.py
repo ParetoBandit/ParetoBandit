@@ -242,16 +242,17 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
             )
 
         ax.set_xticks(positions)
-        ax.set_xticklabels(labels, fontsize=12, rotation=30, ha="right")
-        ax.set_title(f"n_eff = {n_eff}", fontsize=17)
+        ax.set_xticklabels(labels, fontsize=14, rotation=30, ha="right")
+        ax.set_title(f"n_eff = {n_eff}", fontsize=19)
         ax.grid(True, alpha=0.3, axis="y")
+        ax.tick_params(axis="y", labelsize=14)
 
-    axes[0].set_ylabel("Total Regret (per seed)")
+    axes[0].set_ylabel("Total Regret (per seed)", fontsize=17)
 
     fig.suptitle(
         "Per-Seed Regret Distributions: Warmup Stability vs Cold-Start Variance\n"
         "(Unconstrained regime, K=3 stationary, 20 seeds)",
-        fontsize=18, y=1.04,
+        fontsize=20, y=1.04,
     )
     fig.tight_layout()
 
