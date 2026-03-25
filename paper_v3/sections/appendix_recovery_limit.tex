@@ -16,18 +16,18 @@ At the standard \rlPhaseN-prompt horizon, full recovery is achieved for degradat
 
 Extending Phase~3 to \rlExtPhaseThreeN{} unique prompts ($2{\times}$ the standard horizon, no prompt recycling) uniformly lifts the entire envelope.  Full recovery now extends to ${\sim}\rlExtRecoveryThresholdPct$\% degradation (failure reward ${\geq}0.70$, P3/P1${\,=\,}\rlExtFRSevenZeroRecovery$\%), and the severe-degradation floor rises from ${\sim}\rlStdFloorPct$\% to ${\sim}\rlExtFloorPct$\%.  For the most extreme cases (${\geq}90$\% degradation), the extended horizon still leaves a gap, suggesting that yet longer horizons or explicit operator intervention would be needed.  At mild degradation levels (${\leq}10$\%), the P3/P1 ratio can exceed $100$\% (observed: $\rlExtFREightFiveRecovery$\% at $\rlStdFREightFiveDegPct$\% degradation): Phase~2 trains the policy away from the degraded arm, and for some prompts the alternative routing discovered during degradation is genuinely better.
 
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{../experiments/appendix/recovery_limit/results/recovery_limit.pdf}
+\caption{Recovery limit under quality degradation (moderate budget, 20~seeds, 95\% bootstrap CI, variance-preserving degradation).
+\textbf{(a)}~Recovery envelope: Phase~3/Phase~1 reward ratio vs.\ degradation severity for \rlPhaseN~prompts (blue, solid) and \rlExtPhaseThreeN{} unique prompts (orange, dashed).  The standard horizon achieves full recovery (${\geq}97$\%) up to ${\sim}\rlStdRecoveryThresholdPct$\% degradation; the extended horizon shifts this boundary to ${\sim}\rlExtRecoveryThresholdPct$\% and lifts the severe-degradation floor from ${\sim}\rlStdFloorPct$\% to ${\sim}\rlExtFloorPct$\%.
+\textbf{(b)}~Extended recovery dynamics (50-prompt rolling window) for four representative degradation levels.  All trajectories converge toward the Phase~1 baseline (dotted), with milder degradations converging faster.}
+\label{fig:recovery_limit}
+\end{figure}
+
 \paragraph{Convergence dynamics (Figure~\ref{fig:recovery_limit}b).}
 The extended-horizon time-series (50-prompt rolling window) reveal that recovery is monotonic but rate-dependent on severity.  Milder degradations converge to the Phase~1 baseline well before the horizon limit, while more severe degradations require the full extended horizon and may still fall short.  In all cases the confidence bands narrow over time, indicating stable convergence rather than high-variance oscillation.
 
 \paragraph{Limitations and deployment implications.}
 This study evaluates only the moderate budget level and single-arm, quality-only degradation; different budget levels or simultaneous multi-arm regressions may behave differently.
 For typical silent regressions (${\leq}20$\%), ParetoBandit recovers automatically within the standard observation window.  For severe regressions, operators can extend the recovery horizon or intervene with an explicit model demotion.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{../experiments/appendix/recovery_limit/results/recovery_limit.pdf}
-\caption{Recovery limit under quality degradation (moderate budget, 20~seeds, 95\% bootstrap CI, variance-preserving degradation).
-\textbf{(a)}~Recovery envelope: Phase~3/Phase~1 reward ratio vs.\ degradation severity for \rlPhaseN~prompts (blue, solid) and \rlExtPhaseThreeN{} unique prompts (orange, dashed).  The standard horizon achieves full recovery (${\geq}97$\%) up to ${\sim}\rlStdRecoveryThresholdPct$\% degradation; the extended horizon shifts this boundary to ${\sim}\rlExtRecoveryThresholdPct$\% and lifts the severe-degradation floor from ${\sim}\rlStdFloorPct$\% to ${\sim}\rlExtFloorPct$\%.
-\textbf{(b)}~Extended recovery dynamics (50-prompt rolling window) for four representative degradation levels.  All trajectories converge toward the Phase~1 baseline (dotted), with milder degradations converging faster.}
-\label{fig:recovery_limit}
-\end{figure*}

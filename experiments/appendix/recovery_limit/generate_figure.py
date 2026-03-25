@@ -57,8 +57,8 @@ def _load_results() -> Dict[str, Any]:
 
 def plot_recovery_limit(
     data: Dict[str, Any],
-    figsize: Tuple[float, float] = (12, 5),
-    font_scale: float = 1.0,
+    figsize: Tuple[float, float] = (10, 5),
+    font_scale: float = 1.35,
 ) -> plt.Figure:
     """Two-panel figure: recovery envelope + extended dynamics.
 
@@ -231,7 +231,7 @@ def plot_recovery_limit(
     ax_dyn.set_xlabel("Prompts Routed (Phase 3)", fontsize=11 * fs)
     ax_dyn.set_ylabel("Windowed Mean Reward (w=50)", fontsize=11 * fs)
     ax_dyn.set_title(
-        f"(b) Extended Recovery Dynamics ({ext_n} unique prompts)",
+        "(b) Extended Recovery Dynamics",
         fontsize=12 * fs, fontweight="bold", pad=10,
     )
     ax_dyn.legend(fontsize=8.5 * fs, loc="lower right")
@@ -245,7 +245,8 @@ def plot_recovery_limit(
         f" (${budget_target:.2e}/prompt)",
         fontsize=13 * fs, fontweight="bold", y=1.02,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.0, w_pad=3.0)
+    fig.subplots_adjust(wspace=0.35)
     return fig
 
 
