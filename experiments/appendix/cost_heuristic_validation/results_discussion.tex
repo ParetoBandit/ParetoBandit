@@ -5,10 +5,28 @@
 
 The selection utility (Equation~\ref{eq:budget_ucb}) uses a static log-normalized cost
 $\tilde{c}_a$ derived from each model's blended per-token rate rather than the
-realised per-request cost.  We validate this design choice by testing two
-necessary conditions: (i)~$\tilde{c}_a$ preserves the \emph{true cost ranking}
-across prompts, and (ii)~within-model cost variance is small relative to
-inter-model gaps in log-cost space.
+realised per-request cost.
+This is forced by decision timing: the cost penalty must be evaluated
+\emph{before} the prompt is dispatched, but realised cost depends on the
+model's output length, which is unknown until inference completes.
+A learned contextual cost predictor could in principle replace the static
+proxy, but the benefit is limited---prompt-level features explain less than
+7\% of cost variance in our portfolio (see ``Prompt-cost correlation''
+below)---while the dual variable $\lambda_t$ already corrects for any
+systematic mismatch by updating on actual costs
+(Eq.~\ref{eq:dual_update}).
+We validate the static heuristic by testing two necessary conditions:
+(i)~$\tilde{c}_a$ preserves the \emph{true cost ranking} across prompts,
+and (ii)~within-model cost variance is small relative to inter-model gaps
+in log-cost space.
+Condition~(i) is required because the cost penalty in
+Eq.~\ref{eq:budget_ucb} biases selection toward cheaper arms; if the
+heuristic mis-ranks two models, the penalty systematically favours the
+wrong one.
+Condition~(ii) ensures that a single scalar per arm is a faithful summary
+of its cost distribution: if within-model variance were large relative to
+inter-model gaps, the fixed penalty could not reliably separate tiers and
+prompt-level cost estimation would be needed.
 
 \paragraph{Blending assumption.}
 The heuristic blends input and output pricing with equal weight
@@ -32,15 +50,17 @@ All three pairwise comparisons hold at ${\geq}$\chMinPairwiseK\% under
 strict inequality, with zero ties observed.
 This result is unsurprising given the ${\sim}$500$\times$ cost span between
 the cheapest and most expensive arm (per-model CVs in \chCVRangeK),
-and serves primarily as a sanity check that the dataset is internally consistent.
+and serves primarily as a sanity check that the dataset is internally consistent
+(Figure~\ref{fig:cost_heuristic_distributions}a;
+Figure~\ref{fig:cost_heuristic_ranking}a).
 
 \paragraph{K=4 portfolio (\chNPromptsKFour{} shared val prompts, with Gemini-Flash).}
 Adding a fourth arm whose pricing overlaps an existing arm provides
 a harder test of the heuristic.
 For a clean comparison, we restrict both portfolios to the shared prompt subset:
 \chKFourMissing{} prompts from the original K=3 validation split are excluded
-because they are absent from the K=4 data file (excluded during Flash data
-collection, likely due to API refusals or empty responses).
+because the Flash data-collection pipeline failed to produce a successful
+response or judge score for them, so they are absent from the K=4 data file.
 Gemini-Flash ($\tilde{c} = \chFlashCtilde$) is placed between Mistral-Large
 ($\tilde{c} = \chMistralCtilde$) and Gemini-Pro ($\tilde{c} = \chProCtilde$).
 The full ordering matches on \chFullOrderKFour\%
@@ -50,7 +70,9 @@ the closest pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on
 (CI: [\chMistralFlashPWCILo, \chMistralFlashPWCIHi]\%;
 \chMistralFlashTies{} exact ties),
 reflecting Flash's high cost variance (CV${} = \chFlashCV$) and the
-narrow heuristic gap ($\Delta\tilde{c} = \chMistralFlashGap$).
+narrow heuristic gap ($\Delta\tilde{c} = \chMistralFlashGap$)
+(Figure~\ref{fig:cost_heuristic_distributions}b;
+Figure~\ref{fig:cost_heuristic_ranking}b).
 
 \paragraph{Log-cost separation.}
 To quantify tier separation without referencing the heuristic itself, we
@@ -58,24 +80,35 @@ examine per-model distributions in $\log(\text{cost}_{\text{USD}})$ space.
 Within-model standard deviations are \chLogStdFracRange\% of the total
 inter-model log-cost range, confirming that prompt-level cost noise does not
 overwhelm tier separation.
+We report Cohen's $d$ between adjacent tiers as a scale-free measure of
+how many within-model standard deviations separate each pair; $d \gg 1$
+implies that the two distributions rarely overlap, so a single scalar per
+arm faithfully distinguishes them (condition~(ii) above).
 Cohen's $d$ for adjacent pairs ranges from \chMinCohensD{}
 (Mistral-Large $\to$ Gemini-Flash) to \chMaxCohensD{}
 (Llama-8B $\to$ Mistral-Large); the weakest separation corresponds to the
 only pair where the ranking inverts on ${\sim}$20\% of prompts.
 
 \paragraph{Prompt-cost correlation.}
-Spearman correlations between prompt word count and per-request cost are
-statistically significant but modest in magnitude
+Per-model cost distributions are right-skewed
+(Figure~\ref{fig:cost_heuristic_distributions}), so we use Spearman
+(rank-based) correlations between prompt word count and per-request cost.
+Correlations are statistically significant but modest in magnitude
 ($\rho = \chCorrRange$; all $p < 10^{-4}$).
-The explained variance ($\rho^2 < 7\%$) suggests that prompt-level features
-capture only a small fraction of cost variation, limiting the practical benefit
-of a contextual cost model in this portfolio.
+Because $\rho^2 < 7\%$ (proportion of rank variance explained), prompt-level
+features capture only a small fraction of cost variation, limiting the
+practical benefit of a contextual cost model in this portfolio.
 
 \paragraph{Cross-model cost correlation.}
+If per-request costs co-vary across models (e.g.\ because a long prompt
+elicits long outputs from every model), then prompt-level cost fluctuations
+shift all arms together, preserving relative ordering even when absolute
+costs vary.
+We again use Spearman correlations given the skewed cost distributions.
 Per-request costs are moderately to strongly correlated across models
-($\rho = \chCrossCorrRange$), driven by shared output-length variation.
-This shared factor preserves relative ordering even when absolute costs vary
-widely (CV = \chCVRangeKFour).
+($\rho = \chCrossCorrRange$), confirming this shared output-length factor
+and explaining why the static heuristic's ranking holds despite high
+within-model CVs (\chCVRangeKFour).
 
 \paragraph{Takeaway.}  The static $\tilde{c}_a$ heuristic is empirically
 well-calibrated for portfolios where models span at least one order of
