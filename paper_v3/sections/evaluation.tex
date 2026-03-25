@@ -65,10 +65,10 @@ Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set.
 
 We now evaluate whether the pacer automatically exploits a mid-stream price drop while maintaining compliance. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's pricing to \$0.10/M tokens (normalized cost $\tilde{c} \approx 0$); Phase~3 restores original pricing.
 
-\paragraph{Budget compliance is the key differentiator.}
+\noindent\textbf{Budget compliance is the key differentiator.}
 Table~\ref{tab:budget_compliance} summarises cost/target ratios across all conditions and phases. ParetoBandit is the only condition that reliably hits the target in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance in Phase~3 ($\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$). The critical ablation is the Forgetting Bandit ($\gamma{=}\ppGamma$, no pacer), which shares ParetoBandit's learning dynamics yet produces consistently poor compliance ($\bdForgetTightPhaseOneRatio$ at tight Phase~1, $\bdForgetTightPhaseThreeRatio$ at tight Phase~3), confirming that the BudgetPacer---not the forgetting factor---drives budget control.
 
-\paragraph{Exploiting the price drop.}
+\noindent\textbf{Exploiting the price drop.}
 When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost change via its EMA signal. All three budget regimes show significant reward lifts ($\Delta{=}+\bdParetoBanditLooseRewardLift$ to $+\bdParetoBanditTightRewardLift$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding. Figure~\ref{fig:adaptation_dynamics} shows the dual-variable dynamics: $\lambda_t$ decays as costs fall below target, increasing Gemini adoption; in Phase~3, $\lambda_t$ rises and compliance recovers. This full round-trip---exploit, then recover---demonstrates bidirectional adaptation without operator intervention.
 
 \begin{table}[t]
