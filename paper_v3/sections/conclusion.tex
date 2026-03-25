@@ -2,11 +2,11 @@
 \label{sec:conclusion}
 
 We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting.
-Production LLM serving is inherently non-stationary: providers revise pricing, model quality can regress silently, and new endpoints must be absorbed without downtime, yet existing routers have not been evaluated under these conditions.
+Production LLM serving is inherently non-stationary: providers revise pricing, model quality can regress silently, and new endpoints must be absorbed without downtime, and ParetoBandit is the first router evaluated under all of them.
 ParetoBandit addresses this gap directly.
 Across four experiments the system never exceeds the ceiling by more than ${\sim}2\%$ for any binding budget; under cost drift it autonomously exploits a price drop and maintains compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget, while baselines without closed-loop cost control overshoot by up to $\ppMaxOvershootX{\times}$; and cold-start model onboarding proceeds without reconfiguration.
 
-Beyond the empirical results, the Pareto knee-point hyperparameter protocol (Appendix~\ref{sec:hparam_sweep}) provides a principled method---the first we are aware of---for jointly tuning bandit hyperparameters to balance two competing production requirements, stationary routing efficiency and rapid adaptation to price and quality shifts, replacing the single-objective tuning that, as we show, invariably selects zero forgetting and leaves a deployed system blind to non-stationarity.
+Beyond the empirical results, the Pareto knee-point hyperparameter protocol (Appendix~\ref{sec:hparam_sweep}) provides a principled method---the first we are aware of---for jointly calibrating bandit hyperparameters across two competing production requirements, stationary routing efficiency and rapid adaptation to price and quality shifts, an advance over single-objective tuning, which invariably selects zero forgetting.
 As multi-provider LLM portfolios become the norm, these results suggest that bandit-driven routing with integrated budget pacing and non-stationarity awareness is not merely desirable but essential for reliable, cost-controlled LLM serving in production.
 
 \paragraph{Limitations.}
