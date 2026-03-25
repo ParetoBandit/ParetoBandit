@@ -155,6 +155,11 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         cs.raw("GammaTies", fmt_int(gamma_test["n_ties"]))
         cs.num("GammaSignP", gamma_test.get("sign_test_p", 1.0), digits=2)
         cs.num("GammaFisherP", gamma_test.get("fisher_exact_p", 1.0), digits=2)
+        cs.raw("GammaCondCatCount", fmt_int(gamma_test["condition_catastrophic_count"]))
+        cs.raw("GammaBaseCatCount", fmt_int(gamma_test["baseline_catastrophic_count"]))
+        n_seeds = data["n_seeds"]
+        cond_rate = gamma_test["condition_catastrophic_count"] / n_seeds * 100
+        cs.raw("GammaCondCatPct", fmt_int(round(cond_rate)))
 
     for test_key, test_data in data.get("pairwise_tests_vs_gamma_matched", {}).items():
         q_label = test_key.rsplit(" (n_eff=", 1)[0]

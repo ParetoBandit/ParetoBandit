@@ -58,11 +58,6 @@
 \vskip 0.3in
 ]
 
-% ---------- Abstract ----------
-\input{sections/abstract}
-
-\printAffiliationsAndNotice{}
-
 % ---------- Auto-generated macros from experiment results ----------
 % Regenerate all: for d in experiments/*/; do [ -f "$d/generate_latex.py" ] && python "$d/generate_latex.py"; done
 \input{../experiments/01_stationary_budget_pacing/_autogen.tex}
@@ -77,6 +72,11 @@
 \input{../experiments/appendix/recovery_limit/_autogen.tex}
 \input{../experiments/appendix/latency_benchmark/_autogen.tex}
 \input{paper_macros_autogen.tex}
+
+% ---------- Abstract ----------
+\input{sections/abstract}
+
+\printAffiliationsAndNotice{}
 
 % ---------- Main body ----------
 \input{sections/introduction}

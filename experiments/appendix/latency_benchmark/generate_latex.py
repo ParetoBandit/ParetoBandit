@@ -48,8 +48,10 @@ def build_command_set(
             continue
 
         cs.num(f"{short}RouteMedian", result["route_p50_us"], digits=1)
+        cs.num(f"{short}RoutePNineFive", result["route_p95_us"], digits=1)
         cs.num(f"{short}RoutePNineNine", result["route_p99_us"], digits=1)
         cs.num(f"{short}UpdateMedian", result["update_p50_us"], digits=1)
+        cs.num(f"{short}UpdatePNineFive", result["update_p95_us"], digits=1)
         cs.num(f"{short}UpdatePNineNine", result["update_p99_us"], digits=1)
         cs.num(f"{short}TotalMedian", result["total_p50_us"], digits=1)
         cs.num(f"{short}TotalPNineFive", result["total_p95_us"], digits=1)
@@ -64,11 +66,15 @@ def build_command_set(
     fracs = e2e_data.get("fractions", {})
 
     cs.num("EteEmbedMedianMs", stages.get("embed_p50_ms", 0), digits=1)
+    cs.num("EteEmbedPNineFiveMs", stages.get("embed_p95_ms", 0), digits=1)
     cs.num("EteEmbedPNineNineMs", stages.get("embed_p99_ms", 0), digits=1)
     cs.num("EtePcaMedianMs", stages.get("pca_p50_ms", 0), digits=2)
+    cs.num("EtePcaPNineFiveMs", stages.get("pca_p95_ms", 0), digits=2)
     cs.num("EteRouteMedianMs", stages.get("route_p50_ms", 0), digits=3)
+    cs.num("EteRoutePNineFiveMs", stages.get("route_p95_ms", 0), digits=3)
     cs.num("EteRoutePNineNineMs", stages.get("route_p99_ms", 0), digits=3)
     cs.num("EteTotalMedianMs", stages.get("total_p50_ms", 0), digits=1)
+    cs.num("EteTotalPNineFiveMs", stages.get("total_p95_ms", 0), digits=1)
     cs.num("EteTotalPNineNineMs", stages.get("total_p99_ms", 0), digits=1)
 
     cs.num("EteEmbedPctOfTotal", fracs.get("embed_pct_of_total_p50", 0), digits=1)

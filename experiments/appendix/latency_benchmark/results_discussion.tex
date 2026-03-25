@@ -34,18 +34,18 @@ staleness tracking on top of the SM algorithm.
  & p50 & p95 & p50 & p95 & (req/s) \\
 \midrule
 \multicolumn{6}{@{}l}{\emph{Production (full router with locks, pacing, forgetting)}} \\
-ParetoBandit ($d{=}26$)        & 22.5 & 25.8 & 20.5 & 22.8 & 22{,}432 \\
-ParetoBandit ($d{=}385$)       & 156.1 & 211.3 & 456.2 & 525.1 & 1{,}610 \\
+ParetoBandit ($d{=}26$)        & \latPBdTwentySixRouteMedian & \latPBdTwentySixRoutePNineFive & \latPBdTwentySixUpdateMedian & \latPBdTwentySixUpdatePNineFive & \latPBdTwentySixThroughput \\
+ParetoBandit ($d{=}385$)       & \latPBdFullRouteMedian & \latPBdFullRoutePNineFive & \latPBdFullUpdateMedian & \latPBdFullUpdatePNineFive & \latPBdFullThroughput \\
 \addlinespace
 \multicolumn{6}{@{}l}{\emph{Algorithmic isolation (identical \texttt{route()}, only \texttt{update()} differs)}} \\
-Bare SM ($d{=}26$)             & 5.8 & 6.1 & 8.2 & 8.6 & 70{,}242 \\
-Bare SM ($d{=}385$)            & 99.6 & 153.6 & 301.9 & 535.8 & 2{,}140 \\
-Cached Inv.\ ($d{=}26$)       & 7.0 & 7.5 & 18.7 & 19.4 & 39{,}934 \\
-Cached Inv.\ ($d{=}385$)      & 122.6 & 181.0 & 1{,}635.1 & 1{,}998.3 & 539 \\
+Bare SM ($d{=}26$)             & \latSMdTwentySixRouteMedian & \latSMdTwentySixRoutePNineFive & \latSMdTwentySixUpdateMedian & \latSMdTwentySixUpdatePNineFive & \latSMdTwentySixThroughput \\
+Bare SM ($d{=}385$)            & \latSMdFullRouteMedian & \latSMdFullRoutePNineFive & \latSMdFullUpdateMedian & \latSMdFullUpdatePNineFive & \latSMdFullThroughput \\
+Cached Inv.\ ($d{=}26$)       & \latCachedDTwentySixRouteMedian & \latCachedDTwentySixRoutePNineFive & \latCachedDTwentySixUpdateMedian & \latCachedDTwentySixUpdatePNineFive & \latCachedDTwentySixThroughput \\
+Cached Inv.\ ($d{=}385$)      & \latCachedDFullRouteMedian & \latCachedDFullRoutePNineFive & \latCachedDFullUpdateMedian & \latCachedDFullUpdatePNineFive & \latCachedDFullThroughput \\
 \addlinespace
 \multicolumn{6}{@{}l}{\emph{Worst-case baseline (never caches $A^{-1}$)}} \\
-Per-Route Inv.\ ($d{=}26$)    & 50.2 & 53.8 & 4.4 & 4.8 & 18{,}068 \\
-Per-Route Inv.\ ($d{=}385$)   & 4{,}585.2 & 4{,}909.1 & 129.9 & 213.3 & 210 \\
+Per-Route Inv.\ ($d{=}26$)    & \latPerRouteDTwentySixRouteMedian & \latPerRouteDTwentySixRoutePNineFive & \latPerRouteDTwentySixUpdateMedian & \latPerRouteDTwentySixUpdatePNineFive & \latPerRouteDTwentySixThroughput \\
+Per-Route Inv.\ ($d{=}385$)   & \latPerRouteDFullRouteMedian & \latPerRouteDFullRoutePNineFive & \latPerRouteDFullUpdateMedian & \latPerRouteDFullUpdatePNineFive & \latPerRouteDFullThroughput \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -97,30 +97,30 @@ separately from the algorithmic comparison.
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Production overhead is negligible.}
     At the production dimension ($d{=}26$), ParetoBandit completes
-    a full route\,+\,update cycle in $43\,\mu$s (p50), adding
-    $<$\,0.03\% latency to even the fastest LLM call (${\sim}100$\,ms
+    a full route\,+\,update cycle in $\latPBdTwentySixTotalMedian\,\mu$s (p50), adding
+    $<$\,0.05\% latency to even the fastest LLM call (${\sim}100$\,ms
     time-to-first-token for Llama-3.1-8B).
-    The router sustains ${\sim}22{,}000$\,req/s on a single CPU
+    The router sustains ${\sim}\ppPBThroughput$\,req/s on a single CPU
     core---sufficient for all but the most extreme throughput tiers.
   \item \textbf{Sherman-Morrison's benefit is in update cost, not route
     latency.}
     Bare~SM and Cached~Inv.\ have identical route latency (same code).
     The improvement appears in the update path: at $d{=}385$,
-    the $O(d^2)$ SM update is $5.4\times$ faster than the
-    $O(d^3)$ full inversion ($302\,\mu$s vs.\ $1{,}635\,\mu$s, p50).
-    At $d{=}26$ the gap narrows to $2.3\times$ ($8.2\,\mu$s vs.\
-    $18.7\,\mu$s) because $d^3 = 17{,}576$ is already fast for LAPACK.
+    the $O(d^2)$ SM update is $\latSpeedupAlgoSmVsCachedDThreeEightFiveUpdate\times$ faster than the
+    $O(d^3)$ full inversion ($\latSMdFullUpdateMedian\,\mu$s vs.\ $\latCachedDFullUpdateMedian\,\mu$s, p50).
+    At $d{=}26$ the gap narrows to $\latSpeedupAlgoSmVsCachedDTwoSixUpdate\times$ ($\latSMdTwentySixUpdateMedian\,\mu$s vs.\
+    $\latCachedDTwentySixUpdateMedian\,\mu$s) because $d^3 = 17{,}576$ is already fast for LAPACK.
   \item \textbf{Production features add bounded overhead.}
-    ParetoBandit's route is $3.9\times$ and update $2.5\times$ slower
+    ParetoBandit's route is $\latSpeedupProdOverheadDTwoSixRoute\times$ and update $\latSpeedupProdOverheadDTwoSixUpdate\times$ slower
     than Bare~SM at $d{=}26$, due to locking, pacing, and decay
     bookkeeping.
-    At $d{=}385$ this ratio shrinks ($1.6\times$ route, $1.5\times$
+    At $d{=}385$ this ratio shrinks ($\latSpeedupProdOverheadDThreeEightFiveRoute\times$ route, $\latSpeedupProdOverheadDThreeEightFiveUpdate\times$
     update) because the linear-algebra cost dominates the fixed
     production overhead.
-  \item \textbf{PCA gives an additional ${\sim}14\times$ throughput gain.}
+  \item \textbf{PCA gives an additional ${\sim}\latSpeedupPcaVsRawProdThroughput\times$ throughput gain.}
     Within the production configurations, reducing $d$ from
-    $385$ to $26$ improves throughput by ${\sim}14\times$
-    ($22{,}432$ vs.\ $1{,}610$\,req/s), consistent
+    $385$ to $26$ improves throughput by ${\sim}\latSpeedupPcaVsRawProdThroughput\times$
+    ($\latPBdTwentySixThroughput$ vs.\ $\latPBdFullThroughput$\,req/s), consistent
     with $O(d^2)$ scaling compressed by fixed overhead constants.
   \item \textbf{Comparison with published routing systems}
     (Table~\ref{tab:latency_comparison}).
@@ -132,9 +132,9 @@ separately from the algorithmic comparison.
     but excludes the encoder forward pass.
     PROTEUS~\cite{bhatti2026proteus} is the only peer-reviewed system to
     report E2E routing latency: $8.7$\,ms (p50, single query) on an A100
-    GPU.  ParetoBandit achieves comparable E2E latency ($9.2$\,ms p50) on
+    GPU.  ParetoBandit achieves comparable E2E latency ($\latEteTotalMedianMs$\,ms p50) on
     \emph{CPU only}, with the routing decision itself
-    ($22.5\,\mu$s) ${\sim}390\times$ faster than PROTEUS's per-query
+    ($\latPBdTwentySixRouteMedian\,\mu$s) ${\sim}340\times$ faster than PROTEUS's per-query
     forward pass.
     The vLLM Semantic Router~\cite{liu2026vllmsr}\footnote{Content
     classification for backend selection, not quality-cost optimisation.}
@@ -151,17 +151,17 @@ separately from the algorithmic comparison.
     \toprule
     \textbf{Stage} & \textbf{p50} & \textbf{p95} & \textbf{\% of total} \\
     \midrule
-    Embed (MiniLM-L6-v2, CPU) & $9.0$\,ms & $9.9$\,ms & $98.0\%$ \\
-    PCA + whitening            & $0.15$\,ms & $0.18$\,ms & $1.7\%$ \\
-    \texttt{route()}           & $0.071$\,ms & $0.083$\,ms & $0.8\%$ \\
+    Embed (MiniLM-L6-v2, CPU) & $\latEteEmbedMedianMs$\,ms & $\latEteEmbedPNineFiveMs$\,ms & $\latEteEmbedPctOfTotal\%$ \\
+    PCA + whitening            & $\latEtePcaMedianMs$\,ms & $\latEtePcaPNineFiveMs$\,ms & --- \\
+    \texttt{route()}           & $\latEteRouteMedianMs$\,ms & $\latEteRoutePNineFiveMs$\,ms & $\latEteRoutePctOfTotal\%$ \\
     \midrule
-    \textbf{Total E2E (CPU)}   & $\mathbf{9.2}$\,\textbf{ms} & $\mathbf{10.3}$\,\textbf{ms} & $100\%$ \\
+    \textbf{Total E2E (CPU)}   & $\mathbf{\latEteTotalMedianMs}$\,\textbf{ms} & $\mathbf{\latEteTotalPNineFiveMs}$\,\textbf{ms} & $100\%$ \\
     \bottomrule
     \end{tabular}
     \end{center}
 
     \noindent
-    The embedding step dominates at $98\%$ of total time; the routing
+    The embedding step dominates at $\latEteEmbedPctOfTotal\%$ of total time; the routing
     decision contributes $<$\,1\%.  \emph{The routing algorithm is not the
     bottleneck}---prompt embedding is, and every contextual router
     (RouteLLM, CSCR, LLM Bandit) faces the same floor.
@@ -195,8 +195,8 @@ $\S$\,Practitioner-reported (not peer-reviewed).
 \textbf{System} & \textbf{Category} & \textbf{Scope} & \textbf{Latency} & \textbf{HW} \\
 \midrule
 \multicolumn{5}{@{}l}{\emph{Bandit-based LLM routers}} \\
-ParetoBandit & LinUCB + Sherman-Morrison & decision only & $22.5\,\mu$s & CPU \\
-ParetoBandit & \quad + MiniLM-L6 + PCA & E2E (CPU) & $9.2$\,ms & CPU \\
+ParetoBandit & LinUCB + Sherman-Morrison & decision only & $\latPBdTwentySixRouteMedian\,\mu$s & CPU \\
+ParetoBandit & \quad + MiniLM-L6 + PCA & E2E (CPU) & $\latEteTotalMedianMs$\,ms & CPU \\
 LLM Bandit~\cite{li2025llmbandit} & contextual MAB & --- & --- & --- \\
 BaRP~\cite{wang2025barp} & contextual dueling bandits & --- & --- & --- \\
 MixLLM~\cite{wang2025mixllm} & contextual bandits + MLP & --- & --- & --- \\
@@ -227,7 +227,7 @@ Kong AI Gateway~\cite{konghq2025benchmark} & L7 proxy & proxy only & $24$\,ms\,(
 
 \paragraph{Routing overhead relative to LLM inference.}
 Table~\ref{tab:overhead_vs_inference} contextualises ParetoBandit's
-$9.2$\,ms E2E overhead against production LLM API
+$\latEteTotalMedianMs$\,ms E2E overhead against production LLM API
 latencies~\cite{ganglani2026llmlatency}.
 
 \begin{table}[h]
@@ -237,7 +237,7 @@ latency across representative models and prompt
 lengths~\cite{ganglani2026llmlatency}.
 \emph{TTFT} = time to first token (streaming); \emph{Total} = full response
 latency.
-Routing overhead is the $9.2$\,ms end-to-end critical path (embedding +
+Routing overhead is the $\latEteTotalMedianMs$\,ms end-to-end critical path (embedding +
 PCA + \texttt{route()}) on CPU.}
 \label{tab:overhead_vs_inference}
 \small
@@ -246,18 +246,18 @@ PCA + \texttt{route()}) on CPU.}
 \textbf{LLM} & \textbf{Prompt} & \textbf{TTFT (ms)} & \textbf{Total (ms)}
   & \textbf{Routing / Total} \\
 \midrule
-Claude Haiku 4.5 & short  & 639   & 952    & $0.97\%$ \\
-Claude Haiku 4.5 & medium & 597   & 3{,}954  & $0.23\%$ \\
-Gemini 2.5 Flash & medium & 730   & 1{,}729  & $0.53\%$ \\
-GPT-4.1          & short  & 889   & 1{,}770  & $0.52\%$ \\
-Claude Sonnet 4  & long   & 1{,}216 & 20{,}445 & $0.05\%$ \\
-GPT-4.1 Mini     & long   & 2{,}501 & 18{,}075 & $0.05\%$ \\
+Claude Haiku 4.5 & short  & 639   & 952    & $1.40\%$ \\
+Claude Haiku 4.5 & medium & 597   & 3{,}954  & $0.34\%$ \\
+Gemini 2.5 Flash & medium & 730   & 1{,}729  & $0.77\%$ \\
+GPT-4.1          & short  & 889   & 1{,}770  & $0.75\%$ \\
+Claude Sonnet 4  & long   & 1{,}216 & 20{,}445 & $0.07\%$ \\
+GPT-4.1 Mini     & long   & 2{,}501 & 18{,}075 & $0.07\%$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \noindent
 Even against the fastest model and shortest prompt (Claude Haiku 4.5,
-952\,ms), the full routing pipeline adds $<$\,1\% overhead; for typical
-workloads it contributes 0.2--0.5\%.  \textbf{The routing decision is
+952\,ms), the full routing pipeline adds ${\sim}1.4\%$ overhead; for typical
+workloads it contributes 0.3--0.8\%.  \textbf{The routing decision is
 invisible to the end user.}
