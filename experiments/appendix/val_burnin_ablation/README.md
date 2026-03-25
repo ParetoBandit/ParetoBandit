@@ -1,21 +1,22 @@
 # Appendix: Validation Burn-In Ablation
 
-Quantifies how much of the reported test-set performance depends on the
-online-learning burn-in that occurs on the validation split before the
-test trajectory begins.
+Tests whether the online learning that incidentally occurs on the
+validation split inflates held-out test performance.
 
-The paper's standard protocol is: warmup priors (train, n=8,374) →
-online learning on val (n=1,785, no reported metrics) → evaluation on
-test (n=1,824, reported metrics).  This experiment decomposes the
-contribution of each stage by varying the amount of val burn-in from
-0% to 100%.
+The val split (n=1,785) serves two roles in the pipeline:
+**(i) hyperparameter selection** — alpha, gamma, and n_eff are tuned
+on val via the T_adapt-constrained Pareto knee-point method; and
+**(ii) online learning** — the bandit processes val prompts before
+test, providing reward-model burn-in and BudgetPacer calibration.
+The first role is essential (prevents test-set contamination); the
+second is incidental.  This experiment ablates the incidental
+contribution by varying burn-in from 0% to 100%.
 
 ## Motivation
 
-A reviewer may reasonably ask: *If the bandit needs 1,785 online
-interactions on val before it performs well on test, what are the
-warmup priors actually contributing?*  This experiment provides two
-complementary answers:
+A reviewer may reasonably ask: *Does the bandit need 1,785 online
+interactions on val before it performs well on test?*  This experiment
+answers that question with three complementary views:
 
 1. **Burn-in fraction sweep** — Shows test regret under 0%, 25%, 50%,
    75%, and 100% val burn-in, isolating the marginal value of each
@@ -58,8 +59,12 @@ With γ=0.997, effective memory ≈ 333 steps.  After 100% burn-in
 - **Pacer pre-calibration**: For budget-constrained conditions, the
   BudgetPacer is pre-calibrated on the full val set (routing with the
   initial policy, costs observed, bandit NOT updated). All burn-in
-  fractions thus start from an identical λ_t snapshot, decoupling
-  pacer calibration from reward-model burn-in.
+  fractions thus start from an identical λ_t snapshot.  Note: the
+  pacer continues to co-adapt with the bandit during burn-in itself,
+  so differences at the start of test reflect both reward-model
+  learning and pacer adaptation (not reward-model learning alone).
+  Pre-calibration ensures a fair *starting point*, not identical
+  pacer states at the start of test.
 - **Conditions**:
   - *Unconstrained* (7 conditions): Warmup at 0/25/50/75/100% burn-in
     + Tabula Rasa at 0%/100%
@@ -84,9 +89,7 @@ python experiments/appendix/val_burnin_ablation/generate_figure.py
 |------|-------------|
 | `results/val_burnin_ablation_results.json` | Full per-seed metrics and curves |
 | `results/val_burnin_test_regret.pdf` | Test-split cumulative regret (unconstrained, full + zoom) |
-| `results/val_burnin_combined.pdf` | Combined val+test trajectory + aligned test comparison |
-| `results/val_burnin_summary.pdf` | 2×2 factorial bar chart (unconstrained) |
-| `results/val_burnin_budget_summary.pdf` | Budget-stratified 2×2 factorial (all regimes) |
+| `results/val_burnin_budget_summary.pdf` | Budget-stratified 2×2 factorial (unconstrained + tight + moderate) |
 
 ## Key Results
 
@@ -124,6 +127,9 @@ python experiments/appendix/val_burnin_ablation/generate_figure.py
    skipping it *increases* test regret.
 
 In no regime does burn-in artificially inflate test performance.
+The val split earns its place through hyperparameter selection and
+pacer calibration; the reward-model burn-in it provides is incidental
+and, in the unconstrained regime, mildly harmful.
 
 **Tabula rasa fails under budget constraints**: cost/target ratios of
 0.39 (tight) and 0.42 (moderate) for TR 0% indicate the cold-start

@@ -20,12 +20,14 @@ factorial (priors × burn-in).
 **Tight + Moderate budgets** — 2×2 factorial (priors × burn-in at
 0%/100%) with the Primal-Dual BudgetPacer active, verifying that the
 burn-in findings hold under the budget constraints that are the paper's
-main contribution.  To decouple pacer calibration from reward-model
-burn-in, the pacer is pre-calibrated on the full val set (routing with
-the initial policy, observing costs, but NOT updating the bandit) before
-the trial begins.  All burn-in fractions thus start with an identically
-calibrated lambda_t; any remaining difference is attributable solely to
-reward-model learning.
+main contribution.  To ensure a fair starting point, the pacer is
+pre-calibrated on the full val set (routing with the initial policy,
+observing costs, but NOT updating the bandit) before the trial begins.
+All burn-in fractions thus start with an identically calibrated
+lambda_t.  Note that during the burn-in phase itself, the pacer
+continues to adapt alongside the bandit; differences at the start of
+test therefore reflect both reward-model learning and pacer
+co-adaptation, not reward-model learning alone.
 
 For each budget regime, two complementary views are produced:
 
@@ -249,7 +251,6 @@ def _create_router(
         warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
         prior_n_effective=prior_n_effective,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=forgetting_factor,
         budget_pacer=budget_pacer,
@@ -325,11 +326,13 @@ def _run_burnin_trial(
     # -- Pacer pre-calibration (budget-constrained conditions only) --
     # Route through the FULL val set using the initial policy (priors or
     # identity) and feed costs to the pacer, but do NOT update the bandit.
-    # This decouples pacer warm-up from reward-model burn-in so that all
-    # burn-in fractions start the trial with an identically calibrated
-    # lambda_t.  Without this, 0% burn-in would begin test with a cold
-    # pacer (lambda_t=0, cost_ema=target), confounding pacer calibration
-    # with reward learning.
+    # This ensures all burn-in fractions start with an identically
+    # calibrated lambda_t.  Without this, 0% burn-in would begin test
+    # with a cold pacer (lambda_t=0, cost_ema=target), trivially
+    # confounding pacer initialisation with reward learning.  Note: the
+    # pacer still co-adapts with the bandit during burn-in itself, so
+    # differences at the start of test reflect both reward-model and
+    # pacer adaptation.
     if budget_pacer is not None:
         calib_router = _create_router(
             registry,

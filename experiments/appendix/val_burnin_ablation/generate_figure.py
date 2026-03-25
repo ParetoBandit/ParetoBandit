@@ -155,6 +155,15 @@ def _figure_test_regret(data: Dict[str, Any]) -> None:
     print(f"Saved val_burnin_test_regret.pdf/.png to {RESULTS_DIR}")
 
 
+DISCUSSED_REGIMES = {"unconstrained", "tight", "moderate"}
+"""Budget regimes discussed in results_discussion.tex.
+
+Only these regimes appear in the figures.  If results exist for
+additional regimes (e.g. 'loose') they are still in the JSON but
+are excluded from the plots to avoid presenting undiscussed data.
+"""
+
+
 def _figure_budget_summary(data: Dict[str, Any]) -> None:
     """Budget-stratified 2×2 factorial with cost compliance.
 
@@ -173,6 +182,8 @@ def _figure_budget_summary(data: Dict[str, Any]) -> None:
     regime_targets: List[float | None] = []
 
     for regime_name, target in budget_regimes.items():
+        if regime_name not in DISCUSSED_REGIMES:
+            continue
         regime_labels.append(regime_name.capitalize())
         regime_targets.append(target)
         if regime_name == "unconstrained":

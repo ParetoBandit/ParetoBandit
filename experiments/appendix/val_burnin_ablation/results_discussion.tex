@@ -3,13 +3,20 @@
 \subsection{Validation Burn-In Ablation (Figures~\ref{fig:val_burnin_ablation}--\ref{fig:val_burnin_budget})}
 \label{appendix:val_burnin_ablation}
 
-The paper's standard evaluation protocol runs the bandit through the
-validation split ($n{=}1{,}785$) before evaluating on the held-out
-test split ($n{=}1{,}824$).  To verify that this burn-in does not
-artificially inflate test-set performance, we ablate the amount of
-validation data used for online learning before test evaluation
-\emph{across three budget regimes}: unconstrained, tight
-($B{=}\$3.0{\times}10^{-4}$/req), and moderate
+The validation split ($n{=}1{,}785$) serves two roles in the
+experimental pipeline: (i)~hyperparameter selection---$\alpha$,
+$\gamma$, and $n_\mathit{eff}$ are tuned on val via the
+T\textsubscript{adapt}-constrained Pareto knee-point method
+(Appendix~\ref{sec:hparam_optimization}), and (ii)~online learning
+---the bandit processes val prompts before the held-out test split
+($n{=}1{,}824$), providing reward-model burn-in and BudgetPacer
+calibration.  The first role is essential for preventing test-set
+contamination; the second is a consequence of the evaluation protocol,
+not its motivation.  A reviewer may nonetheless ask whether this
+incidental burn-in artificially inflates test-set performance.
+To answer, we ablate the amount of validation data used for online
+learning before test evaluation \emph{across three budget regimes}:
+unconstrained, tight ($B{=}\$3.0{\times}10^{-4}$/req), and moderate
 ($B{=}\$6.6{\times}10^{-4}$/req).
 
 \paragraph{Setup.}
@@ -20,19 +27,23 @@ $\gamma{=}0.997$); only the fraction of val used for burn-in varies
 100\% burn-in) use their own independently tuned hyperparameters
 ($\alpha{=}0.01$, $n_\mathit{eff}{=}1$, $\gamma{=}0.995$), selected
 via the same T\textsubscript{adapt}-constrained Pareto knee-point
-protocol.  All conditions are evaluated on the same held-out test
+protocol.
+\textbf{Cross-system caveat:} because warmup and tabula-rasa systems
+use independently tuned $\gamma$ (0.997 vs.\ 0.995, yielding effective
+memory of ${\sim}333$ vs.\ ${\sim}200$ steps), comparisons between
+the two reflect the difference between two jointly optimised
+configurations---not solely the presence of priors.
+Within-warmup comparisons (varying only burn-in fraction) are cleanly
+single-factor and constitute the primary evidence.
+All conditions are evaluated on the same held-out test
 split across 20 random seeds with paired Wilcoxon signed-rank tests
 against the 100\% burn-in warmup reference; $p$-values are
 Bonferroni-corrected within each budget regime.%
-\footnote{The oracle in this ablation is the quality-only oracle
-$\max_a r_a$ (i.e., it ignores cost).  This inflates absolute regret
-relative to the cost-adjusted oracle used in the main paper but does not
-affect relative comparisons between conditions, which is the ablation's
-purpose.  Because warmup and tabula-rasa systems use independently
-tuned $\gamma$ (0.997 vs.\ 0.995), cross-system comparisons reflect
-the difference between two optimised configurations, not solely the
-presence of priors.  Within-warmup comparisons (varying only burn-in
-fraction) are cleanly single-factor.}
+\footnote{The oracle in this ablation is the per-step quality-only
+oracle $\max_a r_a$ (i.e., it ignores cost).  Absolute regret values
+are therefore \emph{not} comparable to the cost-adjusted oracle used in
+the main paper's tables; only relative differences between conditions
+should be compared.}
 
 \paragraph{Unconstrained regime (Table~\ref{tab:val_burnin}).}
 Less burn-in yields \emph{lower} test regret for warmup conditions:
@@ -71,7 +82,10 @@ targets.  The BudgetPacer is \emph{pre-calibrated} on the full
 validation set: all prompts are routed under the initial policy and
 costs are fed to the pacer, but the bandit is \emph{not} updated.  All
 burn-in fractions therefore start with an identically calibrated
-$\lambda_t$.
+$\lambda_t$.  During the burn-in phase itself, however, the pacer
+continues to co-adapt alongside the bandit; differences between 0\%
+and 100\% burn-in at the start of test therefore reflect both
+reward-model learning \emph{and} pacer adaptation.
 
 \begin{itemize}[nosep,leftmargin=*]
   \item \emph{Tight budget: burn-in is a wash.}
@@ -113,7 +127,10 @@ The burn-in ablation reveals a \emph{regime-dependent} interaction:
 In no regime does burn-in artificially inflate test performance.
 The standard evaluation protocol (100\% val burn-in) is conservative
 for the unconstrained case and beneficial for the budget-paced cases
-that are the paper's main contribution.
+that are the paper's main contribution.  The validation split thus
+earns its place in the pipeline through hyperparameter selection and
+pacer calibration; the reward-model burn-in it provides is incidental
+and, in the unconstrained regime, mildly harmful.
 
 Together with the cold-start analysis
 (Appendix~\ref{sec:warmup_ablation}) and prior-mismatch sensitivity
@@ -151,6 +168,9 @@ evaluating routing systems under realistic budget constraints.
 \centering
 \caption{Validation burn-in ablation---unconstrained regime (20~seeds,
 held-out test split).
+\emph{Regret} is cumulative over all 1{,}824 test steps;
+\emph{R@200} is cumulative regret at test step~200 (an early-performance
+diagnostic).
 $\Delta$ is relative to the 100\% burn-in reference.
 Less burn-in yields lower regret because intact priors
 ($n_\mathit{eff}{=}1{,}163.9$, trained on 8{,}374 examples)
