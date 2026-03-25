@@ -58,6 +58,7 @@ Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set.
 \includegraphics[width=\textwidth]{../experiments/01_stationary_budget_pacing/results/budget_pacing.png}
 \caption{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget ceiling. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ ceiling. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
 \label{fig:pareto}
+\vspace{4pt}
 \end{figure*}
 
 \subsection{Budget Pacing under Cost Drift}
@@ -127,6 +128,7 @@ The Fixed Policy cannot adapt and continues routing traffic to the degraded mode
 \includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}
 \caption{Quality degradation dynamics (Normal $\to$ Mistral degradation at prompt~$\cfPhaseN$ $\to$ recovered at prompt~$2{\times}\cfPhaseN$; 20~seeds, 95\% bootstrap CI).  \textbf{(a)}~Gemini-Pro selection fraction: constrained budgets shift modestly; the unconstrained baseline shifts ${\sim}17$\,pp toward Gemini.  \textbf{(b)}~Windowed mean reward: all adaptive conditions detect the quality drop and recover in Phase~3.  \textbf{(c)}~Cost per request (dotted = budget ceilings): ParetoBandit tracks the ceiling throughout; cost stability confirms the degradation is invisible to the cost signal.}
 \label{fig:catastrophic_failure}
+\vspace{-10pt}
 \end{figure}
 
 \subsection{Cold-Start Model Onboarding}
@@ -148,4 +150,5 @@ The trade-off relative to offline characterisation is that ${\sim}1$\% of Phase~
 \includegraphics[width=\textwidth]{../experiments/04_model_onboarding/results/model_onboarding_cost.png}
 \caption{\input{../experiments/04_model_onboarding/figure_caption_cost.tex}}
 \label{fig:model_onboarding_cost}
+\vspace{4pt}
 \end{figure*}
