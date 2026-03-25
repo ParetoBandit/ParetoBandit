@@ -8,7 +8,7 @@ $\tilde{c}_a$ derived from each model's blended per-token rate rather than the
 realised per-request cost.  We validate this design choice by testing two
 necessary conditions: (i)~$\tilde{c}_a$ preserves the \emph{true cost ranking}
 across prompts, and (ii)~within-model cost variance is small relative to
-inter-model gaps in $\tilde{c}$-space.
+inter-model gaps in log-cost space.
 
 \paragraph{Blending assumption.}
 The heuristic blends input and output pricing with equal weight
@@ -17,34 +17,58 @@ across models and prompts, so the blended rate differs from the true per-request
 effective rate.  Because cost ranking depends only on the \emph{relative order}
 of effective rates and the log-normalization compresses the dynamic range,
 a simple average preserves the ranking whenever the price gap between models
-exceeds the variation introduced by differing output lengths—a condition
+exceeds the variation introduced by differing output lengths---a condition
 satisfied for models spanning at least one order of magnitude in pricing.
+Note that Llama-8B's blended rate (\$0.10/M tokens) coincides with the
+market cost floor, so $\tilde{c}_{\text{Llama}} = 0$ by construction;
+any model priced at or below the floor is treated as zero-cost in the
+utility computation.
 
-\paragraph{K=3 portfolio (\chNPromptsK{} val prompts).}
+\paragraph{K=3 portfolio (\chNPromptsK{} val prompts; sanity check).}
 The heuristic ordering Llama-8B $<$ Mistral-Large $<$ Gemini-Pro matches the
-per-request cost ordering on \chFullOrderK\% of prompts.  All three
-pairwise comparisons hold at ${\geq}$\chMinPairwiseK\%.
-In log-normalised $\tilde{c}$-space, the within-model standard deviation
-is \chStdFracRange\% of the total inter-model gap,
-confirming that prompt-level cost noise does not overwhelm the static
-heuristic signal.
+per-request cost ordering on \chFullOrderK\% of prompts
+(95\,\% Wilson CI: [\chFullOrderKCILo, \chFullOrderKCIHi]\%).
+All three pairwise comparisons hold at ${\geq}$\chMinPairwiseK\% under
+strict inequality, with zero ties observed.
+This result is unsurprising given the ${\sim}$500$\times$ cost span between
+the cheapest and most expensive arm (per-model CVs in \chCVRangeK),
+and serves primarily as a sanity check that the dataset is internally consistent.
 
-\paragraph{K=4 portfolio (\chNPromptsK{} val prompts, with Gemini-Flash).}
-Adding a fourth arm with similar pricing to an existing arm is a harder test.
-We re-use the same val split to isolate the effect of portfolio composition
-from prompt distribution.
+\paragraph{K=4 portfolio (\chNPromptsKFour{} val prompts, with Gemini-Flash).}
+Adding a fourth arm whose pricing overlaps an existing arm provides
+a harder test of the heuristic.
+The K=4 split contains \chNPromptsKFour{} of the \chNPromptsK{} val prompts;
+\chKFourMissing{} prompts are absent from the K=4 data file (excluded during
+Flash data collection, likely due to API refusals or empty responses).
 Gemini-Flash ($\tilde{c} = \chFlashCtilde$) is placed between Mistral-Large
 ($\tilde{c} = \chMistralCtilde$) and Gemini-Pro ($\tilde{c} = \chProCtilde$).
-The full ordering matches on \chFullOrderKFour\% of prompts; the closest
-pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on only \chMistralFlashPW\%
-of prompts, reflecting Flash's high cost variance (CV${} = \chFlashCV$) and the
-narrow inter-model gap ($\Delta\tilde{c} = \chMistralFlashGap$).
+The full ordering matches on \chFullOrderKFour\%
+(CI: [\chFullOrderKFourCILo, \chFullOrderKFourCIHi]\%) of prompts;
+the closest pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on
+\chMistralFlashPW\%
+(CI: [\chMistralFlashPWCILo, \chMistralFlashPWCIHi]\%;
+\chMistralFlashTies{} exact ties),
+reflecting Flash's high cost variance (CV${} = \chFlashCV$) and the
+narrow heuristic gap ($\Delta\tilde{c} = \chMistralFlashGap$).
+
+\paragraph{Log-cost separation.}
+To quantify tier separation without referencing the heuristic itself, we
+examine per-model distributions in $\log(\text{cost}_{\text{USD}})$ space.
+Within-model standard deviations are \chLogStdFracRange\% of the total
+inter-model log-cost range, confirming that prompt-level cost noise does not
+overwhelm tier separation.
+Cohen's $d$ for adjacent pairs ranges from \chMinCohensD{}
+(Mistral-Large $\to$ Gemini-Flash) to \chMaxCohensD{}
+(Llama-8B $\to$ Mistral-Large); the weakest separation corresponds to the
+only pair where the ranking inverts on ${\sim}$20\% of prompts.
 
 \paragraph{Prompt-cost correlation.}
-Spearman correlations between prompt word count and per-request cost are weak
-($\rho = \chCorrRange$), indicating that prompt features are poor predictors
-of model cost in this portfolio.  A contextual cost model would add complexity
-with minimal benefit.
+Spearman correlations between prompt word count and per-request cost are
+statistically significant but modest in magnitude
+($\rho = \chCorrRange$; all $p < 10^{-4}$).
+The explained variance ($\rho^2 < 7\%$) suggests that prompt-level features
+capture only a small fraction of cost variation, limiting the practical benefit
+of a contextual cost model in this portfolio.
 
 \paragraph{Cross-model cost correlation.}
 Per-request costs are moderately to strongly correlated across models
@@ -55,9 +79,27 @@ widely (CV = \chCVRangeKFour).
 \paragraph{Takeaway.}  The static $\tilde{c}_a$ heuristic is empirically
 well-calibrated for portfolios where models span at least one order of
 magnitude in pricing.  For denser price clusters (e.g., Mistral-Large
-vs.\ Gemini-Flash, where the heuristic gap is only
-$\Delta\tilde{c} = \chMistralFlashGap$),
+vs.\ Gemini-Flash, $d = \chMFCohensD$),
 the ranking holds for ${\sim}$\chMistralFlashPW\% of prompts but inverts when
-Flash generates short responses.  The budget pacer's dual variable $\lambda_t$,
-which updates on \emph{actual} costs, compensates for these per-request
-deviations from the static estimate.
+Flash generates unusually short responses.
+Three structural properties of the routing architecture limit the
+downstream impact of these inversions:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item $\tilde{c}_a$ enters \emph{only} the soft penalty
+        (Eq.~\ref{eq:budget_ucb}); the hard ceiling
+        and the budget pacer's EMA cost signal both operate on actual
+        per-request costs, so heuristic errors cannot cause budget
+        violations.
+  \item For closely priced arms, the absolute penalty gap
+        $(\lambda_c + \lambda_t)\,\Delta\tilde{c}$ is small.
+        At baseline ($\lambda_t{=}0$), the Mistral--Flash gap
+        contributes only $0.3 \times \chMistralFlashGap \approx 0.015$
+        to the score---negligible relative to the $[0,1]$ reward
+        signal that dominates arm selection.
+  \item The dual variable $\lambda_t$ updates on \emph{actual} costs
+        (Eq.~\ref{eq:dual_update}).  If heuristic error causes
+        persistent over-selection of a costly arm, the resulting
+        spending increase drives $\lambda_t$ upward, tightening
+        the cost penalty for all expensive arms until compliance
+        is restored.
+\end{enumerate}
