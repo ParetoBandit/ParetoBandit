@@ -53,12 +53,12 @@ We first ask: \emph{can the router accept a dollar budget directly and automatic
 
 Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set. Each fixed model occupies a single point: Llama at ($\bpFixedLlamaCost$, $\bpFixedLlamaReward$), Mistral at ($\bpFixedMistralCost$, $\bpFixedMistralReward$), Gemini at ($\bpFixedGeminiCost$, $\bpFixedGeminiReward$). The BudgetPacer traces a continuous curve through these points by dynamically mixing models based on prompt context and budget pressure. At a budget of $\bpAnnotBudget$/req, the router achieves $\bpAnnotQualPct$\% of Gemini quality at $\bpAnnotCostPct$\% of its cost by blending $\bpAnnotLlamaFrac$\% Llama and $\bpAnnotMistralFrac$\% Mistral. For binding targets, utilisation ranges from $\bpUtilBindingLow$ to $\bpUtilBindingHigh$. At unconstrained budgets, $\lambda_t \to 0$ and the pacer gracefully becomes a no-op, recovering $\bpCeilingOraclePct$\% of the per-prompt oracle quality ($\bpOracleReward$).
 
-\begin{figure*}[!t]
+\begin{strip}
 \centering
 \includegraphics[width=\textwidth]{../experiments/01_stationary_budget_pacing/results/budget_pacing.png}
-\caption{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget as the only input. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ target. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
+\captionof{figure}{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget as the only input. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ target. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
 \label{fig:pareto}
-\end{figure*}
+\end{strip}
 
 \subsection{Budget Pacing under Cost Drift}
 \label{sec:eval_nonstationary}
