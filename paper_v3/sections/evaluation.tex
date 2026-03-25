@@ -49,14 +49,14 @@ Loose    & $\$1.9{\times}10^{-3}$ & Selective Gemini \\
 \subsection{Stationary Budget Pacing}
 \label{sec:eval_stationary}
 
-We first ask: \emph{can the router accept a dollar budget directly and automatically achieve it, filling the quality--cost gaps between fixed single-model baselines?}
+We first ask: \emph{can the router accept a dollar budget ceiling and automatically maximize quality beneath it, filling the quality--cost gaps between fixed single-model baselines?}
 
-Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set. Each fixed model occupies a single point: Llama at ($\bpFixedLlamaCost$, $\bpFixedLlamaReward$), Mistral at ($\bpFixedMistralCost$, $\bpFixedMistralReward$), Gemini at ($\bpFixedGeminiCost$, $\bpFixedGeminiReward$). The BudgetPacer traces a continuous curve through these points by dynamically mixing models based on prompt context and budget pressure. At a budget of $\bpAnnotBudget$/req, the router achieves $\bpAnnotQualPct$\% of Gemini quality at $\bpAnnotCostPct$\% of its cost by blending $\bpAnnotLlamaFrac$\% Llama and $\bpAnnotMistralFrac$\% Mistral. For binding targets, utilisation ranges from $\bpUtilBindingLow$ to $\bpUtilBindingHigh$. At unconstrained budgets, $\lambda_t \to 0$ and the pacer gracefully becomes a no-op, recovering $\bpCeilingOraclePct$\% of the per-prompt oracle quality ($\bpOracleReward$).
+Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set. Each fixed model occupies a single point on this frontier, plotted as (mean cost per request, mean quality score): Llama at ($\bpFixedLlamaCost$, $\bpFixedLlamaReward$), Mistral at ($\bpFixedMistralCost$, $\bpFixedMistralReward$), Gemini at ($\bpFixedGeminiCost$, $\bpFixedGeminiReward$). The BudgetPacer traces a continuous curve through these points by dynamically mixing models based on prompt context and budget pressure. At a budget of $\bpAnnotBudget$/req, the router achieves $\bpAnnotQualPct$\% of Gemini quality at $\bpAnnotCostPct$\% of its cost by blending $\bpAnnotLlamaFrac$\% Llama and $\bpAnnotMistralFrac$\% Mistral. For binding ceilings, utilisation ranges from $\bpUtilBindingLow$ to $\bpUtilBindingHigh$. When the ceiling is high enough that cost never binds, the cost penalty $\lambda_t$ decays to zero and the router reduces to pure quality maximization, recovering $\bpCeilingOraclePct$\% of an oracle that selects the highest-scoring model for each prompt ($\bpOracleReward$). In practice, this turns model selection from a discrete choice among $K$ fixed operating points into a continuous budget dial: the operator sets a dollar ceiling, and the router discovers the best quality mix beneath it (Figure~\ref{fig:pareto}c).
 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/01_stationary_budget_pacing/results/budget_pacing.png}
-\caption{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget as the only input. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ target. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
+\caption{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget ceiling. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ ceiling. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
 \label{fig:pareto}
 \end{figure*}
 
@@ -66,17 +66,17 @@ Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set.
 We now evaluate whether the pacer automatically exploits a mid-stream price drop while maintaining compliance. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's pricing to \$0.10/M tokens (normalized cost $\tilde{c} \approx 0$); Phase~3 restores original pricing.
 
 \noindent\textbf{Budget compliance is the key differentiator.}
-Table~\ref{tab:budget_compliance} summarises cost/target ratios across all conditions and phases. ParetoBandit is the only condition that reliably hits the target in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance in Phase~3 ($\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$). The critical ablation is the Forgetting Bandit ($\gamma{=}\ppGamma$, no pacer), which shares ParetoBandit's learning dynamics yet produces consistently poor compliance ($\bdForgetTightPhaseOneRatio$ at tight Phase~1, $\bdForgetTightPhaseThreeRatio$ at tight Phase~3), confirming that the BudgetPacer---not the forgetting factor---drives budget control.
+Table~\ref{tab:budget_compliance} summarises cost/ceiling ratios across all conditions and phases. ParetoBandit is the only condition that reliably stays within the ceiling in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance in Phase~3 ($\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$). The critical ablation is the Forgetting Bandit ($\gamma{=}\ppGamma$, no pacer), which shares ParetoBandit's learning dynamics yet produces consistently poor compliance ($\bdForgetTightPhaseOneRatio$ at tight Phase~1, $\bdForgetTightPhaseThreeRatio$ at tight Phase~3), confirming that the BudgetPacer---not the forgetting factor---drives budget control.
 
 \noindent\textbf{Exploiting the price drop.}
-When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost change via its EMA signal. All three budget regimes show significant reward lifts ($\Delta{=}+\bdParetoBanditLooseRewardLift$ to $+\bdParetoBanditTightRewardLift$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding. Figure~\ref{fig:adaptation_dynamics} shows the dual-variable dynamics: $\lambda_t$ decays as costs fall below target, increasing Gemini adoption; in Phase~3, $\lambda_t$ rises and compliance recovers. This full round-trip---exploit, then recover---demonstrates bidirectional adaptation without operator intervention.
+When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost change via its EMA signal. All three budget regimes show significant reward lifts ($\Delta{=}+\bdParetoBanditLooseRewardLift$ to $+\bdParetoBanditTightRewardLift$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding. Figure~\ref{fig:adaptation_dynamics} shows the dual-variable dynamics: $\lambda_t$ decays as costs fall below the ceiling, increasing Gemini adoption; in Phase~3, $\lambda_t$ rises and compliance recovers. This full round-trip---exploit, then recover---demonstrates bidirectional adaptation without operator intervention.
 
 \begin{table}[t]
 \centering
 \caption{Budget compliance under cost drift (20~seeds).
-Each cell shows realised cost as a multiple of the target ($1.00{\times}$ = perfect).
-\textbf{Bold}: within 5\% of target.
-$\dagger$: Phase~2 constraint non-binding (price drop reduces all costs below target).}
+Each cell shows realised cost as a multiple of the ceiling ($1.00{\times}$ = at ceiling).
+\textbf{Bold}: within 5\% of ceiling.
+$\dagger$: Phase~2 constraint non-binding (price drop reduces all costs below ceiling).}
 \label{tab:budget_compliance}
 \small
 \resizebox{\columnwidth}{!}{%
@@ -116,7 +116,7 @@ We stress-test against a silent quality regression: Mistral-Large's reward drops
 \begin{figure}[!b]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/02_budget_plus_drift/results/adaptation_dynamics.png}
-\caption{Adaptation dynamics under cost drift. Normal pricing $\to$ Gemini price drop (step~609) $\to$ price restored (step~1217). $K{=}3$, 20~seeds, 95\% CI. The BudgetPacer exploits the price drop (Gemini adoption surges), then recovers compliance when pricing is restored.}
+\caption{Cost drift ($K{=}3$, 20~seeds, 95\% CI). Normal pricing $\to$ Gemini price drop at step~609 $\to$ price restored at step~1217. The BudgetPacer exploits the price drop (Gemini adoption surges), then recovers compliance when pricing is restored.}
 \label{fig:adaptation_dynamics}
 \end{figure}
 
@@ -125,16 +125,16 @@ The Fixed Policy cannot adapt and continues routing traffic to the degraded mode
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}
-\caption{Quality degradation dynamics (Normal $\to$ Mistral degradation at prompt~$\cfPhaseN$ $\to$ recovered at prompt~$2{\times}\cfPhaseN$; 20~seeds, 95\% bootstrap CI).  \textbf{(a)}~Gemini-Pro selection fraction: constrained budgets shift modestly; the unconstrained baseline shifts ${\sim}17$\,pp toward Gemini.  \textbf{(b)}~Windowed mean reward: all adaptive conditions detect the quality drop and recover in Phase~3.  \textbf{(c)}~Cost per request (dotted = budget targets): ParetoBandit tracks the target throughout; cost stability confirms the degradation is invisible to the cost signal.}
+\caption{Quality degradation dynamics (Normal $\to$ Mistral degradation at prompt~$\cfPhaseN$ $\to$ recovered at prompt~$2{\times}\cfPhaseN$; 20~seeds, 95\% bootstrap CI).  \textbf{(a)}~Gemini-Pro selection fraction: constrained budgets shift modestly; the unconstrained baseline shifts ${\sim}17$\,pp toward Gemini.  \textbf{(b)}~Windowed mean reward: all adaptive conditions detect the quality drop and recover in Phase~3.  \textbf{(c)}~Cost per request (dotted = budget ceilings): ParetoBandit tracks the ceiling throughout; cost stability confirms the degradation is invisible to the cost signal.}
 \label{fig:catastrophic_failure}
 \end{figure}
 
 \subsection{Cold-Start Model Onboarding}
 \label{sec:eval_onboarding}
 
-After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with no warmup priors. In the Good \& Cheap scenario, all 80 trials (20~seeds $\times$ 4~budget tiers) achieve sustained adoption within ${\sim}\ppAdoptionSteps$ steps. Budget determines the equilibrium share, not whether adoption occurs: loose budgets settle at ${\sim}\moGoodCheapPBLooseFlashFinalPct$\% Flash share while tight budgets plateau at ${\sim}\moGoodCheapPBTightFlashFinalPct$\%. The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without reconfiguration. A three-scenario design (Figure~\ref{fig:model_onboarding}) confirms that the bandit discriminates rather than blindly adopting: bad models are rejected after a bounded burn-in, and expensive models are budget-gated.
+After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with no warmup priors. Figure~\ref{fig:model_onboarding} shows Flash adoption across three scenario--budget combinations. In the Good \& Cheap scenario (Figure~\ref{fig:model_onboarding}a), all 80 trials (20~seeds $\times$ 4~budget tiers) achieve sustained adoption within ${\sim}\ppAdoptionSteps$ steps. Budget determines the equilibrium share, not whether adoption occurs: loose budgets settle at ${\sim}\moGoodCheapPBLooseFlashFinalPct$\% Flash share while tight budgets plateau at ${\sim}\moGoodCheapPBTightFlashFinalPct$\%. The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without reconfiguration (Figure~\ref{fig:model_onboarding_cost}). Crucially, the bandit discriminates rather than blindly adopting: expensive models are budget-gated (Figure~\ref{fig:model_onboarding}b) and bad models are rejected after a bounded burn-in (Figure~\ref{fig:model_onboarding}c).
 
-The trade-off relative to offline characterisation~\cite{ong2024routellm} is that ${\sim}1$\% of Phase~2 requests serve as online exploration, but adoption is automatically budget-gated and requires no paired preference data.
+The trade-off relative to offline characterisation is that ${\sim}1$\% of Phase~2 requests serve as online exploration, but adoption is automatically budget-gated and requires no paired preference data.
 
 \begin{figure*}[!t]
 \centering
