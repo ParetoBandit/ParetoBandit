@@ -1,12 +1,12 @@
 \section{Background and Problem}
 \label{sec:background}
 
-We formalize LLM routing as an online decision-making problem that must simultaneously learn which model to dispatch, enforce a dollar budget in closed loop, and adapt when model quality or pricing changes after deployment. This section defines the three components of the problem; Section~\ref{sec:system_design} presents our solution.
+We formalize LLM routing as an online decision-making problem in which the router learns which model to dispatch for each prompt, respects an operator-specified cost ceiling, and adapts when model quality or pricing shifts after deployment. This section defines the three components of the problem; Section~\ref{sec:system_design} presents our solution.
 
 \subsection{Contextual Bandit Routing}
 \label{sec:bandit_routing}
 
-At each discrete step $t = 1, 2, \ldots$, a user prompt arrives and the router observes a context vector $x_t \in \mathbb{R}^d$ representing its content. The router selects a single model $a_t$ from a portfolio $\mathcal{A} = \{1, \ldots, K\}$ and dispatches the prompt. After inference, the system observes a scalar reward $r_t$ reflecting response quality and a realized cost $c_t$ in dollars. The reward may be derived from an automated LLM judge, explicit user feedback, or a task-completion metric; in our setup it is a continuous score normalized to $[0, 1]$ by the judge rubric (Section~\ref{sec:eval_setup}). The objective is to learn a policy $\pi$ that maximizes cumulative quality subject to a constraint on average cost per request (detailed in Section~\ref{sec:budget_constraint}):
+At each discrete step $t = 1, 2, \ldots$, a user prompt arrives and the router observes a context vector $x_t \in \mathbb{R}^d$ derived from the prompt (Section~\ref{sec:context_repr}). The router selects a single model $a_t$ from a portfolio $\mathcal{A} = \{1, \ldots, K\}$ and dispatches the prompt. After inference, the system observes a scalar reward $r_t$ reflecting response quality and a realized cost $c_t$ in dollars. The reward may be derived from an automated LLM judge, explicit user feedback, or a task-completion metric; in our setup it is a continuous score normalized to $[0, 1]$ by the judge rubric (Section~\ref{sec:eval_setup}). The objective is to learn a policy $\pi$ that maximizes cumulative quality subject to a ceiling on average cost per request (detailed in Section~\ref{sec:budget_constraint}):
 \begin{align}
     &\max_{\pi}\; \mathbb{E}\!\left[\sum_{t=1}^{T} r_{t,\,\pi(x_t)}\right]
     \label{eq:objective} \\
@@ -14,9 +14,9 @@ At each discrete step $t = 1, 2, \ldots$, a user prompt arrives and the router o
     \limsup_{T \to \infty}\;\tfrac{1}{T}\textstyle\sum_{t=1}^{T} c_{\pi(x_t)} \leq B
     \notag
 \end{align}
-where $B$ is the operator's target average cost per request in dollars (e.g., \$0.005/req). We relax this via a per-request Lagrange multiplier $\lambda_t$ whose scoring function and dynamics are detailed in Section~\ref{sec:budget_pacer}.
+where $B$ is the operator's maximum acceptable average cost per request in dollars (e.g., \$0.005/req). The router may spend well below $B$ when cheaper models deliver comparable quality; it approaches the ceiling only when doing so yields a meaningful quality gain. We relax this via a per-request Lagrange multiplier $\lambda_t$ whose scoring function and dynamics are detailed in Section~\ref{sec:budget_pacer}.
 
-The router operates under \emph{bandit feedback}~\cite{lattimore2020bandit}: it observes the reward and cost only for the model it dispatched, never the counterfactual outcomes for the $K{-}1$ alternatives. This partial observability is inherent to LLM serving, where evaluating every model on every prompt would multiply cost by $K$.
+The router operates under \emph{bandit feedback}~\cite{lattimore2020bandit}: it observes the reward and cost only for the model to which a query was routed, never the counterfactual outcomes from the $K{-}1$ alternatives. This partial observability is inherent to LLM serving, where evaluating every model on every prompt would multiply cost by $K$.
 
 \subsection{Context Representation}
 \label{sec:context_repr}
