@@ -9,8 +9,8 @@ ParetoBandit's core hyperparameters---exploration coefficient
 $\alpha$, prior strength $n_{\text{eff}}$, and forgetting factor
 $\gamma$---interact non-trivially with stationarity.
 Standard cross-validation optimises a single stationary metric,
-which selects $\gamma \geq 0.999$ because forgetting always hurts
-stationary performance.  However, $\gamma{=}1.0$ fails under
+which selects $\gamma \geq 0.999$ because forgetting reduces the
+effective sample size under stationarity.  However, $\gamma{=}1.0$ fails under
 non-stationarity (Section~\ref{sec:eval_catastrophic}: infinite memory
 retains stale pre-failure evidence, slowing adaptation to quality
 degradation), while optimising solely for adaptability
@@ -27,10 +27,7 @@ retraining.  In the general bandit literature,
 CDT~\cite{kang2024cdt} tunes $\alpha$ online but remains
 single-objective and does not tune $\gamma$, while
 Garivier and Moulines~\cite{garivier2011switching} derive $\gamma$
-from the number of breakpoints---unknown in production.
-To our knowledge, no prior work proposes a multi-objective protocol
-for jointly selecting $(\alpha, n_{\text{eff}}, \gamma)$ to balance
-stationary efficiency against non-stationary recovery.
+from the number of breakpoints that are unknown in production.
 
 \paragraph{Adaptation-horizon coupling.}
 Rather than treating $\alpha$, $n_{\text{eff}}$, and $\gamma$ as three
@@ -79,7 +76,7 @@ configuration on two objectives:
     two-phase simulation on the validation split---Phase~1 (first
     half) with normal rewards, Phase~2 (second half) with the failed
     arm's reward degraded to $0.50$ (${\sim}46$\% below normal) while cost remains unchanged.
-    A stronger degradation than Experiment~3's $\cfFailureReward$ is used because the tuning objective needs to discriminate gamma values on detection speed from the reward signal alone; the recovery limit study (Appendix~\ref{appendix:recovery_limit}) confirms the system handles degradations well beyond this level.
+    A stronger degradation than Experiment~3's $\cfFailureReward$ is used so that the selected configuration can detect degradations up to this severity; the recovery limit study (Appendix~\ref{appendix:recovery_limit}) confirms the system handles degradations well beyond this level.
     Mean Phase-2 reward captures how quickly the router detects the
     failure and reallocates traffic.
     We tune on Mistral failure, the most operationally stressful
@@ -108,11 +105,11 @@ of the other; unlike scalarisation weights or
 $\epsilon$-constraints, it requires no user-specified trade-off
 parameter.
 Seed-level bootstrap resampling (\hpBootNIter{} iterations)
-confirms the selection is stable: the knee configuration is
-chosen in \hpBootKneeFreq\% of resamples, and a configuration
-within one $\gamma$-grid step in \hpBootNeighborFreq\%
-(only \hpBootNUnique{} unique configurations appear across all
-resamples).
+confirms the selection is concentrated: \hpBootNeighborFreq\% of
+resamples select a configuration within one $\gamma$-grid step of
+the knee point (only \hpBootNUnique{} unique configurations appear
+across all resamples), with the knee itself chosen in
+\hpBootKneeFreq\%, the modal selection by a wide margin.
 
 \paragraph{Results.}
 Table~\ref{tab:hparam_selection} compares the knee-point selection
@@ -160,29 +157,27 @@ and Tabula Rasa (cold start).
 The contrast between the two selection methods is stark.
 AUC-only optimisation selects $\gamma{=}1.0$ (no forgetting) for
 both variants, converging on the stationary optimum that
-Section~\ref{sec:eval_nonstationary} shows is catastrophic under
-drift.
+Section~\ref{sec:eval_catastrophic} shows is catastrophic under
+quality degradation.
 The knee-point method instead selects moderate forgetting for
 \emph{both} variants---$\gamma{=}\hpParetoBanditGamma$ for
 ParetoBandit and $\gamma{=}\hpTabulaGamma$ for Tabula
 Rasa---trading ${\sim}\hpAUCSacrifice\%$ of stationary AUC
 (ParetoBandit) for substantially improved failure resilience.
 
-The selected configurations generalise to the held-out test split
-with val-to-test deltas of $\hpParetoBanditTestDelta\%$
-(ParetoBandit) and $\hpTabulaTestDelta\%$ (Tabula Rasa)---both
+The selected configurations generalise to the held-out test split.
+Val-to-test deltas are $\hpParetoBanditTestDelta\%$ for
+ParetoBandit and $\hpTabulaTestDelta\%$ for Tabula Rasa, both
 within one standard deviation of seed variance
-($\pm\hpParetoBanditTestStd$ and $\pm\hpTabulaTestStd$),
-confirming the offline protocol does not overfit.
-Compared to the fixed-model envelope ($\hpFixedTestAUC$),
-ParetoBandit reaches $\hpParetoBanditTestAUC$---only
-${\sim}0.2\%$ below---despite carrying a forgetting rate
-designed for non-stationary recovery.
-The forgetting tax under stationarity is therefore negligible:
-the router pays almost nothing for its insurance against
-non-stationarity.
-Warmup priors close roughly half the remaining gap, with
-ParetoBandit at $\hpParetoBanditTestAUC$ versus
+($\pm\hpParetoBanditTestStd$ and $\pm\hpTabulaTestStd$
+respectively), confirming the offline protocol does not overfit.
+The forgetting tax under stationarity is negligible:
+ParetoBandit reaches $\hpParetoBanditTestAUC$ on the test split,
+only ${\sim}0.2\%$ below the fixed-model envelope
+($\hpFixedTestAUC$), despite carrying a forgetting rate designed
+for non-stationary recovery.
+Warmup priors close roughly half the remaining gap to the
+envelope, with ParetoBandit at $\hpParetoBanditTestAUC$ versus
 $\hpTabulaTestAUC$ for Tabula Rasa.
 
 \paragraph{Cross-arm validation.}
@@ -229,31 +224,39 @@ Gemini-Pro           & $\hpCrossArmGeminiPTwo$  & $\pm\hpCrossArmGeminiStd$ \\
 Three findings stand out from the joint selection:
 
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Adaptation-horizon coupling eliminates a
-    hyperparameter.}
-    Deriving $n_{\text{eff}}$ from $T_{\text{adapt}}$ collapses
-    the 3D grid to 2D $(\alpha, \gamma)$, replacing two abstract
-    statistical quantities with a single deployment-meaningful
-    knob: the shortest acceptable reaction time.
+  \item \textbf{$T_{\text{adapt}}$ reduces the search from 3D to 2D.}
+    Deriving $n_{\text{eff}}$ from the adaptation horizon
+    $T_{\text{adapt}}$ (Eq.~\ref{eq:t_adapt}) collapses the
+    $(\alpha, n_{\text{eff}}, \gamma)$ grid to
+    $(\alpha, \gamma)$.  The practitioner sets one
+    deployment-meaningful quantity, the shortest acceptable
+    reaction time, instead of two abstract statistical parameters.
 
-  \item \textbf{The knee point selects forgetting where a threshold
-    would not.}
-    An $\epsilon$-best-AUC threshold would lock Tabula Rasa to
-    $\gamma{=}1.0$; the knee-point criterion instead detects the
-    inflection where the marginal AUC cost of additional forgetting
-    accelerates, selecting $\gamma{=}\hpTabulaGamma$ despite its
-    steeper trade-off curve.
+  \item \textbf{Knee-point selection enables forgetting that
+    threshold methods miss.}
+    An $\epsilon$-best-AUC threshold would select $\gamma{=}1.0$
+    for Tabula Rasa because every $\gamma < 1$ falls outside
+    the tolerance band.  The knee-point criterion instead
+    identifies where the marginal AUC cost of additional
+    forgetting accelerates, selecting
+    $\gamma{=}\hpTabulaGamma$ even on the steeper trade-off
+    curve.
 
-  \item \textbf{Warmup priors are the structural enabler.}
+  \item \textbf{Warmup priors and forgetting are synergistic.}
     ParetoBandit dominates Tabula Rasa on both objectives
     ($\hpParetoBanditAUC$ vs.\ $\hpTabulaAUC$ AUC;
     $\hpParetoBanditPTwoReward$ vs.\ $\hpTabulaPTwoReward$
     Phase-2 reward).
-    The mechanism is exponential discounting: as online evidence is
-    down-weighted, the estimate regresses toward its prior---toward
-    ignorance $(\lambda I, \mathbf{0})$ for Tabula Rasa, but toward
-    $\hpParetoBanditNeff$ informative pseudo-observations per arm
-    for ParetoBandit.
+    Forgetting ($\gamma < 1$) down-weights all past evidence,
+    including the prior embedded in the sufficient statistics at
+    initialisation.
+    For Tabula Rasa the decayed prior is uninformative
+    $(\lambda I, \mathbf{0})$; for ParetoBandit it retains the
+    structure of the warmup characterisation, providing a
+    better-than-ignorance fallback even after substantial decay.
+    Warmup priors therefore matter \emph{more} when forgetting
+    is active, because they determine the fallback the router
+    reverts to after a disruption.
     Cross-arm validation (Table~\ref{tab:cross_arm_validation})
     confirms that this advantage generalises to all arms.
 \end{enumerate}
@@ -270,6 +273,6 @@ simulation, the entire protocol runs on a static validation
 split---safe, offline, and repeatable.
 The empirical result that single-objective tuning selects
 $\gamma{=}1.0$ for \emph{all} variants is itself a cautionary
-finding: standard cross-validation converges on no forgetting,
+finding: standard cross-validation often converges on no forgetting,
 leaving the router with zero protection against
 non-stationarity.
