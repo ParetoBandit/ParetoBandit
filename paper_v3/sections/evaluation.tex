@@ -33,9 +33,9 @@ Experiments 2--3 follow a three-phase stress-test: normal operation (608 prompts
 \toprule
 \textbf{Model} & \textbf{Tier} & \textbf{Cost (\$/req)} \\
 \midrule
-Llama-3.1-8B   & Budget   & \$0.00003 \\
-Mistral-Large  & Mid-cost & \$0.003 \\
-Gemini-2.5-Pro & Frontier & \$0.015 \\
+Llama-3.1-8B   & Budget   & $\$2.9{\times}10^{-5}$ \\
+Mistral-Large  & Mid-cost & $\$5.3{\times}10^{-4}$ \\
+Gemini-2.5-Pro & Frontier & $\$1.5{\times}10^{-2}$ \\
 \midrule
 \textbf{Budget} & \textbf{Target $B$} & \textbf{Regime} \\
 \midrule
@@ -66,10 +66,10 @@ Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set.
 We now evaluate whether the pacer automatically exploits a mid-stream price drop while maintaining compliance. Phase~1 uses normal pricing; Phase~2 drops Gemini-2.5-Pro's pricing to \$0.10/M tokens (normalized cost $\tilde{c} \approx 0$); Phase~3 restores original pricing.
 
 \paragraph{Budget compliance is the key differentiator.}
-Table~\ref{tab:budget_compliance} summarises cost/target ratios across all conditions and phases. ParetoBandit is the only condition that reliably hits the target in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance in Phase~3 ($\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$). The Fixed Policy is wildly inconsistent ($\bdFixedTightPhaseOneRatio$ at tight, $\bdFixedLoosePhaseOneRatio$ at loose). The Naive Bandit similarly fails ($\bdNaiveTightPhaseOneRatio$--$\bdNaiveLoosePhaseOneRatio$). The Forgetting Bandit ($\gamma{=}0.997$, no pacer) is the critical ablation: it shares ParetoBandit's learning dynamics but produces the \emph{worst} compliance ($\bdForgetTightPhaseOneRatio$ at tight Phase~1, $\bdForgetTightPhaseThreeRatio$ at tight Phase~3), confirming that the BudgetPacer, not the forgetting factor, drives budget compliance.
+Table~\ref{tab:budget_compliance} summarises cost/target ratios across all conditions and phases. ParetoBandit is the only condition that reliably hits the target in Phase~1 ($\bdParetoBanditLoosePhaseOneRatio$--$\bdParetoBanditTightPhaseOneRatio$) and recovers compliance in Phase~3 ($\bdParetoBanditLoosePhaseThreeRatio$--$\bdParetoBanditTightPhaseThreeRatio$). The Fixed Policy is far from the target ($\bdFixedTightPhaseOneRatio$ at tight, $\bdFixedLoosePhaseOneRatio$ at loose). The Naive Bandit also misses compliance ($\bdNaiveTightPhaseOneRatio$ at tight to $\bdNaiveLoosePhaseOneRatio$ at loose). The Forgetting Bandit ($\gamma{=}0.997$, no pacer) is the critical ablation: it shares ParetoBandit's learning dynamics yet produces the most consistently poor compliance ($\bdForgetTightPhaseOneRatio$ at tight Phase~1, $\bdForgetTightPhaseThreeRatio$ at tight Phase~3), confirming that the BudgetPacer---not the forgetting factor---drives budget compliance.
 
 \paragraph{Exploiting the price drop.}
-When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost change via its EMA signal. All three budget regimes show significant reward lifts ($\Delta{=}+\bdParetoBanditLooseRewardLift$ to $+\bdParetoBanditTightRewardLift$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding. Figure~\ref{fig:adaptation_dynamics} shows the dual-variable dynamics: $\lambda_t$ decays as costs fall below target, increasing Gemini adoption; in Phase~3, $\lambda_t$ rises and compliance recovers. This full round-trip demonstrates symmetric adaptation without operator intervention.
+When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost change via its EMA signal. All three budget regimes show significant reward lifts ($\Delta{=}+\bdParetoBanditLooseRewardLift$ to $+\bdParetoBanditTightRewardLift$; $p < 10^{-3}$), with the tight budget exhibiting the largest gain because its Phase~1 constraint was most binding. Figure~\ref{fig:adaptation_dynamics} shows the dual-variable dynamics: $\lambda_t$ decays as costs fall below target, increasing Gemini adoption; in Phase~3, $\lambda_t$ rises and compliance recovers. This full round-trip---exploit, then recover---demonstrates bidirectional adaptation without operator intervention.
 
 \begin{table}[t]
 \centering
@@ -86,23 +86,23 @@ $\dagger$: Phase~2 constraint non-binding (price drop reduces all costs below ta
   & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
 \multirow{5}{*}{\shortstack[l]{Tight\\($\$3.0{\times}10^{-4}$)}}
-  & Fixed Policy        & $0.53{\times}$ & $0.89{\times}^{\dagger}$ & $0.53{\times}$ \\
-  & Naive Bandit        & $0.78{\times}$ & $0.89{\times}^{\dagger}$ & $0.83{\times}$ \\
-  & Recalibrated        & $0.78{\times}$ & $\mathbf{1.01{\times}}$ & $1.24{\times}$ \\
-  & Forgetting Bandit   & $2.00{\times}$ & $0.87{\times}^{\dagger}$ & $4.78{\times}$ \\
-  & \textbf{ParetoBandit} & $\mathbf{1.00{\times}}$ & $\mathbf{0.95{\times}}$ & $\mathbf{1.01{\times}}$ \\[3pt]
+  & Fixed Policy        & $0.79{\times}$ & $0.89{\times}^{\dagger}$ & $0.79{\times}$ \\
+  & Naive Bandit        & $1.07{\times}$ & $0.89{\times}^{\dagger}$ & $1.09{\times}$ \\
+  & Recalibrated        & $1.07{\times}$ & $\mathbf{0.99{\times}}$ & $1.44{\times}$ \\
+  & Forgetting Bandit   & $2.62{\times}$ & $0.88{\times}^{\dagger}$ & $5.50{\times}$ \\
+  & \textbf{ParetoBandit} & $\mathbf{1.01{\times}}$ & $\mathbf{0.95{\times}}$ & $\mathbf{1.04{\times}}$ \\[3pt]
 \multirow{5}{*}{\shortstack[l]{Moderate\\($\$6.6{\times}10^{-4}$)}}
-  & Fixed Policy        & $0.49{\times}$ & $0.40{\times}^{\dagger}$ & $0.49{\times}$ \\
-  & Naive Bandit        & $0.54{\times}$ & $0.40{\times}^{\dagger}$ & $0.54{\times}$ \\
-  & Recalibrated        & $0.54{\times}$ & $0.45{\times}^{\dagger}$ & $1.40{\times}$ \\
-  & Forgetting Bandit   & $1.21{\times}$ & $0.41{\times}^{\dagger}$ & $3.53{\times}$ \\
-  & \textbf{ParetoBandit} & $\mathbf{0.99{\times}}$ & $\mathbf{0.64{\times}}^{\dagger}$ & $\mathbf{1.00{\times}}$ \\[3pt]
+  & Fixed Policy        & $0.55{\times}$ & $0.40{\times}^{\dagger}$ & $0.55{\times}$ \\
+  & Naive Bandit        & $0.57{\times}$ & $0.40{\times}^{\dagger}$ & $0.61{\times}$ \\
+  & Recalibrated        & $0.57{\times}$ & $0.44{\times}^{\dagger}$ & $2.14{\times}$ \\
+  & Forgetting Bandit   & $1.50{\times}$ & $0.43{\times}^{\dagger}$ & $4.13{\times}$ \\
+  & \textbf{ParetoBandit} & $\mathbf{0.99{\times}}$ & $0.65{\times}^{\dagger}$ & $\mathbf{1.00{\times}}$ \\[3pt]
 \multirow{5}{*}{\shortstack[l]{Loose\\($\$1.9{\times}10^{-3}$)}}
-  & Fixed Policy        & $2.75{\times}$ & $0.14{\times}^{\dagger}$ & $2.75{\times}$ \\
-  & Naive Bandit        & $2.48{\times}$ & $0.14{\times}^{\dagger}$ & $2.72{\times}$ \\
-  & Recalibrated        & $2.48{\times}$ & $0.17{\times}^{\dagger}$ & $0.56{\times}$ \\
-  & Forgetting Bandit   & $2.61{\times}$ & $0.17{\times}^{\dagger}$ & $4.43{\times}$ \\
-  & \textbf{ParetoBandit} & $\mathbf{0.94{\times}}$ & $\mathbf{0.23{\times}}^{\dagger}$ & $\mathbf{0.94{\times}}$ \\[3pt]
+  & Fixed Policy        & $3.28{\times}$ & $0.14{\times}^{\dagger}$ & $3.28{\times}$ \\
+  & Naive Bandit        & $3.07{\times}$ & $0.14{\times}^{\dagger}$ & $3.26{\times}$ \\
+  & Recalibrated        & $3.07{\times}$ & $0.17{\times}^{\dagger}$ & $0.94{\times}$ \\
+  & Forgetting Bandit   & $3.08{\times}$ & $0.17{\times}^{\dagger}$ & $4.93{\times}$ \\
+  & \textbf{ParetoBandit} & $\mathbf{0.96{\times}}$ & $0.23{\times}^{\dagger}$ & $\mathbf{0.95{\times}}$ \\[3pt]
 \bottomrule
 \end{tabular}%
 }
@@ -121,11 +121,11 @@ We stress-test against a silent quality regression: Mistral-Large's reward drops
 \end{figure}
 
 \paragraph{Results (Figure~\ref{fig:catastrophic_failure}).}
-The Fixed Policy cannot adapt and continues routing traffic to the degraded model unchanged.  ParetoBandit detects the quality drop purely through the reward signal, reducing Mistral allocation from $\cfParetoBanditModMistralPhaseOne$\% to $\cfParetoBanditModMistralPhaseTwo$\% in Phase~2 at moderate budget.  In Phase~3, geometric forgetting erases the corrupted estimates and staleness-driven exploration re-discovers Mistral, raising allocation to $\cfParetoBanditModMistralPhaseThree$\% and recovering Phase~3 reward to $\cfParetoBanditModPhaseThreeReward$ (vs.\ Phase~1 $\cfParetoBanditModPhaseOneReward$, a ${\sim}97.5$\% recovery ratio).  Budget compliance holds throughout ($0.95$--$1.00{\times}$ across all nine phase--budget cells).  The unconstrained baseline is unaffected (Phase~2 reward $\cfUncPhaseTwoReward$ vs.\ Phase~1 $\cfUncPhaseOneReward$) but incurs a $\cfUncCostSpikePct$\% cost increase from over-allocating to Gemini.  This ${\sim}18$\% degradation lies within the system's recovery envelope; Appendix~\ref{appendix:recovery_limit} characterises the threshold beyond which recovery requires an extended horizon.
+The Fixed Policy cannot adapt and continues routing traffic to the degraded model unchanged.  ParetoBandit detects the quality drop purely through the reward signal, reducing Mistral allocation from $\cfParetoBanditModMistralPhaseOne$\% to $\cfParetoBanditModMistralPhaseTwo$\% in Phase~2 at moderate budget.  In Phase~3, geometric forgetting down-weights the corrupted estimates and staleness-driven exploration begins re-exploring Mistral, raising allocation to $\cfParetoBanditModMistralPhaseThree$\% and recovering Phase~3 reward to $\cfParetoBanditModPhaseThreeReward$ (vs.\ Phase~1 $\cfParetoBanditModPhaseOneReward$, a ${\sim}97.5$\% recovery ratio).  Budget compliance holds throughout ($0.95$--$1.00{\times}$ across all nine phase--budget cells).  The unconstrained baseline is unaffected (Phase~2 reward $\cfUncPhaseTwoReward$ vs.\ Phase~1 $\cfUncPhaseOneReward$) but incurs a $\cfUncCostSpikePct$\% cost increase from over-allocating to Gemini.  This ${\sim}18$\% degradation lies within the system's recovery envelope; Appendix~\ref{appendix:recovery_limit} characterises the threshold beyond which recovery requires an extended horizon.
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}
-\caption{Quality degradation dynamics (Normal $\to$ Mistral degradation at prompt~\cfPhaseN{} $\to$ recovered at prompt~$2{\times}$\cfPhaseN; 20~seeds, 95\% bootstrap CI).  \textbf{(a)}~Gemini-Pro selection fraction: constrained budgets shift modestly; the unconstrained baseline shifts ${\sim}15$\,pp toward Gemini.  \textbf{(b)}~Windowed mean reward: all adaptive conditions detect the quality drop and recover in Phase~3.  \textbf{(c)}~Cost per request (dotted = budget targets): ParetoBandit tracks the target throughout; cost stability confirms the degradation is invisible to the cost signal.}
+\caption{Quality degradation dynamics (Normal $\to$ Mistral degradation at prompt~$\cfPhaseN$ $\to$ recovered at prompt~$2{\times}\cfPhaseN$; 20~seeds, 95\% bootstrap CI).  \textbf{(a)}~Gemini-Pro selection fraction: constrained budgets shift modestly; the unconstrained baseline shifts ${\sim}15$\,pp toward Gemini.  \textbf{(b)}~Windowed mean reward: all adaptive conditions detect the quality drop and recover in Phase~3.  \textbf{(c)}~Cost per request (dotted = budget targets): ParetoBandit tracks the target throughout; cost stability confirms the degradation is invisible to the cost signal.}
 \label{fig:catastrophic_failure}
 \end{figure}
 
@@ -134,7 +134,7 @@ The Fixed Policy cannot adapt and continues routing traffic to the degraded mode
 
 After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with no warmup priors. Across all 80 trials (20~seeds $\times$ 4~budget tiers), Flash achieves sustained adoption within ${\sim}230$ steps. Budget determines adoption speed, not whether adoption occurs: loose budgets reach ${\sim}38$\% Flash share while tight budgets plateau at ${\sim}14$\%. The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without reconfiguration. Flash primarily displaces Mistral-Large ($-22.9$\,pp at moderate budget), taking over the mid-cost quality niche at lower cost. A three-scenario design (Figure~\ref{fig:model_onboarding}) confirms that the bandit discriminates rather than blindly adopting: bad models are rejected after a bounded burn-in, and expensive models are budget-gated.
 
-This online onboarding mechanism contrasts with the offline characterisation used by matrix-factorisation routers such as RouteLLM~\cite{ong2024routellm}, which evaluate each new model on ${\sim}20$--$50$ curated benchmark prompts before deployment. The MF approach pays its exploration cost offline but produces a single latent embedding per model that cannot capture prompt-context-dependent quality variation, is disconnected from budget constraints, and is frozen after characterisation---requiring re-benchmarking if model quality drifts. ParetoBandit instead learns a full contextual reward surface ($\hat\theta_a \in \mathbb{R}^d$) from live traffic, integrates exploration with the budget pacer so that adoption is automatically budget-gated, and continues adapting via geometric forgetting. The trade-off is that the ${\sim}20$-step forced burn-in and subsequent UCB exploration are visible to production traffic ($1.1$\% of Phase~2 requests), whereas MF benchmarking is invisible to end users.
+This online onboarding mechanism contrasts with the offline characterisation used by matrix-factorisation routers such as RouteLLM~\cite{ong2024routellm}, which require paired preference data for each new model before deployment. The MF approach pays its exploration cost offline but produces a single latent embedding per model that cannot capture prompt-context-dependent quality variation, is disconnected from budget constraints, and is frozen after characterisation---requiring re-benchmarking if model quality drifts. ParetoBandit instead learns a full contextual reward surface ($\hat\theta_a \in \mathbb{R}^d$) from live traffic, integrates exploration with the budget pacer so that adoption is automatically budget-gated, and continues adapting via geometric forgetting. The trade-off is that the forced burn-in and subsequent UCB exploration are visible to production traffic (${\sim}1$\% of Phase~2 requests), whereas MF benchmarking is invisible to end users.
 
 \begin{figure*}[!t]
 \centering
