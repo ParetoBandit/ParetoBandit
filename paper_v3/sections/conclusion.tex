@@ -1,39 +1,22 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting. Across four experiments on a three-model portfolio (extended to four models at runtime), the system keeps per-request cost within ${\sim}5$\% of the target for every binding budget constraint, filling the quality--cost gaps between fixed single-model baselines. Under cost drift, the budget pacer autonomously exploits a price drop and recovers compliance when pricing is restored. Under silent quality degradation, ParetoBandit detects the regression, redistributes traffic, and holds budget compliance throughout---while baselines that learn but lack closed-loop cost control overshoot by up to $7.0{\times}$. Cold-start onboarding of the fourth model proceeds without reconfiguration, with the budget pacer maintaining compliance through the portfolio transition. As organizations increasingly operate multi-provider LLM portfolios subject to volatile pricing and unannounced quality shifts, closed-loop cost control becomes a practical necessity; these results suggest that bandit-driven routing with integrated budget pacing can address that need without manual intervention.
+We presented ParetoBandit, an adaptive LLM routing system that integrates cost-aware contextual bandits with online budget pacing and geometric forgetting. Across four experiments the system keeps per-request cost within ${\sim}5$\% of the target for every binding budget. Under cost drift it autonomously exploits a price drop and recovers compliance when pricing is restored; under silent quality degradation it detects the regression, redistributes traffic, and holds budget---while baselines without closed-loop cost control overshoot by up to $7.0{\times}$. Cold-start model onboarding proceeds without reconfiguration. As multi-provider LLM portfolios become the norm, these results suggest that bandit-driven routing with integrated budget pacing can deliver closed-loop cost control without manual intervention.
 
-\paragraph{Limitations and future work.}
-Six limitations merit discussion, each pointing toward a concrete extension of the current framework.
+\paragraph{Limitations.}
+Six limitations scope the current contribution.
+\emph{(i)~Offline evaluation:} all experiments use a fixed reward matrix with injected non-stationarity; live deployment would add stochastic feedback delays and distribution shift.
+\emph{(ii)~Deterministic rewards:} we evaluate with LLM-judge scores; the noise and sparsity of human-in-the-loop feedback remain untested.
+\emph{(iii)~Rate vs.\ aggregate budget:} $B$ is a per-request rate, so traffic spikes can exceed an aggregate dollar cap even while per-request compliance holds.
+\emph{(iv)~Onboarding exploration cost:} online model discovery exposes a bounded burn-in cost to production traffic.
+\emph{(v)~No latency awareness:} the current formulation does not model downstream inference latency or endpoint congestion.
+\emph{(vi)~Cost-only constraint:} ParetoBandit constrains cost and maximizes quality, but some deployments require the dual formulation---minimizing cost subject to a quality floor.
 
-\emph{(i)~Offline evaluation.}
-Our evaluation relies on a fixed offline reward matrix with non-stationarity injected via phase-boundary permutations; live deployment would introduce additional stochastic feedback delays and distribution shift.
-The cached context-vector architecture (Section~\ref{sec:architecture}) already supports asynchronous reward ingestion, making shadow routing or interleaved A/B evaluation a natural next step that requires engineering effort but no algorithmic changes.
-
-\emph{(ii)~Human-in-the-loop rewards.}
-Although the architecture supports delayed human feedback, all experiments use deterministic LLM-judge scores; we have not evaluated the system under the noise, subjectivity, and sparsity characteristic of human-in-the-loop rewards.
-Sparse labeling interacts with geometric forgetting: the effective sample size per arm may shrink faster than new labels replenish it, potentially destabilizing reward estimates.
-Two mitigations are straightforward within the current design: adapting $\gamma$ to the label arrival rate (slowing forgetting when feedback is sparse) and imputing pseudo-labels from the current $\hat\theta_a$ at reduced weight to prevent the sufficient statistics from decaying during label gaps.
-
-\emph{(iii)~Rate constraint vs.\ aggregate budget.}
-Because $B$ is a \emph{per-request} rate constraint, total expenditure scales as $B \times N$, so a traffic spike can exceed an aggregate dollar budget even while per-request compliance holds.
-A token-bucket layer that dynamically tightens $B$ as a cumulative spend ceiling approaches would cap total expenditure without modifying the bandit; in practice, setting $B$ so that each request is individually profitable makes traffic surges welcome rather than hazardous.
-
-\emph{(iv)~Onboarding exploration cost.}
-Unlike matrix-factorisation routers that characterise new models offline, ParetoBandit's online onboarding exposes a bounded exploration cost to production traffic.
-Transfer priors---initialising a new arm's sufficient statistics from a structurally similar existing arm, scaled by a discount factor---and shadow evaluation (routing traffic to the new model in parallel without serving its responses) could reduce this burn-in cost substantially while retaining the online learning framework.
-
-\emph{(v)~Latency and serving-capacity awareness.}
-The current formulation optimises quality subject to a cost constraint but does not model downstream inference latency or endpoint congestion.
-MixLLM~\cite{wang2025mixllm} is the only bandit-based router to incorporate latency, penalising arms whose estimated waiting time approaches a tolerance threshold; however, its latency penalty relies on a simulated queue model with fixed hardware assumptions, and its cost--quality trade-off uses a static preference weight rather than closed-loop budget enforcement.
-ParetoBandit's Bandits-with-Knapsacks formulation is amenable to latency as a second rate constraint: a dual variable $\mu_t$ with its own EMA-smoothed update (identical in form to Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}) would add a penalty term $\mu_t \tilde{L}_a$ to the arm score (Eq.~\ref{eq:budget_ucb}), where $\tilde{L}_a$ is the observed or predicted latency for arm $a$.
-This extension requires no changes to the LinUCB update, the forgetting mechanism, or the warmup priors.
-
-\emph{(vi)~Quality-constrained (SLA) mode.}
-ParetoBandit constrains cost and maximizes quality; PROTEUS~\cite{bhatti2026proteus} solves the dual problem, minimizing cost subject to an accuracy floor~$\tau$, though its dual variables are learned offline and frozen at deployment.
-ParetoBandit's online pacing machinery can be inverted to enforce a quality floor: a dual variable $\mu_t$ would track EMA-smoothed reward against~$\tau$, with an update identical in form to the cost pacer (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}) but substituting $1 - \bar{r}_t / \tau$ for $\bar{c}_t / B - 1$.
-The resulting penalty would boost high-quality arms when quality is at risk, while the selection objective shifts to cost minimization.
-One practical nuance: the cost signal is deterministic (known API pricing), whereas the quality signal is stochastic, making the quality dual variable inherently noisier; a longer EMA window or tighter step size may be needed to prevent oscillation.
-No changes to the LinUCB update, geometric forgetting, or warmup priors would be required---only the pacer logic and scoring objective change.
-
-Validating the quality-constrained mode, the latency extension, and realistic human-feedback conditions are the most immediate next steps.
+\paragraph{Future work.}
+Most limitations above are addressable within the existing framework without modifying the core LinUCB update, geometric forgetting, or warmup priors.
+Shadow routing and live A/B evaluation~(i) require only engineering atop the cached context-vector architecture.
+Sparse human labels~(ii) can be accommodated by adapting $\gamma$ to the label arrival rate.
+A token-bucket layer would enforce aggregate budgets~(iii); transfer priors and shadow evaluation could reduce onboarding burn-in~(iv).
+Latency awareness~(v) maps directly onto the BwK formulation as a second dual variable $\mu_t$.
+The quality-constrained mode~(vi) inverts the pacer to track EMA-smoothed reward against a floor~$\tau$, providing an online counterpart to PROTEUS's offline SLA enforcement~\cite{bhatti2026proteus}.
+Validating these extensions under realistic deployment conditions is the most immediate next step.
