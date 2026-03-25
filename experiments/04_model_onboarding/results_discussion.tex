@@ -66,8 +66,8 @@ where Flash rewards are judged by DeepSeek-R1 using the same v3
 continuous rubric as all other arms.
 
 \paragraph{Forced exploration (burn-in).}
-With $\alpha{=}0.01$ and strong K=3 warmup priors
-($n_\mathit{eff}{=}1{,}163.9$), the UCB exploration bonus for a
+With $\alpha{=}\moAlpha$ and strong K=3 warmup priors
+($n_\mathit{eff}{=}\moNeff$), the UCB exploration bonus for a
 cold-start arm is too small to trigger natural exploration: Flash
 starts with $A{=}I$, $b{=}0$ ($\theta{=}0$), and
 $\alpha\sqrt{x^\top A^{-1} x}$ cannot compete with K=3 arms' learned
@@ -84,8 +84,8 @@ Forced exploration is standard in the contextual bandit literature
 arXiv~2602.02061).
 
 All conditions use the epsilon-constraint-tuned hyperparameters from
-Experiment~05: $\alpha{=}0.01$,
-$n_{\mathrm{eff}}{=}1{,}163.9$, $\gamma{=}0.997$.
+Experiment~05: $\alpha{=}\moAlpha$,
+$n_{\mathrm{eff}}{=}\moNeff$, $\gamma{=}\moGamma$.
 
 \paragraph{Onboarding scenarios.}
 Three scenarios test whether the router \emph{discriminates} rather
@@ -135,16 +135,16 @@ ceiling.  Results: 20~seeds (9000--9019).
   \textbf{Flash \%} \\
 \midrule
 Fixed Policy & any
-  & 0.894 & \$4.06\text{e-}3 & 25.1\% \\
+  & \moGoodCheapFixedTightPhase2Reward & \moGoodCheapFixedTightPhase2Cost & \moGoodCheapFixedTightFlashPct\% \\
 \midrule
 ParetoBandit & tight
-  & 0.866 & \$3.00\text{e-}4 & 8.6\% \\
+  & \moGoodCheapPBTightPhase2Reward & \moGoodCheapPBTightPhase2Cost & \moGoodCheapPBTightFlashPct\% \\
 ParetoBandit & moderate
-  & 0.899 & \$6.52\text{e-}4 & 12.9\% \\
+  & \moGoodCheapPBModPhase2Reward & \moGoodCheapPBModPhase2Cost & \moGoodCheapPBModFlashPct\% \\
 ParetoBandit & loose
-  & 0.918 & \$1.69\text{e-}3 & 15.9\% \\
+  & \moGoodCheapPBLoosePhase2Reward & \moGoodCheapPBLoosePhase2Cost & \moGoodCheapPBLooseFlashPct\% \\
 ParetoBandit & unconstrained
-  & 0.929 & \$1.05\text{e-}2 & 13.3\% \\
+  & \moGoodCheapPBUncPhase2Reward & \moGoodCheapPBUncPhase2Cost & \moGoodCheapPBUncFlashPct\% \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -153,10 +153,10 @@ ParetoBandit & unconstrained
 Flash achieves sustained adoption ($>10$\% windowed share for 50
 consecutive post-washout steps) in 20/20~seeds across all budget
 tiers.
-Under the loose budget, Flash stabilises at $10.2$\% of late-phase
-traffic; even under the tight budget, it maintains $4.4$\%.
-The Fixed Policy spends \$4.06e-3 per request---exceeding the tight
-budget by $13.5\times$ and the loose budget by $2.2\times$---while
+Under the loose budget, Flash stabilises at $\moGoodCheapPBLooseFlashFinalPct$\% of late-phase
+traffic; even under the tight budget, it maintains $\moGoodCheapPBTightFlashFinalPct$\%.
+The Fixed Policy spends \moFixedAnyCost{} per request---exceeding the tight
+budget by $\moFixedOverBudgetTightX\times$ and the loose budget by $\moFixedOverBudgetLooseX\times$---while
 ParetoBandit stays within target at every tier.
 
 \paragraph{(b) Good \& Expensive: the BudgetPacer correctly suppresses
@@ -166,16 +166,16 @@ When Flash costs are scaled $10\times$ (\$3.00/M input,
 penalty correctly identify it as expensive.
 Under tight and moderate budgets, Flash never achieves sustained
 adoption (0/20~seeds).
-Under loose budgets, Flash partially recovers ($6.1$\% final share,
-sustained in 20/20~seeds), and when unconstrained, it reaches
-$7.3$\%---demonstrating that the pacer, not the bandit's quality
+Under loose budgets, Flash partially recovers ($\moGoodExpPBLooseFlashFinalPct$\% final share,
+sustained in \moGoodExpLooseNSustained/\moNseeds~seeds), and when unconstrained, it reaches
+$\moGoodExpUncFlashFinalPct$\%---demonstrating that the pacer, not the bandit's quality
 estimate, drives the suppression.
 
 \paragraph{(c) Bad \& Cheap: the bandit correctly rejects low-quality models.}
 With rewards halved, Flash's $\theta$ after burn-in is
 uncompetitive.
 In every seed and every budget tier, Flash's final share drops
-to exactly $0.0$\%: the 20-prompt burn-in costs
+to exactly $\moBadCheapPBTightFlashFinalPct$\%: the 20-prompt burn-in costs
 ${\sim}1$\% of Phase~2 steps, after which UCB never selects Flash
 again.
 This confirms that forced exploration is self-limiting: a bad model
@@ -185,13 +185,13 @@ rejected once the posterior stabilises.
 \paragraph{Fixed Policy: budget-oblivious baseline.}
 The uniform-1/4 baseline highlights the cost of ignoring budget
 constraints.
-In the Good \& Cheap scenario, it spends \$4.06e-3 per
-request---exceeding the tight budget by $13.5\times$.
+In the Good \& Cheap scenario, it spends \moFixedAnyCost{} per
+request---exceeding the tight budget by $\moFixedOverBudgetTightX\times$.
 In the Bad \& Cheap scenario, giving 25\% of traffic to a
-half-quality model drags overall reward to 0.779, compared to
-ParetoBandit's 0.925 (unconstrained).
+half-quality model drags overall reward to \moFixedBadCheapReward, compared to
+ParetoBandit's \moBadCheapUncOverallReward{} (unconstrained).
 In the Good \& Expensive scenario, the Fixed Policy's cost
-balloons to \$6.07e-3 per request.
+balloons to \moFixedGoodExpCost{} per request.
 
 \subsubsection{Budget--Quality Trade-off
 (Figure~\ref{fig:model_onboarding_cost})}

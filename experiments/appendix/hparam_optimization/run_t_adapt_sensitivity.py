@@ -61,12 +61,14 @@ from run_hparam_sweep import (
     BUDGET_TARGET_COUNT,
     SEED_OFFSET_VAL,
     SEED_OFFSET_FAILURE_VAL,
-    _derive_n_eff,
-    _load_jsonl,
-    _parse_and_embed,
-    _split_data,
+    derive_n_eff,
+    load_jsonl,
+    parse_and_embed,
+    split_data,
     compute_budget_paced_pareto_auc,
     compute_failure_resilience,
+    find_pareto_frontier,
+    find_knee_point,
 )
 from utils.pareto import pareto_auc
 from utils.simulation import build_model_registry
@@ -98,85 +100,14 @@ PACER_LR: float = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
 
 
-# ======================================================================
-# Pareto frontier and knee-point (duplicated to avoid import of nested
-# functions from run_hparam_sweep.main)
-# ======================================================================
+def _cfg_matches_by_alpha_gamma(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """True when two result dicts share the same (alpha, gamma) pair.
 
-
-def _find_pareto_frontier(
-    aucs: np.ndarray,
-    p2s: np.ndarray,
-) -> List[int]:
-    """Return indices of Pareto-optimal configs (both objectives maximized)."""
-    n = len(aucs)
-    dominated = np.zeros(n, dtype=bool)
-    for i in range(n):
-        if dominated[i]:
-            continue
-        for j in range(n):
-            if i == j or dominated[j]:
-                continue
-            if (aucs[j] >= aucs[i] and p2s[j] >= p2s[i]
-                    and (aucs[j] > aucs[i] or p2s[j] > p2s[i])):
-                dominated[i] = True
-                break
-    return sorted(
-        [i for i in range(n) if not dominated[i]],
-        key=lambda i: aucs[i],
-    )
-
-
-def _find_knee_point(
-    aucs: np.ndarray,
-    p2s: np.ndarray,
-    pareto_indices: List[int],
-) -> int:
-    """Find the knee point on the Pareto frontier.
-
-    See :func:`run_hparam_sweep._find_knee_point` for full documentation.
+    Unlike :func:`run_hparam_sweep.cfg_matches`, n_eff is deliberately
+    omitted because the sensitivity analysis re-derives n_eff for each
+    T_adapt value, so the same (alpha, gamma) config produces different
+    n_eff across T_adapt settings.
     """
-    import math
-
-    if len(pareto_indices) <= 1:
-        return pareto_indices[0]
-
-    if len(pareto_indices) == 2:
-        p_aucs = np.array([aucs[i] for i in pareto_indices])
-        p_p2s = np.array([p2s[i] for i in pareto_indices])
-        auc_n = (p_aucs - p_aucs.min()) / (np.ptp(p_aucs) + 1e-12)
-        p2_n = (p_p2s - p_p2s.min()) / (np.ptp(p_p2s) + 1e-12)
-        dists = np.sqrt((1.0 - auc_n) ** 2 + (1.0 - p2_n) ** 2)
-        return pareto_indices[int(np.argmin(dists))]
-
-    p_aucs = np.array([aucs[i] for i in pareto_indices])
-    p_p2s = np.array([p2s[i] for i in pareto_indices])
-
-    auc_range = p_aucs.max() - p_aucs.min()
-    p2_range = p_p2s.max() - p_p2s.min()
-    p_aucs_n = (p_aucs - p_aucs.min()) / (auc_range + 1e-12)
-    p_p2s_n = (p_p2s - p_p2s.min()) / (p2_range + 1e-12)
-
-    x1, y1 = p_aucs_n[0], p_p2s_n[0]
-    x2, y2 = p_aucs_n[-1], p_p2s_n[-1]
-    line_len = math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2)
-
-    best_dist = -1.0
-    best_k = 0
-    for k in range(len(pareto_indices)):
-        x0, y0 = p_aucs_n[k], p_p2s_n[k]
-        dist = abs(
-            (y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1
-        ) / (line_len + 1e-12)
-        if dist > best_dist:
-            best_dist = dist
-            best_k = k
-
-    return pareto_indices[best_k]
-
-
-def _cfg_matches(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
-    """True when two result dicts share the same hyperparameter config."""
     return (
         a["alpha"] == b["alpha"]
         and a["gamma"] == b["gamma"]
@@ -196,8 +127,8 @@ def main() -> None:
     # 1. Load data (same protocol as run_hparam_sweep)
     # ------------------------------------------------------------------
     logger.info("Loading data records ...")
-    train_records = _load_jsonl(TRAIN_DATA_PATH)
-    val_records = _load_jsonl(VAL_DATA_PATH)
+    train_records = load_jsonl(TRAIN_DATA_PATH)
+    val_records = load_jsonl(VAL_DATA_PATH)
     logger.info("  train=%d  val=%d", len(train_records), len(val_records))
 
     logger.info("Initializing FeatureService (PCA-%d) ...", PCA_DIM)
@@ -205,19 +136,19 @@ def main() -> None:
     feature_dim = fs.dimension
 
     logger.info("Encoding and embedding prompts (val) ...")
-    val_data = _parse_and_embed(val_records, fs)
-    val_burnin, val_eval = _split_data(val_data, ARM_ORDER)
+    val_data = parse_and_embed(val_records, fs)
+    val_burnin, val_eval = split_data(val_data, ARM_ORDER)
     logger.info(
         "  val split → val_burnin=%d  val_eval=%d",
-        val_burnin["n"], val_eval["n"],
+        val_burnin.n, val_eval.n,
     )
 
     registry = build_model_registry(ARM_ORDER)
     warmup_path = str(K3_WARMUP_PRIORS_PATH)
 
     # Fixed-model baselines (for AUC normalization)
-    val_fixed_costs = [float(val_eval["costs"][a].mean()) for a in ARM_ORDER]
-    val_fixed_rewards = [float(val_eval["rewards"][a].mean()) for a in ARM_ORDER]
+    val_fixed_costs = [float(val_eval.costs[a].mean()) for a in ARM_ORDER]
+    val_fixed_rewards = [float(val_eval.rewards[a].mean()) for a in ARM_ORDER]
     val_fixed_auc = pareto_auc(
         val_fixed_costs, val_fixed_rewards,
         min(val_fixed_costs), max(val_fixed_costs),
@@ -244,7 +175,7 @@ def main() -> None:
         logger.info("=" * 70)
 
         gamma_neff = {
-            g: round(_derive_n_eff(g, t_adapt), 1) for g in GAMMA_VALUES
+            g: round(derive_n_eff(g, t_adapt), 1) for g in GAMMA_VALUES
         }
         logger.info("  gamma → n_eff:")
         for g, ne in sorted(gamma_neff.items()):
@@ -263,7 +194,7 @@ def main() -> None:
         logger.info("\n  Budget-paced AUC (%d configs) ...", len(configs))
         auc_results: List[Dict[str, Any]] = []
         for idx, cfg in enumerate(configs):
-            auc, auc_std, sweep = compute_budget_paced_pareto_auc(
+            auc, auc_std, sweep, _seed_aucs = compute_budget_paced_pareto_auc(
                 val_burnin, val_eval, registry, feature_dim,
                 budget_targets,
                 warmup_path=warmup_path,
@@ -287,7 +218,7 @@ def main() -> None:
         logger.info("  Failure resilience (%d configs) ...", len(configs))
         failure_results: List[Dict[str, Any]] = []
         for idx, cfg in enumerate(configs):
-            p2_rwd, p2_std, p1_rwd = compute_failure_resilience(
+            p2_rwd, p2_std, p1_rwd, _seed_p2s = compute_failure_resilience(
                 val_burnin, val_eval, registry, feature_dim,
                 warmup_path=warmup_path,
                 alpha=cfg["alpha"],
@@ -314,13 +245,14 @@ def main() -> None:
         p2s = np.array([
             next(
                 f["phase2_reward"]
-                for f in failure_results if _cfg_matches(f, r)
+                for f in failure_results
+                if _cfg_matches_by_alpha_gamma(f, r)
             )
             for r in auc_results
         ])
 
-        pareto_idx = _find_pareto_frontier(aucs, p2s)
-        knee_idx = _find_knee_point(aucs, p2s, pareto_idx)
+        pareto_idx = find_pareto_frontier(aucs, p2s)
+        knee_idx = find_knee_point(aucs, p2s, pareto_idx)
 
         knee_cfg = auc_results[knee_idx]
         knee_p2 = float(p2s[knee_idx])
@@ -364,7 +296,12 @@ def main() -> None:
     gamma_range = max(selected_gammas) - min(selected_gammas)
     gamma_step = GAMMA_VALUES[1] - GAMMA_VALUES[0] if len(GAMMA_VALUES) > 1 else 0.001
 
-    stable = gamma_range <= gamma_step
+    consecutive_shifts = [
+        abs(selected_gammas[i + 1] - selected_gammas[i])
+        for i in range(len(selected_gammas) - 1)
+    ]
+    max_consecutive_shift = max(consecutive_shifts) if consecutive_shifts else 0.0
+    stable = max_consecutive_shift <= gamma_step + 1e-9
     logger.info("\n" + "=" * 70)
     logger.info("T_ADAPT SENSITIVITY SUMMARY")
     logger.info("=" * 70)
@@ -373,11 +310,12 @@ def main() -> None:
         {str(t): per_t_adapt[str(t)]["gamma"] for t in T_ADAPT_VALUES},
     )
     logger.info(
-        "  Gamma range: %.4f (grid step: %.4f)",
-        gamma_range, gamma_step,
+        "  Gamma range: %.4f  max consecutive shift: %.4f (grid step: %.4f)",
+        gamma_range, max_consecutive_shift, gamma_step,
     )
     logger.info(
-        "  Stable (within one grid step): %s", "YES" if stable else "NO",
+        "  Stable (≤1 grid step between consecutive T_adapt): %s",
+        "YES" if stable else "NO",
     )
 
     for t in T_ADAPT_VALUES:
@@ -412,8 +350,9 @@ def main() -> None:
         "stability": {
             "selected_gammas": {str(t): per_t_adapt[str(t)]["gamma"] for t in T_ADAPT_VALUES},
             "gamma_range": round(gamma_range, 4),
+            "max_consecutive_shift": round(max_consecutive_shift, 4),
             "gamma_grid_step": round(gamma_step, 4),
-            "within_one_grid_step": stable,
+            "within_one_consecutive_step": stable,
         },
         "stable": stable,
     }

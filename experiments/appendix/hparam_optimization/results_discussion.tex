@@ -16,7 +16,7 @@ because forgetting \emph{always} hurts stationary performance.
 However, $\gamma{=}1.0$ fails catastrophically under distribution
 shift: as shown in Section~\ref{sec:eval_nonstationary}, the
 no-forgetting Naive Bandit accumulates $34\%$ more cumulative regret
-than the tuned ParetoBandit ($\gamma{=}0.997$) after a reward swap.
+than the tuned ParetoBandit ($\gamma{=}\hpParetoBanditGamma$) after a reward swap.
 Conversely, optimising solely for adaptability yields
 $\gamma \ll 1$ with excessive forgetting that destabilises the
 stationary policy.

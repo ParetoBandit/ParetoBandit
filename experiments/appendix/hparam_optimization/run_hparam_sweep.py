@@ -138,7 +138,7 @@ from pareto_bandit.feature_service import FeatureService
 from pareto_bandit.router import BanditRouter
 from pareto_bandit.storage import EphemeralContextStore
 from utils.pareto import pareto_auc
-from utils.simulation import build_model_registry
+from utils.simulation import SplitData, build_model_registry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -200,7 +200,7 @@ FAILURE_BUDGET_TARGETS: List[float] = K3_BUDGET_TARGETS
 # ======================================================================
 
 
-def _derive_n_eff(gamma: float, t_adapt: int) -> float:
+def derive_n_eff(gamma: float, t_adapt: int) -> float:
     """Compute n_eff from gamma and adaptation horizon T_adapt.
 
     Uses the coupling formula derived from discounted LinUCB sufficient
@@ -230,7 +230,11 @@ def _derive_n_eff(gamma: float, t_adapt: int) -> float:
     Returns:
         Derived prior effective sample size.
     """
-    if gamma >= 1.0:
+    if gamma <= 0.0 or gamma > 1.0:
+        raise ValueError(
+            f"gamma must be in (0, 1], got {gamma}"
+        )
+    if gamma == 1.0:
         return float(t_adapt)
     return (gamma ** (-t_adapt) - 1.0) / (1.0 - gamma)
 
@@ -239,7 +243,7 @@ def _build_configs() -> List[Dict[str, Any]]:
     """Generate all hyperparameter configurations for active variants.
 
     For ParetoBandit: alpha x gamma grid, with n_eff derived from gamma
-    via :func:`_derive_n_eff` and T_ADAPT.
+    via :func:`derive_n_eff` and T_ADAPT.
     For Tabula Rasa: alpha x gamma (n_eff=1.0, no priors).
 
     Only variants listed in :data:`VARIANTS` are generated.
@@ -247,7 +251,7 @@ def _build_configs() -> List[Dict[str, Any]]:
     configs: List[Dict[str, Any]] = []
     if "paretobandit" in VARIANTS:
         for alpha, gamma in itertools.product(ALPHA_VALUES, GAMMA_VALUES):
-            n_eff = _derive_n_eff(gamma, T_ADAPT)
+            n_eff = derive_n_eff(gamma, T_ADAPT)
             configs.append({
                 "variant": "paretobandit",
                 "alpha": alpha,
@@ -270,7 +274,7 @@ def _build_configs() -> List[Dict[str, Any]]:
 # ======================================================================
 
 
-def _load_jsonl(path: Path) -> List[Dict[str, Any]]:
+def load_jsonl(path: Path) -> List[Dict[str, Any]]:
     """Load a JSONL file returning a list of dicts."""
     records: List[Dict[str, Any]] = []
     with open(path) as f:
@@ -279,10 +283,10 @@ def _load_jsonl(path: Path) -> List[Dict[str, Any]]:
     return records
 
 
-def _parse_and_embed(
+def parse_and_embed(
     records: List[Dict[str, Any]],
     fs: FeatureService,
-) -> Dict[str, Any]:
+) -> SplitData:
     """Extract prompts, rewards, costs, and embed via FeatureService.
 
     Args:
@@ -290,7 +294,7 @@ def _parse_and_embed(
         fs: Feature service configured with the target PCA.
 
     Returns:
-        Dict with ``prompts``, ``rewards``, ``costs``, ``embeddings``, ``n``.
+        Fully loaded and embedded split data.
     """
     prompts = [r["prompt"] for r in records]
     rewards: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
@@ -303,21 +307,20 @@ def _parse_and_embed(
 
     embeddings = fs.extract_features_batch(prompts)
 
-    return {
-        "prompts": prompts,
-        "rewards": {a: np.array(v) for a, v in rewards.items()},
-        "costs": {a: np.array(v) for a, v in costs.items()},
-        "embeddings": embeddings,
-        "n": len(prompts),
-    }
+    return SplitData(
+        prompts=prompts,
+        rewards={a: np.array(v) for a, v in rewards.items()},
+        costs={a: np.array(v) for a, v in costs.items()},
+        embeddings=embeddings,
+    )
 
 
-def _split_data(
-    data: Dict[str, Any],
+def split_data(
+    data: SplitData,
     arm_order: List[str],
     burnin_frac: float = 1 / 3,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Split a data dict into burn-in and eval portions.
+) -> Tuple[SplitData, SplitData]:
+    """Split data into burn-in and eval portions.
 
     Used to create ``val_burnin`` (first ``burnin_frac``) and
     ``val_eval`` (remainder) so that the burn-in phase never sees
@@ -327,30 +330,27 @@ def _split_data(
     the offline priors.
 
     Args:
-        data: Dict with ``prompts``, ``rewards``, ``costs``,
-            ``embeddings``, ``n`` as produced by :func:`_parse_and_embed`.
+        data: Loaded split data as produced by :func:`parse_and_embed`.
         arm_order: Model identifiers for slicing reward/cost arrays.
         burnin_frac: Fraction of data allocated to burn-in (default 1/3).
 
     Returns:
-        ``(burnin_portion, eval_portion)`` — two dicts with the same
-        schema, disjoint by construction.
+        ``(burnin_portion, eval_portion)`` — two :class:`SplitData`
+        instances, disjoint by construction.
     """
-    split_idx = int(data["n"] * burnin_frac)
-    first = {
-        "prompts": data["prompts"][:split_idx],
-        "rewards": {a: data["rewards"][a][:split_idx] for a in arm_order},
-        "costs": {a: data["costs"][a][:split_idx] for a in arm_order},
-        "embeddings": data["embeddings"][:split_idx],
-        "n": split_idx,
-    }
-    second = {
-        "prompts": data["prompts"][split_idx:],
-        "rewards": {a: data["rewards"][a][split_idx:] for a in arm_order},
-        "costs": {a: data["costs"][a][split_idx:] for a in arm_order},
-        "embeddings": data["embeddings"][split_idx:],
-        "n": data["n"] - split_idx,
-    }
+    split_idx = int(data.n * burnin_frac)
+    first = SplitData(
+        prompts=data.prompts[:split_idx],
+        rewards={a: data.rewards[a][:split_idx] for a in arm_order},
+        costs={a: data.costs[a][:split_idx] for a in arm_order},
+        embeddings=data.embeddings[:split_idx],
+    )
+    second = SplitData(
+        prompts=data.prompts[split_idx:],
+        rewards={a: data.rewards[a][split_idx:] for a in arm_order},
+        costs={a: data.costs[a][split_idx:] for a in arm_order},
+        embeddings=data.embeddings[split_idx:],
+    )
     return first, second
 
 
@@ -365,8 +365,8 @@ def _split_data(
 
 
 def _simulate_budget_paced(
-    burnin_data: Dict[str, Any],
-    eval_data: Dict[str, Any],
+    burnin_data: SplitData,
+    eval_data: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
     *,
@@ -425,20 +425,20 @@ def _simulate_budget_paced(
         budget_pacer=pacer,
     )
 
-    burnin_order = rng.permutation(burnin_data["n"])
+    burnin_order = rng.permutation(burnin_data.n)
     for i in burnin_order:
-        model, log = router.route(burnin_data["embeddings"][i])
-        reward = float(burnin_data["rewards"][model][i])
-        log.cost_usd = float(burnin_data["costs"][model][i])
+        model, log = router.route(burnin_data.embeddings[i])
+        reward = float(burnin_data.rewards[model][i])
+        log.cost_usd = float(burnin_data.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
-    eval_order = rng.permutation(eval_data["n"])
+    eval_order = rng.permutation(eval_data.n)
     eval_rewards: List[float] = []
     eval_costs: List[float] = []
     for i in eval_order:
-        model, log = router.route(eval_data["embeddings"][i])
-        reward = float(eval_data["rewards"][model][i])
-        cost = float(eval_data["costs"][model][i])
+        model, log = router.route(eval_data.embeddings[i])
+        reward = float(eval_data.rewards[model][i])
+        cost = float(eval_data.costs[model][i])
         eval_rewards.append(reward)
         eval_costs.append(cost)
         log.cost_usd = cost
@@ -448,8 +448,8 @@ def _simulate_budget_paced(
 
 
 def compute_budget_paced_pareto_auc(
-    burnin_data: Dict[str, Any],
-    eval_data: Dict[str, Any],
+    burnin_data: SplitData,
+    eval_data: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
     budget_targets: List[float],
@@ -460,7 +460,7 @@ def compute_budget_paced_pareto_auc(
     gamma: float,
     n_seeds: int,
     seed_offset: int,
-) -> Tuple[float, float, List[Dict[str, Any]]]:
+) -> Tuple[float, float, List[Dict[str, Any]], List[float]]:
     """Sweep budget targets with BudgetPacer and compute per-seed Pareto AUC.
 
     For each seed independently:
@@ -488,10 +488,12 @@ def compute_budget_paced_pareto_auc(
         seed_offset: Base offset added to each seed index.
 
     Returns:
-        ``(mean_auc, std_auc, sweep_points)``.
+        ``(mean_auc, std_auc, sweep_points, per_seed_aucs)`` where
+        ``per_seed_aucs`` is a list of per-seed AUC values for
+        bootstrap stability analysis.
     """
-    fixed_costs = [float(eval_data["costs"][a].mean()) for a in ARM_ORDER]
-    fixed_rewards = [float(eval_data["rewards"][a].mean()) for a in ARM_ORDER]
+    fixed_costs = [float(eval_data.costs[a].mean()) for a in ARM_ORDER]
+    fixed_rewards = [float(eval_data.rewards[a].mean()) for a in ARM_ORDER]
     cost_lo = min(fixed_costs)
     cost_hi = max(fixed_costs)
 
@@ -536,7 +538,7 @@ def compute_budget_paced_pareto_auc(
             "std_cost": round(float(np.std(bt_cost_accum[bt], ddof=1)), 6),
         })
 
-    return mean_auc, std_auc, sweep_points
+    return mean_auc, std_auc, sweep_points, per_seed_auc
 
 
 # ======================================================================
@@ -545,8 +547,8 @@ def compute_budget_paced_pareto_auc(
 
 
 def _simulate_catastrophic_failure(
-    burnin_data: Dict[str, Any],
-    val_data: Dict[str, Any],
+    burnin_data: SplitData,
+    val_data: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
     *,
@@ -616,34 +618,34 @@ def _simulate_catastrophic_failure(
         budget_pacer=pacer,
     )
 
-    burnin_order = rng.permutation(burnin_data["n"])
+    burnin_order = rng.permutation(burnin_data.n)
     for i in burnin_order:
-        model, log = router.route(burnin_data["embeddings"][i])
-        reward = float(burnin_data["rewards"][model][i])
-        log.cost_usd = float(burnin_data["costs"][model][i])
+        model, log = router.route(burnin_data.embeddings[i])
+        reward = float(burnin_data.rewards[model][i])
+        log.cost_usd = float(burnin_data.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
-    n_val = val_data["n"]
+    n_val = val_data.n
     val_order = rng.permutation(n_val)
     mid = n_val // 2
 
     phase1_rewards: List[float] = []
     for idx in val_order[:mid]:
-        model, log = router.route(val_data["embeddings"][idx])
-        reward = float(val_data["rewards"][model][idx])
-        log.cost_usd = float(val_data["costs"][model][idx])
+        model, log = router.route(val_data.embeddings[idx])
+        reward = float(val_data.rewards[model][idx])
+        log.cost_usd = float(val_data.costs[model][idx])
         router.process_feedback(log.request_id, reward=reward)
         phase1_rewards.append(reward)
 
     phase2_rewards: List[float] = []
     for idx in val_order[mid:]:
-        model, log = router.route(val_data["embeddings"][idx])
+        model, log = router.route(val_data.embeddings[idx])
         if model == failure_arm:
             reward = failure_reward
             log.cost_usd = 0.0
         else:
-            reward = float(val_data["rewards"][model][idx])
-            log.cost_usd = float(val_data["costs"][model][idx])
+            reward = float(val_data.rewards[model][idx])
+            log.cost_usd = float(val_data.costs[model][idx])
         router.process_feedback(log.request_id, reward=reward)
         phase2_rewards.append(reward)
 
@@ -651,8 +653,8 @@ def _simulate_catastrophic_failure(
 
 
 def compute_failure_resilience(
-    burnin_data: Dict[str, Any],
-    val_data: Dict[str, Any],
+    burnin_data: SplitData,
+    val_data: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
     *,
@@ -665,7 +667,7 @@ def compute_failure_resilience(
     failure_arms: List[str],
     failure_reward: float,
     budget_targets: List[float],
-) -> Tuple[float, float, float]:
+) -> Tuple[float, float, float, List[float]]:
     """Phase 2 mean reward averaged over failure scenarios, budgets, and seeds.
 
     For each ``(failure_arm, budget_target, seed)`` triple, runs a
@@ -689,11 +691,14 @@ def compute_failure_resilience(
         budget_targets: Per-request USD targets to sweep.
 
     Returns:
-        ``(mean_phase2_reward, std_phase2_reward, mean_phase1_reward)``
-        where the first two drive selection and the third is diagnostic.
+        ``(mean_phase2_reward, std_phase2_reward, mean_phase1_reward,
+        per_seed_p2_means)`` where the first two drive selection, the
+        third is diagnostic, and the fourth provides per-seed Phase-2
+        means for bootstrap stability analysis.
     """
     p1_rewards: List[float] = []
     p2_rewards: List[float] = []
+    per_seed_p2: List[List[float]] = [[] for _ in range(n_seeds)]
     for fail_arm in failure_arms:
         for bt in budget_targets:
             for s in range(n_seeds):
@@ -710,12 +715,252 @@ def compute_failure_resilience(
                 )
                 p1_rewards.append(p1)
                 p2_rewards.append(p2)
+                per_seed_p2[s].append(p2)
+
+    per_seed_p2_means = [float(np.mean(vals)) for vals in per_seed_p2]
 
     return (
         float(np.mean(p2_rewards)),
         float(np.std(p2_rewards, ddof=1)) if len(p2_rewards) > 1 else 0.0,
         float(np.mean(p1_rewards)),
+        per_seed_p2_means,
     )
+
+
+# ======================================================================
+# Pareto Frontier & Knee-Point Selection
+# ======================================================================
+
+
+def cfg_matches(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """True when two result dicts share the same hyperparameter config."""
+    return (
+        a["alpha"] == b["alpha"]
+        and a["n_eff"] == b["n_eff"]
+        and a["gamma"] == b["gamma"]
+    )
+
+
+def find_pareto_frontier(
+    aucs: np.ndarray,
+    p2s: np.ndarray,
+) -> List[int]:
+    """Return indices of Pareto-optimal configs (both objectives maximized).
+
+    Dominance is determined from point estimates (seed-averaged means)
+    without formal significance testing.  With finite seeds, adjacent
+    frontier configs whose AUC gap is smaller than ~2x the standard
+    error of the mean may have overlapping confidence intervals, making
+    their dominance relationship statistically ambiguous.  The frontier
+    should be interpreted as an approximate structural property of the
+    mean outcome surface rather than a precise boundary.
+    """
+    n = len(aucs)
+    dominated = np.zeros(n, dtype=bool)
+    for i in range(n):
+        if dominated[i]:
+            continue
+        for j in range(n):
+            if i == j or dominated[j]:
+                continue
+            if (aucs[j] >= aucs[i] and p2s[j] >= p2s[i]
+                    and (aucs[j] > aucs[i] or p2s[j] > p2s[i])):
+                dominated[i] = True
+                break
+    return sorted(
+        [i for i in range(n) if not dominated[i]],
+        key=lambda i: aucs[i],
+    )
+
+
+def find_knee_point(
+    aucs: np.ndarray,
+    p2s: np.ndarray,
+    pareto_indices: List[int],
+) -> int:
+    """Find the knee point on the Pareto frontier.
+
+    The knee is the point with maximum perpendicular distance from
+    the line connecting the two extreme endpoints of the frontier
+    (after min-max normalization to ensure scale invariance).  This
+    is the standard chord-distance definition from multi-objective
+    optimization (Branke et al., 2004; Das, 1999), which identifies
+    the inflection where improving one objective begins requiring
+    disproportionate sacrifice of the other — i.e., the point of
+    maximum curvature on the trade-off surface.
+
+    **Why chord distance rather than ideal-point (utopian) distance.**
+    Ideal-point distance minimizes absolute distance to ``(max_AUC,
+    max_P2)`` and always selects the config closest to perfection.
+    Chord distance instead selects the *marginal trade-off inflection*:
+    the config where the cost of additional resilience in AUC units
+    changes most sharply.  This is the deployment-relevant question
+    ("where do diminishing returns begin?") and is invariant to
+    monotone rescaling of the frontier endpoints.
+
+    **Interpretation caveat.**  Adjacent frontier configs may have
+    overlapping confidence intervals on the AUC axis (see
+    :func:`find_pareto_frontier`).  The knee-point should be
+    interpreted as identifying a *region* of favorable trade-offs
+    rather than a uniquely optimal configuration.
+
+    **Degenerate cases.**  For a single frontier point, that point
+    is returned.  For exactly two frontier points there is no
+    interior curvature — both points lie on the chord, so
+    perpendicular distance is zero for both and the knee concept
+    is undefined.  The fallback returns the point closest to the
+    ideal point ``(max_AUC, max_P2)`` in normalised space, which
+    is the only sensible tiebreaker when no inflection exists.
+    In practice this branch never fires: the sweep produces
+    frontiers with 9–13 points.
+
+    Args:
+        aucs: AUC values for all configs.
+        p2s: Phase-2 reward values for all configs.
+        pareto_indices: Sorted indices of Pareto-optimal configs.
+
+    Returns:
+        Index (into the original arrays) of the knee-point config.
+
+    Raises:
+        ValueError: If ``pareto_indices`` is empty.
+    """
+    if not pareto_indices:
+        raise ValueError("pareto_indices is empty; cannot identify a knee point")
+    if len(pareto_indices) == 1:
+        return pareto_indices[0]
+
+    if len(pareto_indices) == 2:
+        p_aucs = np.array([aucs[i] for i in pareto_indices])
+        p_p2s = np.array([p2s[i] for i in pareto_indices])
+        auc_n = (p_aucs - p_aucs.min()) / (np.ptp(p_aucs) + 1e-12)
+        p2_n = (p_p2s - p_p2s.min()) / (np.ptp(p_p2s) + 1e-12)
+        dists = np.sqrt((1.0 - auc_n) ** 2 + (1.0 - p2_n) ** 2)
+        return pareto_indices[int(np.argmin(dists))]
+
+    p_aucs = np.array([aucs[i] for i in pareto_indices])
+    p_p2s = np.array([p2s[i] for i in pareto_indices])
+
+    auc_range = p_aucs.max() - p_aucs.min()
+    p2_range = p_p2s.max() - p_p2s.min()
+    p_aucs_n = (p_aucs - p_aucs.min()) / (auc_range + 1e-12)
+    p_p2s_n = (p_p2s - p_p2s.min()) / (p2_range + 1e-12)
+
+    x1, y1 = p_aucs_n[0], p_p2s_n[0]
+    x2, y2 = p_aucs_n[-1], p_p2s_n[-1]
+    line_len = math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2)
+
+    best_dist = -1.0
+    best_k = 0
+    for k in range(len(pareto_indices)):
+        x0, y0 = p_aucs_n[k], p_p2s_n[k]
+        dist = abs(
+            (y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1
+        ) / (line_len + 1e-12)
+        if dist > best_dist:
+            best_dist = dist
+            best_k = k
+
+    return pareto_indices[best_k]
+
+
+# ======================================================================
+# Bootstrap Knee-Point Stability
+# ======================================================================
+
+N_BOOTSTRAP: int = 2000
+BOOTSTRAP_SEED: int = 42
+
+
+def bootstrap_knee_stability(
+    configs: List[Dict[str, Any]],
+    per_seed_aucs: np.ndarray,
+    per_seed_p2s: np.ndarray,
+    original_knee_idx: int,
+    *,
+    n_bootstrap: int = N_BOOTSTRAP,
+    seed: int = BOOTSTRAP_SEED,
+) -> Dict[str, Any]:
+    """Assess stability of the Pareto knee-point via seed-level bootstrap.
+
+    For each bootstrap iteration, resamples seed indices with replacement
+    and re-runs the full Pareto frontier construction and knee-point
+    selection.  Reports how often each config is selected as the knee
+    point, providing a non-parametric measure of selection robustness.
+
+    The bootstrap resamples paired (AUC_seed_i, P2_seed_i) tuples
+    jointly, so each bootstrap sample rebuilds the full Pareto frontier
+    from resampled config-level means.  AUC and P2 use different seed
+    offsets (independent RNG streams), so the pairing is by index
+    rather than by shared randomness.
+
+    Args:
+        configs: List of config dicts with ``alpha``, ``gamma``,
+            ``n_eff`` keys (for labeling selected configs).
+        per_seed_aucs: Shape ``(n_configs, n_seeds)`` array of per-seed
+            budget-paced Pareto AUC values.
+        per_seed_p2s: Shape ``(n_configs, n_seeds)`` array of per-seed
+            Phase-2 reward values (each averaged over failure arms and
+            budget targets within that seed).
+        original_knee_idx: Index of the knee point from the original
+            (non-bootstrap) analysis.
+        n_bootstrap: Number of bootstrap iterations.
+        seed: RNG seed for reproducibility.
+
+    Returns:
+        Dict with bootstrap stability metrics including selection
+        frequencies and neighborhood stability.
+    """
+    rng = np.random.default_rng(seed)
+    n_configs, n_seeds = per_seed_aucs.shape
+
+    knee_counts = np.zeros(n_configs, dtype=int)
+
+    for _ in range(n_bootstrap):
+        boot_idx = rng.choice(n_seeds, size=n_seeds, replace=True)
+        boot_aucs = per_seed_aucs[:, boot_idx].mean(axis=1)
+        boot_p2s = per_seed_p2s[:, boot_idx].mean(axis=1)
+
+        pareto_idx = find_pareto_frontier(boot_aucs, boot_p2s)
+        knee_idx = find_knee_point(boot_aucs, boot_p2s, pareto_idx)
+        knee_counts[knee_idx] += 1
+
+    original_freq = float(knee_counts[original_knee_idx]) / n_bootstrap
+    modal_idx = int(np.argmax(knee_counts))
+    modal_freq = float(knee_counts[modal_idx]) / n_bootstrap
+
+    selected_configs: List[Dict[str, Any]] = []
+    for i in range(n_configs):
+        if knee_counts[i] > 0:
+            selected_configs.append({
+                "config_idx": i,
+                "alpha": configs[i]["alpha"],
+                "gamma": configs[i]["gamma"],
+                "n_eff": configs[i].get("n_eff"),
+                "frequency": round(float(knee_counts[i]) / n_bootstrap, 4),
+                "count": int(knee_counts[i]),
+                "is_original_knee": i == original_knee_idx,
+            })
+    selected_configs.sort(key=lambda x: x["frequency"], reverse=True)
+
+    original_gamma = configs[original_knee_idx]["gamma"]
+    original_alpha = configs[original_knee_idx]["alpha"]
+    neighbor_freq = 0.0
+    for i in range(n_configs):
+        if knee_counts[i] > 0:
+            gamma_dist = abs(configs[i]["gamma"] - original_gamma)
+            if gamma_dist <= 0.001 + 1e-9 and configs[i]["alpha"] == original_alpha:
+                neighbor_freq += float(knee_counts[i]) / n_bootstrap
+
+    return {
+        "n_bootstrap": n_bootstrap,
+        "original_knee_frequency": round(original_freq, 4),
+        "modal_config_frequency": round(modal_freq, 4),
+        "modal_is_original": modal_idx == original_knee_idx,
+        "neighborhood_frequency": round(neighbor_freq, 4),
+        "n_unique_selections": sum(1 for c in knee_counts if c > 0),
+        "selected_configs": selected_configs,
+    }
 
 
 # ======================================================================
@@ -731,9 +976,9 @@ def main() -> None:
     # 1. Load all three splits and compute embeddings
     # ------------------------------------------------------------------
     logger.info("Loading data records ...")
-    train_records = _load_jsonl(TRAIN_DATA_PATH)
-    val_records = _load_jsonl(VAL_DATA_PATH)
-    test_records = _load_jsonl(HOLDOUT_DATA_PATH)
+    train_records = load_jsonl(TRAIN_DATA_PATH)
+    val_records = load_jsonl(VAL_DATA_PATH)
+    test_records = load_jsonl(HOLDOUT_DATA_PATH)
     logger.info(
         "  train=%d  val=%d  test=%d",
         len(train_records), len(val_records), len(test_records),
@@ -747,13 +992,13 @@ def main() -> None:
     logger.info("  feature_dim=%d", feature_dim)
 
     logger.info("Encoding and embedding prompts (val + test) ...")
-    val_data = _parse_and_embed(val_records, fs)
-    test_data = _parse_and_embed(test_records, fs)
+    val_data = parse_and_embed(val_records, fs)
+    test_data = parse_and_embed(test_records, fs)
 
-    val_burnin, val_eval = _split_data(val_data, ARM_ORDER)
+    val_burnin, val_eval = split_data(val_data, ARM_ORDER)
     logger.info(
         "  val split → val_burnin=%d  val_eval=%d  (disjoint)",
-        val_burnin["n"], val_eval["n"],
+        val_burnin.n, val_eval.n,
     )
 
     registry = build_model_registry(ARM_ORDER)
@@ -765,8 +1010,8 @@ def main() -> None:
     val_fixed_baselines: Dict[str, Dict[str, float]] = {}
     for arm_id in ARM_ORDER:
         val_fixed_baselines[ARM_SHORT[arm_id]] = {
-            "mean_reward": round(float(val_eval["rewards"][arm_id].mean()), 6),
-            "mean_cost": round(float(val_eval["costs"][arm_id].mean()), 6),
+            "mean_reward": round(float(val_eval.rewards[arm_id].mean()), 6),
+            "mean_cost": round(float(val_eval.costs[arm_id].mean()), 6),
         }
     val_fixed_costs = [v["mean_cost"] for v in val_fixed_baselines.values()]
     val_fixed_rewards = [v["mean_reward"] for v in val_fixed_baselines.values()]
@@ -834,7 +1079,7 @@ def main() -> None:
         wp = warmup_path if use_warmup else None
 
         t_cfg = time.time()
-        auc, auc_std, sweep = compute_budget_paced_pareto_auc(
+        auc, auc_std, sweep, seed_aucs = compute_budget_paced_pareto_auc(
             val_burnin, val_eval, registry, feature_dim,
             budget_targets,
             warmup_path=wp,
@@ -859,6 +1104,7 @@ def main() -> None:
             "val_delta_pct": round(delta_pct, 3),
             "sweep_points": sweep,
             "elapsed_s": round(elapsed, 1),
+            "_per_seed_aucs": seed_aucs,
         })
 
         marker = ""
@@ -910,7 +1156,7 @@ def main() -> None:
         wp = warmup_path if use_warmup else None
 
         t_cfg = time.time()
-        p2_rwd, p2_std, p1_rwd = compute_failure_resilience(
+        p2_rwd, p2_std, p1_rwd, seed_p2s = compute_failure_resilience(
             val_burnin, val_eval, registry, feature_dim,
             warmup_path=wp,
             alpha=alpha,
@@ -933,6 +1179,7 @@ def main() -> None:
             "phase2_reward_std": round(p2_std, 4),
             "phase1_reward_diag": round(p1_rwd, 4),
             "elapsed_s": round(elapsed, 1),
+            "_per_seed_p2s": seed_p2s,
         })
 
         marker = ""
@@ -962,111 +1209,7 @@ def main() -> None:
     per_variant_best: Dict[str, Dict[str, Any]] = {}
     auc_only_best: Dict[str, Dict[str, Any]] = {}
     pareto_frontiers: Dict[str, List[Dict[str, Any]]] = {}
-
-    def _cfg_matches(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
-        """True when two result dicts share the same hyperparameter config."""
-        return (
-            a["alpha"] == b["alpha"]
-            and a["n_eff"] == b["n_eff"]
-            and a["gamma"] == b["gamma"]
-        )
-
-    def _find_pareto_frontier(
-        aucs: np.ndarray,
-        p2s: np.ndarray,
-    ) -> List[int]:
-        """Return indices of Pareto-optimal configs (both objectives maximized).
-
-        Dominance is determined from point estimates (seed-averaged means)
-        without formal significance testing.  With finite seeds, adjacent
-        frontier configs whose AUC gap is smaller than ~2x the standard
-        error of the mean may have overlapping confidence intervals, making
-        their dominance relationship statistically ambiguous.  The frontier
-        should be interpreted as an approximate structural property of the
-        mean outcome surface rather than a precise boundary.
-        """
-        n = len(aucs)
-        dominated = np.zeros(n, dtype=bool)
-        for i in range(n):
-            if dominated[i]:
-                continue
-            for j in range(n):
-                if i == j or dominated[j]:
-                    continue
-                if (aucs[j] >= aucs[i] and p2s[j] >= p2s[i]
-                        and (aucs[j] > aucs[i] or p2s[j] > p2s[i])):
-                    dominated[i] = True
-                    break
-        return sorted(
-            [i for i in range(n) if not dominated[i]],
-            key=lambda i: aucs[i],
-        )
-
-    def _find_knee_point(
-        aucs: np.ndarray,
-        p2s: np.ndarray,
-        pareto_indices: List[int],
-    ) -> int:
-        """Find the knee point on the Pareto frontier.
-
-        The knee is the point with maximum perpendicular distance from
-        the line connecting the two extreme endpoints of the frontier
-        (after min-max normalization to ensure scale invariance).
-
-        **Interpretation caveat.**  Adjacent frontier configs may have
-        overlapping confidence intervals on the AUC axis (see
-        :func:`_find_pareto_frontier`).  The knee-point should be
-        interpreted as identifying a *region* of favorable trade-offs
-        rather than a uniquely optimal configuration.
-
-        **Degenerate cases.**  For a single frontier point, that point
-        is returned.  For exactly two frontier points no interior knee
-        exists; the point closest to the ideal point ``(max_AUC,
-        max_P2)`` in min-max-normalised space is returned.
-
-        Args:
-            aucs: AUC values for all configs.
-            p2s: Phase-2 reward values for all configs.
-            pareto_indices: Sorted indices of Pareto-optimal configs.
-
-        Returns:
-            Index (into the original arrays) of the knee-point config.
-        """
-        if len(pareto_indices) <= 1:
-            return pareto_indices[0]
-
-        if len(pareto_indices) == 2:
-            p_aucs = np.array([aucs[i] for i in pareto_indices])
-            p_p2s = np.array([p2s[i] for i in pareto_indices])
-            auc_n = (p_aucs - p_aucs.min()) / (np.ptp(p_aucs) + 1e-12)
-            p2_n = (p_p2s - p_p2s.min()) / (np.ptp(p_p2s) + 1e-12)
-            dists = np.sqrt((1.0 - auc_n) ** 2 + (1.0 - p2_n) ** 2)
-            return pareto_indices[int(np.argmin(dists))]
-
-        p_aucs = np.array([aucs[i] for i in pareto_indices])
-        p_p2s = np.array([p2s[i] for i in pareto_indices])
-
-        auc_range = p_aucs.max() - p_aucs.min()
-        p2_range = p_p2s.max() - p_p2s.min()
-        p_aucs_n = (p_aucs - p_aucs.min()) / (auc_range + 1e-12)
-        p_p2s_n = (p_p2s - p_p2s.min()) / (p2_range + 1e-12)
-
-        x1, y1 = p_aucs_n[0], p_p2s_n[0]
-        x2, y2 = p_aucs_n[-1], p_p2s_n[-1]
-        line_len = math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2)
-
-        best_dist = -1.0
-        best_k = 0
-        for k in range(len(pareto_indices)):
-            x0, y0 = p_aucs_n[k], p_p2s_n[k]
-            dist = abs(
-                (y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1
-            ) / (line_len + 1e-12)
-            if dist > best_dist:
-                best_dist = dist
-                best_k = k
-
-        return pareto_indices[best_k]
+    bootstrap_results: Dict[str, Dict[str, Any]] = {}
 
     for variant in VARIANTS:
         var_stat = [r for r in val_results if r["variant"] == variant]
@@ -1076,7 +1219,7 @@ def main() -> None:
         p2s = np.array([
             next(
                 f["phase2_reward"]
-                for f in var_fail if _cfg_matches(f, r)
+                for f in var_fail if cfg_matches(f, r)
             )
             for r in var_stat
         ])
@@ -1091,14 +1234,13 @@ def main() -> None:
 
         logger.info("\n  --- %s ---", variant)
 
-        # Log full table
         logger.info(
             "\n  %-7s  %-7s  %-7s  %-10s  %-10s  %-8s",
             "alpha", "n_eff", "gamma", "BP_AUC", "P2_Reward", "Pareto?",
         )
         logger.info("  " + "-" * 65)
 
-        pareto_idx = _find_pareto_frontier(aucs, p2s)
+        pareto_idx = find_pareto_frontier(aucs, p2s)
         pareto_set = set(pareto_idx)
 
         for i in range(len(var_stat)):
@@ -1122,10 +1264,10 @@ def main() -> None:
                 var_stat[i]["n_eff"], aucs[i], p2s[i],
             )
 
-        knee_idx = _find_knee_point(aucs, p2s, pareto_idx)
+        knee_idx = find_knee_point(aucs, p2s, pareto_idx)
         knee_stat = var_stat[knee_idx]
         knee_fail = next(
-            f for f in var_fail if _cfg_matches(f, knee_stat)
+            f for f in var_fail if cfg_matches(f, knee_stat)
         )
 
         pareto_frontiers[variant] = [
@@ -1165,6 +1307,41 @@ def main() -> None:
             auc_best_cfg["gamma"], auc_best_cfg["val_pareto_auc"],
         )
 
+        # Bootstrap stability analysis
+        var_per_seed_aucs = np.array([r["_per_seed_aucs"] for r in var_stat])
+        var_per_seed_p2s = np.array([
+            next(
+                f["_per_seed_p2s"]
+                for f in var_fail if cfg_matches(f, r)
+            )
+            for r in var_stat
+        ])
+
+        boot = bootstrap_knee_stability(
+            [{"alpha": r["alpha"], "gamma": r["gamma"], "n_eff": r["n_eff"]}
+             for r in var_stat],
+            var_per_seed_aucs,
+            var_per_seed_p2s,
+            knee_idx,
+        )
+        bootstrap_results[variant] = boot
+
+        logger.info(
+            "\n  BOOTSTRAP (%d iters): knee selected in %.1f%% of "
+            "resamples, within 1 grid step in %.1f%% (%d unique configs)",
+            boot["n_bootstrap"],
+            boot["original_knee_frequency"] * 100,
+            boot["neighborhood_frequency"] * 100,
+            boot["n_unique_selections"],
+        )
+        for bc in boot["selected_configs"][:5]:
+            tag = " ← original" if bc["is_original_knee"] else ""
+            logger.info(
+                "    α=%.3f γ=%.4f n_eff=%.0f  freq=%.1f%%%s",
+                bc["alpha"], bc["gamma"], bc["n_eff"],
+                bc["frequency"] * 100, tag,
+            )
+
     # ------------------------------------------------------------------
     # 5b. Cross-arm catastrophic-failure validation (selected config only)
     # ------------------------------------------------------------------
@@ -1195,7 +1372,7 @@ def main() -> None:
         per_arm_results: Dict[str, Dict[str, float]] = {}
         for fail_arm in ARM_ORDER:
             t_arm = time.time()
-            p2_rwd, p2_std, p1_rwd = compute_failure_resilience(
+            p2_rwd, p2_std, p1_rwd, _ca_seed_p2 = compute_failure_resilience(
                 val_burnin, val_eval, registry, feature_dim,
                 warmup_path=wp,
                 alpha=best["alpha"],
@@ -1250,8 +1427,8 @@ def main() -> None:
     test_fixed_baselines: Dict[str, Dict[str, float]] = {}
     for arm_id in ARM_ORDER:
         test_fixed_baselines[ARM_SHORT[arm_id]] = {
-            "mean_reward": round(float(test_data["rewards"][arm_id].mean()), 6),
-            "mean_cost": round(float(test_data["costs"][arm_id].mean()), 6),
+            "mean_reward": round(float(test_data.rewards[arm_id].mean()), 6),
+            "mean_cost": round(float(test_data.costs[arm_id].mean()), 6),
         }
     test_fixed_costs = [v["mean_cost"] for v in test_fixed_baselines.values()]
     test_fixed_rewards = [v["mean_reward"] for v in test_fixed_baselines.values()]
@@ -1281,7 +1458,7 @@ def main() -> None:
             variant, best_alpha, best_n_eff, best_gamma,
         )
         t_test = time.time()
-        test_auc, test_std, test_sweep = compute_budget_paced_pareto_auc(
+        test_auc, test_std, test_sweep, _test_seed_aucs = compute_budget_paced_pareto_auc(
             val_data, test_data, registry, feature_dim,
             budget_targets,
             warmup_path=wp,
@@ -1338,7 +1515,7 @@ def main() -> None:
         per_arm_results_test: Dict[str, Dict[str, float]] = {}
         for fail_arm in ARM_ORDER:
             t_arm = time.time()
-            p2_rwd, p2_std, p1_rwd = compute_failure_resilience(
+            p2_rwd, p2_std, p1_rwd, _test_seed_p2 = compute_failure_resilience(
                 val_data, test_data, registry, feature_dim,
                 warmup_path=wp,
                 alpha=best["alpha"],
@@ -1411,13 +1588,21 @@ def main() -> None:
         "pareto_frontiers": pareto_frontiers,
         "test_per_variant": test_results,
         "val_budget_paced": [
-            {k: v for k, v in r.items() if k != "sweep_points"}
+            {k: v for k, v in r.items()
+             if k != "sweep_points" and not k.startswith("_")}
             for r in val_results
         ],
-        "val_budget_paced_full": val_results,
-        "val_failure_resilience": failure_results,
+        "val_budget_paced_full": [
+            {k: v for k, v in r.items() if not k.startswith("_")}
+            for r in val_results
+        ],
+        "val_failure_resilience": [
+            {k: v for k, v in r.items() if not k.startswith("_")}
+            for r in failure_results
+        ],
         "cross_arm_validation": cross_arm_validation,
         "cross_arm_validation_test": cross_arm_validation_test,
+        "bootstrap_knee_stability": bootstrap_results,
     }
 
     out_path = RESULTS_DIR / "hparam_sweep_results.json"
@@ -1437,6 +1622,7 @@ def main() -> None:
                 "cross_arm_validation": cross_arm_validation,
                 "cross_arm_validation_test": cross_arm_validation_test,
                 "test_per_variant": test_results,
+                "bootstrap_knee_stability": bootstrap_results,
             },
             f,
             indent=2,

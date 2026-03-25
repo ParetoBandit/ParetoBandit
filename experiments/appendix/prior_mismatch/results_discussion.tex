@@ -98,13 +98,13 @@ Figure~\ref{fig:prior_mismatch_heatmap} summarises total regret
 across the quality--strength grid.
 
 \emph{The forgetting-factor confound is negligible.}
-The two Tabula Rasa baselines yield identical medians ($73.4$) and
-nearly identical means ($115.5$ vs.\ $117.7$) with overlapping
-per-seed distributions ($\mathit{std}{=}82.2$ vs.\ $86.5$).
+The two Tabula Rasa baselines yield identical medians ($\prmTRMatchedRegretMedian$) and
+nearly identical means ($\prmTRRegretMean$ vs.\ $\prmTRMatchedRegretMean$) with overlapping
+per-seed distributions ($\mathit{std}{=}\prmTRRegretStd$ vs.\ $\prmTRMatchedRegretStd$).
 The exact binomial sign test finds no significant difference
-($p{=}0.45$, 6~condition wins, 10~baseline wins, 4~ties out of
-20~seeds), and both baselines produce the same catastrophic-failure
-rate ($5/20{=}25\%$; Fisher $p{=}0.64$).
+($p{=}\prmGammaSignP$, \prmGammaCondWins~condition wins, \prmGammaBaseWins~baseline wins, \prmGammaTies~ties out of
+\prmNseeds~seeds), and both baselines produce the same catastrophic-failure
+rate ($\prmTestWellCalTenBaseCat/\prmNseeds{=}25\%$; Fisher $p{=}\prmGammaFisherP$).
 This confirms that the $\gamma{=}0.997$ vs.\ $\gamma{=}0.995$
 difference has no material effect, and the comparisons below
 reflect the prior's informational contribution rather than a
@@ -112,21 +112,21 @@ memory-length artefact.
 
 \emph{Directionally correct priors help at every strength.}
 Well-calibrated priors reduce median total regret monotonically with
-$n_\mathit{eff}$: $65.2$ at $n_\mathit{eff}{=}10$,
-$61.9$ at $100$, and $55.5$ at $1{,}000$
-(vs.\ the $\gamma$-matched Tabula Rasa median of $73.4$; reductions
-of $11\%$, $16\%$, and $24\%$).
-At $n_\mathit{eff}{=}1{,}000$, Well-calibrated wins 19 of 20 seeds
-(Holm-corrected sign $p{=}0.0006$);
-Random-1680 wins 18 of 20 (Holm $p{=}0.006$).
+$n_\mathit{eff}$: $\prmWellCalTenRegretMedian$ at $n_\mathit{eff}{=}10$,
+$\prmWellCalHundredRegretMedian$ at $100$, and $\prmWellCalThousandRegretMedian$ at $1{,}000$
+(vs.\ the $\gamma$-matched Tabula Rasa median of $\prmCatRefMedian$; reductions
+of $\prmWellCalTenReductionPct\%$, $\prmWellCalHundredReductionPct\%$, and $\prmWellCalThousandReductionPct\%$).
+At $n_\mathit{eff}{=}1{,}000$, Well-calibrated wins \prmTestWellCalThousandCondWins{} of \prmNseeds{} seeds
+(Holm-corrected sign $p{=}\prmTestWellCalThousandSignPHolm$);
+Random-1680 wins \prmTestRandThousandCondWins{} of \prmNseeds{} (Holm $p{=}0.006$).
 At lower $n_\mathit{eff}$ values, the per-seed improvements are
 directionally consistent but do not survive Holm correction with
 20~seeds.
 
 \emph{Sample size does not matter---distributional match does.}
 The sample-size control (Random-1680) performs comparably to
-Well-calibrated at every $n_\mathit{eff}$ (e.g., median $55.1$
-vs.\ $55.5$ at $n_\mathit{eff}{=}1{,}000$).
+Well-calibrated at every $n_\mathit{eff}$ (e.g., median $\prmRandThousandRegretMedian$
+vs.\ $\prmWellCalThousandRegretMedian$ at $n_\mathit{eff}{=}1{,}000$).
 This confirms two things: (i)~the $n_\mathit{eff}$ scaling normalises
 prior strength independently of training-set size, so the
 domain-mismatch findings below are not confounded by sample-count
@@ -138,11 +138,11 @@ The practical implication is that operators need a \emph{representative}
 training sample, not a large one.
 
 \emph{Domain-mismatched priors still beat cold start.}
-MMLU-only priors reduce median regret to $60.1$ at
-$n_\mathit{eff}{=}100$ and $58.3$ at $1{,}000$ (vs.\ baseline $73.4$),
+MMLU-only priors reduce median regret to $\prmMMLUHundredRegretMedian$ at
+$n_\mathit{eff}{=}100$ and $\prmMMLUThousandRegretMedian$ at $1{,}000$ (vs.\ baseline $\prmCatRefMedian$),
 despite being trained on a single knowledge domain.
 GSM8K-only priors---which encode near-zero arm differentiation---lower
-median regret to $66.7$--$60.9$ across $n_\mathit{eff}$ values.
+median regret to $\prmGSMTenRegretMedian$--$\prmGSMThousandRegretMedian$ across $n_\mathit{eff}$ values.
 After Holm correction, these reductions are directionally consistent
 but individually non-significant at 20~seeds
 (Holm-corrected $p \geq 0.15$ for all domain-mismatched conditions).
@@ -153,40 +153,40 @@ as no knowledge.
 \emph{Inverted priors cause harm that scales with $n_\mathit{eff}$.}
 This is the only condition where priors hurt.
 At $n_\mathit{eff}{=}10$, the damage is modest
-(median $78.2$ vs.\ baseline $73.4$);
-at $n_\mathit{eff}{=}100$, median regret rises to $89.9$;
-and at $n_\mathit{eff}{=}1{,}000$, to $106.9$---a $45\%$ increase over
+(median $\prmInvTenRegretMedian$ vs.\ baseline $\prmCatRefMedian$);
+at $n_\mathit{eff}{=}100$, median regret rises to $\prmInvHundredRegretMedian$;
+and at $n_\mathit{eff}{=}1{,}000$, to $\prmInvThousandRegretMedian$---a $\prmInvThousandIncreasePct\%$ increase over
 the baseline.
 The mechanism is clear: the inverted prior confidently routes traffic
 to the worst model, and high $n_\mathit{eff}$ forces the router to
 accumulate many online observations before overriding the prior.
-The baseline wins 14 of 20 seeds at $n_\mathit{eff}{=}1{,}000$
-(Holm $p{=}0.81$, not significant at 20~seeds), but the practical
+The baseline wins \prmTestInvThousandBaseWins{} of \prmNseeds{} seeds at $n_\mathit{eff}{=}1{,}000$
+(Holm $p{=}\prmTestInvThousandSignPHolm$, not significant at \prmNseeds~seeds), but the practical
 magnitude ($+33$~regret units) is operationally meaningful.
 
 \paragraph{Reliability: the more important finding.}
 The mean and median comparisons above tell only half the story.
 Figure~\ref{fig:prior_mismatch_distribution} reveals the other half:
 both Tabula Rasa baselines exhibit wide, heavy-tailed per-seed regret
-distributions ($\mathit{std} \approx 82$--$86$), while \emph{every}
+distributions ($\mathit{std} \approx \prmTRRegretStd$--$\prmTRMatchedRegretStd$), while \emph{every}
 warmup condition---including domain-mismatched and even inverted
 priors---exhibits a tight, unimodal distribution.
 Non-inverted conditions have $\mathit{std} \leq 3.2$ (range:
 $1.6$--$3.2$); even the worst condition (Inverted at
-$n_\mathit{eff}{=}10$) achieves $\mathit{std}{=}4.9$.
-The $\gamma$-matched baseline's $\mathit{std}{=}86.5$ confirms that
+$n_\mathit{eff}{=}10$) achieves $\mathit{std}{=}\prmInvTenRegretStd$.
+The $\gamma$-matched baseline's $\mathit{std}{=}\prmTRMatchedRegretStd$ confirms that
 this variance collapse is attributable to the prior itself, not to
 the longer effective memory of $\gamma{=}0.997$: the control has the
 same forgetting factor but the same heavy-tailed distribution as
 production Tabula Rasa.
 
 Catastrophic failures (regret $> 2{\times}$ the $\gamma$-matched
-baseline median, i.e., $> 146.9$) occur in $5/20$ seeds ($25\%$)
+baseline median, i.e., $> \prmCatThreshold$) occur in $\prmTestWellCalTenBaseCat/\prmNseeds$ seeds ($25\%$)
 for both Tabula Rasa baselines and in \emph{zero} seeds for all
 15~warmup conditions.
 Individual Fisher exact tests yield a raw $p{=}0.024$ per condition,
 but after Holm correction across 15~comparisons they are
-non-significant ($p_\text{Holm}{=}0.35$).
+non-significant ($p_\text{Holm}{=}\prmTestWellCalTenFisherPHolm$).
 The aggregate pattern, however, is striking: the probability
 that all 15 independent conditions would show zero catastrophic
 failures if the true rate were $25\%$ is
@@ -222,16 +222,16 @@ entire quality gradient.
 The $n_\mathit{eff}$ parameter serves as a safety knob:
 \begin{itemize}[nosep,leftmargin=*]
   \item $n_\mathit{eff}{=}1{,}000$ (representative prior):
-    median $55.5$ with $\mathit{std}{=}1.6$---a
-    $24\%$ reduction from the $\gamma$-matched baseline ($73.4$).
+    median $\prmWellCalThousandRegretMedian$ with $\mathit{std}{=}\prmWellCalThousandRegretStd$---a
+    $\prmWellCalThousandReductionPct\%$ reduction from the $\gamma$-matched baseline ($\prmCatRefMedian$).
     Use when the training set comes from the deployment distribution.
   \item $n_\mathit{eff}{=}100$ (domain-shifted prior):
-    median $61.9$ with $\mathit{std}{=}2.5$---a $16\%$ reduction.
+    median $\prmWellCalHundredRegretMedian$ with $\mathit{std}{=}\prmWellCalHundredRegretStd$---a $\prmWellCalHundredReductionPct\%$ reduction.
     Safe default when the prior comes from a related but different
     domain.
   \item $n_\mathit{eff}{=}10$ (unknown quality):
     worst-case damage limited to a modest median increase
-    (Inverted: $78.2$, a $6.5\%$ increase), while any non-adversarial
+    (Inverted: $\prmInvTenRegretMedian$, a $6.5\%$ increase), while any non-adversarial
     prior still reduces regret by $9$--$11\%$.
     Use when prior quality is entirely uncertain.
   \item Tabula rasa ($n_\mathit{eff}{=}1$):

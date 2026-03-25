@@ -55,6 +55,7 @@ from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     BEST_K3_TABULA_RASA_HPARAMS,
+    DEFAULT_PACER_EMA_ALPHA,
     DEFAULT_PACER_LAMBDA_MAX,
     DEFAULT_PACER_LR,
     HOLDOUT_DATA_PATH,
@@ -803,6 +804,7 @@ def main() -> None:
                     target_avg_spend_usd=budget_target,
                     mode=PacingMode.ADAPTIVE,
                     lr=DEFAULT_PACER_LR,
+                    ema_alpha=DEFAULT_PACER_EMA_ALPHA,
                     lambda_max=DEFAULT_PACER_LAMBDA_MAX,
                 )
             sr = _run_trial(
@@ -873,6 +875,7 @@ def main() -> None:
             },
             "policy": "disjoint",
             "pacer_lr": DEFAULT_PACER_LR,
+            "pacer_ema_alpha": DEFAULT_PACER_EMA_ALPHA,
             "pacer_lambda_max": DEFAULT_PACER_LAMBDA_MAX,
         },
         "catastrophic_threshold_method": "pooled_median",

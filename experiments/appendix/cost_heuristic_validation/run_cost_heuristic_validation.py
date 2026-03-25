@@ -40,7 +40,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from pareto_bandit.config import VAL_DATA_PATH, OFFLINE_DATASET_DIR
+from pareto_bandit.config import (
+    K3_ARM_ORDER,
+    K3_ARM_SHORT,
+    OFFLINE_DATASET_DIR,
+    VAL_DATA_PATH,
+)
 from pareto_bandit.costs import log_normalize_cost
 from pareto_bandit.types import RouterConfig
 
@@ -52,12 +57,8 @@ logger = logging.getLogger(__name__)
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
-K3_ARMS = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-    "google/gemini-2.5-pro",
-]
-K4_ARMS = K3_ARMS + ["google/gemini-2.5-flash"]
+K3_ARMS: List[str] = K3_ARM_ORDER
+K4_ARMS: List[str] = K3_ARMS + ["google/gemini-2.5-flash"]
 
 PRICING: Dict[str, Dict[str, float]] = {
     "meta-llama/llama-3.1-8b-instruct": {"in": 0.1, "out": 0.1},
@@ -66,10 +67,8 @@ PRICING: Dict[str, Dict[str, float]] = {
     "google/gemini-2.5-flash": {"in": 0.3, "out": 2.5},
 }
 
-ARM_SHORT = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
+ARM_SHORT: Dict[str, str] = {
+    **K3_ARM_SHORT,
     "google/gemini-2.5-flash": "Gemini-Flash",
 }
 

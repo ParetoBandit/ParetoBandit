@@ -204,7 +204,7 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 # reward) is built; the knee point (maximum perpendicular distance from
 # the endpoint line) is selected.
 #
-# Source of truth: experiments/05_hparam_optimization/results/best_hparams.json
+# Source of truth: experiments/appendix/hparam_optimization/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
 # is flat across d in [6, 25], validating this design choice.
@@ -212,8 +212,8 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 BEST_K3_HPARAMS: Dict[str, Any] = {
     "alpha": 0.01,
     "pca_components": 25,
-    "prior_n_effective": 1163.9,
-    "forgetting_factor": 0.997,
+    "prior_n_effective": 1604.7,
+    "forgetting_factor": 0.996,
 }
 """Best K=3 ParetoBandit config (warmup priors, PCA-25, disjoint LinUCB).
 
@@ -228,27 +228,28 @@ Selected via T_adapt-constrained Pareto knee-point method:
   distance from the endpoint line) is selected.
 - Cross-arm validation confirms the selected config generalises to
   failure of all K arms (not just the tuning arm, Mistral).
-- Source: experiments/05_hparam_optimization/results/best_hparams.json
-Val BP AUC = 0.9273, val P2 reward = 0.7167.
-Test BP AUC = 0.9218 (delta = -0.38%).
+- Source: experiments/appendix/hparam_optimization/results/best_hparams.json
+Val BP AUC = 0.9267, val P2 reward = 0.7958.
+Test BP AUC = 0.9232 (delta = -0.23%).
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.01,
+    "alpha": 0.1,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 0.995,
+    "forgetting_factor": 0.997,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
 Selected via T_adapt-constrained Pareto knee-point method (same protocol
 as ParetoBandit but with n_eff=1.0, no warmup priors).
-- Val BP AUC = 0.9257, val P2 reward = 0.7137.
-- Test BP AUC = 0.9216 (delta = -0.41%).
+- Val BP AUC = 0.9212, val P2 reward = 0.7943.
+- Test BP AUC = 0.9180 (delta = -0.80%).
 Unlike the prior epsilon-constraint protocol (which locked Tabula Rasa to
-gamma=1.0), the knee-point method selects gamma=0.995 — the cold-start
-variant *can* afford forgetting when the selection criterion is a balanced
-trade-off rather than a hard AUC floor.  However, stationary AUC and
-failure resilience both remain lower than ParetoBandit, confirming that
-warmup priors provide a structural advantage for non-stationary adaptation.
+gamma=1.0), the knee-point method selects gamma=0.997 with alpha=0.1 —
+the cold-start variant benefits from moderate exploration and mild
+forgetting when the selection criterion is a balanced trade-off rather
+than a hard AUC floor.  However, stationary AUC and failure resilience
+both remain lower than ParetoBandit, confirming that warmup priors provide
+a structural advantage for non-stationary adaptation.
 """

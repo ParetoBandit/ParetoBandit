@@ -45,6 +45,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 from pareto_bandit.config import (
     BEST_K3_TABULA_RASA_HPARAMS,
+    DEFAULT_PACER_EMA_ALPHA,
     DEFAULT_PACER_LAMBDA_MAX,
     DEFAULT_PACER_LR,
     K3_ARM_ORDER,
@@ -445,6 +446,7 @@ def main() -> None:
                         target_avg_spend_usd=budget_target,
                         mode=PacingMode.ADAPTIVE,
                         lr=DEFAULT_PACER_LR,
+                        ema_alpha=DEFAULT_PACER_EMA_ALPHA,
                         lambda_max=DEFAULT_PACER_LAMBDA_MAX,
                     )
 

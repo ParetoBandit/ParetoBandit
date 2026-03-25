@@ -12,9 +12,9 @@ regimes: unconstrained (no pacer), tight
 
 \paragraph{Q1: Deployment comparison (``best vs best'').}
 ParetoBandit (warmup) uses its own Pareto-knee hyperparameters
-($\alpha{=}0.01$, $n_\mathit{eff}{=}1{,}163.9$,
-$\gamma{=}0.997$); Tabula Rasa uses its own
-($\alpha{=}0.01$, $n_\mathit{eff}{=}1$, $\gamma{=}0.995$).
+($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}\waNeff$,
+$\gamma{=}\waGamma$); Tabula Rasa uses its own
+($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}1$, $\gamma{=}\waTRGamma$).
 This answers the deployment-relevant question: should a practitioner
 enable warmup priors?
 
@@ -34,9 +34,9 @@ the prior contribution at matched memory length.
 \toprule
 \textbf{Condition} & $\boldsymbol{\alpha}$ & $\boldsymbol{n_\mathit{eff}}$ & $\boldsymbol{\gamma}$ & \textbf{Source / Role} \\
 \midrule
-Warmup (ParetoBandit) & $0.01$ & $1{,}163.9$ & $0.997$ & \textsc{Best\_K3\_Hparams} \\
-Tabula Rasa           & $0.01$ & $1.0$       & $0.995$ & \textsc{Best\_K3\_Tabula\_Rasa\_Hparams} \\
-TR (matched-$\gamma$) & $0.01$ & $1.0$       & $0.997$ & Mechanistic control \\
+Warmup (ParetoBandit) & $\waAlpha$ & $\waNeff$ & $\waGamma$ & \textsc{Best\_K3\_Hparams} \\
+Tabula Rasa           & $\waAlpha$ & $1.0$       & $\waTRGamma$ & \textsc{Best\_K3\_Tabula\_Rasa\_Hparams} \\
+TR (matched-$\gamma$) & $\waAlpha$ & $1.0$       & $\waGamma$ & Mechanistic control \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -66,22 +66,22 @@ Holm--Bonferroni procedure across the full family of tests
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Std} & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{Cat.} & $p_\text{sign}^*$ & $p_\text{Fisher}^*$ \\
 \midrule
-None     & Warmup           & $\mathbf{55.0}$\,[54.3, 55.7]    & $1.6$   & $\mathbf{6.2}$\,[5.8, 6.6]    & $\mathbf{0.933}$ & 0/20 & &  \\
-         & Tabula Rasa      & $113.5$\,[78.2, 148.7]            & $80.3$  & $17.8$\,[12.6, 23.0]           & $0.901$          & 6/20 & $<10^{-5}$ & $0.071$ \\
-         & TR (matched-$\gamma$) & $117.7$\,[79.8, 155.6]       & $86.5$  & $17.9$\,[12.7, 23.1]           & $0.899$          & 6/20 & $<10^{-3}$ & $0.071$ \\
-         & Random           & $146.5$\,[144.3, 148.7]           & $5.0$   & $16.0$\,[15.1, 17.0]           & $0.883$          & ---  & --- & --- \\
+None     & Warmup           & $\mathbf{\waUncWarmupRegret}$\,[\waUncWarmupRegretCILo, \waUncWarmupRegretCIHi]    & $\waUncWarmupRegretStd$   & $\mathbf{\waUncWarmupRAtTwoHundred}$\,[5.8, 6.6]    & $\mathbf{\waUncWarmupReward}$ & 0/\waNseeds & &  \\
+         & Tabula Rasa      & $\waUncTRRegret$\,[\waUncTRRegretCILo, \waUncTRRegretCIHi]            & $\waUncTRRegretStd$  & $\waUncTRRAtTwoHundred$\,[12.6, 23.0]           & $\waUncTRReward$          & \waUncVsTRBaselineCat/\waNseeds & \waUncVsTRSignP & $\waUncVsTRFisherP$ \\
+         & TR (matched-$\gamma$) & $\waUncTRMatchedRegret$\,[\waUncTRMatchedRegretCILo, \waUncTRMatchedRegretCIHi]       & $\waUncTRMatchedRegretStd$  & $\waUncTRMatchedRAtTwoHundred$\,[12.7, 23.1]           & $\waUncTRMatchedReward$          & \waUncVsTRMatchedBaselineCat/\waNseeds & $\waUncVsTRMatchedSignP$ & $\waUncVsTRMatchedFisherP$ \\
+         & Random           & $\waUncRandomRegret$\,[\waUncRandomRegretCILo, \waUncRandomRegretCIHi]           & $\waUncRandomRegretStd$   & $\waUncRandomRAtTwoHundred$\,[15.1, 17.0]           & $\waUncRandomReward$          & ---  & --- & --- \\
 \midrule
-Tight    & Warmup           & $\mathbf{161.2}$\,[159.2, 163.1]  & $4.6$   & $\mathbf{19.5}$\,[18.0, 21.0] & $\mathbf{0.875}$ & 0/20 & & \\
-         & Tabula Rasa      & $252.0$\,[224.6, 279.4]            & $62.6$  & $29.9$\,[27.1, 32.7]           & $0.825$          & 0/20 & $0.001$ & $1.00$ \\
-         & TR (matched-$\gamma$) & $255.6$\,[227.0, 284.3]      & $65.4$  & $29.9$\,[27.1, 32.7]           & $0.823$          & 0/20 & $0.006$ & $1.00$ \\
+Tight    & Warmup           & $\mathbf{\waTightWarmupRegret}$\,[\waTightWarmupRegretCILo, \waTightWarmupRegretCIHi]  & $\waTightWarmupRegretStd$   & $\mathbf{\waTightWarmupRAtTwoHundred}$\,[18.0, 21.0] & $\mathbf{\waTightWarmupReward}$ & 0/\waNseeds & & \\
+         & Tabula Rasa      & $\waTightTRRegret$\,[\waTightTRRegretCILo, \waTightTRRegretCIHi]            & $\waTightTRRegretStd$  & $\waTightTRRAtTwoHundred$\,[27.1, 32.7]           & $\waTightTRReward$          & \waTightVsTRBaselineCat/\waNseeds & $\waTightVsTRSignP$ & $\waTightVsTRFisherP$ \\
+         & TR (matched-$\gamma$) & $\waTightTRMatchedRegret$\,[\waTightTRMatchedRegretCILo, \waTightTRMatchedRegretCIHi]      & $\waTightTRMatchedRegretStd$  & $\waTightTRMatchedRAtTwoHundred$\,[27.1, 32.7]           & $\waTightTRMatchedReward$          & \waTightVsTRMatchedBaselineCat/\waNseeds & $\waTightVsTRMatchedSignP$ & $\waTightVsTRMatchedFisherP$ \\
 \midrule
-Moderate & Warmup           & $\mathbf{133.9}$\,[129.0, 138.7]  & $11.0$  & $\mathbf{14.7}$\,[12.9, 16.6] & $\mathbf{0.890}$ & 0/20 & & \\
-         & Tabula Rasa      & $178.8$\,[138.1, 219.6]            & $93.1$  & $25.6$\,[21.2, 30.1]           & $0.865$          & 6/20 & $0.59$ & $0.071$ \\
-         & TR (matched-$\gamma$) & $191.4$\,[148.2, 234.5]      & $98.4$  & $26.0$\,[21.6, 30.4]           & $0.858$          & 8/20 & $0.50$ & $\mathbf{0.013}$ \\
+Moderate & Warmup           & $\mathbf{\waModWarmupRegret}$\,[\waModWarmupRegretCILo, \waModWarmupRegretCIHi]  & $\waModWarmupRegretStd$  & $\mathbf{\waModWarmupRAtTwoHundred}$\,[12.9, 16.6] & $\mathbf{\waModWarmupReward}$ & 0/\waNseeds & & \\
+         & Tabula Rasa      & $\waModTRRegret$\,[\waModTRRegretCILo, \waModTRRegretCIHi]            & $\waModTRRegretStd$  & $\waModTRRAtTwoHundred$\,[21.2, 30.1]           & $\waModTRReward$          & \waModVsTRBaselineCat/\waNseeds & $\waModVsTRSignP$ & $\waModVsTRFisherP$ \\
+         & TR (matched-$\gamma$) & $\waModTRMatchedRegret$\,[\waModTRMatchedRegretCILo, \waModTRMatchedRegretCIHi]      & $\waModTRMatchedRegretStd$  & $\waModTRMatchedRAtTwoHundred$\,[21.6, 30.4]           & $\waModTRMatchedReward$          & \waModVsTRMatchedBaselineCat/\waNseeds & $\waModVsTRMatchedSignP$ & $\mathbf{\waModVsTRMatchedFisherP}$ \\
 \midrule
-Loose    & Warmup           & $\mathbf{83.6}$\,[81.3, 85.8]     & $5.1$   & $\mathbf{8.6}$\,[8.2, 9.1]    & $\mathbf{0.918}$ & 0/20 & & \\
-         & Tabula Rasa      & $159.0$\,[121.9, 196.1]            & $84.6$  & $24.9$\,[20.6, 29.1]           & $0.876$          & 6/20 & $0.083$ & $0.071$ \\
-         & TR (matched-$\gamma$) & $162.9$\,[123.5, 202.3]      & $89.9$  & $25.1$\,[20.9, 29.4]           & $0.874$          & 6/20 & $0.083$ & $0.071$ \\
+Loose    & Warmup           & $\mathbf{\waLooseWarmupRegret}$\,[\waLooseWarmupRegretCILo, \waLooseWarmupRegretCIHi]     & $\waLooseWarmupRegretStd$   & $\mathbf{\waLooseWarmupRAtTwoHundred}$\,[8.2, 9.1]    & $\mathbf{\waLooseWarmupReward}$ & 0/\waNseeds & & \\
+         & Tabula Rasa      & $\waLooseTRRegret$\,[\waLooseTRRegretCILo, \waLooseTRRegretCIHi]            & $\waLooseTRRegretStd$  & $\waLooseTRRAtTwoHundred$\,[20.6, 29.1]           & $\waLooseTRReward$          & \waLooseVsTRBaselineCat/\waNseeds & $\waLooseVsTRSignP$ & $\waLooseVsTRFisherP$ \\
+         & TR (matched-$\gamma$) & $\waLooseTRMatchedRegret$\,[\waLooseTRMatchedRegretCILo, \waLooseTRMatchedRegretCIHi]      & $\waLooseTRMatchedRegretStd$  & $\waLooseTRMatchedRAtTwoHundred$\,[20.9, 29.4]           & $\waLooseTRMatchedReward$          & \waLooseVsTRMatchedBaselineCat/\waNseeds & $\waLooseVsTRMatchedSignP$ & $\waLooseVsTRMatchedFisherP$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -94,12 +94,12 @@ $^*$Holm--Bonferroni corrected; $p$-values reported for each baseline vs.\ warmu
 
 \paragraph{Deployment comparison (Q1).}
 Warmup priors consistently reduce mean regret across all budget
-regimes: by 52\% unconstrained ($55.0$ vs.\ $113.5$;
-$p_\text{sign}^* < 10^{-5}$), 36\% under tight budget ($161.2$
-vs.\ $252.0$; $p_\text{sign}^* {=} 0.001$), 25\% at moderate
-budget ($133.9$ vs.\ $178.8$; $p_\text{sign}^* {=} 0.59$, n.s.),
-and 47\% at loose budget ($83.6$ vs.\ $159.0$;
-$p_\text{sign}^* {=} 0.083$, n.s.).
+regimes: by \waUncRegretReductionPct\% unconstrained ($\waUncWarmupRegret$ vs.\ $\waUncTRRegret$;
+$p_\text{sign}^*$~\waUncVsTRSignP), \waTightRegretReductionPct\% under tight budget ($\waTightWarmupRegret$
+vs.\ $\waTightTRRegret$; $p_\text{sign}^* {=} \waTightVsTRSignP$), \waModRegretReductionPct\% at moderate
+budget ($\waModWarmupRegret$ vs.\ $\waModTRRegret$; $p_\text{sign}^* {=} \waModVsTRSignP$, n.s.),
+and \waLooseRegretReductionPct\% at loose budget ($\waLooseWarmupRegret$ vs.\ $\waLooseTRRegret$;
+$p_\text{sign}^* {=} \waLooseVsTRSignP$, n.s.).
 After Holm correction, only the unconstrained and tight
 comparisons remain significant at $\alpha{=}0.05$ for the
 location shift.
@@ -113,20 +113,20 @@ that warmup is unnecessary.
 
 \paragraph{Mechanistic control (Q2).}
 The matched-$\gamma$ control performs nearly identically to the
-original Tabula Rasa across all regimes (unconstrained: $117.7$
-vs.\ $113.5$; tight: $255.6$ vs.\ $252.0$; moderate: $191.4$
-vs.\ $178.8$; loose: $162.9$ vs.\ $159.0$), and in fact slightly
+original Tabula Rasa across all regimes (unconstrained: $\waUncTRMatchedRegret$
+vs.\ $\waUncTRRegret$; tight: $\waTightTRMatchedRegret$ vs.\ $\waTightTRRegret$; moderate: $\waModTRMatchedRegret$
+vs.\ $\waModTRRegret$; loose: $\waLooseTRMatchedRegret$ vs.\ $\waLooseTRRegret$), and in fact slightly
 \emph{worse} in every case.
 This rules out the forgetting-factor confound: running a cold
-start at warmup's $\gamma{=}0.997$ (longer memory of an
+start at warmup's $\gamma{=}\waGamma$ (longer memory of an
 uninformative prior) is counterproductive rather than helpful.
 Warmup's advantage is attributable to the \emph{priors themselves},
 not to the higher $\gamma$ that the Pareto-knee sweep selects
 when priors are available.
 The sign tests confirm this: warmup beats the matched-$\gamma$
 control with comparable significance to the original Tabula Rasa
-(unconstrained: $p_\text{sign}^* < 10^{-3}$; tight:
-$p_\text{sign}^* {=} 0.006$).
+(unconstrained: $p_\text{sign}^*{=}\waUncVsTRMatchedSignP$; tight:
+$p_\text{sign}^* {=} \waTightVsTRMatchedSignP$).
 
 \paragraph{Cold-start bimodality.}
 The budget-stratified results reveal a qualitative finding beyond
@@ -135,7 +135,7 @@ mean regret reduction: Tabula Rasa's per-seed regret is
 (Figure~\ref{fig:warmup_ablation}).
 The matched-$\gamma$ control exhibits the same bimodal pattern
 with similar catastrophic failure rates (e.g.\ moderate budget:
-8/20 vs.\ 6/20), confirming that the bimodality arises from
+\waModVsTRMatchedBaselineCat/\waNseeds vs.\ \waModVsTRBaselineCat/\waNseeds), confirming that the bimodality arises from
 \emph{missing priors}, not from the different forgetting rate.
 The mechanism is a deterministic consequence of the interaction
 between UCB exploration and the budget pacer: the cold-start router
@@ -156,7 +156,7 @@ warmup's low-regret seeds pull the pooled median down, and
 $2{\times}$ that value exceeds the Tabula Rasa ceiling.
 The bimodality is nevertheless visible in
 Figure~\ref{fig:warmup_ablation} and in the $14{\times}$ standard
-deviation gap ($4.6$ vs.\ $62.6$).
+deviation gap ($\waTightWarmupRegretStd$ vs.\ $\waTightTRRegretStd$).
 
 \paragraph{Discussion.}
 Warmup priors are best understood as a \emph{deployment
@@ -187,8 +187,8 @@ In our $K{=}3$ portfolio, oracle routing achieves 3.3\% higher
 quality than routing all traffic to the frontier model while
 reducing per-request cost by 66\%.
 Warmup priors protect routing quality during the critical but
-transient cold-start window: under tight budgets, the 36\% regret
-reduction ($161.2$ vs.\ $252.0$; $p_\text{sign}^* {=} 0.001$)
+transient cold-start window: under tight budgets, the \waTightRegretReductionPct\% regret
+reduction ($\waTightWarmupRegret$ vs.\ $\waTightTRRegret$; $p_\text{sign}^* {=} \waTightVsTRSignP$)
 represents a substantial fraction of the router's total
 quality--cost value recovered solely by starting with informed
 priors.

@@ -202,9 +202,9 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         cs.num(f"{pfx}TroughDropPct", (p1_baseline - trough_reward) / p1_baseline * 100, digits=1)
         if adapt_step is not None:
             cs.raw(f"{pfx}AdaptSteps", fmt_int(adapt_step))
-        cs.num(f"{pfx}P2SteadyReward", p2_steady_reward, digits=3)
-        cs.num(f"{pfx}P2RewardGapPct", reward_drop_pct, digits=1)
-        cs.num(f"{pfx}P2CostChangePct", cost_change_pct, digits=1)
+        cs.num(f"{pfx}PhaseTwoSteadyReward", p2_steady_reward, digits=3)
+        cs.num(f"{pfx}PhaseTwoRewardGapPct", reward_drop_pct, digits=1)
+        cs.num(f"{pfx}PhaseTwoCostChangePct", cost_change_pct, digits=1)
 
     # Unconstrained cost-quality tradeoff
     if "Unconstrained" in conditions:
@@ -234,10 +234,10 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
             uc_p2_steady_reward = float(np.mean([r for _, r, _ in uc_p2_entries[-5:]]))
             uc_cost_spike_pct = (uc_p2_steady_cost - uc_p1_cost) / uc_p1_cost * 100
 
-            cs.raw("UncP1Cost", fmt_cost_eng(uc_p1_cost))
-            cs.raw("UncP2SteadyCost", fmt_cost_eng(uc_p2_steady_cost))
+            cs.raw("UncPhaseOneCostBaseline", fmt_cost_eng(uc_p1_cost))
+            cs.raw("UncPhaseTwoSteadyCost", fmt_cost_eng(uc_p2_steady_cost))
             cs.num("UncCostSpikePct", uc_cost_spike_pct, digits=1)
-            cs.num("UncP2SteadyRewardShort", uc_p2_steady_reward, digits=3)
+            cs.num("UncPhaseTwoSteadyRewardShort", uc_p2_steady_reward, digits=3)
 
     return cs
 

@@ -17,7 +17,11 @@ Experiment prefixes (to avoid command-name collisions):
 - Exp 01 (stationary budget pacing):  ``\\bp``
 - Exp 02 (budget + reward-shift):     ``\\bd``
 - Exp 03 (catastrophic failure):      ``\\cf``
+- Exp 04 (model onboarding):          ``\\mo``
 - Exp 05 (hparam optimisation):       ``\\hp``
+- Appendix warmup ablation:           ``\\wa``
+- Appendix val burn-in ablation:      ``\\vb``
+- Appendix prior mismatch:            ``\\prm``
 """
 
 from __future__ import annotations

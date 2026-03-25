@@ -76,6 +76,8 @@ from pareto_bandit.config import (
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_ARM_SHORT,
+    K3_BUDGET_LABELS,
+    K3_BUDGET_TARGETS,
     K3_FAILURE_ARM,
     K3_WARMUP_PRIORS_PATH,
     N_SEEDS,
@@ -117,8 +119,9 @@ RESULTS_DIR = Path(__file__).parent / "results"
 PHASE_N: int = 608
 CHECKPOINT_INTERVAL: int = 20
 
-BUDGET_TARGET: float = 6.62e-4  # moderate
-BUDGET_LABEL: str = "moderate"
+_MODERATE_IDX: int = K3_BUDGET_LABELS.index("moderate")
+BUDGET_TARGET: float = K3_BUDGET_TARGETS[_MODERATE_IDX]
+BUDGET_LABEL: str = K3_BUDGET_LABELS[_MODERATE_IDX]
 
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]

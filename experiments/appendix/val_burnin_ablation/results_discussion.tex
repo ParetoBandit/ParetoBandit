@@ -47,12 +47,12 @@ should be compared.}
 
 \paragraph{Unconstrained regime (Table~\ref{tab:val_burnin}).}
 Less burn-in yields \emph{lower} test regret for warmup conditions:
-0\% burn-in achieves $56.4$ cumulative regret, significantly below the
-100\% reference ($60.4$; $\Delta{=}{-}6.6\%$,
-$p_\mathrm{adj}{<}10^{-4}$).  The 25\% and 50\% conditions
-are also significantly lower ($56.9$, $p_\mathrm{adj}{<}10^{-4}$;
-$58.4$, $p_\mathrm{adj}{=}0.029$), with only 75\% approaching the
-reference ($59.4$, $p_\mathrm{adj}{=}1.0$).  This monotonic trend
+0\% burn-in achieves $\vbWarmupZeroRegret$ cumulative regret, significantly below the
+100\% reference ($\vbWarmupHundredRegret$; $\Delta{=}\vbStatWarmupZeroDeltaPct\%$,
+$p_\mathrm{adj}$\vbStatWarmupZeroPAdj).  The 25\% and 50\% conditions
+are also significantly lower ($\vbWarmupTwentyFiveRegret$, $p_\mathrm{adj}$\vbStatWarmupTwentyFivePAdj;
+$\vbWarmupFiftyRegret$, $p_\mathrm{adj}{=}\vbStatWarmupFiftyPAdj$), with only 75\% approaching the
+reference ($\vbWarmupSeventyFiveRegret$, $p_\mathrm{adj}{=}\vbStatWarmupSeventyFivePAdj$).  This monotonic trend
 reflects the forgetting--burn-in interaction: with $\gamma{=}0.997$,
 effective memory is ${\sim}333$ steps.  At 0\% burn-in the
 priors---trained on $8{,}374$ examples with
@@ -63,12 +63,12 @@ After 1{,}785 val steps, priors are decayed by $\gamma^{1785} \approx
 4.7{\times}10^{-3}$---heavily attenuated but not fully erased.
 
 \paragraph{Prior value at cold start.}
-Tabula rasa without burn-in incurs $100.2$ cumulative regret, $+66\%$
-above the warmup reference ($p_\mathrm{adj}{=}0.016$), with the
-penalty concentrated in the first ${\sim}200$ steps (R@200: $14.9$
-vs.\ $5.9$).  After 100\% burn-in, tabula rasa narrows the gap
-($68.5$, $+13.5\%$) but this difference does not survive Bonferroni
-correction ($p_\mathrm{adj}{=}0.45$), consistent with partial
+Tabula rasa without burn-in incurs $\vbTRZeroRegret$ cumulative regret, $+\vbStatTRZeroDeltaPct\%$
+above the warmup reference ($p_\mathrm{adj}{=}\vbStatTRZeroPAdj$), with the
+penalty concentrated in the first ${\sim}200$ steps (R@200: $\vbTRZeroRAtTwoHundred$
+vs.\ $\vbWarmupHundredRAtTwoHundred$).  After 100\% burn-in, tabula rasa narrows the gap
+($\vbTRHundredRegret$, $+\vbTRHundredGroupDeltaPct\%$) but this difference does not survive Bonferroni
+correction ($p_\mathrm{adj}$~\vbStatTRHundredPAdj), consistent with partial
 convergence: both systems operate predominantly on recent online
 evidence, though the different effective memory lengths
 (${\sim}333$ vs.\ ${\sim}200$ steps) and residual prior contribution
@@ -90,13 +90,13 @@ reward-model learning \emph{and} pacer adaptation.
 \begin{itemize}[nosep,leftmargin=*]
   \item \emph{Tight budget: burn-in is a wash.}
     Warmup~0\% vs.\ Warmup~100\% is non-significant
-    ($160.1$ vs.\ $161.7$, $\Delta{=}{-}1.0\%$, $p{=}0.45$).
+    ($\vbWarmupZeroTightRegret$ vs.\ $\vbWarmupHundredTightRegret$, $\Delta{=}\vbStatWarmupZeroTightDeltaPct\%$, $p{=}\vbStatWarmupZeroTightPAdj$).
     Under tight constraints the pacer dominates routing decisions,
     making the reward model's initialisation less consequential.
   \item \emph{Moderate budget: burn-in helps.}
     Warmup~0\% is significantly worse than Warmup~100\%
-    ($134.5$ vs.\ $121.4$, $\Delta{=}{+}10.8\%$,
-    $p_\mathrm{adj}{<}10^{-3}$).
+    ($\vbWarmupZeroModRegret$ vs.\ $\vbWarmupHundredModRegret$, $\Delta{=}{+}\vbStatWarmupZeroModDeltaPct\%$,
+    $p_\mathrm{adj}{=}\vbStatWarmupZeroModPAdj$).
     Under moderate constraints the bandit and pacer must co-adapt: the
     bandit learns which arms offer the best quality-per-dollar, while
     the pacer adjusts $\lambda_t$ in response.  Burn-in provides the
@@ -106,10 +106,10 @@ reward-model learning \emph{and} pacer adaptation.
   \item \emph{Tabula rasa fails under budget constraints.}
     Without priors, the cold-start bandit cannot route effectively and
     the BudgetPacer cannot calibrate: cost/target ratios fall to
-    $0.39$ (tight) and $0.42$ (moderate) for tabula rasa without
+    $\vbTRZeroTightCostRatio$ (tight) and $\vbTRZeroModCostRatio$ (moderate) for tabula rasa without
     burn-in, indicating massive underspending.  Even after 100\%
-    burn-in, tabula rasa remains far from budget compliance ($0.89$
-    tight, $0.83$ moderate) with regret $+39\%$--$+78\%$ above warmup.
+    burn-in, tabula rasa remains far from budget compliance ($\vbTRHundredTightCostRatio$
+    tight, $\vbTRHundredModCostRatio$ moderate) with regret $+\vbTRHundredTightGroupDeltaPct\%$--$+\vbTRZeroModGroupDeltaPct\%$ above warmup.
     This failure mode underscores that informative priors
     are critical for budget-paced routing, not merely a convenience.
 \end{itemize}
@@ -143,8 +143,8 @@ effective online observations that replace it under geometric
 forgetting---every step of burn-in degrades the router's starting
 point.
 Second, priors are a \emph{structural prerequisite for budget
-compliance}: without them, the BudgetPacer achieves only 39--42\% of
-target spend because the cold-start bandit cannot provide the arm
+compliance}: without them, the BudgetPacer achieves only
+$\vbTRZeroTightCostRatio$--$\vbTRZeroModCostRatio$ of target spend because the cold-start bandit cannot provide the arm
 diversity the pacer needs to regulate costs.  This quantifies the
 mechanism behind the catastrophic pacer--exploration failures
 documented in Appendix~\ref{sec:warmup_ablation}, where 25--45\% of
@@ -183,14 +183,14 @@ regime (6~tests).}
 \toprule
 \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & $\boldsymbol{\Delta}$ & $\boldsymbol{p_\mathrm{adj}}$ \\
 \midrule
-Warmup & 0\%   & 56.4\,$\pm$\,0.3  & 5.6  & $-6.6$\%  & $< 10^{-4}$ \\
-Warmup & 25\%  & 56.9\,$\pm$\,0.4  & 5.8  & $-5.8$\%  & $< 10^{-4}$ \\
-Warmup & 50\%  & 58.4\,$\pm$\,0.5  & 5.8  & $-3.2$\%  & 0.029 \\
-Warmup & 75\%  & 59.4\,$\pm$\,0.7  & 6.0  & $-1.6$\%  & 1.0 \\
-Warmup & 100\% & 60.4\,$\pm$\,0.5  & 5.9  & ---       & --- \\
+Warmup & 0\%   & \vbWarmupZeroRegret\,$\pm$\,\vbWarmupZeroRegretSE  & \vbWarmupZeroRAtTwoHundred  & $\vbStatWarmupZeroDeltaPct$\%  & \vbStatWarmupZeroPAdj \\
+Warmup & 25\%  & \vbWarmupTwentyFiveRegret\,$\pm$\,\vbWarmupTwentyFiveRegretSE  & \vbWarmupTwentyFiveRAtTwoHundred  & $\vbStatWarmupTwentyFiveDeltaPct$\%  & \vbStatWarmupTwentyFivePAdj \\
+Warmup & 50\%  & \vbWarmupFiftyRegret\,$\pm$\,\vbWarmupFiftyRegretSE  & \vbWarmupFiftyRAtTwoHundred  & $\vbStatWarmupFiftyDeltaPct$\%  & \vbStatWarmupFiftyPAdj \\
+Warmup & 75\%  & \vbWarmupSeventyFiveRegret\,$\pm$\,\vbWarmupSeventyFiveRegretSE  & \vbWarmupSeventyFiveRAtTwoHundred  & $\vbStatWarmupSeventyFiveDeltaPct$\%  & \vbStatWarmupSeventyFivePAdj \\
+Warmup & 100\% & \vbWarmupHundredRegret\,$\pm$\,\vbWarmupHundredRegretSE  & \vbWarmupHundredRAtTwoHundred  & ---       & --- \\
 \midrule
-Tabula Rasa & 0\%   & 100.2\,$\pm$\,15.4 & 14.9 & $+66.0$\% & 0.016 \\
-Tabula Rasa & 100\% & 68.5\,$\pm$\,4.0   & 8.4  & $+13.5$\% & 0.45 \\
+Tabula Rasa & 0\%   & \vbTRZeroRegret\,$\pm$\,\vbTRZeroRegretSE & \vbTRZeroRAtTwoHundred & $+\vbTRZeroGroupDeltaPct$\% & \vbStatTRZeroPAdj \\
+Tabula Rasa & 100\% & \vbTRHundredRegret\,$\pm$\,\vbTRHundredRegretSE   & \vbTRHundredRAtTwoHundred  & $+\vbTRHundredGroupDeltaPct$\% & \vbStatTRHundredPAdj \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -211,15 +211,15 @@ achieve budget compliance, severely underspending.}
 \toprule
 \textbf{Budget} & \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & \textbf{Cost/T} & $\boldsymbol{\Delta}$ & $\boldsymbol{p_\mathrm{adj}}$ \\
 \midrule
-Tight    & Warmup      & 0\%   & 160.1\,$\pm$\,1.0   & 18.1 & 1.00 & $-1.0$\%   & 1.0 \\
-         & Warmup      & 100\% & 161.7\,$\pm$\,1.6   & 19.1 & 1.00 & ---        & --- \\
-         & Tabula Rasa & 0\%   & 287.9\,$\pm$\,10.4  & 33.8 & 0.39 & $+78.0$\%  & $< 10^{-5}$ \\
-         & Tabula Rasa & 100\% & 224.8\,$\pm$\,13.6  & 28.0 & 0.89 & $+39.1$\%  & $< 10^{-3}$ \\
+Tight    & Warmup      & 0\%   & \vbWarmupZeroTightRegret\,$\pm$\,\vbWarmupZeroTightRegretSE   & \vbWarmupZeroTightRAtTwoHundred & \vbWarmupZeroTightCostRatio & $\vbStatWarmupZeroTightDeltaPct$\%   & \vbStatWarmupZeroTightPAdj \\
+         & Warmup      & 100\% & \vbWarmupHundredTightRegret\,$\pm$\,\vbWarmupHundredTightRegretSE   & \vbWarmupHundredTightRAtTwoHundred & \vbWarmupHundredTightCostRatio & ---        & --- \\
+         & Tabula Rasa & 0\%   & \vbTRZeroTightRegret\,$\pm$\,\vbTRZeroTightRegretSE  & \vbTRZeroTightRAtTwoHundred & \vbTRZeroTightCostRatio & $+\vbTRZeroTightGroupDeltaPct$\%  & \vbStatTRZeroTightPAdj \\
+         & Tabula Rasa & 100\% & \vbTRHundredTightRegret\,$\pm$\,\vbTRHundredTightRegretSE  & \vbTRHundredTightRAtTwoHundred & \vbTRHundredTightCostRatio & $\vbTRHundredTightGroupDeltaPct$\%  & \vbStatTRHundredTightPAdj \\
 \midrule
-Moderate & Warmup      & 0\%   & 134.5\,$\pm$\,2.2   & 13.4 & 1.00 & $+10.8$\%  & $< 10^{-3}$ \\
-         & Warmup      & 100\% & 121.4\,$\pm$\,2.2   & 13.8 & 0.98 & ---        & --- \\
-         & Tabula Rasa & 0\%   & 236.0\,$\pm$\,18.7  & 33.3 & 0.42 & $+94.5$\%  & $< 10^{-4}$ \\
-         & Tabula Rasa & 100\% & 162.5\,$\pm$\,21.2  & 19.4 & 0.83 & $+33.9$\%  & 0.53 \\
+Moderate & Warmup      & 0\%   & \vbWarmupZeroModRegret\,$\pm$\,\vbWarmupZeroModRegretSE   & \vbWarmupZeroModRAtTwoHundred & \vbWarmupZeroModCostRatio & $+\vbStatWarmupZeroModDeltaPct$\%  & \vbStatWarmupZeroModPAdj \\
+         & Warmup      & 100\% & \vbWarmupHundredModRegret\,$\pm$\,\vbWarmupHundredModRegretSE   & \vbWarmupHundredModRAtTwoHundred & \vbWarmupHundredModCostRatio & ---        & --- \\
+         & Tabula Rasa & 0\%   & \vbTRZeroModRegret\,$\pm$\,\vbTRZeroModRegretSE  & \vbTRZeroModRAtTwoHundred & \vbTRZeroModCostRatio & $+\vbTRZeroModGroupDeltaPct$\%  & \vbStatTRZeroModPAdj \\
+         & Tabula Rasa & 100\% & \vbTRHundredModRegret\,$\pm$\,\vbTRHundredModRegretSE  & \vbTRHundredModRAtTwoHundred & \vbTRHundredModCostRatio & $+\vbTRHundredModGroupDeltaPct$\%  & \vbStatTRHundredModPAdj \\
 \bottomrule
 \end{tabular}
 \end{table}
