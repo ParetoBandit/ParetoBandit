@@ -28,18 +28,26 @@ A matched-$\gamma$ control runs Tabula Rasa at warmup's
 $\gamma{=}\waGamma$ (cold start, $n_\mathit{eff}{=}1$), isolating
 the prior contribution at matched (shorter) memory length.
 
-\begin{center}
-\small
-\begin{tabular}{@{}lcccc@{}}
+\begin{table*}[t]
+\centering
+\caption{Experimental conditions for the warmup-prior ablation.
+Warmup and Tabula Rasa use their own Pareto-knee-selected hyperparameters; the matched-$\gamma$ control isolates the effect of the prior by reusing warmup's forgetting factor with a cold start.}
+\label{tab:warmup_ablation_conditions}
+\footnotesize
+{
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.23\columnwidth}ccc p{0.31\columnwidth}@{}}
 \toprule
 \textbf{Condition} & $\boldsymbol{\alpha}$ & $\boldsymbol{n_\mathit{eff}}$ & $\boldsymbol{\gamma}$ & \textbf{Source / Role} \\
 \midrule
-Warmup (ParetoBandit) & $\waAlpha$ & $\waNeff$ & $\waGamma$ & \textsc{Best\_K3\_Hparams} \\
-Tabula Rasa           & $\waAlpha$ & $1.0$       & $\waTRGamma$ & \textsc{Best\_K3\_Tabula\_Rasa\_Hparams} \\
-TR (matched-$\gamma$) & $\waAlpha$ & $1.0$       & $\waGamma$ & Mechanistic control \\
+Warmup (ParetoBandit) & $\waAlpha$ & $\waNeff$ & $\waGamma$ & \shortstack[l]{\textsc{Best\_K3}\\\textsc{Hparams}} \\
+Tabula Rasa           & $\waAlpha$ & $1.0$     & $\waTRGamma$ & \shortstack[l]{\textsc{Best\_K3\_Tabula}\\\textsc{Rasa\_Hparams}} \\
+TR (matched-$\gamma$) & $\waAlpha$ & $1.0$     & $\waGamma$ & \shortstack[l]{Mechanistic\\control} \\
 \bottomrule
 \end{tabular}
-\end{center}
+}
+\end{table*}
 
 \paragraph{Statistical methodology.}
 Two complementary tests formalise each comparison:
@@ -60,8 +68,12 @@ All $p$-values are corrected for multiplicity via the
 Holm--Bonferroni procedure across the full family of tests
 (8 sign tests and 8 Fisher tests, corrected separately per family).
 
-\begin{center}
+\begin{table*}[t]
+\centering
+\caption{Warmup-prior ablation results across budget regimes (20~seeds, held-out test split). Warmup priors are compared against Tabula Rasa, a matched-$\gamma$ cold-start control, and a random baseline where applicable. Regret is cumulative over all 1{,}824 test steps; R@200 is cumulative regret at test step~200. Catastrophic failures are defined relative to the pooled median within each budget regime.}
+\label{tab:warmup_ablation_results}
 \small
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}llrrrrrcc@{}}
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Regret} (95\% CI) & \textbf{Std} & \textbf{R@200} (95\% CI) & \textbf{Rwd} & \textbf{Cat.} & $p_\text{sign}^*$ & $p_\text{Fisher}^*$ \\
@@ -84,7 +96,10 @@ Loose    & Warmup           & $\mathbf{\waLooseWarmupRegret}$\,[\waLooseWarmupRe
          & TR (matched-$\gamma$) & $\waLooseTRMatchedRegret$\,[\waLooseTRMatchedRegretCILo, \waLooseTRMatchedRegretCIHi]      & $\waLooseTRMatchedRegretStd$  & $\waLooseTRMatchedRAtTwoHundred$\,[20.9, 29.4]           & $\waLooseTRMatchedReward$          & \waLooseVsTRMatchedBaselineCat/\waNseeds & $\waLooseVsTRMatchedSignP$ & $\waLooseVsTRMatchedFisherP$ \\
 \bottomrule
 \end{tabular}
-\end{center}
+}
+\end{table*}
+
+\vspace{6pt}
 
 \noindent
 Twenty seeds; 95\% normal-approximation CI (mean $\pm$ 1.96\,SE); test split ($n{=}1{,}824$).
@@ -105,7 +120,7 @@ comparisons are significant at $\alpha{=}0.05$; the moderate
 comparison is borderline ($p{=}\waModVsTRSignP$).
 The reductions are modest in magnitude (\waModRegretReductionPct--\waUncRegretReductionPct\%),
 reflecting that the Tabula Rasa baseline converges within the
-${\sim}333$ effective-memory window afforded by its
+${\sim}250$ effective-memory window afforded by its
 $\gamma{=}\waTRGamma$; warmup's advantage is concentrated in the
 early learning phase (R@200) and narrows as online evidence
 accumulates.
@@ -154,7 +169,7 @@ The matched-$\gamma$ control sharpens this conclusion by ruling
 out the alternative hypothesis that the forgetting-factor difference
 drives the advantage.
 The warmup benefit is transient by design---geometric forgetting
-($\gamma{=}\waGamma$) replaces priors within ${\sim}250$
+($\gamma{=}\waGamma$) replaces priors within ${\sim}333$
 effective-memory steps; after sufficient learning, warmup and
 tabula-rasa conditions converge
 (Appendix~\ref{appendix:val_burnin_ablation}).
@@ -167,7 +182,8 @@ domain-restricted to actively inverted priors.
 
 \begin{figure}[t]
 \centering
+\setlength{\abovecaptionskip}{1.5pt}
 \includegraphics[width=\columnwidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.png}
-\caption{Per-seed cumulative regret distributions for warmup priors vs.\ Tabula Rasa (cold start) across four budget regimes (20~seeds, test split).  Warmup priors (blue) produce tight, unimodal distributions; Tabula Rasa (orange/green) exhibits bimodal heavy tails under budget constraints, with catastrophic seeds that never recover due to the pacer--exploration interaction.}
+\caption{Cold-start ablation on the $K{=}3$ stationary portfolio (20~seeds, held-out test split, $n{=}1{,}824$ prompts). Per-seed cumulative regret distributions compare warmup priors (blue) against Tabula Rasa (orange) and the matched-$\gamma$ cold-start control (green) across four budget regimes. The corresponding Holm-corrected sign-test results and catastrophic-failure counts under the pooled-median threshold are reported in Table~\ref{tab:warmup_ablation_results}. Warmup priors produce tight, unimodal distributions, while cold-start baselines exhibit heavier tails under budget constraints due to the pacer--exploration interaction.}
 \label{fig:warmup_ablation}
 \end{figure}

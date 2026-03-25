@@ -85,8 +85,10 @@ def main() -> None:
         k4 = data["k4"]
         cs.raw("NPromptsKFour", str(k4["n_prompts"]))
         cs.raw("NDroppedKFour", str(k4["n_dropped"]))
-        k4_missing = k3["n_prompts"] - k4["n_raw"]
-        cs.raw("KFourMissing", str(k4_missing))
+        cs.raw(
+            "KFourMissing",
+            str(k3.get("n_excluded_for_alignment", 0)),
+        )
 
         k4_ranking = k4["ranking"]
         k4_fm = k4_ranking["full_ordering_match"]

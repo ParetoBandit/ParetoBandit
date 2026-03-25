@@ -46,10 +46,10 @@ BOOT_RNG_SEED: int = 42
 def _setup_matplotlib() -> None:
     plt.rcParams.update({
         "font.family": "serif",
-        "font.size": 10,
-        "axes.labelsize": 11,
-        "axes.titlesize": 12,
-        "legend.fontsize": 9,
+        "font.size": 11,
+        "axes.labelsize": 12,
+        "axes.titlesize": 13,
+        "legend.fontsize": 10,
         "figure.dpi": 150,
         "savefig.dpi": 300,
         "savefig.bbox": "tight",
@@ -164,9 +164,9 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
     rng = np.random.default_rng(BOOT_RNG_SEED)
 
     fig, (ax_l, ax_r) = plt.subplots(
-        1, 2, figsize=(11, 6.4), sharey=True,
+        1, 2, figsize=(11, 7.2), sharey=True,
         gridspec_kw={"wspace": 0.08, "left": 0.07, "right": 0.97,
-                      "top": 0.94, "bottom": 0.38},
+                      "top": 0.94, "bottom": 0.42},
     )
 
     for ax, judge, panel_label in [
@@ -269,7 +269,7 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
     fig.text(
         0.52, 0.01, table_text,
         transform=fig.transFigure,
-        fontsize=7.5, fontfamily="monospace",
+        fontsize=9.0, fontfamily="monospace",
         ha="center", va="bottom",
     )
 

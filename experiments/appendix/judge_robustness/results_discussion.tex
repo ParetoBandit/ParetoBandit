@@ -57,6 +57,7 @@ with every pairwise difference significant at $p < 10^{-5}$ (paired
 $t$-test, $n = 2{,}000$).}
 \label{tab:expected_ordering}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{Judge} & \textbf{Gemini-Pro} & \textbf{Mistral-Large} & \textbf{Llama-8B} \\
@@ -66,6 +67,7 @@ GPT-4.1-mini      & 0.964 & 0.952 & 0.857 \\
 Claude-3.7-Sonnet & 0.928 & 0.915 & 0.779 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 Table~\ref{tab:expected_ordering} shows that all three judges rank
@@ -113,6 +115,7 @@ All off-diagonal cross-regret values have bootstrap 95\% CIs
 ($B = 10{,}000$) of $\pm 0.003$, confirming precision.}
 \label{tab:cross_regret}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{Train $\downarrow$ / Eval $\rightarrow$}
@@ -126,6 +129,7 @@ Claude-3.7-Sonnet
     & 0.926 (95.9\%) & 0.953 (97.3\%) & 0.948 (100\%) \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 \subsection{The Paper's Claims Are About Relative Method Performance}
@@ -201,6 +205,7 @@ per judge).  CCC is the primary measure; Pearson is included for reference
 but is attenuated by ceiling compression.}
 \label{tab:judge_agreement}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcc}
 \toprule
 \textbf{Metric} & \textbf{GPT-4.1-mini} & \textbf{Claude-3.7-Sonnet} \\
@@ -212,6 +217,7 @@ Mean bias (judge $-$ R1)     & $+0.039$ & $-0.012$ \\
 Pearson $r$ (ref.)           & 0.691 & \textbf{0.722} \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 CCC values of 0.65--0.72 reflect moderate per-response agreement.
@@ -240,6 +246,7 @@ that the same monotonic trend holds when conditioning on the consensus
 (panel-median) gap.}
 \label{tab:routing_diagnostics}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrccc}
 \toprule
 & & & \multicolumn{2}{c}{\textbf{Best-model agr.\ vs.\ R1}} \\
@@ -256,6 +263,7 @@ $[0.30, 1.00)$ & 552  & 0.71 & 56.3\% & 58.0\% \\
 \emph{Overall} & 2{,}000 & 0.42 & 51.3\% & 47.9\% \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 On the 736 prompts (37\%) where R1 sees a gap $\geq 0.20$---where
@@ -283,6 +291,7 @@ oracle routes to each model.  All three judges produce similar routing
 distributions ($L_1$ distance from R1 $\leq 0.10$).}
 \label{tab:model_selection}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{Judge} & \textbf{Llama-8B} & \textbf{Mistral-Large} & \textbf{Gemini-Pro} \\
@@ -292,6 +301,7 @@ GPT-4.1-mini      & 35.2\% & 41.5\% & 23.2\% \\
 Claude-3.7-Sonnet & 35.1\% & 42.0\% & 22.8\% \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 \subsection{End-to-End Regret Under an Alternative Judge}
@@ -351,9 +361,9 @@ conclusions---method rankings, convergence behaviour, budget-pacing
 dynamics---are not artefacts of R1's scoring; the findings generalise
 beyond the choice of evaluator.
 
-\begin{figure}[h]
+\begin{figure*}[t]
     \centering
-    \includegraphics[width=\linewidth]{../experiments/appendix/judge_robustness/results/cross_judge_regret.png}
+    \includegraphics[width=\textwidth]{../experiments/appendix/judge_robustness/results/cross_judge_regret.png}
     \caption{Cold-start bandit regret under R1 vs.\ GPT-4.1-mini evaluation
     on the same 2{,}000 prompts.  \textbf{(A)}~Under R1, Tabula~Rasa reduces
     cumulative regret by 37\% relative to Random.  \textbf{(B)}~Under
@@ -370,7 +380,7 @@ beyond the choice of evaluator.
     (unconstrained, shown only in the top row) is invariant across budget
     regimes.}
     \label{fig:cross_judge_regret}
-\end{figure}
+\end{figure*}
 
 \subsection{Scope and Limitations}
 
@@ -385,17 +395,4 @@ dynamics replicate under GPT-4.1-mini
 (Figure~\ref{fig:cross_judge_regret}).  Because R1 sees the largest
 oracle lift (0.031 vs.\ 0.016--0.020), our effect sizes represent an
 upper bound; the relative method ordering is preserved under all judges.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\linewidth]{../experiments/appendix/judge_robustness/results/judge_robustness.png}
-    \caption{Per-response reward scatter.
-    \textbf{Left:} DeepSeek-R1 vs.\ Claude-3.7-Sonnet.
-    \textbf{Right:} DeepSeek-R1 vs.\ GPT-4.1-mini.
-    Dashed line: identity.  Most data concentrates in the
-    $[0.8, 1.0]$ range (ceiling compression), which attenuates
-    Pearson~$r$.  Lin's CCC (0.65--0.72) and MAD (${\sim}0.075$) are
-    more appropriate agreement measures for this distribution.}
-    \label{fig:judge_scatter}
-\end{figure}
 

@@ -57,10 +57,10 @@ def main() -> None:
     update_p95 = [r["update_p95_us"] for r in results]
     throughput = [r["throughput_rps"] for r in results]
 
-    plt.rcParams.update({"font.size": 14})
+    plt.rcParams.update({"font.size": 16})
 
     fig, (ax_route, ax_update, ax_tp) = plt.subplots(
-        1, 3, figsize=(20, 7.0),
+        1, 3, figsize=(21, 7.8),
         gridspec_kw={"width_ratios": [2, 2, 1.2]},
     )
 
@@ -86,12 +86,12 @@ def main() -> None:
         )
 
     ax_route.set_yscale("log")
-    ax_route.set_ylabel("Latency (µs, log scale)", fontsize=15)
+    ax_route.set_ylabel("Latency (µs, log scale)", fontsize=17)
     ax_route.set_xticks(x)
-    ax_route.set_xticklabels(labels, fontsize=12, rotation=35, ha="right")
-    ax_route.legend(fontsize=12, loc="upper left")
-    ax_route.set_title("Route Latency", fontsize=16, fontweight="bold")
-    ax_route.tick_params(axis="y", labelsize=12)
+    ax_route.set_xticklabels(labels, fontsize=14, rotation=35, ha="right")
+    ax_route.legend(fontsize=14, loc="upper left")
+    ax_route.set_title("Route Latency", fontsize=18, fontweight="bold")
+    ax_route.tick_params(axis="y", labelsize=14)
     ax_route.grid(axis="y", alpha=0.3, which="both")
     ax_route.set_axisbelow(True)
 
@@ -111,12 +111,12 @@ def main() -> None:
         )
 
     ax_update.set_yscale("log")
-    ax_update.set_ylabel("Latency (µs, log scale)", fontsize=15)
+    ax_update.set_ylabel("Latency (µs, log scale)", fontsize=17)
     ax_update.set_xticks(x)
-    ax_update.set_xticklabels(labels, fontsize=12, rotation=35, ha="right")
-    ax_update.legend(fontsize=12, loc="upper left")
-    ax_update.set_title("Update Latency", fontsize=16, fontweight="bold")
-    ax_update.tick_params(axis="y", labelsize=12)
+    ax_update.set_xticklabels(labels, fontsize=14, rotation=35, ha="right")
+    ax_update.legend(fontsize=14, loc="upper left")
+    ax_update.set_title("Update Latency", fontsize=18, fontweight="bold")
+    ax_update.tick_params(axis="y", labelsize=14)
     ax_update.grid(axis="y", alpha=0.3, which="both")
     ax_update.set_axisbelow(True)
 
@@ -125,15 +125,15 @@ def main() -> None:
         ax_tp.bar(i, tp, color=c, hatch=h, edgecolor="white", linewidth=0.5)
         ax_tp.text(
             i, tp * 1.08, f"{tp:,.0f}",
-            ha="center", va="bottom", fontsize=10.5, fontweight="bold",
+            ha="center", va="bottom", fontsize=12.5, fontweight="bold",
         )
 
     ax_tp.set_yscale("log")
-    ax_tp.set_ylabel("Throughput (req/s, log scale)", fontsize=15)
+    ax_tp.set_ylabel("Throughput (req/s, log scale)", fontsize=17)
     ax_tp.set_xticks(range(len(labels)))
-    ax_tp.set_xticklabels(labels, fontsize=12, rotation=35, ha="right")
-    ax_tp.set_title("Throughput", fontsize=16, fontweight="bold")
-    ax_tp.tick_params(axis="y", labelsize=12)
+    ax_tp.set_xticklabels(labels, fontsize=14, rotation=35, ha="right")
+    ax_tp.set_title("Throughput", fontsize=18, fontweight="bold")
+    ax_tp.tick_params(axis="y", labelsize=14)
     ax_tp.grid(axis="y", alpha=0.3, which="both")
     ax_tp.set_axisbelow(True)
 

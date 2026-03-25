@@ -99,11 +99,6 @@ def main() -> None:
         data = json.load(f)
 
     conditions = data["conditions"]
-    paired_tests = {
-        (t["warmup"], t["baseline"]): t
-        for t in data.get("paired_tests", [])
-    }
-
     available = [
         g for g in BUDGET_GROUPS
         if g[0] in conditions and g[1] in conditions
@@ -147,7 +142,7 @@ def main() -> None:
             jitter = rng.uniform(-jitter_w, jitter_w, size=len(seeds))
             ax.scatter(
                 pos + jitter, seeds,
-                color=color, s=16, alpha=0.7, zorder=5,
+                color=color, s=26, alpha=0.7, zorder=5,
                 edgecolors="white", linewidths=0.3, label=label,
             )
 
@@ -157,61 +152,33 @@ def main() -> None:
                 color=color, linewidth=2.0, zorder=6,
             )
 
-        # Annotations: Holm-corrected p-values for both comparisons
-        anno_lines: List[str] = []
-        for baseline_key, baseline_short in [
-            (tabula_key, "TR"),
-            (matched_key, "TR(γ)"),
-        ]:
-            test = paired_tests.get((warmup_key, baseline_key))
-            if test is None:
-                continue
-            p_sign_key = "sign_test_p_value_holm"
-            p_fisher_key = "fisher_exact_p_value_holm"
-            p_sign = test.get(p_sign_key, test.get("sign_test_p_value", 1.0))
-            p_fisher = test.get(
-                p_fisher_key, test.get("fisher_exact_p_value", 1.0)
-            )
-            w_cat = test.get("warmup_catastrophic_count", 0)
-            b_cat = test.get("baseline_catastrophic_count", 0)
-            n_seeds = len(conditions[warmup_key]["per_seed_regret"])
-            anno_lines.append(
-                f"vs {baseline_short}: sign {_format_p(p_sign)}, "
-                f"cat {w_cat}/{n_seeds} vs {b_cat}/{n_seeds}"
-            )
-
-        if anno_lines:
-            ax.annotate(
-                "\n".join(anno_lines),
-                xy=(cx, 0), xycoords=("data", "axes fraction"),
-                xytext=(0, -22), textcoords="offset points",
-                ha="center", va="top", fontsize=5.5, color="0.35",
-                style="italic", annotation_clip=False,
-                linespacing=1.4,
-            )
-
     if random_regrets is not None:
         unconstrained_x = x_positions[0]
         ax.scatter(
             [unconstrained_x], [np.median(random_regrets)],
-            marker="*", s=200, color=CB_GRAY, zorder=7,
+            marker="*", s=260, color=CB_GRAY, zorder=7,
             edgecolors="black", linewidths=0.5,
             label="Random (unconstrained)",
         )
 
     ax.set_xticks(x_positions)
-    ax.set_xticklabels([g[3] for g in available], fontsize=10)
-    ax.set_xlabel("Budget Regime", fontsize=11, labelpad=55)
-    ax.set_ylabel("Total Regret (per seed)", fontsize=11)
+    ax.set_xticklabels([g[3] for g in available], fontsize=17)
+    ax.set_xlabel("Budget Regime", fontsize=20, labelpad=18)
+    ax.set_ylabel("Total Regret (per seed)", fontsize=20)
     ax.set_title(
-        "Cold-Start Ablation: Warmup vs. Tabula Rasa vs. γ-Matched Control\n"
-        f"(K=3, {data['n_seeds']} seeds, test split n={data['n_prompts']}; "
-        "Holm-corrected p-values, pooled-median catastrophic threshold)",
-        fontsize=10, fontweight="bold",
+        "Cold-Start Ablation",
+        fontsize=17, fontweight="bold",
     )
-    ax.legend(fontsize=8.5, loc="upper left", framealpha=0.9)
+    ax.legend(
+        fontsize=13,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.30),
+        ncol=2,
+        borderaxespad=0.0,
+        framealpha=0.9,
+    )
     ax.grid(True, axis="y", alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=9)
+    ax.tick_params(labelsize=16)
 
     fig.tight_layout()
     for ext in ("pdf", "png"):

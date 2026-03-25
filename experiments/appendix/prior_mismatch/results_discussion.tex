@@ -206,16 +206,16 @@ non-adversarial priors still reduce regret by $\prmGSMTenReductionPct$--$\prmRan
 Tabula rasa is appropriate only when the prior is known to be
 systematically inverted.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
+\includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
 \caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines ($\gamma{=}\prmTRGamma$ and $\gamma$-matched $\prmGamma$).}
 \label{fig:prior_mismatch_heatmap}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
+\includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
 \caption{Per-seed regret distributions across prior-quality levels at $n_\mathit{eff}{=}1{,}000$ (20~seeds, unconstrained).  The $\gamma$-matched Tabula Rasa baseline exhibits a wide, heavy-tailed distribution ($\mathit{std} \approx \prmTRMatchedRegretStd$) with \prmGammaCondCatPct\% catastrophic failure rate.  All warmup conditions---including domain-mismatched and inverted priors---produce tight, unimodal distributions ($\mathit{std} \leq \prmInvTenRegretStd$) with zero catastrophic failures.}
 \label{fig:prior_mismatch_distribution}
-\end{figure}
+\end{figure*}

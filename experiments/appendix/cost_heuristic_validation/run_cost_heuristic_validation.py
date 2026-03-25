@@ -31,7 +31,7 @@ import logging
 import math
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
 from scipy import stats
@@ -153,6 +153,57 @@ def load_split(path: Path, arms: List[str]) -> Dict[str, Any]:
         "n": len(prompts),
         "n_raw": n_raw,
         "n_dropped": n_dropped,
+        "n_after_cost_filter": len(prompts),
+        "n_excluded_for_alignment": 0,
+    }
+
+
+def filter_to_prompt_subset(
+    data: Dict[str, Any],
+    prompts_to_keep: Set[str],
+    *,
+    split_name: str,
+) -> Dict[str, Any]:
+    """Restrict a loaded split to a shared prompt subset.
+
+    Args:
+        data: Output of :func:`load_split`.
+        prompts_to_keep: Prompt texts to retain.
+        split_name: Human-readable split name for logging.
+
+    Returns:
+        Copy of *data* filtered to the requested prompt subset.
+
+    Raises:
+        ValueError: If the requested subset is not fully contained in *data*.
+    """
+    available_prompts = set(data["prompts"])
+    missing_prompts = prompts_to_keep - available_prompts
+    if missing_prompts:
+        raise ValueError(
+            f"{split_name} is missing {len(missing_prompts)} prompts required "
+            "for shared-subset alignment."
+        )
+
+    keep_indices = [i for i, prompt in enumerate(data["prompts"]) if prompt in prompts_to_keep]
+    n_excluded = len(data["prompts"]) - len(keep_indices)
+    if n_excluded > 0:
+        logger.info(
+            "Restricting %s to shared prompt subset: excluding %d prompts "
+            "(%d -> %d prompts).",
+            split_name,
+            n_excluded,
+            len(data["prompts"]),
+            len(keep_indices),
+        )
+
+    return {
+        **data,
+        "prompts": [data["prompts"][i] for i in keep_indices],
+        "costs": {a: arr[keep_indices] for a, arr in data["costs"].items()},
+        "rewards": {a: arr[keep_indices] for a, arr in data["rewards"].items()},
+        "n": len(keep_indices),
+        "n_excluded_for_alignment": n_excluded,
     }
 
 
@@ -171,6 +222,8 @@ def analyze_portfolio(
         "n_prompts": n,
         "n_raw": data["n_raw"],
         "n_dropped": data["n_dropped"],
+        "n_after_cost_filter": data.get("n_after_cost_filter", n),
+        "n_excluded_for_alignment": data.get("n_excluded_for_alignment", 0),
         "n_arms": len(arms),
     }
 
@@ -321,11 +374,17 @@ def analyze_portfolio(
 def print_results(results: Dict[str, Any]) -> None:
     """Print a human-readable summary of the validation results."""
     print(f"\n{'=' * 70}")
-    print(
+    summary = (
         f"  {results['label']}  ({results['n_prompts']} prompts, "
         f"{results['n_arms']} arms; {results['n_dropped']} rows dropped "
         f"from {results['n_raw']} raw)"
     )
+    if results.get("n_excluded_for_alignment", 0) > 0:
+        summary += (
+            f"; {results['n_excluded_for_alignment']} additional prompts "
+            "excluded for shared-subset alignment"
+        )
+    print(summary)
     print(f"{'=' * 70}")
 
     print("\n  Per-Model Cost Distributions:")
@@ -381,21 +440,22 @@ def main() -> None:
 
     all_results: Dict[str, Any] = {}
 
-    # K=3 analysis (always available)
-    logger.info("Analyzing K=3 portfolio (val split)...")
+    # Load K=3 analysis split (always available).
+    logger.info("Loading K=3 portfolio (val split)...")
     k3_data = load_split(VAL_DATA_PATH, K3_ARMS)
-    k3_results = analyze_portfolio(
-        k3_data, K3_ARMS,
-        f"K=3 Portfolio (val, {k3_data['n']} prompts)",
-    )
-    all_results["k3"] = k3_results
-    print_results(k3_results)
 
-    # K=4 analysis (if available)
+    # Load K=4 analysis split if available, then align both portfolios to the
+    # shared prompt subset for a clean comparison.
     k4_path = OFFLINE_DATASET_DIR / "val_k4.jsonl"
     if k4_path.exists():
-        logger.info("Analyzing K=4 portfolio (val_k4 split)...")
+        logger.info("Loading K=4 portfolio (val_k4 split)...")
         k4_data = load_split(k4_path, K4_ARMS)
+        shared_prompts = set(k4_data["prompts"])
+        k3_data = filter_to_prompt_subset(
+            k3_data,
+            shared_prompts,
+            split_name="K=3 val split",
+        )
 
         flash_costs = k4_data["costs"]["google/gemini-2.5-flash"]
         n_unique = len(set(float(c) for c in flash_costs))
@@ -407,13 +467,30 @@ def main() -> None:
                 flash_costs[0],
             )
 
+        logger.info("Analyzing K=3 portfolio on shared prompt subset...")
+        k3_results = analyze_portfolio(
+            k3_data,
+            K3_ARMS,
+            f"K=3 Portfolio (val, shared subset, {k3_data['n']} prompts)",
+        )
+        all_results["k3"] = k3_results
+        print_results(k3_results)
+
+        logger.info("Analyzing K=4 portfolio on shared prompt subset...")
         k4_results = analyze_portfolio(
             k4_data, K4_ARMS,
-            "K=4 Portfolio (val_k4, with Flash)",
+            f"K=4 Portfolio (val_k4 shared subset, {k4_data['n']} prompts, with Flash)",
         )
         all_results["k4"] = k4_results
         print_results(k4_results)
     else:
+        logger.info("Analyzing K=3 portfolio (full val split)...")
+        k3_results = analyze_portfolio(
+            k3_data, K3_ARMS,
+            f"K=3 Portfolio (val, {k3_data['n']} prompts)",
+        )
+        all_results["k3"] = k3_results
+        print_results(k3_results)
         logger.info("K=4 val split not found, skipping K=4 analysis.")
 
     output_path = RESULTS_DIR / "cost_heuristic_validation.json"

@@ -54,10 +54,10 @@ are also significantly lower ($\vbWarmupTwentyFiveRegret$, $p_\mathrm{adj}{=}\vb
 $\vbWarmupFiftyRegret$, $p_\mathrm{adj}{=}\vbStatWarmupFiftyPAdj$), with only 75\% approaching the
 reference ($\vbWarmupSeventyFiveRegret$, $p_\mathrm{adj}{=}\vbStatWarmupSeventyFivePAdj$).  This monotonic trend
 reflects the forgetting--burn-in interaction: with $\gamma{=}\vbGamma$,
-effective memory is ${\sim}250$ steps.  At 0\% burn-in the
+effective memory is ${\sim}\vbEffMemSteps$ steps.  At 0\% burn-in the
 priors---trained on $8{,}374$ examples with
 $n_\mathit{eff}{=}\vbNeff$---are fully intact, providing a stronger
-starting point than the ${\sim}250$ effective online observations
+starting point than the ${\sim}\vbEffMemSteps$ effective online observations
 available after full burn-in.
 After 1{,}785 val steps, priors are decayed by $\gamma^{1785} \approx
 7.8{\times}10^{-4}$---heavily attenuated but not fully erased.
@@ -101,7 +101,7 @@ reward-model learning \emph{and} pacer adaptation.
     bandit learns which arms offer the best quality-per-dollar, while
     the pacer adjusts $\lambda_t$ in response.  Burn-in provides the
     online experience needed for this co-adaptation; without it, the
-    first ${\sim}250$ test steps involve simultaneous calibration of
+    first ${\sim}\vbEffMemSteps$ test steps involve simultaneous calibration of
     both systems.
   \item \emph{Tabula rasa fails under budget constraints.}
     Without priors, the cold-start bandit cannot route effectively:
@@ -136,7 +136,7 @@ Together with the cold-start analysis
 study (Appendix~\ref{appendix:prior_mismatch}), these results
 establish three distinct roles for warmup priors:
 (i)~\emph{superior initialisation}---the offline estimate outperforms
-the ${\sim}250$ effective online observations retained under geometric
+the ${\sim}\vbEffMemSteps$ effective online observations retained under geometric
 forgetting;
 (ii)~\emph{structural prerequisite for budget compliance}---without
 priors, the BudgetPacer achieves only
@@ -160,6 +160,7 @@ $\gamma{=}\vbGamma$.  $p$-values are Bonferroni-corrected within the
 regime (6~tests).}
 \label{tab:val_burnin}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}llrrrl@{}}
 \toprule
 \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & $\boldsymbol{\Delta}$ & $\boldsymbol{p_\mathrm{adj}}$ \\
@@ -174,6 +175,7 @@ Tabula Rasa & 0\%   & \vbTRZeroRegret\,$\pm$\,\vbTRZeroRegretSE & \vbTRZeroRAtTw
 Tabula Rasa & 100\% & \vbTRHundredRegret\,$\pm$\,\vbTRHundredRegretSE   & \vbTRHundredRAtTwoHundred  & $+\vbTRHundredGroupDeltaPct$\% & $\vbStatTRHundredPAdj$ \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 \begin{table}[t]
@@ -187,7 +189,9 @@ Under tight budget, burn-in is non-significant; under moderate budget,
 burn-in helps bandit--pacer co-adaptation.  Tabula rasa without
 burn-in shows mild underspending and higher regret.}
 \label{tab:val_burnin_budget}
-\small
+\normalsize
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lllrrrrl@{}}
 \toprule
 \textbf{Budget} & \textbf{Priors} & \textbf{Burn-in} & \textbf{Regret} & \textbf{R@200} & \textbf{Cost/T} & $\boldsymbol{\Delta}$ & $\boldsymbol{p_\mathrm{adj}}$ \\
@@ -203,18 +207,19 @@ Moderate & Warmup      & 0\%   & \vbWarmupZeroModRegret\,$\pm$\,\vbWarmupZeroMod
          & Tabula Rasa & 100\% & \vbTRHundredModRegret\,$\pm$\,\vbTRHundredModRegretSE  & \vbTRHundredModRAtTwoHundred & \vbTRHundredModCostRatio & $+\vbTRHundredModGroupDeltaPct$\%  & $\vbStatTRHundredModPAdj$ \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_test_regret.png}
+\includegraphics[width=\textwidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_test_regret.png}
 \caption{Cumulative test regret as a function of validation burn-in fraction (unconstrained regime, \vbNseeds~seeds, 95\% CI).  Warmup conditions show a monotonic increase in regret with burn-in: intact priors ($n_\mathit{eff}{=}\vbNeff$) outperform the ${\sim}\vbEffMemSteps$ effective online observations retained at $\gamma{=}\vbGamma$.  Tabula Rasa without burn-in incurs $+\vbTRZeroGroupDeltaPct\%$ regret.}
 \label{fig:val_burnin_ablation}
-\end{figure}
+\end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_budget_summary.png}
+\includegraphics[width=\textwidth]{../experiments/appendix/val_burnin_ablation/results/val_burnin_budget_summary.png}
 \caption{Budget-constrained burn-in ablation summary (\vbNseeds~seeds).  Under tight budget, burn-in is non-significant; under moderate budget, burn-in improves bandit--pacer co-adaptation.  Tabula Rasa without burn-in underspends slightly (cost/target ratios of \vbTRZeroTightCostRatio--\vbTRZeroModCostRatio) and incurs higher regret.}
 \label{fig:val_burnin_budget}
-\end{figure}
+\end{figure*}
