@@ -2,9 +2,9 @@
 """Generate latency benchmark figure for the appendix.
 
 Produces a three-panel figure:
-  1. Route latency (p50 + p95) for all six configurations.
-  2. Update latency (p50 + p95) for all six configurations.
-  3. Throughput (req/s) for all six configurations.
+  1. Route latency (p50 + p95) for all eight configurations.
+  2. Update latency (p50 + p95) for all eight configurations.
+  3. Throughput (req/s) for all eight configurations.
 
 The layout makes the key insight visually immediate: route latency is
 nearly identical for ParetoBandit and the Cached Inv. baseline (both
