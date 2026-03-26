@@ -12,6 +12,18 @@ forgetting), and \emph{PCA dimensionality reduction} ($d{=}26$ vs.\ $d{=}385$).
 All configurations use $K{=}3$ arms, synthetic whitened context
 vectors, and 4,500 measured route\,+\,update cycles
 (500-round warmup excluded).
+Context vectors are drawn i.i.d.\ from a standard normal, $\ell_2$-normalised,
+and augmented with a bias term---matching the distribution of real
+PCA-whitened embeddings in dimensionality and unit-norm structure.
+Synthetic vectors are appropriate here because the benchmark targets the
+linear-algebra cost of \texttt{route()} and \texttt{update()}, which depends
+only on the vector dimension $d$ and the number of arms $K$, not on the
+semantic content of the prompt.
+Using synthetic inputs eliminates dataset I/O, embedding-model inference, and
+PCA projection from the timing loop, ensuring the measurements isolate routing
+computation alone.
+The full end-to-end pipeline including embedding and PCA is profiled separately
+in the E2E breakdown below (Table~\ref{tab:e2e_latency_breakdown}).
 
 \begin{table}[h]
 \centering
