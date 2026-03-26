@@ -6,44 +6,26 @@
 Section~\ref{sec:warmup} introduces offline-to-online warmup priors,
 which let the router begin with informed beliefs about each model's
 strengths by loading sufficient statistics fitted on historical data.
-Two natural questions arise when deciding whether to enable this
-feature.
-
-\paragraph{Q1: Do warmup priors reduce cold-start regret in practice?}
-A practitioner choosing between enabling warmup priors or deploying
-with a blank slate needs an apples-to-apples comparison where
-\emph{each} condition uses its own best hyperparameters---the
-configuration the practitioner would actually run.
-We therefore compare ParetoBandit with warmup priors
+The natural question is whether warmup priors reduce cold-start
+regret in practice.
+To answer this question, we compare ParetoBandit with warmup priors
 ($\alpha{=}\waAlpha$, $n_\mathit{eff}{=}\waNeff$,
 $\gamma{=}\waGamma$) against Tabula Rasa
 ($\alpha{=}\waTRAlpha$, $n_\mathit{eff}{=}1$,
-$\gamma{=}\waTRGamma$), each tuned independently via the
+$\gamma{=}\waTRGamma$), each running under its own
+Pareto-optimal hyperparameters tuned independently via the
 Pareto-knee procedure (Appendix~\ref{sec:hparam_sweep}).
-
-\paragraph{Q2: Is the improvement actually from the priors, or from
-a confounded hyperparameter?}
-In principle, the ``best vs best'' comparison above could harbour
-a confound: if the Pareto-knee sweep selected different forgetting
-factors for each condition, a warmup advantage might stem from the
-resulting memory-length difference rather than from the priors
-themselves.
-The sweep independently selected the same $\gamma{=}\waTRGamma$
-for Tabula Rasa as warmup's $\gamma{=}\waGamma$, so the two
-conditions share identical effective-memory windows
-(${\sim}\waWarmupEffMem$ steps) and the confound is absent by
-construction---no matched-$\gamma$ control is needed.
-The only remaining differences are prior strength
+Notably, the sweep independently selected the same
+$\gamma{=}\waGamma$ for both conditions, so they share identical
+effective-memory windows (${\sim}\waWarmupEffMem$ steps) and the
+only remaining differences are prior strength
 ($n_\mathit{eff}{=}\waNeff$ vs.\ $1$) and exploration rate
-($\alpha{=}\waAlpha$ vs.\ $\waTRAlpha$); the $\alpha$ difference
-is conservative for warmup, since a higher $\alpha$ gives the
-cold-start condition \emph{more} exploration, which should
-accelerate its convergence rather than hinder it.
-Any regret improvement under warmup is therefore directly
-attributable to the informative priors.
+($\alpha{=}\waAlpha$ vs.\ $\waTRAlpha$).
+Any regret difference is therefore directly attributable to the
+informative priors, not to a memory-length confound.
 
 \medskip\noindent
-Both questions are evaluated on the $K{=}\waK$ stationary portfolio
+The comparison is evaluated on the $K{=}\waK$ stationary portfolio
 under four budget regimes: unconstrained (no pacer), tight
 ($B{=}\$\waTightBudget$/req), moderate
 ($B{=}\$\waModBudget$/req), and loose
@@ -82,7 +64,7 @@ to maintain \waCILevel\% family-wise coverage.
 
 \begin{table*}[t]
 \centering
-\caption{Warmup-prior ablation results across budget regimes (\waNseeds~seeds, held-out test split). Warmup priors are compared against Tabula Rasa and a random baseline (unconstrained only). Regret is cumulative over all \waNPrompts{} test steps; R@\waEarlyStep{} is cumulative regret at test step~\waEarlyStep. Catastrophic failures are defined relative to the pooled median within each budget regime.}
+\caption{Warmup-prior ablation results across budget regimes (\waNseeds~seeds, held-out test split, $n{=}\waNPrompts$). Warmup priors are compared against Tabula Rasa and a random baseline (unconstrained only). Regret is cumulative over all \waNPrompts{} test steps; R@\waEarlyStep{} is cumulative regret at test step~\waEarlyStep. CIs are \waCILevel\% percentile-bootstrap (\waBootstrapResamples{} resamples). $^*$Holm--Bonferroni corrected. \textbf{Cat.}\ = catastrophic failures (regret $> \waCatMultiplier{\times}$ pooled median of all conditions in each budget regime).}
 \label{tab:warmup_ablation_results}
 \small
 \resizebox{\textwidth}{!}{%
@@ -107,23 +89,13 @@ Loose    & Warmup           & $\mathbf{\waLooseWarmupRegret}$\,[\waLooseWarmupRe
 }
 \end{table*}
 
-\vspace{6pt}
-
-\noindent
-\waNseeds{} seeds; \waCILevel\% percentile-bootstrap CI (\waBootstrapResamples{} resamples); test split ($n{=}\waNPrompts$).
-$^*$Holm--Bonferroni corrected; $p$-values reported for each baseline vs.\ warmup.
-\textbf{Cat.}\ = catastrophic failures (regret $> \waCatMultiplier\times$
-\emph{pooled} median of all conditions in each budget regime).
-
-\medskip
-\noindent
 Table~\ref{tab:warmup_ablation_results} reports per-condition
 means, bootstrap CIs, standard deviations, early-learning regret
 (R@\waEarlyStep), mean reward, catastrophic-failure counts, and
 Holm-corrected $p$-values for each baseline comparison.
 Below we highlight the key findings.
 
-\paragraph{Q1 result: warmup priors reduce cold-start regret.}
+\paragraph{Result: warmup priors reduce cold-start regret.}
 Relative to Tabula Rasa, warmup priors reduce mean cumulative regret
 across all budget regimes.
 We report the paired difference $\Delta{=}\text{Tabula Rasa} -
@@ -162,16 +134,6 @@ Table~\ref{tab:warmup_ablation_results}).
 The advantage narrows as online evidence accumulates
 past the effective-memory window.
 
-\paragraph{Q2 result: no confound---the improvement comes from the
-priors.}
-The Pareto-knee sweep independently selected $\gamma{=}\waTRGamma$
-for Tabula Rasa, matching warmup's $\gamma{=}\waGamma$ exactly.
-Both conditions therefore share the same effective-memory window
-(${\sim}\waWarmupEffMem$ steps), so there is no forgetting-factor
-confound.
-The Q1 regret reductions are directly attributable to the
-\emph{informative priors themselves}.
-
 \paragraph{Cold-start variability.}
 Warmup priors produce tighter per-seed regret distributions
 (Figure~\ref{fig:warmup_ablation}).
@@ -198,10 +160,6 @@ is the same ($\gamma{=}\waTRGamma$ for both conditions).
 Warmup priors are best understood as a \emph{deployment
 reliability mechanism}: they reduce cold-start regret and
 tighten the per-seed distribution.
-Because the Pareto-knee sweep selected the same $\gamma$ for both
-conditions, the comparison is unconfounded: the regret reduction
-is attributable to the informative priors, not to a memory-length
-difference.
 Warmup priors are optional---ParetoBandit is fully functional
 without them, and the Tabula Rasa results in
 Table~\ref{tab:warmup_ablation_results} confirm that the bandit

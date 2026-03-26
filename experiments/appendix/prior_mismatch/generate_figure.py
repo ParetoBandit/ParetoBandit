@@ -73,7 +73,7 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
     """Heatmap of total regret: prior quality (rows) x n_eff (columns).
 
     Annotates each cell with median [CI_lo, CI_hi].  Cells that exceed
-    the gamma-matched baseline median are bolded.
+    the alpha-controlled baseline median are bolded.
     """
     conditions = data["conditions"]
     early_step = data.get("early_step", 200)
@@ -120,21 +120,15 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
         "Tabula Rasa", f"per_seed_regret_at_{early_step}",
     )
 
-    gm_key = "Tabula Rasa (γ-matched)"
-    gm_med, gm_lo, gm_hi = _bl_median_ci(gm_key, "per_seed_regret")
-    gm_early_med, _, _ = _bl_median_ci(
-        gm_key, f"per_seed_regret_at_{early_step}",
-    )
-
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 5.5))
 
-    for ax, matrix, ci_lo, ci_hi, tr_val, gm_val, title in [
+    for ax, matrix, ci_lo, ci_hi, tr_val, title in [
         (ax1, median_matrix, ci_lo_matrix, ci_hi_matrix,
-         tr_med, gm_med, "Total Regret (median)"),
+         tr_med, "Total Regret (median)"),
         (ax2, early_median_matrix, early_ci_lo_matrix, early_ci_hi_matrix,
-         tr_early_med, gm_early_med, f"R@{early_step} (median)"),
+         tr_early_med, f"R@{early_step} (median)"),
     ]:
-        ref_vals = [v for v in [tr_val, gm_val] if not np.isnan(v)]
+        ref_vals = [v for v in [tr_val] if not np.isnan(v)]
         vmin = min(np.nanmin(matrix), *ref_vals) * 0.95
         vmax = max(np.nanmax(matrix), *ref_vals) * 1.05
 
@@ -157,9 +151,7 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
                 hi_v = ci_hi[qi, ni]
                 if np.isnan(val):
                     continue
-                exceeds_gm = (
-                    val > gm_val if not np.isnan(gm_val) else val > tr_val
-                )
+                exceeds_gm = val > tr_val if not np.isnan(tr_val) else False
                 fontweight = "bold" if exceeds_gm else "normal"
                 ax.text(
                     ni, qi,
@@ -167,22 +159,6 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
                     ha="center", va="center", fontsize=12,
                     fontweight=fontweight, color="black",
                 )
-
-        ref_y = n_qualities - 0.5 + 0.55
-        tr_gamma = data["hparams"]["tabula_rasa"]["forgetting_factor"]
-        ax.text(
-            n_neffs - 0.5, ref_y,
-            f"TR (γ={tr_gamma:.3f}) median = {tr_val:.1f}",
-            ha="right", va="center", fontsize=12,
-            fontstyle="italic", color=COLORS["Tabula Rasa"],
-        )
-        if not np.isnan(gm_val):
-            ax.text(
-                n_neffs - 0.5, ref_y + 0.35,
-                f"TR (γ-matched) median = {gm_val:.1f} [{gm_lo:.1f}, {gm_hi:.1f}]",
-                ha="right", va="center", fontsize=12,
-                fontstyle="italic", color=COLORS[gm_key],
-            )
 
         plt.colorbar(im, ax=ax, shrink=0.8, pad=0.04)
 
@@ -227,16 +203,12 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
         all_vals: List[np.ndarray] = []
         colors_list: List[str] = []
 
-        tr_gamma = data["hparams"]["tabula_rasa"]["forgetting_factor"]
-        for bl_key, bl_short in [
-            ("Tabula Rasa", f"TR\n(γ={tr_gamma:.3f})"),
-            ("Tabula Rasa (γ-matched)", "TR\n(γ-match)"),
-        ]:
-            if bl_key in conditions and "per_seed_regret" in conditions[bl_key]:
-                vals = np.array(conditions[bl_key]["per_seed_regret"])
-                labels.append(bl_short)
-                all_vals.append(vals)
-                colors_list.append(COLORS.get(bl_key, "#999999"))
+        bl_key = "Tabula Rasa"
+        if bl_key in conditions and "per_seed_regret" in conditions[bl_key]:
+            vals = np.array(conditions[bl_key]["per_seed_regret"])
+            labels.append("Tabula\nRasa")
+            all_vals.append(vals)
+            colors_list.append(COLORS[bl_key])
 
         for quality in QUALITY_ORDER:
             key = f"{quality} (n_eff={n_eff})"

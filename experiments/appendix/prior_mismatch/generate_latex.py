@@ -133,7 +133,7 @@ def _add_design_commands(cs: CommandSet, data: Dict[str, Any]) -> None:
     n_neff = len(data["n_eff_values"])
     cs.raw("NQualities", fmt_int(n_qualities))
     cs.raw("NNeff", fmt_int(n_neff))
-    cs.raw("NConditions", fmt_int(n_qualities * n_neff + 2))
+    cs.raw("NConditions", fmt_int(n_qualities * n_neff + 1))
     cs.raw("NPairwise", fmt_int(n_qualities * n_neff))
 
     cat_mult = data["catastrophic_threshold"] / data["catastrophic_ref_median"]
@@ -181,7 +181,7 @@ def _add_summary_commands(
 ) -> None:
     """Emit derived summary macros (std ranges, excess regret, etc.)."""
     conditions = data["conditions"]
-    tr_cond = conditions.get("Tabula Rasa (γ-matched)")
+    tr_cond = conditions.get("Tabula Rasa")
     if tr_cond is None:
         return
     tr_median = tr_cond["total_regret"]["median"]
@@ -245,10 +245,15 @@ def _add_summary_commands(
         else:
             cs.num("DomainMinPHolm", min_p, digits=4)
 
-    gamma_test = data.get("baseline_comparison_gamma_effect")
-    if gamma_test:
+    tr_prod_sum = conditions.get("Tabula Rasa")
+    if tr_prod_sum:
         n_seeds = data["n_seeds"]
-        cond_rate = gamma_test["condition_catastrophic_count"] / n_seeds
+        cat_mult_sum = data["catastrophic_threshold"] / data["catastrophic_ref_median"]
+        tr_med_sum = tr_prod_sum["total_regret"]["median"]
+        cat_thresh_sum = cat_mult_sum * tr_med_sum
+        tr_per_seed_sum = tr_prod_sum.get("per_seed_regret", [])
+        cond_cat = sum(1 for r in tr_per_seed_sum if r > cat_thresh_sum)
+        cond_rate = cond_cat / n_seeds
         n_warmup_conds = len(QUALITY_SHORT) * len(NEFF_SHORT)
         if cond_rate > 0:
             log_prob = n_warmup_conds * n_seeds * math.log10(1 - cond_rate)
@@ -332,8 +337,13 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 
     cs.raw("Nseeds", fmt_int(data["n_seeds"]))
     cs.raw("NPrompts", fmt_int(data["n_prompts"]))
-    cs.num("CatThreshold", data["catastrophic_threshold"], digits=1)
-    cs.num("CatRefMedian", data["catastrophic_ref_median"], digits=1)
+
+    tr_production = data["conditions"]["Tabula Rasa"]
+    cat_ref_median = tr_production["total_regret"]["median"]
+    cat_mult = data["catastrophic_threshold"] / data["catastrophic_ref_median"]
+    cat_threshold = cat_mult * cat_ref_median
+    cs.num("CatThreshold", cat_threshold, digits=1)
+    cs.num("CatRefMedian", cat_ref_median, digits=1)
     cs.raw("BootstrapResamples", f"{_N_BOOTSTRAP:,}".replace(",", r"{,}"))
     cs.raw("CILevel", fmt_int(int(_CI_LEVEL * 100)))
 
@@ -364,7 +374,7 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
                 continue
             _add_condition_commands(cs, cond, f"{q_short}{n_short}")
 
-    tr_cond = conditions.get("Tabula Rasa (γ-matched)")
+    tr_cond = conditions.get("Tabula Rasa")
     if tr_cond:
         tr_median = tr_cond["total_regret"]["median"]
         tr_per_seed = np.asarray(
@@ -386,7 +396,6 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 
     inv_1000 = conditions.get("Inverted (n_eff=1000)")
     if inv_1000 and tr_cond:
-        tr_median = tr_cond["total_regret"]["median"]
         inv_median = inv_1000["total_regret"]["median"]
         cs.num("InvThousandIncreasePct", (inv_median / tr_median - 1) * 100, digits=0)
 
@@ -397,25 +406,16 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         n_short = NEFF_SHORT.get(int(neff_str), neff_str)
         _add_pairwise_commands(cs, test_data, f"Test{q_short}{n_short}")
 
-    gamma_test = data.get("baseline_comparison_gamma_effect")
-    if gamma_test:
-        cs.raw("GammaCondWins", fmt_int(gamma_test["n_condition_wins"]))
-        cs.raw("GammaBaseWins", fmt_int(gamma_test["n_baseline_wins"]))
-        cs.raw("GammaTies", fmt_int(gamma_test["n_ties"]))
-        cs.num("GammaSignP", gamma_test.get("sign_test_p", 1.0), digits=2)
-        cs.num("GammaFisherP", gamma_test.get("fisher_exact_p", 1.0), digits=2)
-        cs.raw("GammaCondCatCount", fmt_int(gamma_test["condition_catastrophic_count"]))
-        cs.raw("GammaBaseCatCount", fmt_int(gamma_test["baseline_catastrophic_count"]))
+    tr_prod = conditions.get("Tabula Rasa")
+    if tr_prod:
+        tr_per_seed_all = tr_prod.get("per_seed_regret", [])
         n_seeds = data["n_seeds"]
-        cond_rate = gamma_test["condition_catastrophic_count"] / n_seeds * 100
-        cs.raw("GammaCondCatPct", fmt_int(round(cond_rate)))
-
-    for test_key, test_data in data.get("pairwise_tests_vs_gamma_matched", {}).items():
-        q_label = test_key.rsplit(" (n_eff=", 1)[0]
-        neff_str = test_key.rsplit("=", 1)[-1].rstrip(")")
-        q_short = QUALITY_SHORT.get(q_label, q_label.replace("-", ""))
-        n_short = NEFF_SHORT.get(int(neff_str), neff_str)
-        _add_pairwise_commands(cs, test_data, f"GM{q_short}{n_short}")
+        tr_prod_median = tr_prod["total_regret"]["median"]
+        cat_thresh = cat_mult * tr_prod_median
+        tr_cat_count = sum(1 for r in tr_per_seed_all if r > cat_thresh)
+        tr_cat_pct = tr_cat_count / n_seeds * 100
+        cs.raw("TRCatCount", fmt_int(tr_cat_count))
+        cs.raw("TRCatPct", fmt_int(round(tr_cat_pct)))
 
     _add_summary_commands(cs, data)
     _add_warmup_ablation_cross_refs(cs)

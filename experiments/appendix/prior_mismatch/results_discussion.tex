@@ -81,32 +81,18 @@ $\prmNQualities \times \prmNNeff$ grid reveals whether there exists
 an $n_\mathit{eff}$ regime where any prior---even a domain-mismatched
 one---helps more than it hurts.
 
-\paragraph{Design: baselines and controls.}
-Two no-prior baselines are included:
-\begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Tabula Rasa} ($\gamma{=}\prmTRGamma$): the independently
-    optimised production default (Experiment~05 Pareto knee-point
-    sweep).
-  \item \textbf{Tabula Rasa ($\gamma$-matched)} ($\gamma{=}\prmGamma$,
-    $\alpha{=}\prmAlpha$): no priors, but the same forgetting factor
-    and exploration rate as all warmup conditions.
-    Because the Pareto-knee sweep selected $\gamma{=}\prmTRGamma$
-    for the production default---identical to warmup's
-    $\gamma{=}\prmGamma$---the two baselines share the same
-    effective memory (${\sim}\prmEffMemWarmup$ steps) and differ
-    only in exploration rate ($\alpha{=}\prmAlpha$ vs.\ the
-    production default's independently tuned $\alpha$).
-    This control isolates the prior's contribution from
-    the exploration-rate confound.
-\end{itemize}
-This yields $\prmNQualities \times \prmNNeff + 2 = \prmNConditions$ conditions.
+\paragraph{Design: baseline.}
+The no-prior baseline is the independently optimised Tabula Rasa
+($\alpha{=}\waTRAlpha$, $\gamma{=}\prmTRGamma$).
+As established in the warmup ablation
+(Appendix~\ref{sec:warmup_ablation}), the Pareto-knee sweep selected
+the same $\gamma{=}\prmTRGamma$ for both warmup and Tabula Rasa, so
+both share the same effective memory (${\sim}\prmEffMemWarmup$ steps).
+This yields $\prmNQualities \times \prmNNeff + 1 = \prmNConditions$ conditions.
 All warmup conditions use $\alpha{=}\prmAlpha$, $\gamma{=}\prmGamma$ (disjoint
 LinUCB).  The warmup hyperparameters were \emph{not} re-optimised per
 prior-quality level---matching the production scenario where prior
 quality degrades after deployment without hyperparameter adjustment.
-Throughout, the $\gamma$-matched Tabula Rasa serves as the primary
-controlled baseline; the production Tabula Rasa ($\gamma{=}\prmTRGamma$) is
-reported for operational relevance.
 
 \paragraph{Design: unconstrained regime.}
 Evaluation follows the same cumulative-regret protocol as the warmup
@@ -138,7 +124,7 @@ median CIs resample the median directly rather than relying on
 normality, which is inappropriate for the heavy-tailed baseline
 distributions observed here.
 A seed is classified as catastrophic if its regret exceeds
-$\prmCatMultiplier{\times}$ the $\gamma$-matched Tabula Rasa's median.
+$\prmCatMultiplier{\times}$ the Tabula Rasa median.
 
 \paragraph{Results.}
 Figure~\ref{fig:prior_mismatch_heatmap} summarises total regret
@@ -147,75 +133,61 @@ across the quality--strength grid.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
-\caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines (production default and $\gamma$-matched with $\alpha{=}\prmAlpha$).}
+\caption{Total cumulative regret for ParetoBandit across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  All conditions use the same ParetoBandit router; only the warmup prior varies.  Tabula Rasa is ParetoBandit without priors.  \textbf{Bold} cells exceed the Tabula Rasa median; normal-weight cells fall below it.}
 \label{fig:prior_mismatch_heatmap}
 \end{figure*}
 
-\emph{The $\gamma$-matched baseline isolates the exploration-rate effect.}
-Because the Pareto-knee sweep selected the same $\gamma$ for both
-warmup and the production Tabula Rasa
-($\gamma{=}\prmGamma{=}\prmTRGamma$), the two no-prior baselines
-share the same effective memory and differ only in exploration rate.
-The $\gamma$-matched baseline (warmup's $\alpha{=}\prmAlpha$)
-achieves a comparable median to the production default
-($\prmTRMatchedRegretMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$]
-vs.\ $\prmTRRegretMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$];
-sign test $p{=}\prmGammaSignP$, \prmGammaCondWins/\prmGammaBaseWins{} wins),
-but exhibits heavier tails
-($\mathit{std}{=}\prmTRMatchedRegretStd$ vs.\ $\prmTRRegretStd$;
-mean $\prmTRMatchedRegretMean$ vs.\ $\prmTRRegretMean$) and more
-catastrophic failures
-(\prmGammaCondCatCount/\prmNseeds{}, \prmGammaCondCatPct\%
-vs.\ \prmGammaBaseCatCount/\prmNseeds{}; Fisher $p{=}\prmGammaFisherP$).
-Lower exploration without priors occasionally traps the cold-start
-learner on a suboptimal arm.
-The $\gamma$-matched baseline therefore serves as a conservative
-reference for the warmup conditions (which share the same
-$\alpha{=}\prmAlpha$): any regret reduction from priors is measured
-against the hardest cold-start baseline, and the comparisons below
-reflect the prior's informational contribution.
-
 \emph{Directionally correct priors help at every strength.}
-Well-calibrated priors reduce median total regret monotonically with
-$n_\mathit{eff}$:
-$\prmWellCalTenRegretMedian$\,[$\prmWellCalTenRegretMedianCILo$, $\prmWellCalTenRegretMedianCIHi$] at $n_\mathit{eff}{=}10$,
-$\prmWellCalHundredRegretMedian$\,[$\prmWellCalHundredRegretMedianCILo$, $\prmWellCalHundredRegretMedianCIHi$] at $100$, and
-$\prmWellCalThousandRegretMedian$\,[$\prmWellCalThousandRegretMedianCILo$, $\prmWellCalThousandRegretMedianCIHi$] at $1{,}000$
-(vs.\ the $\gamma$-matched Tabula Rasa median of
-$\prmCatRefMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$]; reductions
-of $\prmWellCalTenReductionPct\%$\,[$\prmWellCalTenReductionPctCILo$, $\prmWellCalTenReductionPctCIHi$],
-$\prmWellCalHundredReductionPct\%$\,[$\prmWellCalHundredReductionPctCILo$, $\prmWellCalHundredReductionPctCIHi$], and
-$\prmWellCalThousandReductionPct\%$\,[$\prmWellCalThousandReductionPctCILo$, $\prmWellCalThousandReductionPctCIHi$]).
-At $n_\mathit{eff}{=}1{,}000$, Well-calibrated wins \prmTestWellCalThousandCondWins{} of \prmNseeds{} seeds
+Well-calibrated priors reduce median total regret monotonically
+with $n_\mathit{eff}$, relative to the Tabula Rasa baseline
+(median $\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]):
+\begin{itemize}[nosep,leftmargin=*]
+  \item $n_\mathit{eff}{=}10$: median
+    $\prmWellCalTenRegretMedian$\,[$\prmWellCalTenRegretMedianCILo$, $\prmWellCalTenRegretMedianCIHi$]
+    ($\prmWellCalTenReductionPct\%$\,[$\prmWellCalTenReductionPctCILo$, $\prmWellCalTenReductionPctCIHi$] reduction).
+  \item $n_\mathit{eff}{=}100$: median
+    $\prmWellCalHundredRegretMedian$\,[$\prmWellCalHundredRegretMedianCILo$, $\prmWellCalHundredRegretMedianCIHi$]
+    ($\prmWellCalHundredReductionPct\%$\,[$\prmWellCalHundredReductionPctCILo$, $\prmWellCalHundredReductionPctCIHi$] reduction).
+  \item $n_\mathit{eff}{=}1{,}000$: median
+    $\prmWellCalThousandRegretMedian$\,[$\prmWellCalThousandRegretMedianCILo$, $\prmWellCalThousandRegretMedianCIHi$]
+    ($\prmWellCalThousandReductionPct\%$\,[$\prmWellCalThousandReductionPctCILo$, $\prmWellCalThousandReductionPctCIHi$] reduction).
+\end{itemize}
+At $n_\mathit{eff}{=}1{,}000$, Well-calibrated wins
+\prmTestWellCalThousandCondWins{} of \prmNseeds{} seeds
 (Holm-corrected sign $p{=}\prmTestWellCalThousandSignPHolm$);
-Random-1680 wins \prmTestRandThousandCondWins{} of \prmNseeds{} (Holm $p{=}\prmTestRandThousandSignPHolm$).
+Random-1680 wins \prmTestRandThousandCondWins{} of \prmNseeds{}
+(Holm $p{=}\prmTestRandThousandSignPHolm$).
 At lower $n_\mathit{eff}$ values, the per-seed improvements are
 directionally consistent but do not survive Holm correction with
 \prmNseeds~seeds.
 
 \emph{Sample size does not matter---distributional match does.}
-The sample-size control (Random-1680) performs comparably to
-Well-calibrated at every $n_\mathit{eff}$ (e.g., median
+A practitioner might worry that the Well-calibrated prior benefits
+from a larger training set rather than better calibration.
+The Random-1680 control rules this out: it uses only $\prmRandNPrompts$
+prompts (matching the GSM8K-only count) drawn from the full
+distribution and performs comparably to Well-calibrated at every
+$n_\mathit{eff}$ (e.g., median
 $\prmRandThousandRegretMedian$\,[$\prmRandThousandRegretMedianCILo$, $\prmRandThousandRegretMedianCIHi$]
 vs.\ $\prmWellCalThousandRegretMedian$\,[$\prmWellCalThousandRegretMedianCILo$, $\prmWellCalThousandRegretMedianCIHi$]
 at $n_\mathit{eff}{=}1{,}000$).
-This confirms two things: (i)~the $n_\mathit{eff}$ scaling normalises
-prior strength independently of training-set size, so the
-domain-mismatch findings below are not confounded by sample-count
-effects; and (ii)~covariance estimation saturates quickly---$\prmRandNPrompts$
-representative prompts are sufficient for $d{=}\prmFeatureDim$ features, and
-collecting more data from the same distribution yields no additional
-benefit.
+This confirms that covariance estimation saturates
+quickly---$\prmRandNPrompts$ representative prompts are sufficient for
+$d{=}\prmFeatureDim$ features---and that the domain-mismatch findings
+below are not confounded by sample-count effects.
 The practical implication is that operators need a \emph{representative}
 training sample, not a large one.
 
 \emph{Domain-mismatched priors still beat cold start.}
+Even when the prior is trained on a single domain rather than
+representative traffic, median regret stays below the Tabula Rasa
+baseline at every $n_\mathit{eff}$---the prior never hurts.
 MMLU-only priors reduce median regret to
 $\prmMMLUHundredRegretMedian$\,[$\prmMMLUHundredRegretMedianCILo$, $\prmMMLUHundredRegretMedianCIHi$]
 at $n_\mathit{eff}{=}100$ and
 $\prmMMLUThousandRegretMedian$\,[$\prmMMLUThousandRegretMedianCILo$, $\prmMMLUThousandRegretMedianCIHi$]
 at $1{,}000$
-(vs.\ baseline $\prmCatRefMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$]),
+(vs.\ Tabula Rasa $\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]),
 despite being trained on a single knowledge domain.
 GSM8K-only priors---which encode near-zero arm differentiation---lower
 median regret to
@@ -232,59 +204,59 @@ as no knowledge.
 
 \emph{Inverted priors cause harm that scales with $n_\mathit{eff}$.}
 This is the only condition where priors hurt.
-At $n_\mathit{eff}{=}10$, the damage is modest
-(median $\prmInvTenRegretMedian$\,[$\prmInvTenRegretMedianCILo$, $\prmInvTenRegretMedianCIHi$]
-vs.\ baseline $\prmCatRefMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$]);
-at $n_\mathit{eff}{=}100$, median regret rises to
-$\prmInvHundredRegretMedian$\,[$\prmInvHundredRegretMedianCILo$, $\prmInvHundredRegretMedianCIHi$];
-and at $n_\mathit{eff}{=}1{,}000$, to
-$\prmInvThousandRegretMedian$\,[$\prmInvThousandRegretMedianCILo$, $\prmInvThousandRegretMedianCIHi$]---a
-$\prmInvThousandIncreasePct\%$ increase over the baseline.
-The mechanism is clear: the inverted prior confidently routes traffic
-to the worst model, and high $n_\mathit{eff}$ forces the router to
-accumulate many online observations before overriding the prior.
-The baseline wins \prmTestInvThousandBaseWins{} of \prmNseeds{} seeds at $n_\mathit{eff}{=}1{,}000$
-(Holm $p{=}\prmTestInvThousandSignPHolm$, not significant at \prmNseeds~seeds), but the practical
-magnitude ($+\prmInvThousandExcessRegret$~regret units\,[$\prmInvThousandExcessRegretCILo$, $\prmInvThousandExcessRegretCIHi$]) is operationally meaningful.
+When the prior confidently encodes the wrong model ranking
+(cheapest = best), the router initially routes traffic to the worst
+model and must accumulate online evidence to override the prior.
+Higher $n_\mathit{eff}$ delays that override, so damage grows with
+prior strength (vs.\ Tabula Rasa median
+$\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]):
+\begin{itemize}[nosep,leftmargin=*]
+  \item $n_\mathit{eff}{=}10$: median
+    $\prmInvTenRegretMedian$\,[$\prmInvTenRegretMedianCILo$, $\prmInvTenRegretMedianCIHi$]
+    (modest; the prior is overridden quickly).
+  \item $n_\mathit{eff}{=}100$: median
+    $\prmInvHundredRegretMedian$\,[$\prmInvHundredRegretMedianCILo$, $\prmInvHundredRegretMedianCIHi$].
+  \item $n_\mathit{eff}{=}1{,}000$: median
+    $\prmInvThousandRegretMedian$\,[$\prmInvThousandRegretMedianCILo$, $\prmInvThousandRegretMedianCIHi$]---a
+    $\prmInvThousandIncreasePct\%$ increase over the baseline
+    ($+\prmInvThousandExcessRegret$~regret
+    units\,[$\prmInvThousandExcessRegretCILo$, $\prmInvThousandExcessRegretCIHi$]).
+\end{itemize}
+\noindent
+Tabula Rasa wins \prmTestInvThousandBaseWins{} of \prmNseeds{} seeds
+at $n_\mathit{eff}{=}1{,}000$
+(Holm $p{=}\prmTestInvThousandSignPHolm$, not significant at
+\prmNseeds~seeds), but the practical magnitude is operationally
+meaningful.
 
 \paragraph{Reliability: the more important finding.}
-The mean and median comparisons above tell only half the story.
-Figure~\ref{fig:prior_mismatch_distribution} reveals the other half:
-both Tabula Rasa baselines exhibit wide, heavy-tailed per-seed regret
-distributions ($\mathit{std} \approx \prmTRRegretStd$--$\prmTRMatchedRegretStd$), while \emph{every}
-warmup condition---including domain-mismatched and even inverted
-priors---exhibits a tight, unimodal distribution.
-Non-inverted conditions have $\mathit{std} \leq \prmNonInvStdMax$ (range:
-$\prmNonInvStdMin$--$\prmNonInvStdMax$); even the worst condition (Inverted at
-$n_\mathit{eff}{=}10$) achieves $\mathit{std}{=}\prmInvTenRegretStd$.
-The $\gamma$-matched baseline's $\mathit{std}{=}\prmTRMatchedRegretStd$
-(median $\prmTRMatchedRegretMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$])
-confirms that this variance collapse is attributable to the prior
-itself: the $\gamma$-matched control shares warmup's exploration
-rate ($\alpha{=}\prmAlpha$) and forgetting factor
-($\gamma{=}\prmGamma$) but lacks priors, and still exhibits a
-wide, heavy-tailed distribution.
-
-Catastrophic failures (regret $> \prmCatMultiplier{\times}$ the $\gamma$-matched
-baseline median, i.e., $> \prmCatThreshold$) occur in \prmGammaCondCatCount/\prmNseeds{} seeds (\prmGammaCondCatPct\%)
-for the $\gamma$-matched Tabula Rasa baseline and in \emph{zero} seeds for all
-\prmNPairwise~warmup conditions.
-After Holm correction across \prmNPairwise~comparisons, individual Fisher exact tests are
-non-significant ($p_\text{Holm}{=}\prmTestWellCalTenFisherPHolm$).
-The aggregate pattern, however, is striking: the probability
-that all \prmNPairwise{} independent conditions would show zero catastrophic
-failures if the true rate were \prmGammaCondCatPct\% is
-$(1{-}\prmGammaCondCatPct/100)^{\prmNPairwise \times \prmNseeds} \approx 10^{-\prmZeroCatProbExp}$---strong evidence that
-the prior confers a genuine reliability benefit regardless of
-calibration quality.
+For a practitioner, run-to-run consistency matters as much as average
+regret.
+A router that usually improves but occasionally catastrophically
+misroutes is harder to trust than one that reliably delivers moderate
+gains.
+Figure~\ref{fig:prior_mismatch_distribution} shows that warmup priors
+deliver exactly this consistency: \emph{every} warmup condition---including
+domain-mismatched and even inverted priors---produces a tight,
+unimodal per-seed regret distribution, while Tabula Rasa exhibits a
+wide spread ($\mathit{std}{=}\prmTRRegretStd$).
+Concretely, non-inverted warmup conditions have
+$\mathit{std} \leq \prmNonInvStdMax$ (range:
+$\prmNonInvStdMin$--$\prmNonInvStdMax$); even the worst condition
+(Inverted at $n_\mathit{eff}{=}10$) achieves
+$\mathit{std}{=}\prmInvTenRegretStd$---still far tighter than
+Tabula Rasa's $\prmTRRegretStd$.
+All \prmNPairwise{} warmup conditions record zero catastrophic
+failures (regret $> \prmCatMultiplier{\times}$ the Tabula Rasa median,
+i.e., $> \prmCatThreshold$).
 
 This reliability benefit is arguably more deployment-relevant
 than the regret reduction.
 The warmup ablation (Appendix~\ref{sec:warmup_ablation}) shows that
 under budget constraints, Tabula Rasa's heavy tail becomes
-catastrophic: \prmWaBudgetCatPct\% of seeds fail at moderate and loose budgets
-($p_\text{Fisher}{=}\prmWaBudgetFisherP$), while warmup priors eliminate
-this failure mode entirely.
+catastrophic: \prmWaBudgetCatPct\% of seeds fail at moderate and
+loose budgets ($p_\text{Fisher}{=}\prmWaBudgetFisherP$), while
+warmup priors eliminate this failure mode entirely.
 The present experiment extends that finding: the reliability
 benefit is \emph{robust to prior degradation}.
 Operators who can only collect \prmRandNPrompts{} prompts from a roughly
@@ -312,6 +284,6 @@ systematically inverted.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
-\caption{Per-seed regret distributions across prior-quality levels at $n_\mathit{eff}{=}1{,}000$ (\prmNseeds~seeds, unconstrained).  The $\gamma$-matched Tabula Rasa baseline exhibits a wide, heavy-tailed distribution ($\mathit{std} \approx \prmTRMatchedRegretStd$) with \prmGammaCondCatPct\% catastrophic failure rate.  All warmup conditions---including domain-mismatched and inverted priors---produce tight, unimodal distributions ($\mathit{std} \leq \prmGSMThousandRegretStd$) with zero catastrophic failures.}
+\caption{Per-seed regret distributions across prior-quality levels at $n_\mathit{eff}{=}1{,}000$ (\prmNseeds~seeds, unconstrained).  Tabula Rasa exhibits a wide distribution ($\mathit{std}{=}\prmTRRegretStd$), while all warmup conditions---including domain-mismatched and inverted priors---produce tight, unimodal distributions ($\mathit{std} \leq \prmGSMThousandRegretStd$) with zero catastrophic failures.}
 \label{fig:prior_mismatch_distribution}
 \end{figure*}
