@@ -1,8 +1,8 @@
-"""Bootstrap confidence interval utilities for experiment figures.
+"""Bootstrap confidence interval utilities for experiment analysis.
 
-Provides vectorised percentile-bootstrap CIs over per-seed time-series
-data so that figures can replace ±1 SE shading with proper nonparametric
-confidence bands.
+Provides vectorised percentile-bootstrap CIs over per-seed scalar data
+and time-series data.  Used both in figure scripts (CI bands) and in
+``generate_latex.py`` scripts (CI bounds for reported statistics).
 
 The standard workflow is:
 
@@ -19,7 +19,7 @@ Typical overhead for 10 000 resamples × 40 seeds × 40 checkpoints is
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Callable, Tuple
 
 import numpy as np
 
@@ -27,16 +27,19 @@ import numpy as np
 def bootstrap_ci(
     values: np.ndarray,
     *,
+    statistic: Callable[[np.ndarray], float] | None = None,
     n_bootstrap: int = 10_000,
     ci_level: float = 0.95,
     seed: int = 42,
 ) -> Tuple[float, float]:
-    """Percentile-bootstrap confidence interval for the mean.
+    """Percentile-bootstrap confidence interval for an arbitrary statistic.
 
     Parameters
     ----------
     values : array-like, shape (n_seeds,)
         One scalar observation per seed.
+    statistic :
+        Callable ``f(array) -> scalar``.  Defaults to ``np.mean``.
     n_bootstrap : int
         Number of bootstrap resamples.
     ci_level : float
@@ -49,6 +52,27 @@ def bootstrap_ci(
     lo, hi : float
         Lower and upper CI bounds.
     """
+    if statistic is None:
+        statistic = np.mean
+    rng = np.random.default_rng(seed)
+    values = np.asarray(values, dtype=np.float64)
+    n = len(values)
+    indices = rng.integers(0, n, size=(n_bootstrap, n))
+    boot_stats = np.array([statistic(values[idx]) for idx in indices])
+    alpha = 1.0 - ci_level
+    lo = float(np.percentile(boot_stats, 100.0 * alpha / 2.0))
+    hi = float(np.percentile(boot_stats, 100.0 * (1.0 - alpha / 2.0)))
+    return lo, hi
+
+
+def bootstrap_ci_mean(
+    values: np.ndarray,
+    *,
+    n_bootstrap: int = 10_000,
+    ci_level: float = 0.95,
+    seed: int = 42,
+) -> Tuple[float, float]:
+    """Percentile-bootstrap CI for the mean (fast vectorised path)."""
     rng = np.random.default_rng(seed)
     values = np.asarray(values, dtype=np.float64)
     n = len(values)
@@ -57,6 +81,25 @@ def bootstrap_ci(
     alpha = 1.0 - ci_level
     lo = float(np.percentile(boot_means, 100.0 * alpha / 2.0))
     hi = float(np.percentile(boot_means, 100.0 * (1.0 - alpha / 2.0)))
+    return lo, hi
+
+
+def bootstrap_ci_median(
+    values: np.ndarray,
+    *,
+    n_bootstrap: int = 10_000,
+    ci_level: float = 0.95,
+    seed: int = 42,
+) -> Tuple[float, float]:
+    """Percentile-bootstrap CI for the median (fast vectorised path)."""
+    rng = np.random.default_rng(seed)
+    values = np.asarray(values, dtype=np.float64)
+    n = len(values)
+    indices = rng.integers(0, n, size=(n_bootstrap, n))
+    boot_medians = np.median(values[indices], axis=1)
+    alpha = 1.0 - ci_level
+    lo = float(np.percentile(boot_medians, 100.0 * alpha / 2.0))
+    hi = float(np.percentile(boot_medians, 100.0 * (1.0 - alpha / 2.0)))
     return lo, hi
 
 

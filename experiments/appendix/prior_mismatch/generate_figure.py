@@ -27,6 +27,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci_mean, bootstrap_ci_median
+
 plt.rcParams.update({
     "font.size": 15,
     "axes.titlesize": 17,
@@ -57,53 +61,78 @@ N_EFF_VALUES = [10, 100, 1000]
 # ======================================================================
 
 
-def generate_heatmap_figure(data: Dict[str, Any]) -> None:
-    """Heatmap of total regret: prior quality (rows) × n_eff (columns).
+def _median_ci(per_seed: List[float]) -> tuple[float, float, float]:
+    """Return (median, ci_lo, ci_hi) from per-seed data."""
+    arr = np.asarray(per_seed, dtype=np.float64)
+    med = float(np.median(arr))
+    lo, hi = bootstrap_ci_median(arr)
+    return med, lo, hi
 
-    Annotates each cell with mean ± SE.  Cells that exceed the
-    tabula-rasa baseline are bolded.
+
+def generate_heatmap_figure(data: Dict[str, Any]) -> None:
+    """Heatmap of total regret: prior quality (rows) x n_eff (columns).
+
+    Annotates each cell with median [CI_lo, CI_hi].  Cells that exceed
+    the gamma-matched baseline median are bolded.
     """
     conditions = data["conditions"]
     early_step = data.get("early_step", 200)
 
     n_qualities = len(QUALITY_ORDER)
     n_neffs = len(N_EFF_VALUES)
-    regret_matrix = np.full((n_qualities, n_neffs), np.nan)
-    early_matrix = np.full((n_qualities, n_neffs), np.nan)
-    se_matrix = np.full((n_qualities, n_neffs), np.nan)
-    early_se_matrix = np.full((n_qualities, n_neffs), np.nan)
+    median_matrix = np.full((n_qualities, n_neffs), np.nan)
+    ci_lo_matrix = np.full((n_qualities, n_neffs), np.nan)
+    ci_hi_matrix = np.full((n_qualities, n_neffs), np.nan)
+    early_median_matrix = np.full((n_qualities, n_neffs), np.nan)
+    early_ci_lo_matrix = np.full((n_qualities, n_neffs), np.nan)
+    early_ci_hi_matrix = np.full((n_qualities, n_neffs), np.nan)
 
     for qi, quality in enumerate(QUALITY_ORDER):
         for ni, n_eff in enumerate(N_EFF_VALUES):
             key = f"{quality} (n_eff={n_eff})"
-            if key in conditions:
-                regret_matrix[qi, ni] = conditions[key]["total_regret"]["mean"]
-                se_matrix[qi, ni] = conditions[key]["total_regret"]["se"]
-                rk = f"regret_at_{early_step}"
-                early_matrix[qi, ni] = conditions[key][rk]["mean"]
-                early_se_matrix[qi, ni] = conditions[key][rk]["se"]
+            cond = conditions.get(key)
+            if cond is None:
+                continue
+            ps = cond.get("per_seed_regret")
+            if ps is not None:
+                med, lo, hi = _median_ci(ps)
+                median_matrix[qi, ni] = med
+                ci_lo_matrix[qi, ni] = lo
+                ci_hi_matrix[qi, ni] = hi
 
-    tr_regret = conditions.get("Tabula Rasa", {}).get(
-        "total_regret", {},
-    ).get("mean", np.nan)
-    tr_early = conditions.get("Tabula Rasa", {}).get(
-        f"regret_at_{early_step}", {},
-    ).get("mean", np.nan)
+            rk = f"per_seed_regret_at_{early_step}"
+            ps_early = cond.get(rk)
+            if ps_early is not None:
+                med, lo, hi = _median_ci(ps_early)
+                early_median_matrix[qi, ni] = med
+                early_ci_lo_matrix[qi, ni] = lo
+                early_ci_hi_matrix[qi, ni] = hi
+
+    def _bl_median_ci(bl_key: str, per_seed_key: str) -> tuple[float, float, float]:
+        cond = conditions.get(bl_key, {})
+        ps = cond.get(per_seed_key)
+        if ps is not None:
+            return _median_ci(ps)
+        return np.nan, np.nan, np.nan
+
+    tr_med, tr_lo, tr_hi = _bl_median_ci("Tabula Rasa", "per_seed_regret")
+    tr_early_med, _, _ = _bl_median_ci(
+        "Tabula Rasa", f"per_seed_regret_at_{early_step}",
+    )
 
     gm_key = "Tabula Rasa (γ-matched)"
-    gm_regret = conditions.get(gm_key, {}).get(
-        "total_regret", {},
-    ).get("mean", np.nan)
-    gm_early = conditions.get(gm_key, {}).get(
-        f"regret_at_{early_step}", {},
-    ).get("mean", np.nan)
+    gm_med, gm_lo, gm_hi = _bl_median_ci(gm_key, "per_seed_regret")
+    gm_early_med, _, _ = _bl_median_ci(
+        gm_key, f"per_seed_regret_at_{early_step}",
+    )
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 5.5))
 
-    for ax, matrix, se_mat, tr_val, gm_val, title in [
-        (ax1, regret_matrix, se_matrix, tr_regret, gm_regret, "Total Regret"),
-        (ax2, early_matrix, early_se_matrix, tr_early, gm_early,
-         f"R@{early_step} (Early Regret)"),
+    for ax, matrix, ci_lo, ci_hi, tr_val, gm_val, title in [
+        (ax1, median_matrix, ci_lo_matrix, ci_hi_matrix,
+         tr_med, gm_med, "Total Regret (median)"),
+        (ax2, early_median_matrix, early_ci_lo_matrix, early_ci_hi_matrix,
+         tr_early_med, gm_early_med, f"R@{early_step} (median)"),
     ]:
         ref_vals = [v for v in [tr_val, gm_val] if not np.isnan(v)]
         vmin = min(np.nanmin(matrix), *ref_vals) * 0.95
@@ -124,37 +153,43 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
         for qi in range(n_qualities):
             for ni in range(n_neffs):
                 val = matrix[qi, ni]
-                se = se_mat[qi, ni]
+                lo_v = ci_lo[qi, ni]
+                hi_v = ci_hi[qi, ni]
                 if np.isnan(val):
                     continue
-                exceeds_gm = val > gm_val if not np.isnan(gm_val) else val > tr_val
+                exceeds_gm = (
+                    val > gm_val if not np.isnan(gm_val) else val > tr_val
+                )
                 fontweight = "bold" if exceeds_gm else "normal"
                 ax.text(
-                    ni, qi, f"{val:.1f}\n±{se:.1f}",
-                    ha="center", va="center", fontsize=14,
+                    ni, qi,
+                    f"{val:.1f}\n[{lo_v:.1f}, {hi_v:.1f}]",
+                    ha="center", va="center", fontsize=12,
                     fontweight=fontweight, color="black",
                 )
 
         ref_y = n_qualities - 0.5 + 0.55
         ax.text(
             n_neffs - 0.5, ref_y,
-            f"TR (γ=0.995) = {tr_val:.1f}",
+            f"TR (γ=0.995) median = {tr_val:.1f}",
             ha="right", va="center", fontsize=12,
             fontstyle="italic", color=COLORS["Tabula Rasa"],
         )
         if not np.isnan(gm_val):
             ax.text(
                 n_neffs - 0.5, ref_y + 0.35,
-                f"TR (γ-matched) = {gm_val:.1f}",
+                f"TR (γ-matched) median = {gm_val:.1f} [{gm_lo:.1f}, {gm_hi:.1f}]",
                 ha="right", va="center", fontsize=12,
                 fontstyle="italic", color=COLORS[gm_key],
             )
 
         plt.colorbar(im, ax=ax, shrink=0.8, pad=0.04)
 
+    n_seeds = data.get("n_seeds", 20)
     fig.suptitle(
         "Prior Mismatch × n_eff: When Do Warmup Priors Hurt?\n"
-        "(Unconstrained regime, K=3 stationary, 20 seeds)",
+        f"(Unconstrained regime, K=3 stationary, {n_seeds} seeds,"
+        " 95% bootstrap CI)",
         fontsize=18, y=1.04,
     )
     fig.tight_layout()
@@ -179,8 +214,10 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
     Reveals the bimodal / heavy-tailed nature of Tabula Rasa's per-seed
     regret vs the tight, unimodal distributions of warmup conditions.
     One panel per ``n_eff`` value plus the shared Tabula Rasa baseline.
+    Median shown as diamond with bootstrap 95% CI whiskers.
     """
     conditions = data["conditions"]
+    n_seeds = data.get("n_seeds", 20)
 
     fig, axes = plt.subplots(1, 3, figsize=(22, 6.0), sharey=True)
 
@@ -235,10 +272,15 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
                 color=color, s=18, alpha=0.7, edgecolors="white",
                 linewidths=0.3, zorder=5,
             )
-            ax.scatter(
-                [pos], [np.mean(vals)],
-                color=color, s=60, marker="D", edgecolors="black",
-                linewidths=0.8, zorder=6,
+            med = float(np.median(vals))
+            ci_lo, ci_hi = bootstrap_ci_median(vals)
+            ax.errorbar(
+                pos, med,
+                yerr=[[med - ci_lo], [ci_hi - med]],
+                fmt="D", color=color, markersize=7,
+                markeredgecolor="black", markeredgewidth=0.8,
+                ecolor="black", elinewidth=1.2, capsize=4, capthick=1.2,
+                zorder=6,
             )
 
         ax.set_xticks(positions)
@@ -251,7 +293,8 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
 
     fig.suptitle(
         "Per-Seed Regret Distributions: Warmup Stability vs Cold-Start Variance\n"
-        "(Unconstrained regime, K=3 stationary, 20 seeds)",
+        f"(Unconstrained regime, K=3 stationary, {n_seeds} seeds,"
+        " ◆ = median with 95% bootstrap CI)",
         fontsize=20, y=1.04,
     )
     fig.tight_layout()

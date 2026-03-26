@@ -161,13 +161,13 @@ def ci_from_seeds_or_normal(
     *,
     ci_level: float = 0.95,
 ) -> Tuple[float, float]:
-    """Compute a 95% CI from per-seed data (bootstrap) or normal approximation.
+    """Compute a 95% CI for the **mean** from per-seed data or normal approx.
 
     Parameters
     ----------
     per_seed:
         Per-seed scalar observations.  If provided and length >= 2,
-        a percentile-bootstrap CI is computed via ``bootstrap_ci``.
+        a percentile-bootstrap CI is computed via ``bootstrap_ci_mean``.
     mean:
         Point estimate (used only for the normal-approximation fallback).
     se:
@@ -181,11 +181,28 @@ def ci_from_seeds_or_normal(
         Lower and upper CI bounds.
     """
     if per_seed is not None and len(per_seed) >= 2:
-        from .bootstrap import bootstrap_ci
-        return bootstrap_ci(np.asarray(per_seed, dtype=np.float64),
-                            ci_level=ci_level)
+        from .bootstrap import bootstrap_ci_mean
+        return bootstrap_ci_mean(np.asarray(per_seed, dtype=np.float64),
+                                 ci_level=ci_level)
     z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(ci_level, 1.96)
     return mean - z * se, mean + z * se
+
+
+def median_ci_from_seeds(
+    per_seed: Optional[Sequence[float]],
+    *,
+    ci_level: float = 0.95,
+) -> Optional[Tuple[float, float]]:
+    """Compute a bootstrap CI for the **median**.
+
+    Returns ``None`` when per-seed data is unavailable (no normal
+    fallback exists for the median).
+    """
+    if per_seed is not None and len(per_seed) >= 2:
+        from .bootstrap import bootstrap_ci_median
+        return bootstrap_ci_median(np.asarray(per_seed, dtype=np.float64),
+                                   ci_level=ci_level)
+    return None
 
 
 # ======================================================================
