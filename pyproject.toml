@@ -111,6 +111,9 @@ include = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/pareto_bandit"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/pareto_bandit/data" = "pareto_bandit/data"
+
 # --- Testing ---
 [tool.pytest.ini_options]
 testpaths = ["tests"]

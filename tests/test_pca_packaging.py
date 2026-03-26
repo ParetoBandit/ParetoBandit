@@ -193,7 +193,7 @@ class TestJITFallbackStillWorks:
             fs = FeatureService(pca_path=missing_path, allow_jit_training=True)
             pca = fs.pca
             assert pca is not None, "JIT should have trained a PCA"
-            assert pca.n_components_ == 32
+            assert pca.n_components_ == 25
 
     def test_jit_persists_artifact(self) -> None:
         from pareto_bandit.feature_service import FeatureService

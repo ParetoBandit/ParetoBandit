@@ -1,0 +1,12 @@
+{
+  "mean_reward": 0.8853267543859651,
+  "mean_cost": 0.0004873564692982456,
+  "cumulative_quality_gap": 142.272,
+  "model_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.34539473684210525,
+    "mistralai/mistral-large-2512": 0.6441885964912281,
+    "google/gemini-2.5-pro": 0.010416666666666666
+  },
+  "final_lambda": 0.18420674062491008,
+  "budget_utilization": 0.9691596807729921
+}

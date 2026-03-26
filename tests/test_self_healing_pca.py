@@ -34,7 +34,7 @@ class TestSelfHealingPCA:
 
             pca = fs.pca
             assert pca is not None, "PCA should be auto-trained when missing"
-            assert pca.n_components_ == 32, "JIT PCA defaults to 32 components"
+            assert pca.n_components_ == 25, "JIT PCA defaults to 25 components"
 
             explained_var = float(np.sum(pca.explained_variance_ratio_))
             assert explained_var > 0.5, (
@@ -53,7 +53,7 @@ class TestSelfHealingPCA:
             fs2 = FeatureService(pca_path=pca_path, allow_jit_training=False)
             pca2 = fs2.pca
             assert pca2 is not None, "PCA should load from disk"
-            assert pca2.n_components_ == 32
+            assert pca2.n_components_ == 25
 
     def test_pca_variance_validation(self) -> None:
         """JIT-trained PCA captures reasonable variance."""

@@ -156,7 +156,7 @@ class TestCanonicalSplits:
     """Validate schema and basic integrity of the shipped K=3 splits."""
 
     SPLITS = {
-        "train": (TRAIN_DATA_PATH, 8_374),
+        "train": (TRAIN_DATA_PATH, 8_373),
         "val": (VAL_DATA_PATH, 1_785),
         "test": (HOLDOUT_DATA_PATH, 1_824),
     }

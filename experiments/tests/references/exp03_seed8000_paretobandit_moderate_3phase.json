@@ -1,0 +1,25 @@
+{
+  "p1_mean_reward": 0.8718667763157896,
+  "p1_mean_cost": 0.0006711750822368422,
+  "p2_mean_reward": 0.921983552631579,
+  "p2_mean_cost": 0.0004103335891812866,
+  "p2_mean_lambda": 0.006362813736397484,
+  "p3_mean_reward": 0.8962171052631579,
+  "p3_mean_cost": 0.0006648541940789473,
+  "p3_mean_lambda": 0.21591383068457723,
+  "p1_arm_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.4144736842105263,
+    "mistralai/mistral-large-2512": 0.5657894736842105,
+    "google/gemini-2.5-pro": 0.019736842105263157
+  },
+  "p2_arm_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.05263157894736842,
+    "mistralai/mistral-large-2512": 0.6759868421052632,
+    "google/gemini-2.5-pro": 0.2713815789473684
+  },
+  "p3_arm_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.22203947368421054,
+    "mistralai/mistral-large-2512": 0.7532894736842105,
+    "google/gemini-2.5-pro": 0.024671052631578948
+  }
+}

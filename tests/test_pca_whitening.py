@@ -303,24 +303,25 @@ class TestWarmupPriorsWhiteningConversion:
         scales[:-1] = np.arange(2, DIM + 1, dtype=np.float64)
         fs = _mock_feature_service(dim=DIM, whiten_pca=True, scales=scales)
 
-        A_orig = {m: np.eye(DIM) * 100.0 for m in registry}
+        A_val = 100.0
+        A_orig = {m: np.eye(DIM) * A_val for m in registry}
         b_orig = {m: np.ones(DIM) * 10.0 for m in registry}
         _write_priors(tmp_path / "p.joblib", A_orig, b_orig, n=1000,
                       pca_whitened=False)
 
+        # prior_n_effective = A_val so the n_eff / A[-1,-1] scaling is 1.0,
+        # isolating the whitening conversion (DAD transform).
         router = BanditRouter.create(
             model_registry=registry,
             priors=str(tmp_path / "p.joblib"),
-            prior_n_effective=1000.0,
+            prior_n_effective=A_val,
             feature_service=fs,
-            
         )
 
         m0 = list(registry.keys())[0]
         A_loaded = router.bandit.A[m0]
-        # The diagonal should reflect the DAD transform plus init_lambda
         for i in range(DIM):
-            expected = 100.0 * scales[i] * scales[i] + router.bandit.init_lambda
+            expected = A_val * scales[i] * scales[i] + router.bandit.init_lambda
             assert np.isclose(A_loaded[i, i], expected, rtol=0.01), (
                 f"A[{i},{i}]={A_loaded[i,i]:.4f}, expected {expected:.4f}"
             )
@@ -332,7 +333,8 @@ class TestWarmupPriorsWhiteningConversion:
         scales[:-1] = np.arange(2, DIM + 1, dtype=np.float64)
         fs = _mock_feature_service(dim=DIM, whiten_pca=True, scales=scales)
 
-        A_orig = {m: np.eye(DIM) * 50.0 for m in registry}
+        A_val = 50.0
+        A_orig = {m: np.eye(DIM) * A_val for m in registry}
         b_orig = {m: np.ones(DIM) * 5.0 for m in registry}
         _write_priors(tmp_path / "p.joblib", A_orig, b_orig, n=1000,
                       pca_whitened=True)
@@ -342,17 +344,15 @@ class TestWarmupPriorsWhiteningConversion:
             router = BanditRouter.create(
                 model_registry=registry,
                 priors=str(tmp_path / "p.joblib"),
-                prior_n_effective=1000.0,
+                prior_n_effective=A_val,
                 feature_service=fs,
-                
             )
 
         conversion_msgs = [r for r in caplog.records if "Converted warmup priors" in r.message]
         assert len(conversion_msgs) == 0, "Should NOT convert when both sides are whitened"
 
         m0 = list(registry.keys())[0]
-        # A should be just the raw prior scaled 1:1 + init_lambda
-        expected_diag = 50.0 + router.bandit.init_lambda
+        expected_diag = A_val + router.bandit.init_lambda
         assert np.isclose(router.bandit.A[m0][0, 0], expected_diag, rtol=0.01)
 
     def test_whitened_priors_downconverted_for_unwhitened_router(self, tmp_path) -> None:
@@ -365,17 +365,19 @@ class TestWarmupPriorsWhiteningConversion:
         scales_from_prior = np.ones(DIM, dtype=np.float64)
         scales_from_prior[:-1] = np.arange(2, DIM + 1, dtype=np.float64)
 
-        A_orig = {m: np.eye(DIM) * 100.0 for m in registry}
+        A_val = 100.0
+        A_orig = {m: np.eye(DIM) * A_val for m in registry}
         b_orig = {m: np.ones(DIM) * 10.0 for m in registry}
         _write_priors(tmp_path / "p.joblib", A_orig, b_orig, n=1000,
                       pca_whitened=True)
 
+        # prior_n_effective = A_val so the n_eff / A[-1,-1] scaling is 1.0,
+        # isolating the inverse whitening conversion.
         router = BanditRouter.create(
             model_registry=registry,
             priors=str(tmp_path / "p.joblib"),
-            prior_n_effective=1000.0,
+            prior_n_effective=A_val,
             feature_service=fs,
-            
         )
 
         m0 = list(registry.keys())[0]
@@ -383,7 +385,7 @@ class TestWarmupPriorsWhiteningConversion:
         # With unwhitened router (scales=1), inverse conversion divides by
         # the prior whitening scales.  Since the mock returns all-ones,
         # the inverse scales are also all-ones → A stays unchanged + init_lambda.
-        expected_diag = 100.0 + router.bandit.init_lambda
+        expected_diag = A_val + router.bandit.init_lambda
         assert np.isclose(A_loaded[0, 0], expected_diag, rtol=0.01)
 
 

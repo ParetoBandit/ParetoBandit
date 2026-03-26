@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(
     0,
-    str(Path(__file__).resolve().parent.parent / "experiments" / "appendix" / "judge_robustness"),
+    str(Path(__file__).resolve().parent.parent / "appendix" / "judge_robustness"),
 )
 
 from judge_robustness_utils import lins_ccc
