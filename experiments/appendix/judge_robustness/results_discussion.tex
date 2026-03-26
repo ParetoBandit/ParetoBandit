@@ -213,7 +213,7 @@ margins and the lowest per-evaluation cost.
 Table~\ref{tab:judge_agreement} reports per-response agreement using
 distribution-independent metrics robust to ceiling-compressed rewards
 (most scores in $[0.8, 1.0]$).  Moderate per-response rank agreement
-(Spearman \jrGPTSpearman--\jrClaudeSpearman) is expected given
+(Spearman \jrClaudeSpearman--\jrGPTSpearman) is expected given
 LLM-as-judge noise; the key finding is that this noise preserves
 population-level ordering and routing.
 
@@ -229,8 +229,8 @@ attenuation from ceiling-compressed rewards.}
 \toprule
 \textbf{Metric} & \textbf{GPT-4.1-mini} & \textbf{Claude-3.7-Sonnet} \\
 \midrule
-Spearman's $\rho$            & \jrGPTSpearman{} & \textbf{\jrClaudeSpearman} \\
-Kendall's $\tau_b$           & \jrGPTKendall{} & \textbf{\jrClaudeKendall} \\
+Spearman's $\rho$            & \textbf{\jrGPTSpearman} & \jrClaudeSpearman{} \\
+Kendall's $\tau_b$           & \textbf{\jrGPTKendall} & \jrClaudeKendall{} \\
 MAD                          & \textbf{\jrGPTMAD} & \jrClaudeMAD{} \\
 Mean bias (judge $-$ R1)     & $+\jrGPTBias$ & $\jrClaudeBias$ \\
 95\% Bland--Altman LoA       & [$\jrGPTBALo$, $+\jrGPTBAHi$] & [$\jrClaudeBALo$, $+\jrClaudeBAHi$] \\
@@ -280,7 +280,7 @@ $[0.30, 1.00)$ & 552  & 0.71 & 56.3\% & 58.0\% \\
 Kendall's~$W$ increases monotonically with gap size
 (0.17\,$\to$\,0.71): where routing matters most (gap $\geq 0.20$,
 37\% of prompts), all three judges largely agree ($W = 0.57$--$0.71$,
-best-model agreement 53--58\%).  Where they disagree most
+best-model agreement 50--58\%).  Where they disagree most
 (gap $< 0.05$, 30\% of prompts), the models are near-identical in
 quality, so routing the ``wrong'' model costs at most 0.05
 reward---less than per-response judge noise

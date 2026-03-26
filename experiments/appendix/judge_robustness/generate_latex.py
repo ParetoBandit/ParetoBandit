@@ -196,13 +196,6 @@ def _add_agreement_commands(
         cs.num(f"{j_short}BALo", metrics.get("empirical_loa_lower", metrics["bland_altman_lower"]), digits=2)
         cs.num(f"{j_short}BAHi", metrics.get("empirical_loa_upper", metrics["bland_altman_upper"]), digits=2)
 
-    for judge_id, j_short in AGREEMENT_JUDGE_SHORT.items():
-        routing = summary.get("routing_agreement", {}).get(judge_id)
-        if routing is None:
-            continue
-        cs.num(f"{j_short}BestModelAgr", routing["best_model_agreement"] * 100, digits=1)
-        cs.num(f"{j_short}PairwiseAgr", routing["pairwise_sign_agreement"] * 100, digits=1)
-
     corr = summary.get("correlations", {})
     for judge_id, j_short in AGREEMENT_JUDGE_SHORT.items():
         judge_corr = corr.get(judge_id, {})
