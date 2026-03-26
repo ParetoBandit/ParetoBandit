@@ -1,10 +1,10 @@
 {
-  "mean_reward": 0.910999451754386,
-  "mean_cost": 0.0018968929824561402,
-  "cumulative_quality_gap": 95.46100000000001,
+  "mean_reward": 0.9164841008771929,
+  "mean_cost": 0.0017212375548245613,
+  "cumulative_quality_gap": 85.44099999999999,
   "model_fractions": {
-    "meta-llama/llama-3.1-8b-instruct": 0.15899122807017543,
-    "mistralai/mistral-large-2512": 0.7450657894736842,
-    "google/gemini-2.5-pro": 0.09594298245614036
+    "meta-llama/llama-3.1-8b-instruct": 0.13048245614035087,
+    "mistralai/mistral-large-2512": 0.7960526315789473,
+    "google/gemini-2.5-pro": 0.07346491228070176
   }
 }
