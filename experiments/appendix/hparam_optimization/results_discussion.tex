@@ -137,26 +137,18 @@ variants---$\gamma{=}0.997$ for ParetoBandit and $\gamma{=}0.997$
 for Tabula Rasa---trading only ${\sim}0.08\%$ stationary AUC (for
 ParetoBandit) for substantially improved failure resilience.
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
 \caption{%
   \textbf{$T_{\text{adapt}}$-constrained Pareto knee-point selection.}
-  AUC-only optimisation selects $\gamma{=}\hpAUCOnlyGamma$ for
-  ParetoBandit and $\gamma{=}\hpTabulaAUCOnlyGamma$ for Tabula Rasa.
-  The knee-point method selects moderate forgetting for
-  \emph{both} variants: $\gamma{=}\hpParetoBanditGamma$ for
-  ParetoBandit and $\gamma{=}\hpTabulaGamma$ for Tabula Rasa.
-  Warmup priors give ParetoBandit higher AUC, higher Phase-2 reward,
-  and substantially lower variance than the cold-start baseline.
-  Grid: $\alpha \in \{0.01, \ldots, 1.0\}$
-  ($\hpGridAlpha$~values) $\times$
-  $\gamma \in \{0.994, \ldots, 1.0\}$ ($\hpGridGamma$~values),
-  $n_{\text{eff}}$ derived via $T_{\text{adapt}}{=}\hpTAdapt$.
-  Metrics: budget-paced Pareto AUC and Phase-2 reward under
-  catastrophic Mistral failure (val split, 20~seeds).%
+  The knee-point method selects moderate forgetting ($\gamma{=}\hpParetoBanditGamma$ / $\hpTabulaGamma$) for both variants, while AUC-only optimisation favours near-stationary $\gamma$.
+  Warmup priors yield higher AUC, higher Phase-2 reward, and lower variance than the cold-start baseline.
+  Grid: $\hpGridAlpha$~$\alpha$ $\times$ $\hpGridGamma$~$\gamma$ values; val split, 20~seeds.%
 }
 \label{tab:hparam_selection}
-\small
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}llccccc@{}}
 \toprule
 \textbf{Variant} & \textbf{Method}
@@ -172,8 +164,9 @@ ParetoBandit) for substantially improved failure resilience.
   & Knee-point   & $\hpTabulaAlpha$ & --- & $\hpTabulaGamma$ & $\hpTabulaAUC$ & $\hpTabulaPTwoReward$ \\
 \bottomrule
 \end{tabular}
+}
 \vspace{4pt}
-\end{table*}
+\end{table}
 
 The selected configurations generalise to the held-out test split.
 On the test split, the router--envelope AUC gap is $-0.35\%$ for
