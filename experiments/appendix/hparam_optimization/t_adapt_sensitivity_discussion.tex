@@ -16,25 +16,36 @@ Three observations support robustness:
     ($\hpSensMidAlpha$ at every $T_{\text{adapt}}$), as expected:
     $\alpha$ is orthogonal to the adaptation horizon.
 
-  \item \textbf{$\gamma$ varies by at most two grid steps.}
+  \item \textbf{$\gamma$ shifts but stays in the moderate-forgetting region.}
     The selected values---$\hpSensLoGamma$ ($T{=}250$),
     $\hpSensMidGamma$ ($T{=}500$), $\hpSensHiGamma$
-    ($T{=}1000$)---span only three grid steps end-to-end
+    ($T{=}1000$)---span three grid steps
     ($\Delta\gamma = 0.003$), with derived
     $n_{\text{eff}}$ of $\hpSensLoNeff$, $\hpSensMidNeff$, and
     $\hpSensHiNeff$ respectively.
-    A larger $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$,
-    requiring more aggressive forgetting to maintain the same
-    Pareto balance.
+    The direction is expected: a larger $T_{\text{adapt}}$ derives a
+    larger $n_{\text{eff}}$, and the Pareto criterion compensates
+    with more aggressive forgetting.
+    Crucially, every selected $\gamma$ remains well below the
+    $\gamma{=}1.0$ regime where forgetting is absent, so the
+    qualitative behaviour---moderate discounting with
+    non-stationary resilience---is preserved regardless of
+    the $T_{\text{adapt}}$ anchor.
 
-  \item \textbf{Both objectives are effectively flat.}
-    AUC varies by $<$\,0.25\% ($\hpSensLoAUC$--$\hpSensMidAUC$);
-    Phase-2 reward spans $\hpSensMidPTwo$--$\hpSensHiPTwo$ with no
-    monotonic trend.
+  \item \textbf{Both objectives are effectively invariant.}
+    Despite the three-step $\gamma$ shift,
+    AUC varies by $<$\,0.25\% ($\hpSensLoAUC$--$\hpSensMidAUC$)
+    and Phase-2 reward spans only
+    $\hpSensMidPTwo$--$\hpSensHiPTwo$, with no monotonic trend.
+    The performance surface near the Pareto knee is flat, so the
+    choice of $T_{\text{adapt}}$ affects the internal
+    parameterisation ($\gamma$, $n_{\text{eff}}$) more than the
+    external routing outcomes.
 \end{enumerate}
 %
-A practitioner can set $T_{\text{adapt}}$ to their operational
-requirement without risk of materially altering the selected
-configuration.
+A practitioner can therefore set $T_{\text{adapt}}$ to their
+operational requirement: while the internal $\gamma$ and
+$n_{\text{eff}}$ will adjust, the resulting routing performance
+is effectively unchanged.
 
 \FloatBarrier
