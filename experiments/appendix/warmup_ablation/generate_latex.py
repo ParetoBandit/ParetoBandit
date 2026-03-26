@@ -181,11 +181,21 @@ def _add_diff_ci_commands(
     conditions: Dict[str, Any],
     early_step: int,
 ) -> None:
-    """Emit bootstrap CI commands for paired regret differences.
+    """Emit Bonferroni-corrected bootstrap CIs for paired regret differences.
 
     For each warmup-vs-baseline pair, emits total-regret and R@early_step
-    paired differences with bootstrap CIs.
+    paired differences with bootstrap CIs.  The per-interval confidence
+    level is widened via Bonferroni so that the family-wise coverage is
+    95% across all comparisons in each family:
+
+    - Warmup-vs-baseline: ``len(_DIFF_PAIRS)`` comparisons.
+    - TR-vs-matched-gamma: ``len(_TR_VS_MATCHED_PAIRS)`` comparisons.
     """
+    n_warmup_comparisons = len(_DIFF_PAIRS)
+    n_matched_comparisons = len(_TR_VS_MATCHED_PAIRS)
+    bonf_level_warmup = 1.0 - 0.05 / n_warmup_comparisons
+    bonf_level_matched = 1.0 - 0.05 / n_matched_comparisons
+
     per_seed_r_early_key = f"per_seed_regret_at_{early_step}"
 
     for warmup_key, baseline_key, budget_pfx, bl_pfx in _DIFF_PAIRS:
@@ -199,7 +209,7 @@ def _add_diff_ci_commands(
         b_seeds = np.array(b["per_seed_regret"])
         diff = b_seeds - w_seeds  # positive = warmup better
         mean_diff = float(np.mean(diff))
-        ci_lo, ci_hi = bootstrap_ci(diff)
+        ci_lo, ci_hi = bootstrap_ci(diff, ci_level=bonf_level_warmup)
         pfx = f"{budget_pfx}Vs{bl_pfx}"
         cs.num(f"{pfx}DiffMean", mean_diff, digits=1)
         cs.num(f"{pfx}DiffCILo", ci_lo, digits=1)
@@ -211,7 +221,9 @@ def _add_diff_ci_commands(
         if w_r200 is not None and b_r200 is not None:
             diff_r200 = np.array(b_r200) - np.array(w_r200)
             mean_r200 = float(np.mean(diff_r200))
-            lo_r200, hi_r200 = bootstrap_ci(diff_r200)
+            lo_r200, hi_r200 = bootstrap_ci(
+                diff_r200, ci_level=bonf_level_warmup,
+            )
             cs.num(f"{pfx}RAtTwoHundredDiffMean", mean_r200, digits=1)
             cs.num(f"{pfx}RAtTwoHundredDiffCILo", lo_r200, digits=1)
             cs.num(f"{pfx}RAtTwoHundredDiffCIHi", hi_r200, digits=1)
@@ -226,7 +238,7 @@ def _add_diff_ci_commands(
         mg_seeds = np.array(mg["per_seed_regret"])
         diff = mg_seeds - tr_seeds  # positive = matched-γ worse
         mean_diff = float(np.mean(diff))
-        ci_lo, ci_hi = bootstrap_ci(diff)
+        ci_lo, ci_hi = bootstrap_ci(diff, ci_level=bonf_level_matched)
         pfx = f"{budget_pfx}TRMatchedVsTR"
         cs.num(f"{pfx}DiffMean", mean_diff, digits=1)
         cs.num(f"{pfx}DiffCILo", ci_lo, digits=1)
@@ -249,6 +261,8 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
         cs.num("CatMultiplier", cat_mult, digits=1)
 
     cs.raw("NTests", fmt_int(len(data.get("paired_tests", []))))
+    cs.raw("NDiffPairs", fmt_int(len(_DIFF_PAIRS)))
+    cs.raw("NMatchedPairs", fmt_int(len(_TR_VS_MATCHED_PAIRS)))
     cs.raw("BootstrapResamples", f"{_N_BOOTSTRAP:,}".replace(",", r"{,}"))
     cs.raw("CILevel", fmt_int(int(_CI_LEVEL * 100)))
 

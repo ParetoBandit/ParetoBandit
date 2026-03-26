@@ -93,6 +93,10 @@ eliminate outliers without shifting the centre.
 All $p$-values are corrected for multiplicity via the
 Holm--Bonferroni procedure across the full family of tests
 (\waNTests{} sign tests and \waNTests{} Fisher tests, corrected separately per family).
+Bootstrap CIs for paired differences are likewise
+Bonferroni-corrected (\waNDiffPairs{} warmup-vs-baseline and
+\waNMatchedPairs{} baseline-vs-baseline comparisons, respectively)
+to maintain \waCILevel\% family-wise coverage.
 
 \begin{table*}[t]
 \centering
@@ -145,7 +149,8 @@ Below we highlight the key contrasts that answer Q1 and Q2.
 Relative to Tabula Rasa, warmup priors reduce mean cumulative regret
 across all budget regimes.
 We report the paired difference $\Delta{=}\text{Tabula Rasa} -
-\text{Warmup}$ (positive favours warmup) with \waCILevel\% bootstrap CIs:
+\text{Warmup}$ (positive favours warmup) with Bonferroni-corrected
+\waCILevel\% bootstrap CIs (\waNDiffPairs{} simultaneous comparisons):
 unconstrained $\Delta{=}\waUncVsTRDiffMean$\,[\waUncVsTRDiffCILo,
 \waUncVsTRDiffCIHi],
 tight $\Delta{=}\waTightVsTRDiffMean$\,[\waTightVsTRDiffCILo,
@@ -185,10 +190,11 @@ We compare the two Tabula Rasa conditions directly.
 If adopting warmup's higher $\gamma$ helped a cold start, the
 matched-$\gamma$ Tabula Rasa should outperform the independently
 tuned Tabula Rasa.
-The opposite is true: the matched-$\gamma$ variant has
-\emph{higher} regret in every regime
+The matched-$\gamma$ variant has numerically higher regret
+in all four regimes
 ($\Delta{=}\text{matched-}\gamma - \text{Tabula Rasa}$,
-positive means matched-$\gamma$ is worse):
+positive means matched-$\gamma$ is worse;
+Bonferroni-corrected CIs, \waNMatchedPairs{} comparisons):
 unconstrained $\Delta{=}\waUncTRMatchedVsTRDiffMean$\,[\waUncTRMatchedVsTRDiffCILo,
 \waUncTRMatchedVsTRDiffCIHi],
 tight $\Delta{=}\waTightTRMatchedVsTRDiffMean$\,[\waTightTRMatchedVsTRDiffCILo,
@@ -197,11 +203,13 @@ moderate $\Delta{=}\waModTRMatchedVsTRDiffMean$\,[\waModTRMatchedVsTRDiffCILo,
 \waModTRMatchedVsTRDiffCIHi],
 and loose $\Delta{=}\waLooseTRMatchedVsTRDiffMean$\,[\waLooseTRMatchedVsTRDiffCILo,
 \waLooseTRMatchedVsTRDiffCIHi].
-Running a cold start at warmup's $\gamma{=}\waGamma$ (longer
-memory of an uninformative prior) is counterproductive rather than
-helpful.
-Since changing $\gamma$ alone does not improve a cold start,
-warmup's advantage over Tabula Rasa (Q1) is attributable to
+Point estimates favour the independently tuned Tabula Rasa in every
+regime, though only the moderate-budget CI excludes zero after
+Bonferroni correction; in no regime does adopting warmup's
+$\gamma{=}\waGamma$ (longer memory of an uninformative prior)
+improve upon independently tuned Tabula Rasa.
+Since the data provide no evidence that the $\gamma$ difference
+drives warmup's advantage, the improvement (Q1) is attributable to
 the \emph{informative priors themselves}.
 
 \paragraph{Cold-start variability.}
