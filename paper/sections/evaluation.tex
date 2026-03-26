@@ -117,10 +117,11 @@ We stress-test against a silent quality regression: Mistral-Large's reward drops
 \noindent\textbf{Results (Figure~\ref{fig:catastrophic_failure}).}  ParetoBandit detects the quality drop purely through the reward signal, reducing Mistral allocation from $\cfParetoBanditModMistralPhaseOne$\% to $\cfParetoBanditModMistralPhaseTwo$\% in Phase~2 at moderate budget.  In Phase~3, geometric forgetting down-weights the corrupted estimates and staleness-driven exploration begins re-exploring Mistral, raising allocation to $\cfParetoBanditModMistralPhaseThree$\% and recovering Phase~3 reward to $\cfParetoBanditModPhaseThreeReward$\,[$\cfParetoBanditModPhaseThreeRewardCILo$, $\cfParetoBanditModPhaseThreeRewardCIHi$] (vs.\ Phase~1 $\cfParetoBanditModPhaseOneReward$\,[$\cfParetoBanditModPhaseOneRewardCILo$, $\cfParetoBanditModPhaseOneRewardCIHi$], recovery ratio $\cfParetoBanditModRecoveryMean$\,[$\cfParetoBanditModRecoveryCILo$, $\cfParetoBanditModRecoveryCIHi$]).  Budget compliance holds throughout ($\cfParetoBanditLoosePhaseOneRatio$\,[$\cfParetoBanditLoosePhaseOneRatioCILo$, $\cfParetoBanditLoosePhaseOneRatioCIHi$] to $\cfParetoBanditTightPhaseOneRatio$\,[$\cfParetoBanditTightPhaseOneRatioCILo$, $\cfParetoBanditTightPhaseOneRatioCIHi$] across all nine phase--budget cells).  The unconstrained baseline is unaffected (Phase~2 reward $\cfUncPhaseTwoReward$\,[$\cfUncPhaseTwoRewardCILo$, $\cfUncPhaseTwoRewardCIHi$] vs.\ Phase~1 $\cfUncPhaseOneReward$\,[$\cfUncPhaseOneRewardCILo$, $\cfUncPhaseOneRewardCIHi$]) but incurs a $\cfUncCostSpikePct$\% cost increase from over-allocating to Gemini.  This ${\sim}\ppCfDegPct$\% degradation lies within the system's recovery envelope; Appendix~\ref{appendix:recovery_limit} characterises the threshold beyond which recovery requires an extended horizon.
 \begin{figure}[!t]
 \centering
+\setlength{\abovecaptionskip}{2pt}
 \includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}
 \caption{\input{../experiments/03_catastrophic_failure/figure_caption_dynamics.tex}}
 \label{fig:catastrophic_failure}
-\vspace{-10pt}
+\vspace{-4pt}
 \end{figure}
 
 \subsection{Cold-Start Model Onboarding}
@@ -131,9 +132,10 @@ After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/04_model_onboarding/results/model_onboarding.png}
+\vspace{-10pt}
 \caption{\input{../experiments/04_model_onboarding/figure_caption_onboarding.tex}}
 \label{fig:model_onboarding}
-\vspace{-4pt}
+\vspace{10pt}
 \end{figure*}
 
 The trade-off relative to offline characterisation is that ${\sim}1$\% of Phase~2 requests serve as online exploration, but adoption is automatically budget-gated and requires no paired preference data.
