@@ -85,6 +85,7 @@ def _add_phase_shading(
     *,
     label_left: str = "Phase 1\n(K=3)",
     label_right: str = "Phase 2\n(K=4, +Flash)",
+    fontsize: int = 13,
 ) -> None:
     """Shade the Phase 1 region and annotate phase / burn-in boundaries."""
     ax.axvspan(0, boundary, alpha=0.06, color="#000000", zorder=0)
@@ -104,7 +105,7 @@ def _add_phase_shading(
         transform=trans,
         ha="center",
         va="top",
-        fontsize=13,
+        fontsize=fontsize,
         fontstyle="italic",
         color="#333333",
     )
@@ -117,7 +118,7 @@ def _add_phase_shading(
         transform=trans,
         ha="center",
         va="top",
-        fontsize=13,
+        fontsize=fontsize,
         fontstyle="italic",
         color="#333333",
     )
@@ -220,10 +221,13 @@ def _panel_cost_compliance(
     phase_boundary: int,
     burnin_pulls: int,
     budget_targets: Dict[str, float],
+    *,
+    phase_fontsize: int = 13,
 ) -> None:
     """Running average cost with annotated budget targets."""
     traces = scenario_data["checkpoint_traces"]
 
+    budget_target_drawn = False
     for blabel in ["tight", "moderate", "loose"]:
         key = f"paretobandit_transfer_{blabel}"
         if key not in traces:
@@ -232,14 +236,14 @@ def _panel_cost_compliance(
         steps = [c["step"] for c in trace]
         costs_m = [c["cumulative_cost"] * _MILLI for c in trace]
         has_per_seed = "per_seed_cumulative_cost" in trace[0]
-        color = BUDGET_STYLES[blabel]["color"]
+        style = BUDGET_STYLES[blabel]
 
         ax.plot(
             steps,
             costs_m,
-            color=color,
+            color=style["color"],
             linewidth=2.2,
-            label=BUDGET_NICE[blabel],
+            label=style["label"],
             zorder=4,
         )
 
@@ -250,23 +254,28 @@ def _panel_cost_compliance(
             ci_lo, ci_hi = bootstrap_ci_series(matrix, ci_level=0.95)
             ax.fill_between(
                 steps, ci_lo, ci_hi,
-                alpha=0.10, color=color, zorder=2,
+                alpha=0.10, color=style["color"], zorder=2,
             )
 
         target_m = budget_targets[blabel] * _MILLI
+        target_label = "Budget target" if not budget_target_drawn else None
         ax.axhline(
             target_m,
-            color=color,
+            color=style["color"],
             linestyle=":",
             linewidth=1.4,
             alpha=0.7,
             zorder=1,
+            label=target_label,
         )
+        budget_target_drawn = True
 
     burnin_boundary = (
         phase_boundary + burnin_pulls if burnin_pulls > 0 else None
     )
-    _add_phase_shading(ax, phase_boundary, burnin_boundary)
+    _add_phase_shading(
+        ax, phase_boundary, burnin_boundary, fontsize=phase_fontsize,
+    )
 
     ax.set_title(
         "(a) Cost Compliance",
@@ -290,6 +299,8 @@ def _panel_reward(
     scenario_data: Dict[str, Any],
     phase_boundary: int,
     burnin_pulls: int,
+    *,
+    phase_fontsize: int = 13,
 ) -> None:
     """Cumulative average reward for each budget tier + unconstrained."""
     traces = scenario_data["checkpoint_traces"]
@@ -321,7 +332,9 @@ def _panel_reward(
         phase_boundary + burnin_pulls if burnin_pulls > 0 else None
     )
     ax.set_ylim(top=ax.get_ylim()[1] + 0.03)
-    _add_phase_shading(ax, phase_boundary, burnin_boundary)
+    _add_phase_shading(
+        ax, phase_boundary, burnin_boundary, fontsize=phase_fontsize,
+    )
 
     ax.set_title(
         "(b) Reward",
@@ -362,7 +375,7 @@ def main() -> None:
     # Figure 1: 1 x N_scenarios — Flash adoption by budget tier
     # ------------------------------------------------------------------
     fig, axes = plt.subplots(
-        1, n_scenarios, figsize=(5.5 * n_scenarios, 5.0), squeeze=False,
+        1, n_scenarios, figsize=(5.5 * n_scenarios, 6.2), squeeze=False,
     )
     axes_row = axes[0]
 
@@ -382,19 +395,18 @@ def main() -> None:
             ax.legend(
                 fontsize=14,
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.18),
+                bbox_to_anchor=(0.5, -0.28),
                 ncol=4,
                 framealpha=0.9,
             )
 
     fig.suptitle(
-        r"Model Onboarding: K=3 $\to$ K=4 (Gemini Flash)"
-        f" — {n_seeds} seeds, 95% bootstrap CI",
+        r"Model Onboarding: K=3 $\to$ K=4 (Gemini Flash)",
         fontsize=19,
         fontweight="bold",
         y=1.01,
     )
-    fig.tight_layout(rect=[0, 0.12, 1, 0.97])
+    fig.tight_layout(rect=[0, 0.18, 1, 0.97])
 
     for fmt in ("pdf", "png"):
         out = RESULTS_DIR / f"model_onboarding.{fmt}"
@@ -407,7 +419,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     if "good_cheap" in scenarios and "budget_targets" in data:
         fig2, (ax_cost, ax_reward) = plt.subplots(
-            1, 2, figsize=(16, 7),
+            2, 1, figsize=(5.5, 7.5),
         )
         _panel_cost_compliance(
             ax_cost,
@@ -415,37 +427,46 @@ def main() -> None:
             phase_boundary,
             burnin_pulls,
             data["budget_targets"],
+            phase_fontsize=9,
         )
         _panel_reward(
             ax_reward,
             scenarios["good_cheap"],
             phase_boundary,
             burnin_pulls,
+            phase_fontsize=9,
         )
 
-        ax_cost.legend(
-            fontsize=13,
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.38),
+        for ax in (ax_cost, ax_reward):
+            ax.tick_params(labelsize=9)
+            ax.xaxis.label.set_size(10)
+            ax.yaxis.label.set_size(10)
+            title_obj = ax.title
+            title_obj.set_fontsize(11)
+
+        handles_cost, labels_cost = ax_cost.get_legend_handles_labels()
+        handles_reward, labels_reward = ax_reward.get_legend_handles_labels()
+        seen: set[str] = set()
+        handles, labels = [], []
+        for h, l in list(zip(handles_cost, labels_cost)) + list(
+            zip(handles_reward, labels_reward)
+        ):
+            if l not in seen:
+                seen.add(l)
+                handles.append(h)
+                labels.append(l)
+
+        fig2.legend(
+            handles,
+            labels,
+            fontsize=8,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.01),
             ncol=3,
             framealpha=0.9,
         )
-        ax_reward.legend(
-            fontsize=13,
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.38),
-            ncol=4,
-            framealpha=0.9,
-        )
 
-        fig2.suptitle(
-            r"Model Onboarding: Budget–Quality Trade-off (Good & Cheap)"
-            f" — {n_seeds} seeds",
-            fontsize=18,
-            fontweight="bold",
-            y=1.01,
-        )
-        fig2.tight_layout(rect=[0.04, 0.12, 1, 0.97])
+        fig2.tight_layout(rect=[0, 0.09, 1, 1.0], h_pad=2.5)
         for fmt in ("pdf", "png"):
             out = RESULTS_DIR / f"model_onboarding_cost.{fmt}"
             fig2.savefig(out, dpi=300, bbox_inches="tight")

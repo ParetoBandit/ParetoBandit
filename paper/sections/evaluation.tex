@@ -133,19 +133,20 @@ The Fixed Policy cannot adapt and continues routing traffic to the degraded mode
 
 After Phase~1 learning on the $K{=}3$ portfolio, Gemini-2.5-Flash is added as a fourth arm via \texttt{register\_model()} with no warmup priors. Figure~\ref{fig:model_onboarding} shows Flash adoption across three scenario--budget combinations. In the Good \& Cheap scenario (Figure~\ref{fig:model_onboarding}a), all 80 trials (20~seeds $\times$ 4~budget tiers) achieve sustained adoption within ${\sim}\ppAdoptionSteps$ steps. Budget determines the equilibrium share, not whether adoption occurs: loose budgets settle at ${\sim}\moGoodCheapPBLooseFlashFinalPct$\%\,[$\moGoodCheapPBLooseFlashFinalPctCILo$, $\moGoodCheapPBLooseFlashFinalPctCIHi$] Flash share while tight budgets plateau at ${\sim}\moGoodCheapPBTightFlashFinalPct$\%\,[$\moGoodCheapPBTightFlashFinalPctCILo$, $\moGoodCheapPBTightFlashFinalPctCIHi$]. The BudgetPacer maintains compliance throughout the $K{=}3 \to K{=}4$ transition without reconfiguration (Figure~\ref{fig:model_onboarding_cost}). Crucially, the bandit discriminates rather than blindly adopting: expensive models are budget-gated (Figure~\ref{fig:model_onboarding}b) and bad models are rejected after a bounded burn-in (Figure~\ref{fig:model_onboarding}c).
 
-The trade-off relative to offline characterisation is that ${\sim}1$\% of Phase~2 requests serve as online exploration, but adoption is automatically budget-gated and requires no paired preference data.
-
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/04_model_onboarding/results/model_onboarding.png}
 \caption{\input{../experiments/04_model_onboarding/figure_caption_onboarding.tex}}
 \label{fig:model_onboarding}
+\vspace{-4pt}
 \end{figure*}
 
-\begin{figure*}[!t]
+The trade-off relative to offline characterisation is that ${\sim}1$\% of Phase~2 requests serve as online exploration, but adoption is automatically budget-gated and requires no paired preference data.
+
+\begin{figure}[!t]
 \centering
-\includegraphics[width=\textwidth]{../experiments/04_model_onboarding/results/model_onboarding_cost.png}
+\includegraphics[width=0.6\columnwidth]{../experiments/04_model_onboarding/results/model_onboarding_cost.png}
 \caption{\input{../experiments/04_model_onboarding/figure_caption_cost.tex}}
 \label{fig:model_onboarding_cost}
-\vspace{4pt}
-\end{figure*}
+\vspace{-6pt}
+\end{figure}
