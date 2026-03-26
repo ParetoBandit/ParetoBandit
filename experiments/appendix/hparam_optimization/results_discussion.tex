@@ -8,27 +8,33 @@
 \paragraph{The challenge.}
 ParetoBandit's core hyperparameters---exploration coefficient
 $\alpha$, prior strength $n_{\text{eff}}$, and forgetting factor
-$\gamma$---interact non-trivially with stationarity.
-Standard cross-validation optimises a single stationary metric,
-which selects $\gamma \geq 0.999$ because forgetting reduces the
-effective sample size under stationarity.  However, $\gamma{=}1.0$ fails under
-non-stationarity (Section~\ref{sec:eval_catastrophic}: infinite memory
-retains stale pre-failure evidence, slowing adaptation to quality
-degradation), while optimising solely for adaptability
-yields excessive forgetting that destabilises the stationary policy.
-\emph{A good hyperparameter configuration should balance stationary
-efficiency against non-stationary recovery.}
+$\gamma$---interact non-trivially with non-stationarity.
+Standard cross-validation optimizes a single stationary metric,
+which tends to select $\gamma \geq 0.999$ because forgetting
+reduces effective sample size under stationarity.
+However, $\gamma{=}1.0$ fails under non-stationarity
+(Section~\ref{sec:eval_catastrophic}): infinite memory retains
+stale pre-failure evidence, slowing adaptation to quality
+degradation, while optimizing solely for adaptability yields
+excessive forgetting that destabilizes the stationary policy.
+A good configuration must balance stationary efficiency against
+non-stationary recovery.
 
-Among bandit-based LLM routers we surveyed, none addresses this tension directly:
-PILOT~\cite{panda2025pilot} grid-searches $\alpha$ on a single
-stationary metric; BaRP~\cite{wang2025barp} and LLM
-Bandit~\cite{li2025llmbandit} omit forgetting entirely;
-MixLLM~\cite{wang2025mixllm} delegates adaptation to neural-network
-retraining.  In the general bandit literature,
-CDT~\cite{kang2024cdt} tunes $\alpha$ online but remains
-single-objective and does not tune $\gamma$, while
+Among bandit-based LLM routers we surveyed, none addresses this
+tension directly.
+PILOT~\cite{panda2025pilot} tunes $\alpha$ via grid search on a
+single stationary metric.
+BaRP~\cite{wang2025barp} and LLM Bandit~\cite{li2025llmbandit}
+omit forgetting entirely.
+MixLLM~\cite{wang2025mixllm} delegates adaptation to periodic
+neural retraining rather than explicit forgetting.
+In the general bandit literature,
+CDT~\cite{kang2024cdt} performs online tuning of $\alpha$ via a
+bandit-over-bandit scheme but remains single-objective and does
+not tune $\gamma$.
 Garivier and Moulines~\cite{garivier2011switching} derive $\gamma$
-from the number of breakpoints that are unknown in production.
+as a function of the (unknown) number of breakpoints, which is
+not observable in production.
 
 \paragraph{Adaptation-horizon coupling.}
 Rather than treating $\alpha$, $n_{\text{eff}}$, and $\gamma$ as three
