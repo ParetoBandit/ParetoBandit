@@ -153,6 +153,7 @@ class BanditRouter:
         embedding_dim: int = 384,
         init_lambda: float = 1.0,
         forgetting_factor: float = BEST_K3_HPARAMS["forgetting_factor"],
+        bandit_seed: int | None = None,
         context_store: ContextStore | None = None,
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
@@ -179,6 +180,12 @@ class BanditRouter:
             init_lambda: Initialization regularization (A₀ = λI)
             forgetting_factor: Temporal decay (1.0 = stationary).  Default
                 from ``BEST_K3_HPARAMS`` in ``pareto_bandit.config``.
+            bandit_seed: Seed for the bandit policy's internal RNG, used
+                for tie-breaking in ``select_arm()`` and Thompson Sampling
+                in ``get_probabilities()``.  ``None`` (default) creates an
+                unseeded generator.  Pass an explicit seed for reproducible
+                simulations, especially with cold-start (tabula rasa)
+                initialization where initial UCB ties are common.
             context_store: Storage backend for context vectors. Defaults to
                 EphemeralContextStore (RAM-only, no disk). Pass
                 SqliteContextStore() for persistence across restarts
@@ -263,6 +270,7 @@ class BanditRouter:
             alpha=alpha,
             init_lambda=init_lambda,
             forgetting_factor=forgetting_factor,
+            seed=bandit_seed,
         )
         
         # ---------------------------------------------------------------------------
@@ -828,8 +836,8 @@ class BanditRouter:
         _INIT_PARAMS = {
             "feature_service", "context_model", "pca_path", "alpha",
             "embedding_dim", "init_lambda", "forgetting_factor",
-            "context_store", "config", "verbose_routing", "cost_penalty",
-            "budget_pacer",
+            "bandit_seed", "context_store", "config", "verbose_routing",
+            "cost_penalty", "budget_pacer",
         }
         unknown = set(kwargs) - _INIT_PARAMS
         if unknown:

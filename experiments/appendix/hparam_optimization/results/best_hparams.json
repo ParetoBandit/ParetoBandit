@@ -15,10 +15,10 @@
     "tabula_rasa": {
       "alpha": 0.05,
       "n_eff": 1.0,
-      "gamma": 0.994,
+      "gamma": 0.997,
       "pca_dim": 25,
-      "val_pareto_auc": 0.921114,
-      "val_phase2_reward": 0.7451,
+      "val_pareto_auc": 0.923084,
+      "val_phase2_reward": 0.7287,
       "selection_method": "pareto_knee_point",
       "t_adapt": 500
     }
@@ -31,10 +31,10 @@
       "val_pareto_auc": 0.928466
     },
     "tabula_rasa": {
-      "alpha": 0.01,
+      "alpha": 0.1,
       "n_eff": 1.0,
-      "gamma": 0.997,
-      "val_pareto_auc": 0.92688
+      "gamma": 1.0,
+      "val_pareto_auc": 0.924993
     }
   },
   "pareto_frontiers": {
@@ -130,67 +130,59 @@
     ],
     "tabula_rasa": [
       {
-        "alpha": 0.1,
-        "n_eff": 1.0,
-        "gamma": 0.994,
-        "val_pareto_auc": 0.916715,
-        "phase2_reward": 0.749,
-        "is_knee": false
-      },
-      {
-        "alpha": 0.1,
+        "alpha": 0.01,
         "n_eff": 1.0,
         "gamma": 0.995,
-        "val_pareto_auc": 0.918039,
-        "phase2_reward": 0.7468,
+        "val_pareto_auc": 0.921437,
+        "phase2_reward": 0.7552,
         "is_knee": false
       },
       {
         "alpha": 0.05,
         "n_eff": 1.0,
         "gamma": 0.994,
-        "val_pareto_auc": 0.921114,
-        "phase2_reward": 0.7451,
-        "is_knee": true
-      },
-      {
-        "alpha": 0.05,
-        "n_eff": 1.0,
-        "gamma": 0.995,
-        "val_pareto_auc": 0.921519,
-        "phase2_reward": 0.7405,
+        "val_pareto_auc": 0.921628,
+        "phase2_reward": 0.744,
         "is_knee": false
       },
       {
         "alpha": 0.05,
         "n_eff": 1.0,
         "gamma": 0.996,
-        "val_pareto_auc": 0.922955,
-        "phase2_reward": 0.7318,
+        "val_pareto_auc": 0.922506,
+        "phase2_reward": 0.7347,
         "is_knee": false
       },
       {
-        "alpha": 0.01,
-        "n_eff": 1.0,
-        "gamma": 0.994,
-        "val_pareto_auc": 0.924572,
-        "phase2_reward": 0.7223,
-        "is_knee": false
-      },
-      {
-        "alpha": 0.01,
-        "n_eff": 1.0,
-        "gamma": 0.995,
-        "val_pareto_auc": 0.924586,
-        "phase2_reward": 0.7125,
-        "is_knee": false
-      },
-      {
-        "alpha": 0.01,
+        "alpha": 0.05,
         "n_eff": 1.0,
         "gamma": 0.997,
-        "val_pareto_auc": 0.92688,
-        "phase2_reward": 0.6827,
+        "val_pareto_auc": 0.923084,
+        "phase2_reward": 0.7287,
+        "is_knee": true
+      },
+      {
+        "alpha": 0.05,
+        "n_eff": 1.0,
+        "gamma": 0.998,
+        "val_pareto_auc": 0.923116,
+        "phase2_reward": 0.7131,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.1,
+        "n_eff": 1.0,
+        "gamma": 0.999,
+        "val_pareto_auc": 0.923974,
+        "phase2_reward": 0.7009,
+        "is_knee": false
+      },
+      {
+        "alpha": 0.1,
+        "n_eff": 1.0,
+        "gamma": 1.0,
+        "val_pareto_auc": 0.924993,
+        "phase2_reward": 0.6534,
         "is_knee": false
       }
     ]
@@ -215,19 +207,19 @@
     },
     "tabula_rasa": {
       "Llama-8B": {
-        "phase2_reward": 0.8561,
-        "phase2_reward_std": 0.0723,
-        "phase1_reward_diag": 0.8951
+        "phase2_reward": 0.8496,
+        "phase2_reward_std": 0.0773,
+        "phase1_reward_diag": 0.8888
       },
       "Mistral-Large": {
-        "phase2_reward": 0.7444,
-        "phase2_reward_std": 0.0206,
-        "phase1_reward_diag": 0.8927
+        "phase2_reward": 0.7287,
+        "phase2_reward_std": 0.0289,
+        "phase1_reward_diag": 0.8888
       },
       "Gemini-Pro": {
-        "phase2_reward": 0.8923,
-        "phase2_reward_std": 0.0136,
-        "phase1_reward_diag": 0.894
+        "phase2_reward": 0.8911,
+        "phase2_reward_std": 0.0222,
+        "phase1_reward_diag": 0.8888
       }
     }
   },
@@ -251,19 +243,19 @@
     },
     "tabula_rasa": {
       "Llama-8B": {
-        "phase2_reward": 0.8495,
-        "phase2_reward_std": 0.0737,
-        "phase1_reward_diag": 0.8939
+        "phase2_reward": 0.8504,
+        "phase2_reward_std": 0.0766,
+        "phase1_reward_diag": 0.8962
       },
       "Mistral-Large": {
-        "phase2_reward": 0.7668,
-        "phase2_reward_std": 0.0108,
-        "phase1_reward_diag": 0.8949
+        "phase2_reward": 0.7489,
+        "phase2_reward_std": 0.021,
+        "phase1_reward_diag": 0.8962
       },
       "Gemini-Pro": {
-        "phase2_reward": 0.8878,
+        "phase2_reward": 0.891,
         "phase2_reward_std": 0.0147,
-        "phase1_reward_diag": 0.8939
+        "phase1_reward_diag": 0.8962
       }
     }
   },
@@ -332,61 +324,61 @@
     "tabula_rasa": {
       "alpha": 0.05,
       "n_eff": 1.0,
-      "gamma": 0.994,
+      "gamma": 0.997,
       "selection_method": "pareto_knee_point",
-      "test_pareto_auc": 0.918505,
-      "test_pareto_auc_std": 0.001309,
+      "test_pareto_auc": 0.919961,
+      "test_pareto_auc_std": 0.001969,
       "test_fixed_auc": 0.925342,
-      "test_delta_pct": -0.739,
+      "test_delta_pct": -0.581,
       "test_sweep": [
         {
           "budget_target": 2.889075600143318e-05,
-          "mean_reward": 0.793296,
+          "mean_reward": 0.793123,
           "mean_cost": 2.9e-05,
-          "std_reward": 0.000168,
-          "std_cost": 1e-06
+          "std_reward": 7.1e-05,
+          "std_cost": 0.0
         },
         {
           "budget_target": 8.184374759356997e-05,
-          "mean_reward": 0.811636,
-          "mean_cost": 8.3e-05,
-          "std_reward": 0.002408,
-          "std_cost": 3e-06
+          "mean_reward": 0.812455,
+          "mean_cost": 8.2e-05,
+          "std_reward": 0.001878,
+          "std_cost": 2e-06
         },
         {
           "budget_target": 0.00023185267356201064,
-          "mean_reward": 0.854571,
+          "mean_reward": 0.857675,
           "mean_cost": 0.000232,
-          "std_reward": 0.002814,
+          "std_reward": 0.002501,
           "std_cost": 1e-06
         },
         {
           "budget_target": 0.0006568084162616665,
-          "mean_reward": 0.894144,
-          "mean_cost": 0.000648,
-          "std_reward": 0.007799,
+          "mean_reward": 0.896433,
+          "mean_cost": 0.000647,
+          "std_reward": 0.007931,
           "std_cost": 8e-06
         },
         {
           "budget_target": 0.0018606526681124438,
-          "mean_reward": 0.912678,
-          "mean_cost": 0.001688,
-          "std_reward": 0.004024,
-          "std_cost": 3.9e-05
+          "mean_reward": 0.917383,
+          "mean_cost": 0.001653,
+          "std_reward": 0.002247,
+          "std_cost": 0.000122
         },
         {
           "budget_target": 0.005270986585492709,
-          "mean_reward": 0.919984,
-          "mean_cost": 0.004124,
-          "std_reward": 0.0018,
-          "std_cost": 0.000696
+          "mean_reward": 0.921899,
+          "mean_cost": 0.003989,
+          "std_reward": 0.002078,
+          "std_cost": 0.001016
         },
         {
           "budget_target": 0.014932018243162547,
-          "mean_reward": 0.925077,
-          "mean_cost": 0.00958,
-          "std_reward": 0.002008,
-          "std_cost": 0.001759
+          "mean_reward": 0.925423,
+          "mean_cost": 0.007748,
+          "std_reward": 0.003634,
+          "std_cost": 0.003598
         }
       ]
     }
@@ -458,19 +450,37 @@
     },
     "tabula_rasa": {
       "n_bootstrap": 2000,
-      "original_knee_frequency": 0.229,
-      "modal_config_frequency": 0.4435,
-      "modal_is_original": false,
-      "neighborhood_frequency": 0.3165,
+      "original_knee_frequency": 0.32,
+      "modal_config_frequency": 0.32,
+      "modal_is_original": true,
+      "neighborhood_frequency": 0.4845,
       "n_unique_selections": 14,
       "selected_configs": [
         {
-          "config_idx": 0,
-          "alpha": 0.01,
-          "gamma": 0.994,
+          "config_idx": 10,
+          "alpha": 0.05,
+          "gamma": 0.997,
           "n_eff": 1.0,
-          "frequency": 0.4435,
-          "count": 887,
+          "frequency": 0.32,
+          "count": 640,
+          "is_original_knee": true
+        },
+        {
+          "config_idx": 19,
+          "alpha": 0.1,
+          "gamma": 0.999,
+          "n_eff": 1.0,
+          "frequency": 0.121,
+          "count": 242,
+          "is_original_knee": false
+        },
+        {
+          "config_idx": 9,
+          "alpha": 0.05,
+          "gamma": 0.996,
+          "n_eff": 1.0,
+          "frequency": 0.0985,
+          "count": 197,
           "is_original_knee": false
         },
         {
@@ -478,22 +488,13 @@
           "alpha": 0.05,
           "gamma": 0.994,
           "n_eff": 1.0,
-          "frequency": 0.229,
-          "count": 458,
-          "is_original_knee": true
-        },
-        {
-          "config_idx": 9,
-          "alpha": 0.05,
-          "gamma": 0.996,
-          "n_eff": 1.0,
-          "frequency": 0.126,
-          "count": 252,
+          "frequency": 0.0895,
+          "count": 179,
           "is_original_knee": false
         },
         {
-          "config_idx": 8,
-          "alpha": 0.05,
+          "config_idx": 1,
+          "alpha": 0.01,
           "gamma": 0.995,
           "n_eff": 1.0,
           "frequency": 0.0875,
@@ -505,53 +506,8 @@
           "alpha": 0.01,
           "gamma": 0.998,
           "n_eff": 1.0,
-          "frequency": 0.033,
-          "count": 66,
-          "is_original_knee": false
-        },
-        {
-          "config_idx": 1,
-          "alpha": 0.01,
-          "gamma": 0.995,
-          "n_eff": 1.0,
-          "frequency": 0.03,
-          "count": 60,
-          "is_original_knee": false
-        },
-        {
-          "config_idx": 3,
-          "alpha": 0.01,
-          "gamma": 0.997,
-          "n_eff": 1.0,
-          "frequency": 0.025,
-          "count": 50,
-          "is_original_knee": false
-        },
-        {
-          "config_idx": 5,
-          "alpha": 0.01,
-          "gamma": 0.999,
-          "n_eff": 1.0,
-          "frequency": 0.0085,
-          "count": 17,
-          "is_original_knee": false
-        },
-        {
-          "config_idx": 6,
-          "alpha": 0.01,
-          "gamma": 1.0,
-          "n_eff": 1.0,
-          "frequency": 0.0045,
-          "count": 9,
-          "is_original_knee": false
-        },
-        {
-          "config_idx": 10,
-          "alpha": 0.05,
-          "gamma": 0.997,
-          "n_eff": 1.0,
-          "frequency": 0.0045,
-          "count": 9,
+          "frequency": 0.0685,
+          "count": 137,
           "is_original_knee": false
         },
         {
@@ -559,17 +515,8 @@
           "alpha": 0.05,
           "gamma": 0.998,
           "n_eff": 1.0,
-          "frequency": 0.0045,
-          "count": 9,
-          "is_original_knee": false
-        },
-        {
-          "config_idx": 2,
-          "alpha": 0.01,
-          "gamma": 0.996,
-          "n_eff": 1.0,
-          "frequency": 0.002,
-          "count": 4,
+          "frequency": 0.066,
+          "count": 132,
           "is_original_knee": false
         },
         {
@@ -577,17 +524,62 @@
           "alpha": 0.05,
           "gamma": 0.999,
           "n_eff": 1.0,
-          "frequency": 0.001,
-          "count": 2,
+          "frequency": 0.066,
+          "count": 132,
           "is_original_knee": false
         },
         {
-          "config_idx": 18,
-          "alpha": 0.1,
-          "gamma": 0.998,
+          "config_idx": 13,
+          "alpha": 0.05,
+          "gamma": 1.0,
           "n_eff": 1.0,
-          "frequency": 0.001,
-          "count": 2,
+          "frequency": 0.0435,
+          "count": 87,
+          "is_original_knee": false
+        },
+        {
+          "config_idx": 2,
+          "alpha": 0.01,
+          "gamma": 0.996,
+          "n_eff": 1.0,
+          "frequency": 0.0255,
+          "count": 51,
+          "is_original_knee": false
+        },
+        {
+          "config_idx": 0,
+          "alpha": 0.01,
+          "gamma": 0.994,
+          "n_eff": 1.0,
+          "frequency": 0.01,
+          "count": 20,
+          "is_original_knee": false
+        },
+        {
+          "config_idx": 27,
+          "alpha": 0.25,
+          "gamma": 1.0,
+          "n_eff": 1.0,
+          "frequency": 0.002,
+          "count": 4,
+          "is_original_knee": false
+        },
+        {
+          "config_idx": 8,
+          "alpha": 0.05,
+          "gamma": 0.995,
+          "n_eff": 1.0,
+          "frequency": 0.0015,
+          "count": 3,
+          "is_original_knee": false
+        },
+        {
+          "config_idx": 5,
+          "alpha": 0.01,
+          "gamma": 0.999,
+          "n_eff": 1.0,
+          "frequency": 0.0005,
+          "count": 1,
           "is_original_knee": false
         }
       ]

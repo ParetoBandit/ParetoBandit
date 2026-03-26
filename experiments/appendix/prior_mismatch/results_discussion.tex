@@ -88,10 +88,16 @@ Two no-prior baselines are included:
     optimised production default (Experiment~05 Pareto knee-point
     sweep).
   \item \textbf{Tabula Rasa ($\gamma$-matched)} ($\gamma{=}\prmGamma$,
-    $\alpha{=}\prmAlpha$): no priors, but the same forgetting factor as all
-    warmup conditions.  This control isolates the prior's informational
-    benefit from the different effective memory that $\gamma{=}\prmGamma$
-    provides (${\sim}\prmEffMemDiffPct\%$ shorter than $\gamma{=}\prmTRGamma$).
+    $\alpha{=}\prmAlpha$): no priors, but the same forgetting factor
+    and exploration rate as all warmup conditions.
+    Because the Pareto-knee sweep selected $\gamma{=}\prmTRGamma$
+    for the production default---identical to warmup's
+    $\gamma{=}\prmGamma$---the two baselines share the same
+    effective memory (${\sim}\prmEffMemWarmup$ steps) and differ
+    only in exploration rate ($\alpha{=}\prmAlpha$ vs.\ the
+    production default's independently tuned $\alpha$).
+    This control isolates the prior's contribution from
+    the exploration-rate confound.
 \end{itemize}
 This yields $\prmNQualities \times \prmNNeff + 2 = \prmNConditions$ conditions.
 All warmup conditions use $\alpha{=}\prmAlpha$, $\gamma{=}\prmGamma$ (disjoint
@@ -141,25 +147,33 @@ across the quality--strength grid.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
-\caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines ($\gamma{=}\prmTRGamma$ and $\gamma$-matched $\prmGamma$).}
+\caption{Total cumulative regret across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  Well-calibrated and Random-1680 priors reduce regret monotonically with $n_\mathit{eff}$.  Domain-mismatched priors (MMLU-only, GSM8K-only) still beat the Tabula Rasa baseline.  Only inverted priors at high $n_\mathit{eff}$ increase regret.  Dashed lines show both Tabula Rasa baselines (production default and $\gamma$-matched with $\alpha{=}\prmAlpha$).}
 \label{fig:prior_mismatch_heatmap}
 \end{figure*}
 
-\emph{The forgetting-factor confound is negligible.}
-The two Tabula Rasa baselines yield comparable medians
-($\prmTRRegretMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]
-vs.\ $\prmTRMatchedRegretMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$])
-and means ($\prmTRRegretMean$\,[$\prmTRRegretMeanCILo$, $\prmTRRegretMeanCIHi$]
-vs.\ $\prmTRMatchedRegretMean$\,[$\prmTRMatchedRegretMeanCILo$, $\prmTRMatchedRegretMeanCIHi$])
-with overlapping per-seed distributions
-($\mathit{std}{=}\prmTRRegretStd$ vs.\ $\prmTRMatchedRegretStd$).
-The exact binomial sign test finds no significant difference
-($p{=}\prmGammaSignP$, \prmGammaCondWins~condition wins, \prmGammaBaseWins~baseline wins, \prmGammaTies~ties out of
-\prmNseeds~seeds).  The $\gamma$-matched baseline has \prmGammaCondCatCount/\prmNseeds{} catastrophic failures (\prmGammaCondCatPct\%) vs.\ \prmGammaBaseCatCount/\prmNseeds{} for the production Tabula Rasa (Fisher $p{=}\prmGammaFisherP$).
-This confirms that the $\gamma{=}\prmGamma$ vs.\ $\gamma{=}\prmTRGamma$
-difference has no material effect, and the comparisons below
-reflect the prior's informational contribution rather than a
-memory-length artefact.
+\emph{The $\gamma$-matched baseline isolates the exploration-rate effect.}
+Because the Pareto-knee sweep selected the same $\gamma$ for both
+warmup and the production Tabula Rasa
+($\gamma{=}\prmGamma{=}\prmTRGamma$), the two no-prior baselines
+share the same effective memory and differ only in exploration rate.
+The $\gamma$-matched baseline (warmup's $\alpha{=}\prmAlpha$)
+achieves a comparable median to the production default
+($\prmTRMatchedRegretMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$]
+vs.\ $\prmTRRegretMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$];
+sign test $p{=}\prmGammaSignP$, \prmGammaCondWins/\prmGammaBaseWins{} wins),
+but exhibits heavier tails
+($\mathit{std}{=}\prmTRMatchedRegretStd$ vs.\ $\prmTRRegretStd$;
+mean $\prmTRMatchedRegretMean$ vs.\ $\prmTRRegretMean$) and more
+catastrophic failures
+(\prmGammaCondCatCount/\prmNseeds{}, \prmGammaCondCatPct\%
+vs.\ \prmGammaBaseCatCount/\prmNseeds{}; Fisher $p{=}\prmGammaFisherP$).
+Lower exploration without priors occasionally traps the cold-start
+learner on a suboptimal arm.
+The $\gamma$-matched baseline therefore serves as a conservative
+reference for the warmup conditions (which share the same
+$\alpha{=}\prmAlpha$): any regret reduction from priors is measured
+against the hardest cold-start baseline, and the comparisons below
+reflect the prior's informational contribution.
 
 \emph{Directionally correct priors help at every strength.}
 Well-calibrated priors reduce median total regret monotonically with
@@ -246,9 +260,10 @@ $n_\mathit{eff}{=}10$) achieves $\mathit{std}{=}\prmInvTenRegretStd$.
 The $\gamma$-matched baseline's $\mathit{std}{=}\prmTRMatchedRegretStd$
 (median $\prmTRMatchedRegretMedian$\,[$\prmTRMatchedRegretMedianCILo$, $\prmTRMatchedRegretMedianCIHi$])
 confirms that this variance collapse is attributable to the prior
-itself, not to the longer effective memory of $\gamma{=}\prmGamma$:
-the control has the same forgetting factor but the same heavy-tailed
-distribution as production Tabula Rasa.
+itself: the $\gamma$-matched control shares warmup's exploration
+rate ($\alpha{=}\prmAlpha$) and forgetting factor
+($\gamma{=}\prmGamma$) but lacks priors, and still exhibits a
+wide, heavy-tailed distribution.
 
 Catastrophic failures (regret $> \prmCatMultiplier{\times}$ the $\gamma$-matched
 baseline median, i.e., $> \prmCatThreshold$) occur in \prmGammaCondCatCount/\prmNseeds{} seeds (\prmGammaCondCatPct\%)

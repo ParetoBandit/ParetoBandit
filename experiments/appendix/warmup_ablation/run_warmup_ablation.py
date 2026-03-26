@@ -2,7 +2,7 @@
 """Appendix: Cold-Start vs Warmup Prior Regret.
 
 Compares ParetoBandit with warmup priors against a tabula-rasa cold start
-on the K=3 portfolio under stationary conditions.  Two research questions:
+on the K=3 portfolio under stationary conditions.
 
   **Q1 (deployment):** Does warmup beat the best cold-start config?
     Each condition uses its own Pareto-knee hyperparameters from the
@@ -10,17 +10,16 @@ on the K=3 portfolio under stationary conditions.  Two research questions:
 
   **Q2 (mechanism):** Is the advantage due to *priors*, or to the
     different forgetting factor that the sweep selects for each config?
-    A matched-γ tabula rasa control (cold start at warmup's γ={warmup_gamma})
-    isolates the prior contribution at matched memory length.
+    The Pareto-knee sweep independently selected the same
+    γ={warmup_gamma} for both conditions, so the comparison is
+    unconfounded by construction—no matched-γ control is needed.
 
 Conditions:
   1. **ParetoBandit (warmup)** — offline priors from training set
      (alpha={warmup_alpha}, n_eff={warmup_n_eff}, gamma={warmup_gamma}; from BEST_K3_HPARAMS)
   2. **Tabula Rasa** — cold start with its own optimal gamma
      (alpha={tabula_alpha}, n_eff={tabula_n_eff}, gamma={tabula_gamma}; from BEST_K3_TABULA_RASA_HPARAMS)
-  3. **Tabula Rasa (matched-γ)** — cold start at warmup's gamma
-     (alpha={tabula_alpha}, n_eff={tabula_n_eff}, gamma={matched_gamma}; mechanistic control)
-  4. **Random** — uniform random arm selection (floor baseline)
+  3. **Random** — uniform random arm selection (floor baseline)
 
 Statistical methodology:
   - Sign test (exact binomial) for location shift.
@@ -101,11 +100,6 @@ TABULA_ALPHA: float = BEST_K3_TABULA_RASA_HPARAMS["alpha"]
 TABULA_N_EFF: float = BEST_K3_TABULA_RASA_HPARAMS["prior_n_effective"]
 TABULA_GAMMA: float = BEST_K3_TABULA_RASA_HPARAMS["forgetting_factor"]
 
-# Mechanistic control: cold start at warmup's forgetting rate.
-# Isolates prior contribution from the confounding effect of
-# different gamma values in the "best vs best" comparison.
-MATCHED_GAMMA_FORGETTING: float = WARMUP_GAMMA
-
 __doc__ = __doc__.format(
     warmup_alpha=WARMUP_ALPHA,
     warmup_n_eff=WARMUP_N_EFF,
@@ -113,7 +107,6 @@ __doc__ = __doc__.format(
     tabula_alpha=TABULA_ALPHA,
     tabula_n_eff=TABULA_N_EFF,
     tabula_gamma=TABULA_GAMMA,
-    matched_gamma=MATCHED_GAMMA_FORGETTING,
 )
 
 EARLY_STEP: int = 200
@@ -543,28 +536,22 @@ def _aggregate_seeds(
 
 _COMPARISONS: List[tuple] = [
     ("ParetoBandit (warmup)", "Tabula Rasa", "unconstrained"),
-    ("ParetoBandit (warmup)", "Tabula Rasa (matched-γ)", "unconstrained"),
 ]
 for _bl in K3_BUDGET_LABELS:
     _COMPARISONS.append(
         (f"Warmup ({_bl} budget)", f"Tabula Rasa ({_bl} budget)", _bl)
-    )
-    _COMPARISONS.append(
-        (f"Warmup ({_bl} budget)", f"TR matched-γ ({_bl} budget)", _bl)
     )
 
 _BUDGET_CONDITIONS: Dict[str, List[str]] = {
     "unconstrained": [
         "ParetoBandit (warmup)",
         "Tabula Rasa",
-        "Tabula Rasa (matched-γ)",
     ],
 }
 for _bl in K3_BUDGET_LABELS:
     _BUDGET_CONDITIONS[_bl] = [
         f"Warmup ({_bl} budget)",
         f"Tabula Rasa ({_bl} budget)",
-        f"TR matched-γ ({_bl} budget)",
     ]
 
 
@@ -765,15 +752,6 @@ def main() -> None:
             "forgetting_factor": TABULA_GAMMA,
             "budget_target": None,
         },
-        {
-            "label": "Tabula Rasa (matched-γ)",
-            "warmup": False,
-            "is_random": False,
-            "alpha": TABULA_ALPHA,
-            "prior_n_effective": TABULA_N_EFF,
-            "forgetting_factor": MATCHED_GAMMA_FORGETTING,
-            "budget_target": None,
-        },
     ]
 
     # -- Budget-constrained conditions (tight, moderate, loose) --
@@ -794,15 +772,6 @@ def main() -> None:
             "alpha": TABULA_ALPHA,
             "prior_n_effective": TABULA_N_EFF,
             "forgetting_factor": TABULA_GAMMA,
-            "budget_target": target,
-        })
-        conditions.append({
-            "label": f"TR matched-γ ({blabel} budget)",
-            "warmup": False,
-            "is_random": False,
-            "alpha": TABULA_ALPHA,
-            "prior_n_effective": TABULA_N_EFF,
-            "forgetting_factor": MATCHED_GAMMA_FORGETTING,
             "budget_target": target,
         })
 
@@ -885,11 +854,6 @@ def main() -> None:
                 "alpha": TABULA_ALPHA,
                 "prior_n_effective": TABULA_N_EFF,
                 "forgetting_factor": TABULA_GAMMA,
-            },
-            "matched_gamma": {
-                "alpha": TABULA_ALPHA,
-                "prior_n_effective": TABULA_N_EFF,
-                "forgetting_factor": MATCHED_GAMMA_FORGETTING,
             },
             "policy": "disjoint",
             "pacer_lr": DEFAULT_PACER_LR,

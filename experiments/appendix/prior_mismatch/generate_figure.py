@@ -169,9 +169,11 @@ def generate_heatmap_figure(data: Dict[str, Any]) -> None:
                 )
 
         ref_y = n_qualities - 0.5 + 0.55
+        hp_tr = data.get("hparams", {}).get("tabula_rasa", {})
+        tr_gamma_str = f"{hp_tr.get('forgetting_factor', 0.997):.3f}"
         ax.text(
             n_neffs - 0.5, ref_y,
-            f"TR (γ=0.995) median = {tr_val:.1f}",
+            f"TR (γ={tr_gamma_str}) median = {tr_val:.1f}",
             ha="right", va="center", fontsize=12,
             fontstyle="italic", color=COLORS["Tabula Rasa"],
         )
@@ -226,8 +228,10 @@ def generate_distribution_figure(data: Dict[str, Any]) -> None:
         all_vals: List[np.ndarray] = []
         colors_list: List[str] = []
 
+        hp_tr = data.get("hparams", {}).get("tabula_rasa", {})
+        tr_g = f"{hp_tr.get('forgetting_factor', 0.997):.3f}"
         for bl_key, bl_short in [
-            ("Tabula Rasa", "TR\n(γ=.995)"),
+            ("Tabula Rasa", f"TR\n(γ={tr_g})"),
             ("Tabula Rasa (γ-matched)", "TR\n(γ-match)"),
         ]:
             if bl_key in conditions and "per_seed_regret" in conditions[bl_key]:

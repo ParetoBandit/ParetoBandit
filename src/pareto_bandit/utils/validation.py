@@ -16,61 +16,88 @@ from collections import Counter
 # Statistical Validation Functions
 # ============================================================================
 
-def compute_statistical_metrics(group1, group2):
+def compute_statistical_metrics(
+    group1,
+    group2,
+    *,
+    n_resamples: int = 9999,
+    random_state: np.random.Generator | int | None = 0,
+):
+    """Compute comprehensive statistical metrics comparing two independent groups.
+
+    All tests are distribution-free (no normality assumption):
+
+    * **Mann-Whitney U** — tests stochastic dominance.
+    * **Permutation test** — tests equality of means via
+      ``scipy.stats.permutation_test``.
+    * **BCa bootstrap 95 % CIs** — bias-corrected and accelerated
+      confidence intervals for each group mean via ``scipy.stats.bootstrap``.
+
+    Parameters
+    ----------
+    group1, group2 : array-like
+        Samples to compare.  Need not be the same length.
+    n_resamples : int, optional
+        Number of resamples for the permutation test and bootstrap CIs
+        (default ``9999``).
+    random_state : numpy.random.Generator | int | None, optional
+        Seed or Generator for reproducibility.  Defaults to ``0`` so that
+        repeated calls on the same data yield identical results.
+
+    Returns
+    -------
+    dict
+        mann_whitney_p : float
+        permutation_p : float
+        cohens_d : float
+        mean_group1, mean_group2 : float
+        ci_low_group1, ci_high_group1 : float
+        ci_low_group2, ci_high_group2 : float
     """
-    Compute comprehensive statistical metrics comparing two groups.
-    
-    Parameters:
-    -----------
-    group1 : array-like
-        First group of values
-    group2 : array-like
-        Second group of values
-    
-    Returns:
-    --------
-    dict with:
-        - mann_whitney_p: Mann-Whitney U test p-value (non-parametric)
-        - welch_t_p: Welch's t-test p-value (parametric)
-        - cohens_d: Effect size (Cohen's d)
-        - mean_group1/2: Group means
-        - ci_low/high_group1/2: 95% confidence intervals
-    """
-    # Mann-Whitney U test (non-parametric)
-    _, mann_whitney_p = stats.mannwhitneyu(group1, group2, alternative='two-sided')
-    
-    # Welch's t-test (parametric, unequal variances)
-    _, welch_t_p = stats.ttest_ind(group1, group2, equal_var=False)
-    
-    # Cohen's d (effect size)
-    mean1, mean2 = np.mean(group1), np.mean(group2)
-    std1, std2 = np.std(group1, ddof=1), np.std(group2, ddof=1)
-    n1, n2 = len(group1), len(group2)
+    rng = np.random.default_rng(random_state)
+
+    g1 = np.asarray(group1, dtype=float)
+    g2 = np.asarray(group2, dtype=float)
+
+    _, mann_whitney_p = stats.mannwhitneyu(g1, g2, alternative='two-sided')
+
+    def _mean_diff(x, y, axis):
+        return np.mean(x, axis=axis) - np.mean(y, axis=axis)
+
+    perm_result = stats.permutation_test(
+        (g1, g2),
+        _mean_diff,
+        n_resamples=n_resamples,
+        random_state=rng,
+        alternative='two-sided',
+    )
+    permutation_p = perm_result.pvalue
+
+    mean1, mean2 = float(np.mean(g1)), float(np.mean(g2))
+    std1, std2 = float(np.std(g1, ddof=1)), float(np.std(g2, ddof=1))
+    n1, n2 = len(g1), len(g2)
     pooled_std = np.sqrt(((n1 - 1) * std1**2 + (n2 - 1) * std2**2) / (n1 + n2 - 2))
     cohens_d = (mean1 - mean2) / pooled_std if pooled_std > 0 else 0.0
-    
-    # 95% Confidence Intervals
-    ci_low_group1, ci_high_group1 = stats.t.interval(
-        0.95, len(group1) - 1,
-        loc=np.mean(group1),
-        scale=stats.sem(group1)
+
+    ci1 = stats.bootstrap(
+        (g1,), np.mean, n_resamples=n_resamples,
+        confidence_level=0.95, method='BCa', random_state=rng,
     )
-    ci_low_group2, ci_high_group2 = stats.t.interval(
-        0.95, len(group2) - 1,
-        loc=np.mean(group2),
-        scale=stats.sem(group2)
+    ci2 = stats.bootstrap(
+        (g2,), np.mean, n_resamples=n_resamples,
+        confidence_level=0.95, method='BCa', random_state=rng,
     )
-    
+
     return {
         'mann_whitney_p': mann_whitney_p,
-        'welch_t_p': welch_t_p,
+        'permutation_p': permutation_p,
         'cohens_d': cohens_d,
         'mean_group1': mean1,
         'mean_group2': mean2,
-        'ci_low_group1': ci_low_group1,
-        'ci_high_group1': ci_high_group1,
-        'ci_low_group2': ci_low_group2,
-        'ci_high_group2': ci_high_group2,
+        'ci_low_group1': float(ci1.confidence_interval.low),
+        'ci_high_group1': float(ci1.confidence_interval.high),
+        'ci_low_group2': float(ci2.confidence_interval.low),
+        'ci_high_group2': float(ci2.confidence_interval.high),
     }
 
 

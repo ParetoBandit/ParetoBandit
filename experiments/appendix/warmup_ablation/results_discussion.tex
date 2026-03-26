@@ -23,40 +23,24 @@ Pareto-knee procedure (Appendix~\ref{sec:hparam_sweep}).
 
 \paragraph{Q2: Is the improvement actually from the priors, or from
 a confounded hyperparameter?}
-The ``best vs best'' comparison above has a subtle confound.
-Because the Pareto-knee sweep selects different forgetting factors
-for each condition ($\gamma{=}\waGamma$ for warmup vs.\
-$\waTRGamma$ for Tabula Rasa), a skeptic could attribute the
-improvement to the different memory lengths (${\sim}\waWarmupEffMem$ vs.\
-${\sim}\waTREffMem$ effective-memory steps) rather than to the priors
+In principle, the ``best vs best'' comparison above could harbour
+a confound: if the Pareto-knee sweep selected different forgetting
+factors for each condition, a warmup advantage might stem from the
+resulting memory-length difference rather than from the priors
 themselves.
-To isolate the prior contribution, we add a \emph{matched-$\gamma$
-control}: Tabula Rasa run at warmup's $\gamma{=}\waGamma$
-(cold start, $n_\mathit{eff}{=}1$), so the only remaining
-difference is prior strength.
-The three conditions and their key parameters are:
-\begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Warmup}: $\alpha{=}\waAlpha$,
-    $n_\mathit{eff}{=}\waNeff$, $\gamma{=}\waGamma$.
-  \item \textbf{Tabula Rasa} (independently tuned):
-    $\alpha{=}\waTRAlpha$, $n_\mathit{eff}{=}1$,
-    $\gamma{=}\waTRGamma$.
-  \item \textbf{Tabula Rasa} (matched-$\gamma$):
-    $\alpha{=}\waTRAlpha$, $n_\mathit{eff}{=}1$,
-    $\gamma{=}\waGamma$.
-\end{enumerate}
-
-\medskip\noindent
-Each condition uses the hyperparameters selected by its own
-Pareto-knee sweep (Appendix~\ref{sec:hparam_sweep}).
-Conditions~1 and~3 share the same $\gamma$ but differ in both
-prior strength and $\alpha$; however, the $\alpha$ difference
-is conservative for warmup: a higher $\alpha$ gives the cold-start
-condition \emph{more} exploration, which should accelerate its
-convergence rather than hinder it.
-Conditions~2 and~3 share the same $\alpha$ and differ only
-in $\gamma$, so comparing them cleanly reveals whether the
-forgetting factor matters independently of the prior.
+The sweep independently selected the same $\gamma{=}\waTRGamma$
+for Tabula Rasa as warmup's $\gamma{=}\waGamma$, so the two
+conditions share identical effective-memory windows
+(${\sim}\waWarmupEffMem$ steps) and the confound is absent by
+construction---no matched-$\gamma$ control is needed.
+The only remaining differences are prior strength
+($n_\mathit{eff}{=}\waNeff$ vs.\ $1$) and exploration rate
+($\alpha{=}\waAlpha$ vs.\ $\waTRAlpha$); the $\alpha$ difference
+is conservative for warmup, since a higher $\alpha$ gives the
+cold-start condition \emph{more} exploration, which should
+accelerate its convergence rather than hinder it.
+Any regret improvement under warmup is therefore directly
+attributable to the informative priors.
 
 \medskip\noindent
 Both questions are evaluated on the $K{=}\waK$ stationary portfolio
@@ -73,9 +57,8 @@ The second is \emph{tail risk}: does warmup avoid
 outlier runs where regret is disproportionately high?
 We call a seed a \emph{catastrophic failure} when its
 cumulative regret exceeds $\waCatMultiplier{\times}$ the pooled median across
-all conditions in that budget regime (warmup, Tabula Rasa,
-and matched-$\gamma$); pooling ensures no single condition
-anchors the threshold.
+all conditions in that budget regime; pooling ensures no single
+condition anchors the threshold.
 These two dimensions require different tests because a method
 can improve the median while still leaving heavy tails, or
 eliminate outliers without shifting the centre.
@@ -94,13 +77,12 @@ All $p$-values are corrected for multiplicity via the
 Holm--Bonferroni procedure across the full family of tests
 (\waNTests{} sign tests and \waNTests{} Fisher tests, corrected separately per family).
 Bootstrap CIs for paired differences are likewise
-Bonferroni-corrected (\waNDiffPairs{} warmup-vs-baseline and
-\waNMatchedPairs{} baseline-vs-baseline comparisons, respectively)
+Bonferroni-corrected (\waNDiffPairs{} simultaneous comparisons)
 to maintain \waCILevel\% family-wise coverage.
 
 \begin{table*}[t]
 \centering
-\caption{Warmup-prior ablation results across budget regimes (\waNseeds~seeds, held-out test split). Warmup priors are compared against Tabula Rasa, a matched-$\gamma$ cold-start control, and a random baseline where applicable. Regret is cumulative over all \waNPrompts{} test steps; R@\waEarlyStep{} is cumulative regret at test step~\waEarlyStep. Catastrophic failures are defined relative to the pooled median within each budget regime.}
+\caption{Warmup-prior ablation results across budget regimes (\waNseeds~seeds, held-out test split). Warmup priors are compared against Tabula Rasa and a random baseline (unconstrained only). Regret is cumulative over all \waNPrompts{} test steps; R@\waEarlyStep{} is cumulative regret at test step~\waEarlyStep. Catastrophic failures are defined relative to the pooled median within each budget regime.}
 \label{tab:warmup_ablation_results}
 \small
 \resizebox{\textwidth}{!}{%
@@ -110,20 +92,16 @@ to maintain \waCILevel\% family-wise coverage.
 \midrule
 None     & Warmup           & $\mathbf{\waUncWarmupRegret}$\,[\waUncWarmupRegretCILo, \waUncWarmupRegretCIHi]    & $\waUncWarmupRegretStd$   & $\mathbf{\waUncWarmupRAtTwoHundred}$\,[\waUncWarmupRAtTwoHundredCILo, \waUncWarmupRAtTwoHundredCIHi]    & $\mathbf{\waUncWarmupReward}$ & \waUncVsTRWarmupCat/\waNseeds & --- & ---  \\
          & Tabula Rasa      & $\waUncTRRegret$\,[\waUncTRRegretCILo, \waUncTRRegretCIHi]            & $\waUncTRRegretStd$  & $\waUncTRRAtTwoHundred$\,[\waUncTRRAtTwoHundredCILo, \waUncTRRAtTwoHundredCIHi]           & $\waUncTRReward$          & \waUncVsTRBaselineCat/\waNseeds & $\waUncVsTRSignP$ & $\waUncVsTRFisherP$ \\
-         & TR (matched-$\gamma$) & $\waUncTRMatchedRegret$\,[\waUncTRMatchedRegretCILo, \waUncTRMatchedRegretCIHi]       & $\waUncTRMatchedRegretStd$  & $\waUncTRMatchedRAtTwoHundred$\,[\waUncTRMatchedRAtTwoHundredCILo, \waUncTRMatchedRAtTwoHundredCIHi]           & $\waUncTRMatchedReward$          & \waUncVsTRMatchedBaselineCat/\waNseeds & $\waUncVsTRMatchedSignP$ & $\waUncVsTRMatchedFisherP$ \\
          & Random           & $\waUncRandomRegret$\,[\waUncRandomRegretCILo, \waUncRandomRegretCIHi]           & $\waUncRandomRegretStd$   & $\waUncRandomRAtTwoHundred$\,[\waUncRandomRAtTwoHundredCILo, \waUncRandomRAtTwoHundredCIHi]           & $\waUncRandomReward$          & ---  & --- & --- \\
 \midrule
 Tight    & Warmup           & $\mathbf{\waTightWarmupRegret}$\,[\waTightWarmupRegretCILo, \waTightWarmupRegretCIHi]  & $\waTightWarmupRegretStd$   & $\mathbf{\waTightWarmupRAtTwoHundred}$\,[\waTightWarmupRAtTwoHundredCILo, \waTightWarmupRAtTwoHundredCIHi] & $\mathbf{\waTightWarmupReward}$ & \waTightVsTRWarmupCat/\waNseeds & --- & --- \\
          & Tabula Rasa      & $\waTightTRRegret$\,[\waTightTRRegretCILo, \waTightTRRegretCIHi]            & $\waTightTRRegretStd$  & $\waTightTRRAtTwoHundred$\,[\waTightTRRAtTwoHundredCILo, \waTightTRRAtTwoHundredCIHi]           & $\waTightTRReward$          & \waTightVsTRBaselineCat/\waNseeds & $\waTightVsTRSignP$ & $\waTightVsTRFisherP$ \\
-         & TR (matched-$\gamma$) & $\waTightTRMatchedRegret$\,[\waTightTRMatchedRegretCILo, \waTightTRMatchedRegretCIHi]      & $\waTightTRMatchedRegretStd$  & $\waTightTRMatchedRAtTwoHundred$\,[\waTightTRMatchedRAtTwoHundredCILo, \waTightTRMatchedRAtTwoHundredCIHi]           & $\waTightTRMatchedReward$          & \waTightVsTRMatchedBaselineCat/\waNseeds & $\waTightVsTRMatchedSignP$ & $\waTightVsTRMatchedFisherP$ \\
 \midrule
 Moderate & Warmup           & $\mathbf{\waModWarmupRegret}$\,[\waModWarmupRegretCILo, \waModWarmupRegretCIHi]  & $\waModWarmupRegretStd$  & $\mathbf{\waModWarmupRAtTwoHundred}$\,[\waModWarmupRAtTwoHundredCILo, \waModWarmupRAtTwoHundredCIHi] & $\mathbf{\waModWarmupReward}$ & \waModVsTRWarmupCat/\waNseeds & --- & --- \\
          & Tabula Rasa      & $\waModTRRegret$\,[\waModTRRegretCILo, \waModTRRegretCIHi]            & $\waModTRRegretStd$  & $\waModTRRAtTwoHundred$\,[\waModTRRAtTwoHundredCILo, \waModTRRAtTwoHundredCIHi]           & $\waModTRReward$          & \waModVsTRBaselineCat/\waNseeds & $\waModVsTRSignP$ & $\waModVsTRFisherP$ \\
-         & TR (matched-$\gamma$) & $\waModTRMatchedRegret$\,[\waModTRMatchedRegretCILo, \waModTRMatchedRegretCIHi]      & $\waModTRMatchedRegretStd$  & $\waModTRMatchedRAtTwoHundred$\,[\waModTRMatchedRAtTwoHundredCILo, \waModTRMatchedRAtTwoHundredCIHi]           & $\waModTRMatchedReward$          & \waModVsTRMatchedBaselineCat/\waNseeds & $\waModVsTRMatchedSignP$ & $\mathbf{\waModVsTRMatchedFisherP}$ \\
 \midrule
 Loose    & Warmup           & $\mathbf{\waLooseWarmupRegret}$\,[\waLooseWarmupRegretCILo, \waLooseWarmupRegretCIHi]     & $\waLooseWarmupRegretStd$   & $\mathbf{\waLooseWarmupRAtTwoHundred}$\,[\waLooseWarmupRAtTwoHundredCILo, \waLooseWarmupRAtTwoHundredCIHi]    & $\mathbf{\waLooseWarmupReward}$ & \waLooseVsTRWarmupCat/\waNseeds & --- & --- \\
          & Tabula Rasa      & $\waLooseTRRegret$\,[\waLooseTRRegretCILo, \waLooseTRRegretCIHi]            & $\waLooseTRRegretStd$  & $\waLooseTRRAtTwoHundred$\,[\waLooseTRRAtTwoHundredCILo, \waLooseTRRAtTwoHundredCIHi]           & $\waLooseTRReward$          & \waLooseVsTRBaselineCat/\waNseeds & $\waLooseVsTRSignP$ & $\waLooseVsTRFisherP$ \\
-         & TR (matched-$\gamma$) & $\waLooseTRMatchedRegret$\,[\waLooseTRMatchedRegretCILo, \waLooseTRMatchedRegretCIHi]      & $\waLooseTRMatchedRegretStd$  & $\waLooseTRMatchedRAtTwoHundred$\,[\waLooseTRMatchedRAtTwoHundredCILo, \waLooseTRMatchedRAtTwoHundredCIHi]           & $\waLooseTRMatchedReward$          & \waLooseVsTRMatchedBaselineCat/\waNseeds & $\waLooseVsTRMatchedSignP$ & $\waLooseVsTRMatchedFisherP$ \\
 \bottomrule
 \end{tabular}
 }
@@ -143,7 +121,7 @@ Table~\ref{tab:warmup_ablation_results} reports per-condition
 means, bootstrap CIs, standard deviations, early-learning regret
 (R@\waEarlyStep), mean reward, catastrophic-failure counts, and
 Holm-corrected $p$-values for each baseline comparison.
-Below we highlight the key contrasts that answer Q1 and Q2.
+Below we highlight the key findings.
 
 \paragraph{Q1 result: warmup priors reduce cold-start regret.}
 Relative to Tabula Rasa, warmup priors reduce mean cumulative regret
@@ -184,33 +162,15 @@ Table~\ref{tab:warmup_ablation_results}).
 The advantage narrows as online evidence accumulates
 past the effective-memory window.
 
-\paragraph{Q2 result: the improvement comes from the priors, not the
-forgetting factor.}
-We compare the two Tabula Rasa conditions directly.
-If adopting warmup's higher $\gamma$ helped a cold start, the
-matched-$\gamma$ Tabula Rasa should outperform the independently
-tuned Tabula Rasa.
-The matched-$\gamma$ variant has numerically higher regret
-in all four regimes
-($\Delta{=}\text{matched-}\gamma - \text{Tabula Rasa}$,
-positive means matched-$\gamma$ is worse;
-Bonferroni-corrected CIs, \waNMatchedPairs{} comparisons):
-unconstrained $\Delta{=}\waUncTRMatchedVsTRDiffMean$\,[\waUncTRMatchedVsTRDiffCILo,
-\waUncTRMatchedVsTRDiffCIHi],
-tight $\Delta{=}\waTightTRMatchedVsTRDiffMean$\,[\waTightTRMatchedVsTRDiffCILo,
-\waTightTRMatchedVsTRDiffCIHi],
-moderate $\Delta{=}\waModTRMatchedVsTRDiffMean$\,[\waModTRMatchedVsTRDiffCILo,
-\waModTRMatchedVsTRDiffCIHi],
-and loose $\Delta{=}\waLooseTRMatchedVsTRDiffMean$\,[\waLooseTRMatchedVsTRDiffCILo,
-\waLooseTRMatchedVsTRDiffCIHi].
-Point estimates favour the independently tuned Tabula Rasa in every
-regime, though only the moderate-budget CI excludes zero after
-Bonferroni correction; in no regime does adopting warmup's
-$\gamma{=}\waGamma$ (longer memory of an uninformative prior)
-improve upon independently tuned Tabula Rasa.
-Since the data provide no evidence that the $\gamma$ difference
-drives warmup's advantage, the improvement (Q1) is attributable to
-the \emph{informative priors themselves}.
+\paragraph{Q2 result: no confound---the improvement comes from the
+priors.}
+The Pareto-knee sweep independently selected $\gamma{=}\waTRGamma$
+for Tabula Rasa, matching warmup's $\gamma{=}\waGamma$ exactly.
+Both conditions therefore share the same effective-memory window
+(${\sim}\waWarmupEffMem$ steps), so there is no forgetting-factor
+confound.
+The Q1 regret reductions are directly attributable to the
+\emph{informative priors themselves}.
 
 \paragraph{Cold-start variability.}
 Warmup priors produce tighter per-seed regret distributions
@@ -222,31 +182,26 @@ $\waTightTRRegretStd$ for Tabula Rasa
 Warmup records zero catastrophic failures
 (regret $> \waCatMultiplier{\times}$ pooled median) across all
 regimes.
-Tabula Rasa also records zero catastrophic failures
-(\waUncVsTRBaselineCat/\waNseeds{} unconstrained,
-\waTightVsTRBaselineCat/\waNseeds{} tight,
+Tabula Rasa produces \waUncVsTRBaselineCat/\waNseeds{}
+catastrophic failures in the unconstrained regime, with none
+under budget constraints
+(\waTightVsTRBaselineCat/\waNseeds{} tight,
 \waModVsTRBaselineCat/\waNseeds{} moderate,
-\waLooseVsTRBaselineCat/\waNseeds{} loose), yielding
-non-significant Fisher tests ($p_\text{Fisher}^* {=}
-\waUncVsTRFisherP$ across all regimes).
-The matched-$\gamma$ control is the only condition to produce
-catastrophic failures: \waUncVsTRMatchedBaselineCat/\waNseeds{}
-in the unconstrained regime
-(see Table~\ref{tab:warmup_ablation_results} for all
-Holm-corrected $p$-values).
-This confirms that adopting warmup's longer memory
-($\gamma{=}\waGamma$) without informative priors can
-increase tail risk rather than reduce it.
+\waLooseVsTRBaselineCat/\waNseeds{} loose); Fisher tests are
+non-significant after Holm correction ($p_\text{Fisher}^* {=}
+\waUncVsTRFisherP$).
+The occasional cold-start outliers confirm that starting without
+priors introduces tail risk, even when the effective-memory window
+is the same ($\gamma{=}\waTRGamma$ for both conditions).
 
 \paragraph{Discussion.}
 Warmup priors are best understood as a \emph{deployment
 reliability mechanism}: they reduce cold-start regret and
 tighten the per-seed distribution.
-The matched-$\gamma$ Tabula Rasa sharpens this conclusion: the
-data provide no evidence that the forgetting-factor difference
-drives the advantage, since the matched-$\gamma$ condition
-performs no better than---and in fact slightly worse than---the
-independently tuned Tabula Rasa.
+Because the Pareto-knee sweep selected the same $\gamma$ for both
+conditions, the comparison is unconfounded: the regret reduction
+is attributable to the informative priors, not to a memory-length
+difference.
 Warmup priors are optional---ParetoBandit is fully functional
 without them, and the Tabula Rasa results in
 Table~\ref{tab:warmup_ablation_results} confirm that the bandit
@@ -272,6 +227,6 @@ domain-restricted to actively inverted priors.
 \centering
 \setlength{\abovecaptionskip}{1.5pt}
 \includegraphics[width=\columnwidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.png}
-\caption{Cold-start ablation on the $K{=}\waK$ stationary portfolio (\waNseeds~seeds, held-out test split, $n{=}\waNPrompts$ prompts). Per-seed cumulative regret distributions compare warmup priors (blue) against Tabula Rasa (orange) and the matched-$\gamma$ cold-start control (green) across four budget regimes. The corresponding Holm-corrected sign-test results and catastrophic-failure counts under the pooled-median threshold are reported in Table~\ref{tab:warmup_ablation_results}. Warmup priors produce tight, unimodal distributions, while cold-start baselines exhibit heavier tails under budget constraints due to the pacer--exploration interaction.}
+\caption{Cold-start ablation on the $K{=}\waK$ stationary portfolio (\waNseeds~seeds, held-out test split, $n{=}\waNPrompts$ prompts). Per-seed cumulative regret distributions compare warmup priors (blue) against Tabula Rasa (orange) across four budget regimes. The Pareto-knee sweep selected the same $\gamma{=}\waGamma$ for both conditions, so the only difference is prior strength. Holm-corrected sign-test results and catastrophic-failure counts are reported in Table~\ref{tab:warmup_ablation_results}. Warmup priors produce tight, unimodal distributions, while the cold-start baseline exhibits heavier tails under budget constraints due to the pacer--exploration interaction.}
 \label{fig:warmup_ablation}
 \end{figure}

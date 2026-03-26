@@ -432,6 +432,7 @@ def _simulate_budget_paced(
         cost_penalty=0.0,
         forgetting_factor=gamma,
         budget_pacer=pacer,
+        bandit_seed=seed,
     )
 
     burnin_order = rng.permutation(burnin_data.n)
@@ -625,6 +626,7 @@ def _simulate_catastrophic_failure(
         cost_penalty=0.0,
         forgetting_factor=gamma,
         budget_pacer=pacer,
+        bandit_seed=seed,
     )
 
     burnin_order = rng.permutation(burnin_data.n)

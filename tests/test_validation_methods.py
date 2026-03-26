@@ -41,7 +41,7 @@ def test_compute_statistical_metrics_clear_difference():
     
     # Should detect significant difference
     assert metrics['mann_whitney_p'] < 0.001
-    assert metrics['welch_t_p'] < 0.001
+    assert metrics['permutation_p'] < 0.001
     assert abs(metrics['cohens_d']) > 2.0  # Large effect
     
     # CIs should not overlap
@@ -58,7 +58,7 @@ def test_compute_statistical_metrics_no_difference():
     
     # Should not detect significant difference
     assert metrics['mann_whitney_p'] > 0.05
-    assert metrics['welch_t_p'] > 0.05
+    assert metrics['permutation_p'] > 0.05
     assert abs(metrics['cohens_d']) < 0.5  # Small effect
 
 

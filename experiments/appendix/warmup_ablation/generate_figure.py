@@ -29,13 +29,13 @@ CB_ORANGE = "#E69F00"
 CB_TEAL = "#009E73"
 CB_GRAY = "#999999"
 
-GroupSpec = Tuple[str, str, str, str]
+GroupSpec = Tuple[str, str, str]
 
 BUDGET_GROUPS: List[GroupSpec] = [
-    ("ParetoBandit (warmup)", "Tabula Rasa", "Tabula Rasa (matched-γ)", "Unconstrained"),
-    ("Warmup (tight budget)", "Tabula Rasa (tight budget)", "TR matched-γ (tight budget)", "Tight"),
-    ("Warmup (moderate budget)", "Tabula Rasa (moderate budget)", "TR matched-γ (moderate budget)", "Moderate"),
-    ("Warmup (loose budget)", "Tabula Rasa (loose budget)", "TR matched-γ (loose budget)", "Loose"),
+    ("ParetoBandit (warmup)", "Tabula Rasa", "Unconstrained"),
+    ("Warmup (tight budget)", "Tabula Rasa (tight budget)", "Tight"),
+    ("Warmup (moderate budget)", "Tabula Rasa (moderate budget)", "Moderate"),
+    ("Warmup (loose budget)", "Tabula Rasa (loose budget)", "Loose"),
 ]
 
 
@@ -111,14 +111,13 @@ def main() -> None:
     violin_w = 0.22
     rng = np.random.default_rng(42)
 
-    # Three positions per group: warmup (left), matched-γ (center), TR (right)
-    offsets = {"warmup": -0.28, "matched": 0.0, "tabula": 0.28}
+    offsets = {"warmup": -0.20, "tabula": 0.20}
 
     random_regrets: np.ndarray | None = None
     if "Random" in conditions:
         random_regrets = np.array(conditions["Random"]["per_seed_regret"])
 
-    for i, (warmup_key, tabula_key, matched_key, budget_label) in enumerate(available):
+    for i, (warmup_key, tabula_key, budget_label) in enumerate(available):
         cx = x_positions[i]
 
         strip_specs: List[Tuple[str, str, float, str, str | None]] = [
@@ -127,11 +126,6 @@ def main() -> None:
             (tabula_key, CB_ORANGE, offsets["tabula"], "right",
              "Tabula Rasa" if i == 0 else None),
         ]
-        if matched_key in conditions:
-            strip_specs.insert(1, (
-                matched_key, CB_TEAL, offsets["matched"], "left",
-                "TR (matched-γ)" if i == 0 else None,
-            ))
 
         for cond_key, color, x_off, side, label in strip_specs:
             seeds = np.array(conditions[cond_key]["per_seed_regret"])
@@ -162,7 +156,7 @@ def main() -> None:
         )
 
     ax.set_xticks(x_positions)
-    ax.set_xticklabels([g[3] for g in available], fontsize=17)
+    ax.set_xticklabels([g[2] for g in available], fontsize=17)
     ax.set_xlabel("Budget Regime", fontsize=20, labelpad=18)
     ax.set_ylabel("Total Regret (per seed)", fontsize=20)
     ax.set_title(

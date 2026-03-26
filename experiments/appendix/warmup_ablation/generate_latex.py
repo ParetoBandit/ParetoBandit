@@ -57,19 +57,15 @@ CONDITION_MAP: Dict[str, str] = {
     "ParetoBandit (warmup)": "Warmup",
     "Tabula Rasa": "TR",
     "Random": "Random",
-    "Tabula Rasa (matched-γ)": "TRMatched",
 }
 
 BUDGET_CONDITION_MAP: Dict[str, str] = {
     "Warmup (tight budget)": ("Warmup", "Tight"),
     "Tabula Rasa (tight budget)": ("TR", "Tight"),
-    "TR matched-γ (tight budget)": ("TRMatched", "Tight"),
     "Warmup (moderate budget)": ("Warmup", "Mod"),
     "Tabula Rasa (moderate budget)": ("TR", "Mod"),
-    "TR matched-γ (moderate budget)": ("TRMatched", "Mod"),
     "Warmup (loose budget)": ("Warmup", "Loose"),
     "Tabula Rasa (loose budget)": ("TR", "Loose"),
-    "TR matched-γ (loose budget)": ("TRMatched", "Loose"),
 }
 
 
@@ -120,9 +116,7 @@ def _add_paired_test_commands(
 ) -> None:
     """Emit commands for a single paired test."""
     budget = BUDGET_SHORT.get(budget_label, budget_label.title())
-    if "matched" in baseline_label.lower():
-        bl = "TRMatched"
-    elif "tabula" in baseline_label.lower():
+    if "tabula" in baseline_label.lower():
         bl = "TR"
     else:
         bl = baseline_label
@@ -152,27 +146,12 @@ def _add_paired_test_commands(
 
 _DIFF_PAIRS: List[tuple] = [
     ("ParetoBandit (warmup)", "Tabula Rasa", "Unc", "TR"),
-    ("ParetoBandit (warmup)", "Tabula Rasa (matched-γ)", "Unc", "TRMatched"),
 ]
 for _bl, _bs in BUDGET_SHORT.items():
     if _bl == "unconstrained":
         continue
     _DIFF_PAIRS.append(
         (f"Warmup ({_bl} budget)", f"Tabula Rasa ({_bl} budget)", _bs, "TR")
-    )
-    _DIFF_PAIRS.append(
-        (f"Warmup ({_bl} budget)", f"TR matched-γ ({_bl} budget)", _bs, "TRMatched")
-    )
-
-
-_TR_VS_MATCHED_PAIRS: List[tuple] = [
-    ("Tabula Rasa", "Tabula Rasa (matched-γ)", "Unc"),
-]
-for _bl, _bs in BUDGET_SHORT.items():
-    if _bl == "unconstrained":
-        continue
-    _TR_VS_MATCHED_PAIRS.append(
-        (f"Tabula Rasa ({_bl} budget)", f"TR matched-γ ({_bl} budget)", _bs)
     )
 
 
@@ -186,15 +165,10 @@ def _add_diff_ci_commands(
     For each warmup-vs-baseline pair, emits total-regret and R@early_step
     paired differences with bootstrap CIs.  The per-interval confidence
     level is widened via Bonferroni so that the family-wise coverage is
-    95% across all comparisons in each family:
-
-    - Warmup-vs-baseline: ``len(_DIFF_PAIRS)`` comparisons.
-    - TR-vs-matched-gamma: ``len(_TR_VS_MATCHED_PAIRS)`` comparisons.
+    95% across all ``len(_DIFF_PAIRS)`` comparisons.
     """
     n_warmup_comparisons = len(_DIFF_PAIRS)
-    n_matched_comparisons = len(_TR_VS_MATCHED_PAIRS)
     bonf_level_warmup = 1.0 - 0.05 / n_warmup_comparisons
-    bonf_level_matched = 1.0 - 0.05 / n_matched_comparisons
 
     per_seed_r_early_key = f"per_seed_regret_at_{early_step}"
 
@@ -204,7 +178,6 @@ def _add_diff_ci_commands(
         if w is None or b is None:
             continue
 
-        # Total regret difference
         w_seeds = np.array(w["per_seed_regret"])
         b_seeds = np.array(b["per_seed_regret"])
         diff = b_seeds - w_seeds  # positive = warmup better
@@ -215,7 +188,6 @@ def _add_diff_ci_commands(
         cs.num(f"{pfx}DiffCILo", ci_lo, digits=1)
         cs.num(f"{pfx}DiffCIHi", ci_hi, digits=1)
 
-        # R@early_step difference
         w_r200 = w.get(per_seed_r_early_key)
         b_r200 = b.get(per_seed_r_early_key)
         if w_r200 is not None and b_r200 is not None:
@@ -227,22 +199,6 @@ def _add_diff_ci_commands(
             cs.num(f"{pfx}RAtTwoHundredDiffMean", mean_r200, digits=1)
             cs.num(f"{pfx}RAtTwoHundredDiffCILo", lo_r200, digits=1)
             cs.num(f"{pfx}RAtTwoHundredDiffCIHi", hi_r200, digits=1)
-
-    # TR vs matched-γ TR: positive = matched-γ has lower regret
-    for tr_key, mg_key, budget_pfx in _TR_VS_MATCHED_PAIRS:
-        tr = conditions.get(tr_key)
-        mg = conditions.get(mg_key)
-        if tr is None or mg is None:
-            continue
-        tr_seeds = np.array(tr["per_seed_regret"])
-        mg_seeds = np.array(mg["per_seed_regret"])
-        diff = mg_seeds - tr_seeds  # positive = matched-γ worse
-        mean_diff = float(np.mean(diff))
-        ci_lo, ci_hi = bootstrap_ci(diff, ci_level=bonf_level_matched)
-        pfx = f"{budget_pfx}TRMatchedVsTR"
-        cs.num(f"{pfx}DiffMean", mean_diff, digits=1)
-        cs.num(f"{pfx}DiffCILo", ci_lo, digits=1)
-        cs.num(f"{pfx}DiffCIHi", ci_hi, digits=1)
 
 
 def build_command_set(data: Dict[str, Any]) -> CommandSet:
@@ -262,7 +218,6 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 
     cs.raw("NTests", fmt_int(len(data.get("paired_tests", []))))
     cs.raw("NDiffPairs", fmt_int(len(_DIFF_PAIRS)))
-    cs.raw("NMatchedPairs", fmt_int(len(_TR_VS_MATCHED_PAIRS)))
     cs.raw("BootstrapResamples", f"{_N_BOOTSTRAP:,}".replace(",", r"{,}"))
     cs.raw("CILevel", fmt_int(int(_CI_LEVEL * 100)))
 
