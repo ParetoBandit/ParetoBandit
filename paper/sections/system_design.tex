@@ -74,7 +74,7 @@ where $\bar{c}_t$ is an EMA-smoothed cost signal ($\alpha_{\mathrm{ema}}{=}0.05$
 \paragraph{Reward model and parameter estimation.}
 LinUCB models the expected reward as $\mathbb{E}[r_t \mid x_t, a] = \theta_a^{*\top} x_t$~\cite{li2010contextual}. The estimate $\hat\theta_a = A_a^{-1} b_a$ is the ridge regression solution, where
 \begin{equation}
-    A_a = \lambda_0 I + \textstyle\sum_{\tau:\, a_\tau = a} x_\tau x_\tau^\top, \qquad
+    A_a = \lambda_0 I + \textstyle\sum_{\tau:\, a_\tau = a} x_\tau x_\tau^\top,\;
     b_a = \textstyle\sum_{\tau:\, a_\tau = a} r_\tau\, x_\tau
     \label{eq:sufficient_stats}
 \end{equation}
