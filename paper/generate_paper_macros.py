@@ -7,7 +7,7 @@ and system_design.tex.
 
 Usage::
 
-    python paper_v3/generate_paper_macros.py
+    python paper/generate_paper_macros.py
 """
 
 from __future__ import annotations
@@ -130,6 +130,22 @@ def build_command_set() -> CommandSet:
         stages = e2e.get("stages", {})
         cs.num("EteTotalMedianMs", stages.get("total_p50_ms", 0), digits=1)
         cs.num("EteRoutePctOfTotal", e2e.get("fractions", {}).get("route_pct_of_total_p50", 0), digits=0)
+
+    inf_path = PROJECT_ROOT / "experiments" / "appendix" / "latency_benchmark" / "results" / "inference_latency_results.json"
+    if e2e_path.exists() and inf_path.exists():
+        inf = load_json(inf_path)
+        e2e_total = stages.get("total_p50_ms", 0)
+        if e2e_total > 0:
+            max_pct = 0.0
+            for model_results in inf.get("results", {}).values():
+                for length_results in model_results.values():
+                    total_inf = length_results.get("total_ms", {}).get("mean", 0)
+                    if total_inf > 0:
+                        pct = e2e_total / total_inf * 100
+                        if pct > max_pct:
+                            max_pct = pct
+            if max_pct > 0:
+                cs.num("EteMaxPctOfInference", math.ceil(max_pct * 10) / 10, digits=1)
 
     bench_path = PROJECT_ROOT / "experiments" / "appendix" / "latency_benchmark" / "results" / "latency_benchmark_results.json"
     if bench_path.exists():

@@ -204,7 +204,7 @@ paretobandit/
 │   ├── utils/               # Shared simulation and LaTeX utilities
 │   └── tests/               # Experiment regression tests
 ├── tests/                   # Unit and integration tests (135+)
-├── paper_v3/                # LaTeX source for the MLSys paper
+├── paper/                   # LaTeX source for the MLSys paper
 ├── data_collection/         # Raw reward data and PCA training scripts
 ├── docs/                    # API reference
 ├── pyproject.toml           # Build config (Hatch), dependencies, tool settings
