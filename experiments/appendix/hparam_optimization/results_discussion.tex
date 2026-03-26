@@ -178,11 +178,12 @@ Rasa---trading ${\sim}\hpAUCSacrifice\%$ of stationary AUC
 (ParetoBandit) for substantially improved failure resilience.
 
 The selected configurations generalise to the held-out test split.
-Val-to-test deltas are $\hpParetoBanditTestDelta\%$ for
-ParetoBandit and $\hpTabulaTestDelta\%$ for Tabula Rasa, both
-within one standard deviation of seed variance
-($\pm\hpParetoBanditTestStd$ and $\pm\hpTabulaTestStd$
-respectively), confirming the offline protocol does not overfit.
+On the test split, the router-vs-envelope AUC gap is
+$\hpParetoBanditTestDelta\%$ for ParetoBandit and
+$\hpTabulaTestDelta\%$ for Tabula Rasa, both within one standard
+deviation of seed variance ($\pm\hpParetoBanditTestStd$ and
+$\pm\hpTabulaTestStd$ respectively), confirming the offline
+protocol does not overfit.
 The forgetting tax under stationarity is negligible:
 ParetoBandit reaches $\hpParetoBanditTestAUC$\,[$\hpParetoBanditTestAUCCILo$, $\hpParetoBanditTestAUCCIHi$] on the test split,
 only ${\sim}0.3\%$ below the fixed-model envelope

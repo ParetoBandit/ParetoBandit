@@ -16,12 +16,11 @@ Three observations support robustness:
     ($\hpSensMidAlpha$ at every $T_{\text{adapt}}$), as expected:
     $\alpha$ is orthogonal to the adaptation horizon.
 
-  \item \textbf{$\gamma$ varies by at most two grid steps and
-    stabilises.}
+  \item \textbf{$\gamma$ varies by at most two grid steps.}
     The selected values---$\hpSensLoGamma$ ($T{=}250$),
     $\hpSensMidGamma$ ($T{=}500$), $\hpSensHiGamma$
-    ($T{=}1000$)---form a monotonically non-increasing sequence
-    that converges for the larger horizons, with derived
+    ($T{=}1000$)---span only three grid steps end-to-end
+    ($\Delta\gamma = 0.003$), with derived
     $n_{\text{eff}}$ of $\hpSensLoNeff$, $\hpSensMidNeff$, and
     $\hpSensHiNeff$ respectively.
     A larger $T_{\text{adapt}}$ derives a larger $n_{\text{eff}}$,
@@ -29,8 +28,8 @@ Three observations support robustness:
     Pareto balance.
 
   \item \textbf{Both objectives are effectively flat.}
-    AUC varies by $<$\,0.15\% ($\hpSensLoAUC$--$\hpSensHiAUC$);
-    Phase-2 reward spans $\hpSensLoPTwo$--$\hpSensMidPTwo$ with no
+    AUC varies by $<$\,0.25\% ($\hpSensLoAUC$--$\hpSensMidAUC$);
+    Phase-2 reward spans $\hpSensMidPTwo$--$\hpSensHiPTwo$ with no
     monotonic trend.
 \end{enumerate}
 %

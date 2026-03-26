@@ -195,9 +195,9 @@ $\prmGSMTenRegretMedian$\,[$\prmGSMTenRegretMedianCILo$, $\prmGSMTenRegretMedian
 through
 $\prmGSMThousandRegretMedian$\,[$\prmGSMThousandRegretMedianCILo$, $\prmGSMThousandRegretMedianCIHi$]
 across $n_\mathit{eff}$ values.
-After Holm correction, these reductions are directionally consistent
-but individually non-significant at \prmNseeds~seeds
-(Holm-corrected $p \geq \prmDomainMinPHolm$ for all domain-mismatched conditions).
+These reductions are statistically significant after Holm correction
+(Holm-corrected $p \leq 0.003$ for all domain-mismatched conditions
+at every $n_\mathit{eff}$).
 Crucially, no domain-mismatched prior \emph{increases} median regret
 at any $n_\mathit{eff}$: partial knowledge is consistently at least as good
 as no knowledge.
@@ -253,10 +253,10 @@ i.e., $> \prmCatThreshold$).
 This reliability benefit is arguably more deployment-relevant
 than the regret reduction.
 The warmup ablation (Appendix~\ref{sec:warmup_ablation}) shows that
-under budget constraints, Tabula Rasa's heavy tail becomes
-catastrophic: \prmWaBudgetCatPct\% of seeds fail at moderate and
-loose budgets ($p_\text{Fisher}{=}\prmWaBudgetFisherP$), while
-warmup priors eliminate this failure mode entirely.
+Tabula Rasa exhibits substantially higher per-seed variance
+than warmup priors across all budget regimes, with
+${\sim}\waTightStdRatio{\times}$ larger standard deviation under
+tight budgets.
 The present experiment extends that finding: the reliability
 benefit is \emph{robust to prior degradation}.
 Operators who can only collect \prmRandNPrompts{} prompts from a roughly

@@ -84,10 +84,13 @@ We report Cohen's $d$ between adjacent tiers as a scale-free measure of
 how many within-model standard deviations separate each pair; $d \gg 1$
 implies that the two distributions rarely overlap, so a single scalar per
 arm faithfully distinguishes them (condition~(ii) above).
-Cohen's $d$ for adjacent pairs ranges from \chMinCohensD{}
-(Mistral-Large $\to$ Gemini-Flash) to \chMaxCohensD{}
-(Llama-8B $\to$ Mistral-Large); the weakest separation corresponds to the
-only pair where the ranking inverts on ${\sim}$20\% of prompts.
+In the $K{=}3$ portfolio, Cohen's $d$ for adjacent pairs ranges from
+\chMinCohensD{} (Mistral-Large $\to$ Gemini-Pro) to \chMaxCohensD{}
+(Llama-8B $\to$ Mistral-Large)---well above $d{=}1$, consistent with the
+100\% ranking preservation reported above.
+In the $K{=}4$ portfolio, the Mistral-Large $\to$ Gemini-Flash pair has
+$d = \chMFCohensD$; this weakest separation corresponds to the only pair
+where the ranking inverts on ${\sim}$20\% of prompts.
 
 \paragraph{Prompt-cost correlation.}
 Per-model cost distributions are right-skewed
