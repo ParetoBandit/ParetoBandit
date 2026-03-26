@@ -1,7 +1,8 @@
 """Generate LaTeX commands from latency benchmark results.
 
-Reads ``results/latency_benchmark_results.json`` (component-level)
-and ``results/e2e_latency_results.json`` (end-to-end pipeline),
+Reads ``results/latency_benchmark_results.json`` (component-level),
+``results/e2e_latency_results.json`` (end-to-end pipeline), and
+``results/inference_latency_results.json`` (LLM inference latency),
 then emits ``_autogen.tex`` with ``\\lat``-prefixed commands.
 
 Usage::
@@ -28,6 +29,19 @@ LABEL_TO_SHORT: Dict[str, str] = {
     "Cached Inv. (d=385)": "CachedDFull",
     "Per-Route Inv. (d=26)": "PerRouteDTwentySix",
     "Per-Route Inv. (d=385)": "PerRouteDFull",
+}
+
+MODEL_ID_TO_SHORT: Dict[str, str] = {
+    "meta-llama/llama-3.1-8b-instruct": "Llama",
+    "mistralai/mistral-large-2512": "Mistral",
+    "google/gemini-2.5-flash": "GemFlash",
+    "google/gemini-2.5-pro": "GemPro",
+}
+
+LENGTH_TO_SHORT: Dict[str, str] = {
+    "short": "Short",
+    "medium": "Med",
+    "long": "Long",
 }
 
 
@@ -86,11 +100,54 @@ def build_command_set(
     return cs
 
 
+def _add_inference_latency_commands(
+    cs: CommandSet,
+    inf_data: Dict[str, Any],
+    e2e_total_ms: float,
+) -> None:
+    """Add inference latency macros from the K=4 portfolio benchmark.
+
+    Emits macros like ``\\latInfLlamaTtftShort``, ``\\latInfLlamaTotalShort``,
+    ``\\latInfLlamaTtftShortCILo``, ``\\latInfLlamaTtftShortCIHi``,
+    and ``\\latInfLlamaRoutingPctShort`` for each (model, prompt-length).
+
+    Args:
+        cs: The ``CommandSet`` to add macros to.
+        inf_data: Parsed ``inference_latency_results.json``.
+        e2e_total_ms: ParetoBandit E2E routing latency in ms (for ratio column).
+    """
+    cs.raw("InfTrials", fmt_int(inf_data.get("trials_per_config", 0)))
+
+    results = inf_data.get("results", {})
+    for model_id, lengths in results.items():
+        m_short = MODEL_ID_TO_SHORT.get(model_id)
+        if m_short is None:
+            continue
+        for length_label, metrics in lengths.items():
+            l_short = LENGTH_TO_SHORT.get(length_label, length_label.title())
+            tag = f"Inf{m_short}{l_short}"
+
+            ttft = metrics.get("ttft_ms", {})
+            total = metrics.get("total_ms", {})
+
+            cs.raw(f"{tag}Ttft", fmt_int(round(ttft.get("mean", 0))))
+            cs.ci_bounds(f"{tag}Ttft", ttft.get("ci_lo", 0), ttft.get("ci_hi", 0), digits=0)
+
+            cs.raw(f"{tag}Total", f"{total.get('mean', 0):,.0f}")
+            cs.ci_bounds(f"{tag}Total", total.get("ci_lo", 0), total.get("ci_hi", 0), digits=0)
+
+            total_mean = total.get("mean", 0)
+            if total_mean > 0:
+                routing_pct = e2e_total_ms / total_mean * 100.0
+                cs.num(f"{tag}RoutingPct", routing_pct, digits=2)
+
+
 def main() -> None:
     """Load JSON files, emit ``_autogen.tex``."""
     exp_dir = Path(__file__).resolve().parent
     bench_path = exp_dir / "results" / "latency_benchmark_results.json"
     e2e_path = exp_dir / "results" / "e2e_latency_results.json"
+    inf_path = exp_dir / "results" / "inference_latency_results.json"
 
     if not bench_path.exists():
         print(f"Error: {bench_path} not found.")
@@ -102,6 +159,14 @@ def main() -> None:
     bench_data = load_json(bench_path)
     e2e_data = load_json(e2e_path)
     cs = build_command_set(bench_data, e2e_data)
+
+    e2e_total_ms = e2e_data.get("stages", {}).get("total_p50_ms", 0)
+
+    if inf_path.exists():
+        inf_data = load_json(inf_path)
+        _add_inference_latency_commands(cs, inf_data, e2e_total_ms)
+    else:
+        print(f"Warning: {inf_path} not found; skipping inference latency macros.")
 
     autogen_path = exp_dir / "_autogen.tex"
     cs.write(autogen_path, header="Appendix: latency benchmark")

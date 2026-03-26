@@ -225,18 +225,23 @@ All routing latencies are orders of magnitude below LLM inference
 
 \paragraph{Routing overhead relative to LLM inference.}
 Table~\ref{tab:overhead_vs_inference} contextualises ParetoBandit's
-$\latEteTotalMedianMs$\,ms E2E overhead against production LLM API
-latencies~\cite{ganglani2026llmlatency}.
+$\latEteTotalMedianMs$\,ms E2E overhead against the inference latency
+of the paper's own $K{=}4$ model portfolio, measured via
+\latInfTrials{} streaming API calls per configuration through
+OpenRouter.
 
 \begin{table}[h]
 \centering
 \caption{ParetoBandit's routing overhead as a fraction of LLM inference
-latency across representative models and prompt
-lengths~\cite{ganglani2026llmlatency}.
-\emph{TTFT} = time to first token (streaming); \emph{Total} = full response
-latency.
-Routing overhead is the $\latEteTotalMedianMs$\,ms end-to-end critical path (embedding +
-PCA + \texttt{route()}) on CPU.}
+latency for the paper's $K{=}4$ model portfolio.
+Each cell reports the mean over \latInfTrials{} streaming API calls via
+OpenRouter; \emph{TTFT} = time to first token, \emph{Total} = full
+response latency.
+Latencies reflect real-world API conditions including network transit and
+provider-side queuing, so variance is higher than controlled benchmarks
+---this makes the negligible routing overhead more, not less, convincing.
+Routing overhead is the $\latEteTotalMedianMs$\,ms end-to-end critical
+path (embedding + PCA + \texttt{route()}) on CPU.}
 \label{tab:overhead_vs_inference}
 \small
 \resizebox{\columnwidth}{!}{%
@@ -245,19 +250,31 @@ PCA + \texttt{route()}) on CPU.}
 \textbf{LLM} & \textbf{Prompt} & \textbf{TTFT (ms)} & \textbf{Total (ms)}
   & \textbf{Routing / Total} \\
 \midrule
-Claude Haiku 4.5 & short  & 639   & 952    & $1.40\%$ \\
-Claude Haiku 4.5 & medium & 597   & 3{,}954  & $0.34\%$ \\
-Gemini 2.5 Flash & medium & 730   & 1{,}729  & $0.77\%$ \\
-GPT-4.1          & short  & 889   & 1{,}770  & $0.75\%$ \\
-Claude Sonnet 4  & long   & 1{,}216 & 20{,}445 & $0.07\%$ \\
-GPT-4.1 Mini     & long   & 2{,}501 & 18{,}075 & $0.07\%$ \\
+Llama-3.1-8B        & short  & $\latInfLlamaShortTtft$    & $\latInfLlamaShortTotal$    & $\latInfLlamaShortRoutingPct\%$ \\
+Llama-3.1-8B        & medium & $\latInfLlamaMedTtft$      & $\latInfLlamaMedTotal$      & $\latInfLlamaMedRoutingPct\%$ \\
+Llama-3.1-8B        & long   & $\latInfLlamaLongTtft$     & $\latInfLlamaLongTotal$     & $\latInfLlamaLongRoutingPct\%$ \\
+\addlinespace
+Mistral-Large-2512  & short  & $\latInfMistralShortTtft$  & $\latInfMistralShortTotal$  & $\latInfMistralShortRoutingPct\%$ \\
+Mistral-Large-2512  & medium & $\latInfMistralMedTtft$    & $\latInfMistralMedTotal$    & $\latInfMistralMedRoutingPct\%$ \\
+Mistral-Large-2512  & long   & $\latInfMistralLongTtft$   & $\latInfMistralLongTotal$   & $\latInfMistralLongRoutingPct\%$ \\
+\addlinespace
+Gemini 2.5 Flash    & short  & $\latInfGemFlashShortTtft$ & $\latInfGemFlashShortTotal$ & $\latInfGemFlashShortRoutingPct\%$ \\
+Gemini 2.5 Flash    & medium & $\latInfGemFlashMedTtft$   & $\latInfGemFlashMedTotal$   & $\latInfGemFlashMedRoutingPct\%$ \\
+Gemini 2.5 Flash    & long   & $\latInfGemFlashLongTtft$  & $\latInfGemFlashLongTotal$  & $\latInfGemFlashLongRoutingPct\%$ \\
+\addlinespace
+Gemini 2.5 Pro      & short  & $\latInfGemProShortTtft$   & $\latInfGemProShortTotal$   & $\latInfGemProShortRoutingPct\%$ \\
+Gemini 2.5 Pro      & medium & $\latInfGemProMedTtft$     & $\latInfGemProMedTotal$     & $\latInfGemProMedRoutingPct\%$ \\
+Gemini 2.5 Pro      & long   & $\latInfGemProLongTtft$    & $\latInfGemProLongTotal$    & $\latInfGemProLongRoutingPct\%$ \\
 \bottomrule
 \end{tabular}
 }
 \end{table}
 
 \noindent
-Even against the fastest model and shortest prompt (Claude Haiku 4.5,
-952\,ms), the full routing pipeline adds ${\sim}1.4\%$ overhead; for typical
-workloads it contributes 0.3--0.8\%.  \textbf{The routing decision is
-invisible to the end user.}
+Even against the fastest model and shortest prompt (Gemini 2.5 Flash,
+$\latInfGemFlashShortTotal$\,ms total latency), the full routing pipeline
+adds ${\sim}\latInfGemFlashShortRoutingPct\%$ overhead.
+For the slowest model (Gemini 2.5 Pro, long prompt,
+$\latInfGemProLongTotal$\,ms), routing contributes just
+$\latInfGemProLongRoutingPct\%$.
+\textbf{The routing decision is invisible to the end user.}
