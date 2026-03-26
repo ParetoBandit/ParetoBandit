@@ -107,7 +107,6 @@ When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost cha
 
 We stress-test against a silent quality regression: Mistral-Large's reward drops to $\cfFailureReward$ (${\sim}\ppCfDegPct$\% below normal) while its API continues to respond and charge at normal rates.  The cost signal provides no warning; only the reward reveals the problem.  Phase~3 restores normal quality, testing whether the router re-discovers the recovered model.
 
-\vspace{-12pt}
 \begin{figure}[!b]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/02_budget_plus_drift/results/adaptation_dynamics.png}
