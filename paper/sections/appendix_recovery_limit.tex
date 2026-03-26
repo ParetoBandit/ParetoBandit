@@ -69,14 +69,18 @@ from the degraded arm, and for some prompts the alternative routing
 discovered during degradation is genuinely better than the original
 policy.
 
-\begin{figure}[!t]
+\vspace{0.5ex}
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/appendix/recovery_limit/results/recovery_limit.png}
-\caption{Recovery limit under quality degradation (moderate budget, \rlNseeds~seeds, 95\% bootstrap CI).
-\textbf{(a)}~P3/P1 reward ratio vs.\ degradation severity for \rlPhaseN-prompt (solid) and \rlExtPhaseThreeN-prompt (dashed) Phase~3 horizons.  Dotted line marks the 97\% full-recovery threshold.
-\textbf{(b)}~Phase-3 recovery dynamics (50-prompt rolling window) at the extended horizon for four severity levels.  Dotted line marks the Phase~1 baseline; vertical dashed line marks the standard \rlPhaseN-prompt horizon.}
+\includegraphics[width=0.88\textwidth]{../experiments/appendix/recovery_limit/results/recovery_limit.png}
+\caption{Recovery limit under quality degradation (moderate budget,
+\rlNseeds~seeds, 95\% bootstrap CI).
+\textbf{(a)}~P3/P1 reward ratio vs.\ degradation severity; dotted
+line = 97\% full-recovery threshold.
+\textbf{(b)}~Phase-3 recovery dynamics (50-prompt rolling window) at
+the extended horizon for four severity levels.}
 \label{fig:recovery_limit}
-\end{figure}
+\end{figure*}
 
 \paragraph{Convergence dynamics (Figure~\ref{fig:recovery_limit}b).}
 The extended-horizon time series (50-prompt rolling window) confirm
