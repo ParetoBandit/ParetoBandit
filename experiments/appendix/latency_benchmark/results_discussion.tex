@@ -205,13 +205,13 @@ ParetoBandit on a common log-scale alongside typical LLM inference
 latencies, showing that all routing overheads are orders of magnitude
 below model serving time.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{../experiments/appendix/latency_benchmark/results/latency_spectrum_e2e.png}
+\includegraphics[width=0.75\textwidth]{../experiments/appendix/latency_benchmark/results/latency_spectrum_e2e.png}
 \caption{End-to-end routing latency (p50, single query) for published
 routing systems vs.\ LLM inference time (shaded region).}
 \label{fig:latency_spectrum_e2e}
-\end{figure}
+\end{figure*}
 
 \paragraph{Routing overhead relative to LLM inference.}
 Table~\ref{tab:overhead_vs_inference} contextualises ParetoBandit's
@@ -221,16 +221,11 @@ configuration through OpenRouter.
 
 \begin{table}[h]
 \centering
-\caption{ParetoBandit's routing overhead as a fraction of LLM inference
-latency for the paper's $K{=}4$ model portfolio.
-Each cell reports the mean over \latInfTrials{} streaming API calls via
-OpenRouter; \emph{TTFT} = time to first token, \emph{Total} = full
-response latency.
-Latencies reflect real-world API conditions including network transit and
-provider-side queuing, so variance is higher than controlled benchmarks
----this makes the negligible routing overhead more, not less, convincing.
-Routing overhead is the $\latEteTotalMedianMs$\,ms end-to-end critical
-path (embedding + PCA + \texttt{route()}) on CPU.}
+\caption{Routing overhead as a fraction of LLM inference latency
+($K{=}4$ portfolio, \latInfTrials{} streaming API calls via OpenRouter).
+\emph{TTFT} = time to first token.
+Routing overhead is the $\latEteTotalMedianMs$\,ms end-to-end CPU
+critical path (embedding + PCA + \texttt{route()}).}
 \label{tab:overhead_vs_inference}
 \small
 \resizebox{\columnwidth}{!}{%
