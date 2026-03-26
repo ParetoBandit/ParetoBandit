@@ -49,7 +49,7 @@ def build_command_set() -> CommandSet:
             cs.num("Gamma", gamma, digits=3)
             cs.num("Alpha", hp.get("alpha", 0.01), digits=2)
             neff = hp.get("prior_n_effective", 0.0)
-            cs.num("Neff", neff, digits=1)
+            cs.raw("Neff", fmt_int(neff))
             if gamma < 1.0:
                 eff_mem = round(1.0 / (1.0 - gamma))
                 half_life = round(math.log(2) / (1.0 - gamma))
@@ -57,6 +57,17 @@ def build_command_set() -> CommandSet:
                 cs.raw("HalfLife", str(half_life))
                 efold_1000 = gamma ** 1000
                 cs.num("GammaDecayOneK", efold_1000, digits=2)
+
+        budget_targets = bp.get("budget_targets", [])
+        pacer_results = [r for r in results if r.get("method") == "pacer"]
+        max_overshoot_pct = 0.0
+        for pr in pacer_results:
+            u = pr.get("budget_utilization")
+            if u is not None and u > 1.0:
+                overshoot = (u - 1.0) * 100
+                if overshoot > max_overshoot_pct:
+                    max_overshoot_pct = overshoot
+        cs.num("MaxBudgetOvershootPct", max_overshoot_pct, digits=1)
 
     # ------------------------------------------------------------------
     # Budget + drift (Exp 02): quality lift

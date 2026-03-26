@@ -223,7 +223,7 @@ def build_command_set(data: Dict[str, Any]) -> CommandSet:
 
     hp_warmup = data["hparams"]["warmup"]
     cs.num("Alpha", hp_warmup["alpha"], digits=2)
-    cs.num("Neff", hp_warmup["prior_n_effective"], digits=1)
+    cs.raw("Neff", fmt_int(hp_warmup["prior_n_effective"]))
     cs.num("Gamma", hp_warmup["forgetting_factor"], digits=3)
 
     hp_tr = data["hparams"]["tabula_rasa"]

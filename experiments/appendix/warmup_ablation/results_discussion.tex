@@ -9,7 +9,7 @@ strengths by loading sufficient statistics fitted on historical data.
 The natural question is whether warmup priors reduce cold-start
 regret in practice.
 To answer this, we compare ParetoBandit with warmup priors
-($\alpha{=}0.01$, $n_{\text{eff}}{=}1163.9$,
+($\alpha{=}0.01$, $n_{\text{eff}}{=}1164$,
 $\gamma{=}0.997$) against Tabula Rasa
 ($\alpha{=}0.05$, $n_{\text{eff}}{=}1$,
 $\gamma{=}0.997$), each running under its own
@@ -18,7 +18,7 @@ Pareto-knee procedure (Appendix~\ref{sec:hparam_sweep}).
 Notably, the sweep independently selected the same
 $\gamma{=}0.997$ for both conditions, so they share identical
 effective-memory windows (${\sim}333$ steps) and the only remaining
-differences are prior strength ($n_{\text{eff}}{=}1163.9$ vs.\ $1$)
+differences are prior strength ($n_{\text{eff}}{=}1164$ vs.\ $1$)
 and exploration rate ($\alpha{=}0.01$ vs.\ $0.05$).
 Any regret difference is therefore directly attributable to the
 informative priors, not to a memory-length confound.

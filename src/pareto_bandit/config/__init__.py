@@ -109,7 +109,7 @@ K4_MODELS_PATH = DATA_COLLECTION_DIR / "config" / "models_k4.json"
 #   ──────────────────    ───────
 #   TOTAL                  11,983
 #
-# Split: stratified by difficulty, seed=42, ratio 70/15/15.
+# Split: stratified by source, seed=42, ratio 70/15/15.
 # Non-overlapping by prompt — no prompt appears in more than one split.
 
 TRAIN_DATA_PATH = OFFLINE_DATASET_DIR / "train.jsonl"
