@@ -5,7 +5,7 @@
 \setlength{\parskip}{2pt}
 
 \paragraph{Supervised and static routers.}
-The simplest cost-aware strategy is cascading: FrugalGPT~\cite{chen2023frugalgpt} queries models cheapest-first and stops once a quality threshold is met. Most subsequent work trains a single-dispatch classifier offline, differing mainly in the training signal---preference pairs~\cite{ong2024routellm}, contrastive or graph-structured embeddings~\cite{chen2024routerdc, shirkavand2025cscr, feng2025graphrouter}, or lightweight binary triage~\cite{ding2024hybridllm, pulishetty2025onehead}. OmniRouter~\cite{ma2025omnirouter} goes further by formulating budget-aware routing as a batch-level constrained optimisation, but still over a fixed prompt set.
+The simplest cost-aware strategy is cascading: FrugalGPT~\cite{chen2023frugalgpt} queries models cheapest-first and stops once a quality threshold is met. Most subsequent work trains a single-dispatch classifier offline, differing mainly in the training signal---preference pairs~\cite{ong2024routellm}, contrastive or graph-structured embeddings~\cite{chen2024routerdc, shirkavand2025cscr, feng2025graphrouter}, or lightweight binary triage~\cite{ding2024hybridllm, pulishetty2025onehead}. OmniRouter~\cite{mei2025omnirouter} goes further by formulating budget-aware routing as a batch-level constrained optimisation, but still over a fixed prompt set.
 These methods perform well when deployment matches training, yet leave three structural opportunities open: promoting cost from a manually tuned weight to a closed-loop constraint; adapting autonomously to price or quality shifts; and incorporating new models without retraining.
 ParetoBandit replaces the frozen policy with online learning, enabling adaptation without retraining or downtime.
 
