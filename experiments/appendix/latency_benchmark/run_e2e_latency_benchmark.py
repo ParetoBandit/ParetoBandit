@@ -158,7 +158,6 @@ def _build_production_router() -> tuple[BanditRouter, FeatureService]:
     router = BanditRouter.create(
         feature_service=fs,
         priors="none",
-        use_corralling=False,
     )
     return router, fs
 

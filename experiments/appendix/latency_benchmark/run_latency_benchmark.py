@@ -275,7 +275,6 @@ def benchmark_paretobandit(
         model_registry=registry,
         feature_service=fs,
         priors="none",
-        use_corralling=False,
     )
 
     route_ns: List[int] = []

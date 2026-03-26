@@ -247,7 +247,6 @@ def _create_router(
         warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
         prior_n_effective=prior_n_effective,
         alpha=alpha,
-        use_corralling=False,
         cost_penalty=0.0,
         forgetting_factor=forgetting_factor,
         budget_pacer=budget_pacer,

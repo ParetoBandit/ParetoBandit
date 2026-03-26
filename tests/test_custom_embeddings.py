@@ -186,8 +186,6 @@ class TestRouterWithCustomEncoder:
         router.process_feedback(log.request_id, reward=1.0)
         b_after = router.bandit.b[model]
 
-        # Corralling delegates to internal experts — verify the outer bandit
-        # or at least that process_feedback didn't raise.
         assert b_before is not b_after or True  # feedback accepted
 
     def test_multiple_routes_and_feedback(self, custom_fs, registry):
@@ -264,12 +262,7 @@ class TestRouterHighDimensionalNoPCA:
         assert log.selected_model == model
 
     def test_feedback_updates_matrices(self, high_dim, high_dim_fs, registry):
-        """Verify that feedback updates internal state.
-
-        When corralling is enabled, updates go to the internal experts
-        rather than directly to router.bandit.  We disable corralling
-        here so we can directly inspect the b-vector change.
-        """
+        """Verify that feedback updates internal state."""
         router = BanditRouter.create(
             model_registry=registry,
             feature_service=high_dim_fs,

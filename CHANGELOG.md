@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **BanditRouter**: Adaptive LLM router using Hybrid LinUCB with contextual features
-- **Corralling meta-learner**: Hedges between warmup and tabula rasa experts for robustness under prior mismatch
 - **Warm-start priors**: Dense covariance matrix distilled from 80,000 RouteLLM battle outcomes (< 1 MB)
 - **FeatureService**: SentenceTransformer embedding with PCA compression (1024D → 33D with default `BAAI/bge-m3`)
 - **Self-healing PCA**: JIT calibration recovers from missing or mismatched artifacts

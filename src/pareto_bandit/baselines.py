@@ -2,7 +2,7 @@
 Extended baseline policies for comprehensive comparison.
 
 Implements three additional algorithmic families that complement the
-existing ablation suite (Random, EMA, ε-greedy, LinUCB, Corralling):
+existing ablation suite (Random, EMA, ε-greedy, LinUCB):
 
 1. **CostAwareLinTSRouter** — Linear Thompson Sampling (posterior sampling)
    Algorithmic family: Thompson Sampling / Bayesian bandits

@@ -280,7 +280,7 @@ class TestAdaptiveMode:
 
 
 # ======================================================================
-# 7. Corralling path: extra_cost_penalties passed through
+# 7. Budget pacer passthrough: extra_cost_penalties passed through
 # ======================================================================
 
 

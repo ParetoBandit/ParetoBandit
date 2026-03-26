@@ -75,7 +75,7 @@ Improve Figure 4 annotations and crossover detection
 
 ```
 src/pareto_bandit/
-├── router.py            # BanditRouter, LinUCB policies, Corralling meta-learner
+├── router.py            # BanditRouter, LinUCB policies
 ├── feature_service.py   # Prompt embedding + PCA compression
 ├── storage.py           # Context persistence (SQLite, ephemeral)
 ├── calibration.py       # train_pca(), generate_warmup_priors()

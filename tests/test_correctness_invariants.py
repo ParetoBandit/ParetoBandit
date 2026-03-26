@@ -767,8 +767,8 @@ class TestR3L13_LogLock:
 class TestR4C1_RegisterModelOrder:
     """Registry publication must happen after expert state is fully initialized."""
 
-    def test_register_does_not_crash_under_corralling(self):
-        """register_model should work when corralling is enabled."""
+    def test_register_does_not_crash(self):
+        """register_model should work after initial creation."""
         registry = {
             "model_a": {
                 "model_id": "test/model-a",
