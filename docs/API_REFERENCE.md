@@ -1384,4 +1384,13 @@ paretobandit --version              # Show version
 paretobandit "Your prompt here"     # Route a prompt
 paretobandit --download-models      # Pre-download sentence transformer weights
 paretobandit --max-cost 1.0 "..."   # Route with cost constraint
+paretobandit --cost-penalty 0.5 "..." # Route with aggressive cost preference
 ```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--version` | — | — | Show version and exit. |
+| `--max-cost` | `float` | `None` | Hard cost ceiling ($/1k tokens). Models exceeding this are filtered out. |
+| `--cost-penalty` | `float` | `0.3` | Static cost-quality trade-off weight λ_c (paper Eq. 4). `0.0` = quality-only routing, `0.3` = moderate cost awareness, `0.5+` = aggressive cost preference. |
+| `--profile` | `str` | `best_value` | Optimization profile. |
+| `--download-models` | — | — | Pre-download sentence transformer weights (for Docker/CI pre-warming). |

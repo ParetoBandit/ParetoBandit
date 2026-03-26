@@ -17,6 +17,15 @@ def main():
     parser.add_argument("--version", action="store_true", help="Show version")
     parser.add_argument("prompt", nargs="?", help="Prompt to route")
     parser.add_argument("--max-cost", type=float, help="Maximum cost constraint")
+    parser.add_argument(
+        "--cost-penalty",
+        type=float,
+        default=0.3,
+        metavar="LAMBDA",
+        help="Static cost-quality trade-off weight λ_c (default: 0.3). "
+             "0.0 = quality-only routing, 0.3 = moderate cost awareness, "
+             "0.5+ = aggressive cost preference.",
+    )
     parser.add_argument("--profile", default="best_value", help="Optimization profile")
     parser.add_argument("--download-models", action="store_true", help="Download required models (for Docker/CI pre-warming)")
     
@@ -45,7 +54,7 @@ def main():
         return
         
     try:
-        router = BanditRouter.create()
+        router = BanditRouter.create(cost_penalty=args.cost_penalty)
         model, log = router.route(args.prompt, max_cost=args.max_cost)
         print(f"Selected Model: {model}")
         print(f"Predicted Utility: {log.predicted_utility:.4f}")
