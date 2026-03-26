@@ -3,127 +3,137 @@
 \section{Cost Heuristic Validation}
 \label{sec:cost_heuristic_validation}
 
-The selection utility (Equation~\ref{eq:budget_ucb}) uses a static log-normalized cost
-$\tilde{c}_a$ derived from each model's blended per-token rate rather than the
-realised per-request cost.
+The selection utility (Equation~\ref{eq:budget_ucb}) uses a static
+log-normalized cost $\tilde{c}_a$ derived from each model's blended
+per-token rate rather than the realised per-request cost.
 This is forced by decision timing: the cost penalty must be evaluated
-\emph{before} the prompt is dispatched, but realised cost depends on the
+before the prompt is dispatched, but realised cost depends on the
 model's output length, which is unknown until inference completes.
-A learned contextual cost predictor could in principle replace the static
-proxy, but the benefit is limited---prompt-level features explain less than
-7\% of cost variance in our portfolio (see ``Prompt-cost correlation''
-below)---while the dual variable $\lambda_t$ already corrects for any
-systematic mismatch by updating on actual costs
-(Eq.~\ref{eq:dual_update}).
-We validate the static heuristic by testing two necessary conditions:
-(i)~$\tilde{c}_a$ preserves the \emph{true cost ranking} across prompts,
-and (ii)~within-model cost variance is small relative to inter-model gaps
-in log-cost space.
+A learned contextual cost predictor could in principle replace the
+static proxy, but the benefit is limited---prompt-level features
+explain less than 8\% of cost variance in our portfolio (see
+``Prompt-cost correlation'' below)---while the dual variable
+$\lambda_t$ already corrects for any systematic mismatch by updating
+on actual costs (Eq.~\ref{eq:dual_update}).
+
+We validate the static heuristic via two necessary conditions:
+(i)~$\tilde{c}_a$ preserves the true cost ranking across prompts,
+and (ii)~within-model cost variance is small relative to inter-model
+gaps in log-cost space.
 Condition~(i) is required because the cost penalty in
 Eq.~\ref{eq:budget_ucb} biases selection toward cheaper arms; if the
-heuristic mis-ranks two models, the penalty systematically favours the
-wrong one.
-Condition~(ii) ensures that a single scalar per arm is a faithful summary
-of its cost distribution: if within-model variance were large relative to
-inter-model gaps, the fixed penalty could not reliably separate tiers and
-prompt-level cost estimation would be needed.
+heuristic mis-ranks two models, the penalty systematically favours
+the wrong one.
+Condition~(ii) ensures that a single scalar per arm is a faithful
+summary of its cost distribution: if within-model variance were large
+relative to inter-model gaps, the fixed penalty could not reliably
+separate tiers and prompt-level cost estimation would be needed.
 
 \paragraph{Blending assumption.}
 The heuristic blends input and output pricing with equal weight
-(i.e., a 1:1 token ratio).  In practice the output-to-input ratio varies
-across models and prompts, so the blended rate differs from the true per-request
-effective rate.  Because cost ranking depends only on the \emph{relative order}
-of effective rates and the log-normalization compresses the dynamic range,
-a simple average preserves the ranking whenever the price gap between models
-exceeds the variation introduced by differing output lengths---a condition
-satisfied for models spanning at least one order of magnitude in pricing.
-Note that Llama-8B's blended rate (\$0.10/M tokens) coincides with the
-market cost floor, so $\tilde{c}_{\text{Llama}} = 0$ by construction;
-any model priced at or below the floor is treated as zero-cost in the
-utility computation.
+(i.e., a 1:1 token ratio).
+In practice the output-to-input ratio varies across models and
+prompts, so the blended rate differs from the true per-request
+effective rate.
+Because cost ranking depends only on the relative order of effective
+rates and log-normalization compresses the dynamic range, a simple
+average preserves the ranking whenever the price gap between models
+exceeds the variation introduced by differing output lengths---a
+condition satisfied for models spanning at least one order of
+magnitude in pricing.
+Note that Llama-8B's blended rate (\$0.10/M tokens) coincides with
+the market cost floor, so $\tilde{c}_{\text{Llama}} = 0$ by
+construction; any model priced at or below the floor is treated as
+zero-cost in the utility computation.
 
-\paragraph{K=3 portfolio (\chNPromptsK{} shared val prompts; sanity check).}
-The heuristic ordering Llama-8B $<$ Mistral-Large $<$ Gemini-Pro matches the
-per-request cost ordering on \chFullOrderK\% of prompts
-(95\,\% Wilson CI: [\chFullOrderKCILo, \chFullOrderKCIHi]\%).
-All three pairwise comparisons hold at ${\geq}$\chMinPairwiseK\% under
-strict inequality, with zero ties observed.
-This result is unsurprising given the ${\sim}$500$\times$ cost span between
-the cheapest and most expensive arm (per-model CVs in \chCVRangeK),
-and serves primarily as a sanity check that the dataset is internally consistent
+\paragraph{$K{=}3$ portfolio (1766 shared validation prompts; sanity check).}
+The heuristic ordering Llama-8B $<$ Mistral-Large $<$ Gemini-Pro
+matches the per-request cost ordering on 100.0\% of prompts
+(95\% Wilson CI: [99.8, 100.0]\%).
+All three pairwise comparisons hold at 100.0\% under strict
+inequality, with zero ties observed.
+This result is unsurprising given the ${\sim}500{\times}$ cost span
+between the cheapest and most expensive arm (per-model CVs in
+0.63--0.92), and serves primarily as a sanity check that the dataset
+is internally consistent
 (Figure~\ref{fig:cost_heuristic_distributions}a;
 Figure~\ref{fig:cost_heuristic_ranking}a).
 
-\paragraph{K=4 portfolio (\chNPromptsKFour{} shared val prompts, with Gemini-Flash).}
-Adding a fourth arm whose pricing overlaps an existing arm provides
-a harder test of the heuristic.
-For a clean comparison, we restrict both portfolios to the shared prompt subset:
-\chKFourMissing{} prompts from the original K=3 validation split are excluded
-because the Flash data-collection pipeline failed to produce a successful
-response or judge score for them, so they are absent from the K=4 data file.
-Gemini-Flash ($\tilde{c} = \chFlashCtilde$) is placed between Mistral-Large
-($\tilde{c} = \chMistralCtilde$) and Gemini-Pro ($\tilde{c} = \chProCtilde$).
-The full ordering matches on \chFullOrderKFour\%
-(CI: [\chFullOrderKFourCILo, \chFullOrderKFourCIHi]\%) of prompts;
-the closest pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking on
-\chMistralFlashPW\%
-(CI: [\chMistralFlashPWCILo, \chMistralFlashPWCIHi]\%;
-\chMistralFlashTies{} exact ties),
-reflecting Flash's high cost variance (CV${} = \chFlashCV$) and the
-narrow heuristic gap ($\Delta\tilde{c} = \chMistralFlashGap$)
+\paragraph{$K{=}4$ portfolio (1766 shared validation prompts, with Gemini-Flash).}
+Adding a fourth arm whose pricing overlaps an existing arm provides a
+harder test of the heuristic.
+For a clean comparison, we restrict both portfolios to the shared
+prompt subset: 19 prompts from the original $K{=}3$ validation split
+are excluded because the Flash data-collection pipeline failed to
+produce a successful response or judge score for them, so they are
+absent from the $K{=}4$ data file.
+Gemini-Flash ($\tilde{c} = 0.382$) is placed between Mistral-Large
+($\tilde{c} = 0.333$) and Gemini-Pro ($\tilde{c} = 0.583$).
+The full ordering matches on 79.7\%
+(CI: [77.7, 81.5]\%) of prompts.
+The closest pair (Mistral-Large vs.\ Gemini-Flash) preserves ranking
+on 79.7\% (CI: [77.7, 81.5]\%; 0 exact ties), reflecting Flash's
+high cost variance (CV $= 1.56$) and the narrow heuristic gap
+($\Delta\tilde{c} = 0.049$)
 (Figure~\ref{fig:cost_heuristic_distributions}b;
 Figure~\ref{fig:cost_heuristic_ranking}b).
 
 \paragraph{Log-cost separation.}
-To quantify tier separation without referencing the heuristic itself, we
-examine per-model distributions in $\log(\text{cost}_{\text{USD}})$ space.
-Within-model standard deviations are \chLogStdFracRange\% of the total
-inter-model log-cost range, confirming that prompt-level cost noise does not
+To quantify tier separation without referencing the heuristic itself,
+we examine per-model distributions in
+$\log(\text{cost}_{\text{USD}})$ space.
+Within-model standard deviations are 8--11\% of the total inter-model
+log-cost range, confirming that prompt-level cost noise does not
 overwhelm tier separation.
-We report Cohen's $d$ between adjacent tiers as a scale-free measure of
-how many within-model standard deviations separate each pair; $d \gg 1$
-implies that the two distributions rarely overlap, so a single scalar per
-arm faithfully distinguishes them (condition~(ii) above).
+We report Cohen's $d$ between adjacent tiers as a scale-free measure
+of how many within-model standard deviations separate each pair;
+$d \gg 1$ implies that the two distributions rarely overlap, so a
+single scalar per arm faithfully distinguishes them (condition~(ii)
+above).
 In the $K{=}3$ portfolio, Cohen's $d$ for adjacent pairs ranges from
-\chMinCohensD{} (Mistral-Large $\to$ Gemini-Pro) to \chMaxCohensD{}
-(Llama-8B $\to$ Mistral-Large)---well above $d{=}1$, consistent with the
-100\% ranking preservation reported above.
-In the $K{=}4$ portfolio, the Mistral-Large $\to$ Gemini-Flash pair has
-$d = \chMFCohensD$; this weakest separation corresponds to the only pair
-where the ranking inverts on ${\sim}$20\% of prompts.
+4.39 (Llama-8B $\to$ Mistral-Large) to 5.92 (Mistral-Large $\to$
+Gemini-Pro)---well above $d{=}1$, consistent with the 100\% ranking
+preservation reported above.
+In the $K{=}4$ portfolio, the Mistral-Large $\to$ Gemini-Flash pair
+has $d = 0.68$; this weakest separation corresponds to the only pair
+where the ranking inverts on ${\sim}20\%$ of prompts.
 
 \paragraph{Prompt-cost correlation.}
 Per-model cost distributions are right-skewed
 (Figure~\ref{fig:cost_heuristic_distributions}), so we use Spearman
-(rank-based) correlations between prompt word count and per-request cost.
+(rank-based) correlations between prompt word count and per-request
+cost.
 Correlations are statistically significant but modest in magnitude
-($\rho = \chCorrRange$; all $p < 10^{-4}$).
-Because $\rho^2 < 7\%$ (proportion of rank variance explained), prompt-level
-features capture only a small fraction of cost variation, limiting the
-practical benefit of a contextual cost model in this portfolio.
+($\rho = 0.12$ to $0.27$; all $p < 10^{-4}$).
+Because $\rho^2 < 8\%$ (proportion of rank variance explained),
+prompt-level features capture only a small fraction of cost
+variation, limiting the practical benefit of a contextual cost model
+in this portfolio.
 
 \paragraph{Cross-model cost correlation.}
-If per-request costs co-vary across models (e.g.\ because a long prompt
-elicits long outputs from every model), then prompt-level cost fluctuations
-shift all arms together, preserving relative ordering even when absolute
-costs vary.
-We again use Spearman correlations given the skewed cost distributions.
+If per-request costs co-vary across models (e.g.\ because a long
+prompt elicits long outputs from every model), then prompt-level cost
+fluctuations shift all arms together, preserving relative ordering
+even when absolute costs vary.
+We again use Spearman correlations given the skewed cost
+distributions.
 Per-request costs are moderately to strongly correlated across models
-($\rho = \chCrossCorrRange$), confirming this shared output-length factor
-and explaining why the static heuristic's ranking holds despite high
-within-model CVs (\chCVRangeKFour).
+($\rho = 0.56$ to $0.68$), confirming this shared output-length
+factor and explaining why the static heuristic's ranking holds
+despite high within-model CVs (0.63--1.56).
 
-\paragraph{Takeaway.}  The static $\tilde{c}_a$ heuristic is empirically
-well-calibrated for portfolios where models span at least one order of
-magnitude in pricing.  For denser price clusters (e.g., Mistral-Large
-vs.\ Gemini-Flash, $d = \chMFCohensD$),
-the ranking holds for ${\sim}$\chMistralFlashPW\% of prompts but inverts when
-Flash generates unusually short responses.
+\paragraph{Takeaway.}
+The static $\tilde{c}_a$ heuristic is empirically well-calibrated for
+portfolios where models span at least one order of magnitude in
+pricing.
+For denser price clusters (e.g., Mistral-Large vs.\ Gemini-Flash,
+$d = 0.68$), the ranking holds for ${\sim}79.7\%$ of prompts but
+inverts when Flash generates unusually short responses.
 Three structural properties limit downstream impact:
 (i)~$\tilde{c}_a$ enters only the soft penalty
 (Eq.~\ref{eq:budget_ucb}); the hard ceiling and the pacer's EMA cost
-signal operate on actual per-request costs, so heuristic errors cannot
-cause budget violations.
+signal operate on actual per-request costs, so heuristic errors
+cannot cause budget violations.
 (ii)~For closely priced arms the absolute penalty gap is small
 (${\sim}0.015$ for Mistral--Flash at $\lambda_t{=}0$)---negligible
 relative to the $[0,1]$ reward signal.
@@ -141,6 +151,6 @@ over-selection of a costly arm.
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/appendix/cost_heuristic_validation/results/cost_heuristic_validation_ranking.png}
-\caption{Cost heuristic validation: ranking preservation. Subplot (a) shows pairwise ranking preservation for the $K{=}3$ portfolio on the shared validation subset, and subplot (b) shows the same diagnostic for the $K{=}4$ portfolio. The heuristic preserves the full per-request cost ordering on 100\% of shared-subset $K{=}3$ prompts and ${\sim}80\%$ of shared-subset $K{=}4$ prompts; the Mistral-Large vs.\ Gemini-Flash comparison is the only source of inversions.}
+\caption{Cost heuristic validation: ranking preservation. Panel~(a) shows pairwise ranking preservation for the $K{=}3$ portfolio on the shared validation subset, and panel~(b) shows the same diagnostic for the $K{=}4$ portfolio. The heuristic preserves the full per-request cost ordering on \chFullOrderK\% of shared-subset $K{=}3$ prompts and ${\sim}$\chFullOrderKFour\% of shared-subset $K{=}4$ prompts; the Mistral-Large vs.\ Gemini-Flash comparison is the only source of inversions.}
 \label{fig:cost_heuristic_ranking}
 \end{figure}

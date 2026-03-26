@@ -3,49 +3,48 @@
 
 \paragraph{$T_{\text{adapt}}$ sensitivity.}
 A natural concern is whether the selected configuration is sensitive
-to the anchor value $T_{\text{adapt}}{=}\hpTAdapt$, which was set to
+to the anchor value $T_{\text{adapt}}{=}500$, which we set to
 approximately match the catastrophic-failure phase length.
 To test robustness, we repeat the full Pareto knee-point selection
 for $T_{\text{adapt}} \in \{250, 500, 1000\}$---a $4{\times}$ range
-that spans reaction times from rapid detection to conservative
+spanning reaction times from rapid detection to conservative
 adaptation.
-Three observations support robustness:
+Three observations support robustness.
 %
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{$\alpha$ is perfectly stable}
-    ($\hpSensMidAlpha$ at every $T_{\text{adapt}}$), as expected:
+    ($0.01$ at every $T_{\text{adapt}}$), as expected:
     $\alpha$ is orthogonal to the adaptation horizon.
 
-  \item \textbf{$\gamma$ shifts but stays in the moderate-forgetting region.}
-    The selected values---$\hpSensLoGamma$ ($T{=}250$),
-    $\hpSensMidGamma$ ($T{=}500$), $\hpSensHiGamma$
-    ($T{=}1000$)---span three grid steps
-    ($\Delta\gamma = 0.003$), with derived
-    $n_{\text{eff}}$ of $\hpSensLoNeff$, $\hpSensMidNeff$, and
-    $\hpSensHiNeff$ respectively.
-    The direction is expected: a larger $T_{\text{adapt}}$ derives a
-    larger $n_{\text{eff}}$, and the Pareto criterion compensates
-    with more aggressive forgetting.
+  \item \textbf{$\gamma$ shifts but remains in the
+    moderate-forgetting regime.}
+    The selected values---$0.996$ ($T_{\text{adapt}}{=}250$),
+    $0.997$ ($T_{\text{adapt}}{=}500$), and $0.994$
+    ($T_{\text{adapt}}{=}1000$)---span only three grid steps
+    ($\Delta\gamma = 0.003$), with derived $n_{\text{eff}}$ of
+    $431$, $1\,164$, and $68\,298$, respectively.
+    As $T_{\text{adapt}}$ increases, the derived $n_{\text{eff}}$
+    grows and the Pareto criterion compensates with slightly more
+    aggressive forgetting.
     Crucially, every selected $\gamma$ remains well below the
-    $\gamma{=}1.0$ regime where forgetting is absent, so the
-    qualitative behaviour---moderate discounting with
-    non-stationary resilience---is preserved regardless of
-    the $T_{\text{adapt}}$ anchor.
+    $\gamma{=}1.0$ regime with no forgetting, so the qualitative
+    behaviour---moderate discounting with non-stationary
+    resilience---is preserved for all anchors.
 
   \item \textbf{Both objectives are effectively invariant.}
     Despite the three-step $\gamma$ shift,
-    AUC varies by $<$\,0.25\% ($\hpSensLoAUC$--$\hpSensMidAUC$)
-    and Phase-2 reward spans only
-    $\hpSensMidPTwo$--$\hpSensHiPTwo$, with no monotonic trend.
-    The performance surface near the Pareto knee is flat, so the
-    choice of $T_{\text{adapt}}$ affects the internal
-    parameterisation ($\gamma$, $n_{\text{eff}}$) more than the
-    external routing outcomes.
+    AUC varies by less than $0.25\%$ ($0.9255$--$0.9277$) and
+    Phase-2 reward spans only $0.7933$--$0.7945$, with no monotonic
+    trend; the performance surface near the Pareto knee is flat, so
+    $T_{\text{adapt}}$ mainly affects the internal
+    parameterisation ($\gamma$, $n_{\text{eff}}$) rather than
+    external routing behaviour.
 \end{enumerate}
 %
-A practitioner can therefore set $T_{\text{adapt}}$ to their
-operational requirement: while the internal $\gamma$ and
-$n_{\text{eff}}$ will adjust, the resulting routing performance
-is effectively unchanged.
+A practitioner can therefore set $T_{\text{adapt}}$ directly from an
+operational requirement---the shortest acceptable reaction
+time---knowing that the knee-point procedure will adjust $\gamma$ and
+$n_{\text{eff}}$ automatically while keeping routing performance
+essentially unchanged.
 
 \FloatBarrier
