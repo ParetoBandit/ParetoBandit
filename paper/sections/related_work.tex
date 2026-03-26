@@ -1,24 +1,25 @@
 \section{Related Work}
 \label{sec:related}
+\vspace{4pt}
 
 \begingroup
 \setlength{\parskip}{2pt}
 
 \paragraph{Supervised and static routers.}
-The simplest cost-aware strategy is cascading: FrugalGPT~\cite{chen2023frugalgpt} queries models cheapest-first and stops once a quality threshold is met. Most subsequent work trains a single-dispatch classifier offline, differing mainly in the training signal---preference pairs~\cite{ong2024routellm}, contrastive or graph-structured embeddings~\cite{chen2024routerdc, shirkavand2025cscr, feng2025graphrouter}, or lightweight binary triage~\cite{ding2024hybridllm, pulishetty2025onehead}. OmniRouter~\cite{mei2025omnirouter} goes further by formulating budget-aware routing as a batch-level constrained optimisation, but still over a fixed prompt set.
-These methods perform well when deployment matches training, yet leave three structural opportunities open: promoting cost from a manually tuned weight to a closed-loop constraint; adapting autonomously to price or quality shifts; and incorporating new models without retraining.
+The simplest cost-aware strategy is cascading: FrugalGPT~\cite{chen2023frugalgpt} queries models cheapest-first and stops once a quality threshold is met. Much subsequent work trains a single-dispatch classifier offline, differing mainly in the training signal---preference pairs~\cite{ong2024routellm}, contrastive or graph-structured embeddings~\cite{chen2024routerdc, shirkavand2025cscr, feng2025graphrouter}, or lightweight binary triage~\cite{ding2024hybridllm, pulishetty2025onehead}. OmniRouter~\cite{mei2025omnirouter} goes further by formulating budget-aware routing as a batch-level constrained optimization, but still over a fixed prompt set.
+These methods perform well when deployment matches training, yet leave three structural opportunities open: promoting cost from a manually tuned weight to a closed-loop constraint, adapting autonomously to price or quality shifts, and incorporating new models without retraining.
 ParetoBandit replaces the frozen policy with online learning, enabling adaptation without retraining or downtime.
 
 \vspace{-4pt}
 \paragraph{Adaptive and bandit-based routers.}
 A growing line of work frames routing as online learning, with each system targeting a different axis of the problem.
-On the \emph{cost} axis, PILOT~\cite{panda2025pilot} pairs LinUCB with an online knapsack to enforce cumulative spend limits, and PROTEUS~\cite{bhatti2026proteus} trains a Lagrangian RL policy that minimizes cost subject to an accuracy floor~$\tau$.
-On the \emph{quality and generalization} axis, BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients conditioned on a preference vector, LLM~Bandit~\cite{li2025llmbandit} conditions on model identity features to transfer across unseen models, and xRouter~\cite{qian2025xrouter} fine-tunes a small LM as an RL orchestrator.
-MixLLM~\cite{wang2025mixllm} extends the scope further by jointly modelling downstream latency and evolving model pools.
-Despite these advances, two opportunities remain: providing closed-loop budget pacing over an open-ended stream (PILOT requires a known horizon; BaRP and LLM~Bandit track preference weights, not dollars; PROTEUS freezes its dual variables at deployment), and incorporating bounded-memory adaptation with evaluation under non-stationarity.
-ParetoBandit addresses both gaps with an online dual variable for rate-constrained budget pacing and geometric forgetting for bounded-memory adaptation.
+On the \emph{cost} axis, PILOT~\cite{panda2025pilot} pairs LinUCB with an online multi-choice knapsack to respect cumulative spend limits, and PROTEUS~\cite{bhatti2026proteus} trains a Lagrangian RL policy that minimizes cost subject to an accuracy floor~$\tau$.
+On the \emph{quality and generalization} axis, BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients conditioned on a preference vector, LLM~Bandit~\cite{li2025llmbandit} conditions on model-identity features to transfer across unseen models, and xRouter~\cite{qian2025xrouter} fine-tunes a small LM as a cost-aware RL orchestrator.
+MixLLM~\cite{wang2025mixllm} further extends the scope by jointly modeling downstream latency and evolving model pools in a dynamic contextual-bandit framework.
+Despite these advances, two opportunities remain: providing closed-loop budget pacing over an open-ended stream (PILOT assumes a known horizon; BaRP and LLM~Bandit optimize preference-conditioned rewards rather than explicit dollar constraints; PROTEUS freezes its dual variables at deployment), and incorporating bounded-memory adaptation with explicit evaluation under non-stationarity.
+ParetoBandit addresses both gaps using an online dual variable for rate-constrained budget pacing and geometric forgetting for bounded-memory adaptation.
 
 \vspace{-4pt}
 \paragraph{Constrained and non-stationary bandits.}
-ParetoBandit composes three theoretical streams: Lagrangian relaxation of BwK~\cite{badanidiyuru2013bwk, agrawal2016linear} adapted to a rate constraint with smoothed duals~\cite{balseiro2019learning}; geometric discounting~\cite{garivier2011switching, russac2019weighted} for non-stationarity; and warm-start priors~\cite{oetomo2023warmstart, pan2024cbli}. Each ingredient is well-studied individually; the contribution is their joint integration and empirical evaluation under cost drift, quality degradation, and cold-start onboarding.
+ParetoBandit composes three theoretical streams: Lagrangian relaxation for bandits with knapsacks (BwK)~\cite{badanidiyuru2013bwk, agrawal2016linear}, adapted to a rate-style budget constraint with smoothed dual updates~\cite{balseiro2019learning}; geometric discounting for non-stationary bandits~\cite{garivier2011switching, russac2019weighted}; and warm-start priors for contextual bandits~\cite{oetomo2023warmstart, pan2024cbli}. Each ingredient is well studied in isolation; our contribution is their joint integration and empirical evaluation under cost drift, quality degradation, and cold-start onboarding.
 \par\endgroup
