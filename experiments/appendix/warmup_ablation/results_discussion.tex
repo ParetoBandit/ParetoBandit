@@ -84,6 +84,7 @@ Loose    & Warmup           & $\mathbf{\waLooseWarmupRegret}$\,[\waLooseWarmupRe
 \end{tabular}
 }
 \end{table*}
+\vspace{8pt}
 
 Table~\ref{tab:warmup_ablation_results} reports per-condition
 means, bootstrap CIs, standard deviations, early-learning regret
@@ -161,10 +162,11 @@ analysis (Appendix~\ref{appendix:prior_mismatch}) quantifies
 trade-offs across five quality levels---from well-calibrated through
 domain-restricted to actively inverted priors.
 
+\vspace{-6pt}
 \begin{figure}[t]
 \centering
 \setlength{\abovecaptionskip}{1.5pt}
 \includegraphics[width=\columnwidth]{../experiments/appendix/warmup_ablation/results/warmup_ablation.png}
-\caption{Cold-start ablation on the $K{=}\waK$ stationary portfolio (\waNseeds~seeds, held-out test split, $n{=}\waNPrompts$ prompts). Per-seed cumulative regret distributions compare warmup priors (blue) against Tabula Rasa (orange) across four budget regimes; the gray star marks the Random baseline median (unconstrained only). The Pareto-knee sweep selected the same $\gamma{=}\waGamma$ for both conditions, so the only difference is prior strength. Holm-corrected sign-test results and catastrophic-failure counts are reported in Table~\ref{tab:warmup_ablation_results}. Warmup priors produce tight, unimodal distributions, while the cold-start baseline exhibits heavier tails under budget constraints due to the pacer--exploration interaction.}
+\caption{Per-seed cumulative regret distributions for warmup priors (blue) vs.\ Tabula Rasa (orange) across four budget regimes ($K{=}\waK$, \waNseeds~seeds, held-out test split). Both conditions share $\gamma{=}\waGamma$ but differ in prior strength and exploration rate (deployment-level comparison). Gray star: Random baseline median (unconstrained only). Warmup priors yield tight, unimodal distributions; Tabula Rasa exhibits heavier tails under budget constraints. Statistical tests in Table~\ref{tab:warmup_ablation_results}.}
 \label{fig:warmup_ablation}
 \end{figure}

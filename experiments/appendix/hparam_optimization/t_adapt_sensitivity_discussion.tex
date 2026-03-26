@@ -8,7 +8,7 @@ approximately match the catastrophic-failure phase length.
 To test robustness, we repeat the full Pareto knee-point selection
 for $T_{\text{adapt}} \in \{250, 500, 1000\}$---a $4{\times}$ range
 spanning reaction times from rapid detection to conservative
-adaptation.
+adaptation (Table~\ref{tab:t_adapt_sensitivity}).
 Three observations support robustness.
 %
 \begin{enumerate}[nosep,leftmargin=*]
@@ -46,5 +46,7 @@ operational requirement---the shortest acceptable reaction
 time---knowing that the knee-point procedure will adjust $\gamma$ and
 $n_{\text{eff}}$ automatically while keeping routing performance
 essentially unchanged.
+
+\input{../experiments/appendix/hparam_optimization/table_t_adapt_sensitivity}
 
 \FloatBarrier

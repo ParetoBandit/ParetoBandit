@@ -5,25 +5,22 @@
 
 We profile ParetoBandit's per-request routing overhead to validate the
 computational-efficiency claims in Section~\ref{sec:efficiency}.
-Eight configurations isolate three factors:
-\emph{Sherman-Morrison (SM) vs.\ full inversion} (controlled at the same
-level of abstraction), \emph{production overhead} (locks, budget pacing,
-forgetting), and \emph{PCA dimensionality reduction} ($d{=}26$ vs.\ $d{=}385$).
+Eight configurations isolate three factors: Sherman--Morrison (SM) vs.\
+full inversion (at the same abstraction level), production overhead
+(locks, budget pacing, forgetting), and PCA dimensionality
+($d{=}26$ vs.\ $d{=}385$).
 All configurations use $K{=}3$ arms, synthetic whitened context
-vectors, and 4,500 measured route\,+\,update cycles
-(500-round warmup excluded).
-Context vectors are drawn i.i.d.\ from a standard normal, $\ell_2$-normalised,
-and augmented with a bias term---matching the distribution of real
-PCA-whitened embeddings in dimensionality and unit-norm structure.
-Synthetic vectors are appropriate here because the benchmark targets the
-linear-algebra cost of \texttt{route()} and \texttt{update()}, which depends
-only on the vector dimension $d$ and the number of arms $K$, not on the
-semantic content of the prompt.
-Using synthetic inputs eliminates dataset I/O, embedding-model inference, and
-PCA projection from the timing loop, ensuring the measurements isolate routing
-computation alone.
-The full end-to-end pipeline including embedding and PCA is profiled separately
-in the E2E breakdown below (Table~\ref{tab:e2e_latency_breakdown}).
+vectors, and 4{,}500 measured route\,+\,update cycles (500-round
+warmup excluded).
+Contexts are drawn i.i.d.\ from a standard normal,
+$\ell_2$-normalised, and augmented with a bias term, matching the
+dimensionality and unit-norm structure of real PCA-whitened embeddings.
+Synthetic inputs are appropriate here because \texttt{route()} and
+\texttt{update()} cost depends only on $d$ and $K$, not on semantic
+content; using synthetic vectors removes dataset I/O, encoder
+inference, and PCA from the timing loop.
+The full end-to-end pipeline including embedding and PCA is profiled
+separately below (Table~\ref{tab:e2e_latency_breakdown}).
 
 \begin{table}[h]
 \centering
@@ -61,6 +58,15 @@ Per-Route Inv.\ ($d{=}385$)   & \latPerRouteDFullRouteMedian & \latPerRouteDFull
 }
 \end{table}
 
+Table~\ref{tab:latency} reports per-request latency and throughput for
+all configurations (p50, p95, 4{,}500 cycles).  Bare~SM and
+Cached~Inv.\ share the same \texttt{route()} code path, isolating the
+$O(d^2)$ SM vs.\ $O(d^3)$ full-inversion effect in \texttt{update()}
+only, while ParetoBandit adds production features; Per-Route~Inv.\
+never caches $A^{-1}$ and serves as a worst-case baseline.
+Figure~\ref{fig:latency_benchmark} visualises these comparisons on a
+log scale.
+
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/latency_benchmark/results/latency_benchmark.png}
@@ -75,89 +81,65 @@ ParetoBandit bars quantify the additional cost of production features.}
 
 \paragraph{Algorithmic isolation: SM vs.\ full inversion.}
 Bare~SM is a stripped-down LinUCB that applies only the $O(d^2)$
-Sherman-Morrison rank-1 update, with no production features (no locks,
-pacing, or forgetting).
-Cached~Inv.\ is identical except that its \texttt{update()} calls
-$O(d^3)$ \texttt{np.linalg.inv} instead of the SM correction.
-Both configurations inherit from the same Python base class and execute
-\emph{literally the same} \texttt{route()} method (UCB scoring via
-cached $A_a^{-1}$ and $\hat\theta_a$), so any route-latency difference
-is measurement noise, not code divergence.
+Sherman--Morrison rank-1 update, with no locks, pacing, or forgetting.
+Cached~Inv.\ is identical except that \texttt{update()} calls
+$O(d^3)$ \texttt{np.linalg.inv} instead of the SM correction; both
+inherit from the same Python base class and execute literally the same
+\texttt{route()} method (UCB scoring via cached $A_a^{-1}$ and
+$\hat\theta_a$), so any route-latency difference is measurement noise.
 
-\begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Route latency is identical} between Bare~SM and
-    Cached~Inv.\ at each dimension (same code path).
-  \item \textbf{Update latency} is where SM helps: at $d{=}385$
-    the $O(d^2)$ SM update is substantially faster than the $O(d^3)$
-    full inversion.
-    At $d{=}26$ the gap is smaller because $d^3 = 17{,}576$ is already
-    fast for LAPACK (Linear Algebra PACKage, the Fortran library underlying
-    \texttt{np.linalg.inv}).
-  \item \textbf{Per-Route Inv.} never caches $A_a^{-1}$, paying $K$
-    full $O(d^3)$ inversions on every \texttt{route()} call.
-    No reasonable implementation would use this strategy; it is included
-    only to bound worst-case behaviour.
-\end{itemize}
+Route latency is identical between Bare~SM and Cached~Inv.\ at each
+dimension.
+
+Update latency is where SM helps: at $d{=}385$, the $O(d^2)$ SM
+update is $5.0{\times}$ faster than full inversion
+($346.6\,\mu$s vs.\ $1735.8\,\mu$s, p50); at $d{=}26$, the gap
+narrows to $2.3{\times}$ ($8.1\,\mu$s vs.\ $18.6\,\mu$s) because
+$d^3 = 17{,}576$ is already fast for LAPACK.
+
+Per-Route~Inv.\ never caches $A_a^{-1}$, paying $K$ full inversions
+on every \texttt{route()} call; no reasonable implementation would do
+this, but it bounds worst-case behaviour.
 
 \paragraph{Production overhead.}
-ParetoBandit is the full production router.  It uses the same SM update
-as Bare~SM but adds a threading lock around \texttt{select\_arm()} and
-\texttt{update()}, budget-pacing logic, forgetting-factor decay,
-staleness tracking, and constraint filtering.
-Comparing ParetoBandit against Bare~SM therefore quantifies the cost of
-these production features separately from the algorithmic comparison.
+ParetoBandit is the full production router.  It uses the same SM
+update as Bare~SM but adds a threading lock around
+\texttt{select\_arm()} and \texttt{update()}, budget pacing,
+forgetting-factor decay, staleness tracking, and constraint filtering.
+Comparing ParetoBandit with Bare~SM isolates the cost of these
+production features.
 
 \paragraph{Key findings.}
-\begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Production overhead is negligible.}
-    At the production dimension ($d{=}26$), ParetoBandit completes
-    a full route\,+\,update cycle in $\latPBdTwentySixTotalMedian\,\mu$s (p50), adding
-    $<$\,0.05\% latency to even the fastest LLM call (${\sim}100$\,ms
-    time-to-first-token for Llama-3.1-8B).
-    The router sustains ${\sim}\ppPBThroughput$\,req/s on a single CPU
-    core---sufficient for all but the most extreme throughput tiers.
-  \item \textbf{Sherman-Morrison's benefit is in update cost, not route
-    latency.}
-    Bare~SM and Cached~Inv.\ have identical route latency (same code).
-    The improvement appears in the update path: at $d{=}385$,
-    the $O(d^2)$ SM update is $\latSpeedupAlgoSmVsCachedDThreeEightFiveUpdate\times$ faster than the
-    $O(d^3)$ full inversion ($\latSMdFullUpdateMedian\,\mu$s vs.\ $\latCachedDFullUpdateMedian\,\mu$s, p50).
-    At $d{=}26$ the gap narrows to $\latSpeedupAlgoSmVsCachedDTwoSixUpdate\times$ ($\latSMdTwentySixUpdateMedian\,\mu$s vs.\
-    $\latCachedDTwentySixUpdateMedian\,\mu$s) because $d^3 = 17{,}576$ is already fast for LAPACK.
-  \item \textbf{Production features add bounded overhead.}
-    ParetoBandit's route is $\latSpeedupProdOverheadDTwoSixRoute\times$ and update $\latSpeedupProdOverheadDTwoSixUpdate\times$ slower
-    than Bare~SM at $d{=}26$, due to locking, pacing, and decay
-    bookkeeping.
-    At $d{=}385$ this ratio shrinks ($\latSpeedupProdOverheadDThreeEightFiveRoute\times$ route, $\latSpeedupProdOverheadDThreeEightFiveUpdate\times$
-    update) because the linear-algebra cost dominates the fixed
-    production overhead.
-  \item \textbf{PCA gives an additional ${\sim}\latSpeedupPcaVsRawProdThroughput\times$ throughput gain.}
-    Within the production configurations, reducing $d$ from
-    $385$ to $26$ improves throughput by ${\sim}\latSpeedupPcaVsRawProdThroughput\times$
-    ($\latPBdTwentySixThroughput$ vs.\ $\latPBdFullThroughput$\,req/s), consistent
-    with $O(d^2)$ scaling compressed by fixed overhead constants.
-  \item \textbf{No GPU required.}
-    ParetoBandit's entire routing pipeline---embedding, PCA, and arm
-    selection---runs on a single CPU core in $\latEteTotalMedianMs$\,ms
-    (p50), eliminating the need for GPU infrastructure at the routing
-    layer.
-    For context, PROTEUS~\cite{bhatti2026proteus}---the only peer-reviewed
-    quality-cost router to report E2E latency---achieves $8.7$\,ms (p50)
-    on an A100 GPU.
-    ParetoBandit matches this on CPU, with the routing decision itself
-    ($\latPBdTwentySixRouteMedian\,\mu$s) ${\sim}390\times$ faster than
-    PROTEUS's per-query forward pass.
-    Among other routers we examined---LLM
-    Bandit~\cite{li2025llmbandit}, BaRP~\cite{wang2025barp},
-    MixLLM~\cite{wang2025mixllm}, RouteLLM~\cite{ong2024routellm},
-    HybridLLM~\cite{ding2024hybridllm}, OmniRouter~\cite{mei2025omnirouter},
-    Lookahead~\cite{sun2025lookahead}---none reports per-decision latency.
-\end{enumerate}
 
-\paragraph{End-to-end critical path.}
+\textbf{Production overhead is negligible.}
+At the production dimension ($d{=}26$), ParetoBandit completes a full
+route\,+\,update cycle in $43.0\,\mu$s (p50), adding $<$\,0.05\%
+latency even to the fastest LLM call (${\sim}100$\,ms
+time-to-first-token for Llama-3.1-8B).
+The router sustains ${\approx}22{,}000$\,req/s on a single CPU
+core, sufficient for all but the most extreme throughput tiers.
+
+\textbf{SM's benefit is in update cost, not routing.}
+Bare~SM and Cached~Inv.\ have identical route latency; the improvement
+appears in update: at $d{=}385$, SM is $5.0{\times}$ faster
+($346.6\,\mu$s vs.\ $1735.8\,\mu$s, p50), and $2.3{\times}$ faster
+at $d{=}26$.
+
+\textbf{Production features add bounded overhead.}
+At $d{=}26$, ParetoBandit's route is $3.9{\times}$ and update
+$2.5{\times}$ slower than Bare~SM due to locking and pacing; at
+$d{=}385$, these ratios shrink ($1.7{\times}$ route,
+$1.4{\times}$ update) because linear algebra dominates fixed overhead.
+
+\textbf{PCA yields a ${\approx}14.8{\times}$ throughput gain.}
+Within production configs, reducing $d$ from 385 to 26 improves
+throughput from 1{,}487 to 21{,}983\,req/s (${\approx}14.8{\times}$),
+consistent with $O(d^2)$ scaling plus fixed costs.
+
+\paragraph{End-to-end latency and comparisons.}
 Table~\ref{tab:e2e_latency_breakdown} breaks down ParetoBandit's
-production pipeline (MiniLM-L6-v2 embedding + PCA + \texttt{route()})
-on CPU (Apple M-series arm64, single-threaded, 200 iterations,
+production CPU pipeline (MiniLM-L6-v2 embedding + PCA +
+\texttt{route()}) on a single Apple M-series core (200 iterations,
 50-iteration warmup).
 
 \begin{table}[t]
@@ -185,30 +167,42 @@ PCA + whitening            & $\latEtePcaMedianMs$\,ms & $\latEtePcaPNineFiveMs$\
 \end{table}
 
 \noindent
-The embedding step dominates at $\latEteEmbedPctOfTotal\%$ of total time;
-the routing decision contributes $<$\,1\%.
-\emph{The routing algorithm is not the bottleneck}---prompt embedding is,
-and every contextual router (RouteLLM, CSCR, LLM Bandit) faces the same
-floor.
-Practitioner-reported latencies confirm this:
-NadirClaw~\cite{nadirclaw2026} reports $8$--$12$\,ms E2E, and
-Orq.ai~\cite{orqai2026} reports ${<}\,40$\,ms.
-With a GPU-hosted embedding model (${\sim}0.3$--$0.5$\,ms), the total
-E2E path would drop to ${\sim}0.5$--$1$\,ms.
+The embedding step dominates at $97.9\%$ of total time ($9.6$\,ms
+p50), PCA\,+\,whitening adds $0.18$\,ms, and \texttt{route()}
+contributes $0.080$\,ms ($0.8\%$ of total), for a $9.8$\,ms
+end-to-end latency (p50).
+The routing algorithm is not the bottleneck; prompt embedding is, and
+every contextual router (e.g., RouteLLM, CSCR, LLM Bandit) faces the
+same floor.
 
-\paragraph{Other reference points.}
+Among published routers, PROTEUS~\cite{bhatti2026proteus} reports
+$8.7$\,ms p50 per-query latency on an A100 GPU, dominated by a
+DeBERTa-v3-small encoder forward pass.
+ParetoBandit matches this class of latency on CPU only ($9.8$\,ms),
+with the routing decision itself ($22.5\,\mu$s at $d{=}26$)
+${\approx}390{\times}$ faster than PROTEUS's per-query forward pass.
+Other routing systems---LLM
+Bandit~\cite{li2025llmbandit}, BaRP~\cite{wang2025barp},
+MixLLM~\cite{wang2025mixllm}, RouteLLM~\cite{ong2024routellm},
+HybridLLM~\cite{ding2024hybridllm},
+OmniRouter~\cite{mei2025omnirouter},
+Lookahead~\cite{sun2025lookahead}---do not report per-decision
+latency.
+
 The vLLM Semantic Router~\cite{liu2026vllmsr}, a system-level
-domain/safety classifier rather than a quality-cost router, reports
-$9$--$22$\,ms on an MI300X GPU.
-CSCR~\cite{shirkavand2025cscr} claims ``microsecond'' $k$-NN lookups but
-excludes the encoder forward pass.
+domain/safety classifier, reports $9$--$22$\,ms routing on MI300X GPUs
+depending on signal type, with embedding-based signals dominating
+latency.
+CSCR~\cite{shirkavand2025cscr} claims ``microsecond'' $k$-NN lookups
+but excludes the encoder forward pass.
 Infrastructure-layer proxies such as Portkey
 Gateway~\cite{portkey2025} (${<}\,1$\,ms) and Kong AI
-Gateway~\cite{konghq2025benchmark} ($24$\,ms p95) provide a lower bound
-on non-routing overhead.
-Figure~\ref{fig:latency_spectrum_e2e} places these systems on a common
-log-scale axis alongside typical LLM inference latencies, illustrating
-that routing overhead is negligible relative to model serving time.
+Gateway~\cite{konghq2025benchmark} ($24$\,ms p95) provide a lower
+bound on non-routing overhead.
+Figure~\ref{fig:latency_spectrum_e2e} places these systems and
+ParetoBandit on a common log-scale alongside typical LLM inference
+latencies, showing that all routing overheads are orders of magnitude
+below model serving time.
 
 \begin{figure}[t]
 \centering
@@ -225,10 +219,9 @@ All routing latencies are orders of magnitude below LLM inference
 
 \paragraph{Routing overhead relative to LLM inference.}
 Table~\ref{tab:overhead_vs_inference} contextualises ParetoBandit's
-$\latEteTotalMedianMs$\,ms E2E overhead against the inference latency
-of the paper's own $K{=}4$ model portfolio, measured via
-\latInfTrials{} streaming API calls per configuration through
-OpenRouter.
+$9.8$\,ms E2E overhead against the inference latency of the paper's
+own $K{=}4$ model portfolio, measured via 20 streaming API calls per
+configuration through OpenRouter.
 
 \begin{table}[h]
 \centering
@@ -272,9 +265,8 @@ Gemini 2.5 Pro      & long   & $\latInfGemProLongTtft$    & $\latInfGemProLongTo
 
 \noindent
 Even against the fastest model and shortest prompt (Gemini 2.5 Flash,
-$\latInfGemFlashShortTotal$\,ms total latency), the full routing pipeline
-adds ${\sim}\latInfGemFlashShortRoutingPct\%$ overhead.
-For the slowest model (Gemini 2.5 Pro, long prompt,
-$\latInfGemProLongTotal$\,ms), routing contributes just
-$\latInfGemProLongRoutingPct\%$.
-\textbf{The routing decision is invisible to the end user.}
+$2{,}574$\,ms total latency), the full routing pipeline adds
+${\approx}0.38\%$ overhead; for the slowest model (Gemini 2.5 Pro,
+long prompt, $8{,}638$\,ms), routing contributes
+${\approx}0.11\%$.
+The routing decision is effectively invisible to the end user.

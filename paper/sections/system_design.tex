@@ -139,7 +139,7 @@ where $A_a^{\mathrm{off}}[d, d]$ is the total precision mass in the bias directi
 \end{align}
 The $\lambda_0 \hat\theta_a^{\mathrm{off}}$ term in $b_a$ prevents $\lambda_0 I$ regularization from shrinking the posterior mean toward zero, ensuring $A_a^{-1} b_a \approx \hat\theta_a^{\mathrm{off}}$ at the desired confidence level. For models absent from the offline data, a heuristic prior places $n_\mathit{eff}$ pseudo-observations at isotropic uncertainty with a bias-only reward prediction.
 
-Geometric forgetting ensures priors decay naturally (Section~\ref{sec:adaptive_learning}), so steady-state quality is determined by online evidence regardless of initialization. Priors are beneficial but not necessary---cold-start convergence is demonstrated in Section~\ref{sec:eval_onboarding} and ablated in Appendices~\ref{sec:warmup_ablation}--\ref{appendix:prior_mismatch}.
+Geometric forgetting ensures priors decay naturally (Section~\ref{sec:adaptive_learning}), so steady-state quality is determined by online evidence regardless of initialization. Priors are beneficial in deployment comparisons but not necessary---cold-start convergence is demonstrated in Section~\ref{sec:eval_onboarding} and ablated in Appendices~\ref{sec:warmup_ablation}--\ref{appendix:prior_mismatch}.
 
 \subsection{Computational Efficiency}
 \label{sec:efficiency}

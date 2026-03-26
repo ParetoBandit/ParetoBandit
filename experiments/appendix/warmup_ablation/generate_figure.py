@@ -164,7 +164,7 @@ def main() -> None:
         fontsize=17, fontweight="bold",
     )
     ax.legend(
-        fontsize=13,
+        fontsize=16,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.30),
         ncol=2,

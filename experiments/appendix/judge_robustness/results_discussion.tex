@@ -7,35 +7,29 @@
 All main-paper experiments use DeepSeek-R1 as the sole evaluator.
 A natural concern is whether the paper's conclusions---the relative
 ordering of methods and the qualitative behaviour of the router---are
-artefacts of this particular judge.  We address this with a structured
-three-judge validation designed to answer the reviewer's question
-directly: \emph{would the paper's conclusions change with a different
-evaluator?}
+artefacts of this particular judge.  We address this with a
+three-judge validation aimed at a single question: would the paper's
+conclusions change with a different evaluator?
 
 \subsection{Setup}
 
-We draw a stratified random sample of $n = 2{,}000$ prompts from the full
-12{,}000-prompt benchmark, preserving proportional representation of all
-source benchmarks.  Each prompt has existing responses
-from all three candidate models (Llama-3.1-8B, Mistral-Large-2512,
-Gemini-2.5-Pro), yielding $6{,}000$ (prompt, model) evaluation pairs.  We
-re-evaluate the \emph{same responses}---no new model outputs are
-generated---with two supplementary judges chosen for provider diversity:
+We draw a stratified random sample of $n = 2{,}000$ prompts from the
+12{,}000-prompt benchmark, preserving proportional representation of
+all source benchmarks.  Each prompt has existing responses from all
+three candidate models (Llama-3.1-8B, Mistral-Large-2512,
+Gemini-2.5-Pro), yielding $6{,}000$ (prompt, model) evaluation pairs.
+We re-evaluate these fixed responses---no new model outputs---with two
+supplementary judges chosen for provider diversity: GPT-4.1-mini
+(OpenAI) and Claude-3.7-Sonnet (Anthropic).
 
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{GPT-4.1-mini} (OpenAI),
-    \item \textbf{Claude-3.7-Sonnet} (Anthropic).
-\end{itemize}
-
-\noindent All three judges receive the same base structured
-chain-of-thought (CoT) evaluation prompt (Figure~\ref{fig:judge_prompt});
-DeepSeek-R1 additionally receives a brevity instruction to control its
-verbose chain-of-thought (see Figure~\ref{fig:judge_prompt} caption).
-The composite reward is the weighted average
-$r = 0.4\,s_{\text{reason}} + 0.3\,s_{\text{instr}} + 0.3\,s_{\text{comm}}$.
-The judge panel spans three independent providers (DeepSeek, OpenAI,
-Anthropic), none of which overlaps with the model providers being routed
-(Meta, Mistral, Google).
+All three judges receive the same structured chain-of-thought
+evaluation prompt (Figure~\ref{fig:judge_prompt}); DeepSeek-R1
+additionally receives a brevity instruction to limit its CoT
+verbosity.  The composite reward is a weighted average
+$r = 0.4\,s_{\text{reason}} + 0.3\,s_{\text{instr}} +
+0.3\,s_{\text{comm}}$.  The judge panel spans three independent
+providers (DeepSeek, OpenAI, Anthropic), none of which overlaps with
+the routed model providers (Meta, Mistral, Google).
 
 \begin{figure*}[t]
 \centering
@@ -113,9 +107,9 @@ Temperature is set to 0 for all judges.}
 \subsection{Population-Level Agreement}
 
 The bandit's converged policy depends on the expected reward ordering
-$\mathbb{E}[r(x, a)]$ across arms---not on individual per-prompt scores.
-If the expected ordering is preserved across judges, the converged policy
-is the same regardless of evaluator.
+$\mathbb{E}[r(x, a)]$ across arms, not on individual prompt scores.
+If this ordering is preserved across judges, the converged policy is
+invariant to evaluator choice.
 
 \begin{table}[h]
 \centering
@@ -141,34 +135,32 @@ Claude-3.7-Sonnet & \jrClaudeGeminiMean{} & \jrClaudeMistralMean{} & \jrClaudeLl
 
 Table~\ref{tab:expected_ordering} shows that all three judges rank
 the models identically: Gemini-Pro $>$ Mistral-Large $>$ Llama-8B.
-Every pairwise expected reward difference is consistent in sign across
-judges, with all nine Bonferroni-corrected bootstrap CIs excluding zero
-(narrowest lower bound: \jrOrderingWorstCILo; 9 comparisons,
-$B = 10{,}000$).  This invariance
-extends beyond the marginal ordering: gap-conditioned Kendall's~$W$
-(Table~\ref{tab:routing_diagnostics}) reaches 0.71 on prompts with large
-inter-model gaps, providing evidence that the conditional ordering
-$\mathbb{E}[r(x,a) \mid x]$ is also largely preserved in the regions
-where routing decisions have the greatest impact.
+Every pairwise expected-reward gap has the same sign, with all nine
+Bonferroni-corrected bootstrap CIs excluding zero (narrowest lower
+bound 0.0046; 9 comparisons, $B = 10{,}000$).
+Gap-conditioned Kendall's~$W$ (Table~\ref{tab:routing_diagnostics})
+reaches 0.71 on prompts with large inter-model gaps, indicating that
+the conditional ordering $\mathbb{E}[r(x,a) \mid x]$ is also largely
+preserved where routing decisions matter most.
+
 Because all main-paper comparisons are within-judge (same R1 rewards,
-same R1 oracle), judge choice can affect the \emph{magnitude} of regret
-differences but not their sign.  R1's oracle lift
-(\jrROneOracleLift{} per step) is the largest among the three judges
-(\jrGPTOracleLift--\jrClaudeOracleLift{} for the supplementary judges),
-so our main-paper effect sizes represent the most favourable case for
-adaptive routing; all qualitative conclusions hold under every judge
-tested.
+same R1 oracle), judge choice can change the magnitude of regret
+differences but not their sign.  R1's oracle lift (0.031 per step) is
+the largest among the three judges (0.016--0.020 for the supplementary
+judges), so main-paper effect sizes correspond to the most favourable
+case for adaptive routing; all qualitative conclusions hold under every
+judge tested.
 
 \paragraph{Cross-judge routing regret.}
 Even where per-prompt routing decisions differ, the practical cost is
-small.  Following R1's oracle policy---selecting the model that R1 scores
-highest on each prompt---and evaluating by the \emph{other} judges'
-scores yields ${\geq}$\jrROneMinCapture\% of their own oracle reward
+small.  Following R1's oracle policy and evaluating with the other
+judges' scores yields ${\geq}97.4\%$ of their own oracle reward
 (Table~\ref{tab:cross_regret}).  The reverse is worse: following
-GPT-4.1-mini's or Claude's oracle and evaluating by R1 captures only
-\jrOtherOnROneMinCapture\%.  The asymmetry is partly mechanical: judges
-with smaller inter-model gaps inflate capture fractions for \emph{any}
-routing policy, while R1's larger gaps penalise misrouting more heavily.
+GPT-4.1-mini's or Claude's oracle and evaluating with R1 captures only
+$95.8\%$ of R1's oracle reward.  The asymmetry is partly mechanical:
+judges with smaller inter-model gaps inflate capture fractions for any
+routing policy, while R1's larger gaps penalise misrouting more
+heavily.
 
 \begin{table}[h]
 \centering
@@ -195,27 +187,29 @@ Claude-3.7-Sonnet
 \end{tabular}
 }
 \end{table}
+\vspace{6pt}
 
-\paragraph{Why not a panel average?}
-A natural alternative is to average scores across the three-judge
-panel~\cite{zheng2023judging}.  Panel averaging compresses the
-routing margin from \jrROneMargin{} (R1 alone) to \jrPanelMargin{}
-(\jrMarginCompressionPct\% compression), halving the fraction of
-actionable prompts (31\% vs.\ 17\% at a 0.05 threshold).  Z-score
-calibration~\cite{hedges1985statistical} and multi-judge aggregation
-methods (PoLL~\cite{verga2024poll}, CARE~\cite{zhao2025care}) recovered
-fewer than 3\,pp of this compression, confirming genuine inter-judge
-disagreement rather than scale mismatch.  R1 alone provides the largest
-margins and the lowest per-evaluation cost.
+Panel averaging~\cite{zheng2023judging} compresses routing margins:
+averaging the three judges shrinks the mean inter-model gap from
+$0.0485$ (R1 alone) to $0.0338$ (30\% compression), halving the
+fraction of actionable prompts (31\% vs.\ 17\% at a 0.05 threshold).
+Z-score calibration~\cite{hedges1985statistical} and multi-judge
+aggregation methods such as PoLL~\cite{verga2024poll} and
+CARE~\cite{zhao2025care} recover $< 3$ percentage points of this
+compression, indicating genuine inter-judge disagreement rather than
+pure scale mismatch.  R1 alone provides the largest margins and the
+lowest per-evaluation cost.
 
 \subsection{Per-Prompt Agreement}
 
 Table~\ref{tab:judge_agreement} reports per-response agreement using
 distribution-independent metrics robust to ceiling-compressed rewards
-(most scores in $[0.8, 1.0]$).  Moderate per-response rank agreement
-(Spearman \jrClaudeSpearman--\jrGPTSpearman) is expected given
-LLM-as-judge noise; the key finding is that this noise preserves
-population-level ordering and routing.
+(most scores in $[0.8, 1.0]$).  Spearman's $\rho$ (0.633--0.658) and
+Kendall's $\tau_b$ (0.528--0.547) indicate moderate rank agreement;
+mean absolute deviation is ${\approx}0.075$ and Bland--Altman limits
+of agreement remain within roughly $\pm 0.3$.  This level of
+LLM-as-judge noise is expected, and the key point is that it preserves
+population-level ordering and routing policies.
 
 \begin{table}[h]
 \centering
@@ -240,10 +234,16 @@ Mean bias (judge $-$ R1)     & $+\jrGPTBias$ & $\jrClaudeBias$ \\
 \end{table}
 
 \paragraph{Gap-conditioned concordance.}
-Per-prompt best-model agreement is ${\sim}50\%$, but judges mainly
-disagree on prompts where all models score within 0.05 of each other,
-so choosing the ``wrong'' model costs negligible reward
-(Table~\ref{tab:routing_diagnostics}).
+Per-prompt best-model agreement with R1 is ${\sim}50\%$ overall, but
+disagreements cluster on prompts where all models are nearly tied.
+Table~\ref{tab:routing_diagnostics} shows that when R1's inter-model
+gap is $< 0.05$ (30\% of prompts), Kendall's $W = 0.17$ and
+best-model agreement is 48--58\%; when the gap is $\geq 0.20$ (37\%
+of prompts), $W$ rises to 0.57--0.71 and best-model agreement to
+50--58\%.  In the low-gap region, choosing the ``wrong'' model costs
+at most 0.05 reward---less than per-response judge noise
+(MAD ${\approx} 0.075$)---so disagreement is concentrated where it is
+cheap.
 
 \begin{table}[h]
 \centering
@@ -277,79 +277,53 @@ $[0.30, 1.00)$ & 552  & 0.71 & 56.3\% & 58.0\% \\
 }
 \end{table}
 
-Kendall's~$W$ increases monotonically with gap size
-(0.17\,$\to$\,0.71): where routing matters most (gap $\geq 0.20$,
-37\% of prompts), all three judges largely agree ($W = 0.57$--$0.71$,
-best-model agreement 50--58\%).  Where they disagree most
-(gap $< 0.05$, 30\% of prompts), the models are near-identical in
-quality, so routing the ``wrong'' model costs at most 0.05
-reward---less than per-response judge noise
-(MAD ${\approx}$ 0.075).  In short, disagreement is concentrated
-precisely where it is cheap.
-
 \subsection{End-to-End Regret Under Alternative Judges}
 \label{sec:cross_judge_regret}
 
-We now test whether the bandit's \emph{learning dynamics}---convergence
-shape, sample complexity, and relative method ordering---are preserved
-when the reward signal comes from a different judge entirely, by
-re-running the bandit simulation under GPT-4.1-mini and
-Claude-3.7-Sonnet scores.
+We now test whether the bandit's learning dynamics---convergence shape,
+sample complexity, and relative method ordering---are preserved when
+the reward signal comes from a different judge, by re-running the
+bandit simulation under GPT-4.1-mini and Claude-3.7-Sonnet.
 
 \paragraph{Protocol.}
 We split the 2{,}000 judge-robustness prompts into a stratified
-$\frac{1}{3}$~validation / $\frac{2}{3}$~test partition (672 / 1{,}328
-prompts).  The bandit performs online learning during the validation burn-in
-(no metrics), then cumulative regret is evaluated on the held-out test
-split.  Crucially, we use \textbf{cold-start} (Tabula~Rasa) only---no
-warmup priors---to eliminate any data-leakage concern between the
-judge-robustness subset and the training set used for prior estimation.
-This is deliberately the harder test: if the bandit converges from a cold
-start, warm-start robustness follows.  We compare Tabula~Rasa against a
-Random baseline (uniform $1/K$) under four budget regimes (unconstrained,
-tight, moderate, loose), with \jrNseeds{} seeds per condition.
+$\frac{1}{3}$~validation / $\frac{2}{3}$~test partition
+(672 / 1{,}328 prompts).  The bandit learns online during the
+validation burn-in (no metrics), then cumulative regret is evaluated
+on the held-out test split.  To avoid any data-leakage concern, we use
+cold start (Tabula Rasa) only---no warmup priors---so this is the
+harder test; if the bandit converges from cold start, warm-start
+robustness follows.  We compare Tabula Rasa against a Random baseline
+(uniform $1/K$) under four budget regimes (unconstrained, tight,
+moderate, loose), with 20 seeds per condition.
 All three judges share the same hyperparameters
-($\alpha = \jrTRAlpha$, $\gamma = \jrTRGamma$), tuned originally on R1;
-reusing them for the supplementary judges is a deliberate choice---if
-anything, judge-specific tuning would further improve their regret,
-making this test conservative.
+($\alpha = 0.05$, $\gamma = 0.997$), tuned originally on R1;
+judge-specific tuning would only improve the supplementary judges'
+results, so this choice is conservative.
 
-\paragraph{The bandit converges under all three judges.}
-Figure~\ref{fig:cross_judge_regret} shows per-step cumulative regret under
-unconstrained routing.  Under R1, Tabula~Rasa achieves a final cumulative
-regret of $\jrROneUncTRRegret$ [$\jrROneUncTRRegretCILo$, $\jrROneUncTRRegretCIHi$]
-(mean [95\% bootstrap CI]), compared to
-$\jrROneUncRandRegret$ [$\jrROneUncRandRegretCILo$, $\jrROneUncRandRegretCIHi$]
-for Random---a \textbf{\jrROneUncReductionPct\% reduction}.  Under
-GPT-4.1-mini, the reduction is \textbf{\jrGPTUncReductionPct\%}
-($\jrGPTUncTRRegret$ vs.\ $\jrGPTUncRandRegret$); under Claude, it is
-\textbf{\jrClaudeUncReductionPct\%}
-($\jrClaudeUncTRRegret$ vs.\ $\jrClaudeUncRandRegret$).
-The similar reduction percentages
-(\jrROneUncReductionPct\%/\jrGPTUncReductionPct\%/\jrClaudeUncReductionPct\%)
-demonstrate that the bandit's learning effectiveness is preserved across
-all three judges.  All curves are sublinear with decreasing slope,
-consistent with the bandit progressively learning the reward structure
-regardless of evaluator.
+\paragraph{Results.}
+The bandit converges under all three judges.  Under unconstrained
+routing (Figure~\ref{fig:cross_judge_regret}), Tabula Rasa achieves
+final cumulative regret of $51.0$\,[47.7, 54.4] vs.\
+$106.2$\,[104.6, 107.8] for Random under R1 (52\% reduction);
+$32.8$ vs.\ $71.9$ under GPT-4.1-mini (54\% reduction); and
+$37.6$ vs.\ $97.6$ under Claude (61\% reduction).  All curves are
+sublinear with decreasing slope, consistent with progressive learning
+of the reward structure regardless of evaluator.
 
-\paragraph{Effect sizes are compressed; learning dynamics are not.}
-Absolute regret scales with inter-model margins: GPT-4.1-mini's Random
-baseline (\jrGPTUncRandRegret) is \jrRandRegretCompressionPct\% lower
-than R1's (\jrROneUncRandRegret), with Claude intermediate
-(\jrClaudeUncRandRegret).  The supplementary/R1 regret ratios are
-stable across budget regimes (GPT:
-\jrUncGPTROneRatio\,[$\jrUncGPTROneRatioCILo$, $\jrUncGPTROneRatioCIHi$]
-to \jrTightGPTROneRatio\,[$\jrTightGPTROneRatioCILo$, $\jrTightGPTROneRatioCIHi$];
-Claude: \jrUncClaudeROneRatio\,[$\jrUncClaudeROneRatioCILo$,
-$\jrUncClaudeROneRatioCIHi$] to \jrTightClaudeROneRatio\,[$\jrTightClaudeROneRatioCILo$, $\jrTightClaudeROneRatioCIHi$];
-Figure~\ref{fig:cross_judge_regret}), confirming
-proportional compression rather than a structural change in learning
-dynamics.  Tabula~Rasa CIs are wider than the Random baseline's, reflecting
-higher per-seed variance from cold-start exploration; despite this,
-the paired difference (Random~$-$~Tabula~Rasa) is significant for
-all three judges.  Under budget constraints, the qualitative
-pattern is identical: tighter budgets force more regret,
-and loose-budget regret approaches the unconstrained level.
+Absolute regret scales with inter-model margins: GPT-4.1-mini's
+Random baseline ($71.9$) is 32\% lower than R1's ($106.2$), with
+Claude intermediate at $97.6$.  Supplementary/R1 regret ratios are
+stable across budget regimes
+(GPT: $0.64$\,[0.60, 0.68] to $0.89$\,[0.82, 0.97];
+Claude: $0.74$\,[0.70, 0.79] to $0.92$\,[0.87, 1.00]),
+confirming proportional compression rather than a structural change in
+learning dynamics.  Tabula Rasa confidence intervals are wider than
+Random's, reflecting higher run-to-run variance from cold-start
+exploration, but the paired difference (Random $-$ Tabula Rasa) is
+significant for all three judges.  Under budget constraints, the
+qualitative pattern is identical: tighter budgets increase regret, and
+loose-budget regret approaches the unconstrained level.
 
 \begin{figure*}[t]
     \centering
@@ -372,16 +346,15 @@ and loose-budget regret approaches the unconstrained level.
 
 \subsection{Summary}
 
-Three independent judges unanimously agree on the expected reward
-ordering (Table~\ref{tab:expected_ordering}), R1's oracle captures
-${\geq}$\jrROneMinCapture\% of other judges' oracle reward
+Across three independent judges, the expected reward ordering is
+identical (Gemini-Pro $>$ Mistral-Large $>$ Llama-8B;
+Table~\ref{tab:expected_ordering}), R1's oracle captures
+${\geq}97.4\%$ of other judges' oracle reward
 (Table~\ref{tab:cross_regret}), and the bandit's learning dynamics
-replicate under both supplementary judges
-(Figure~\ref{fig:cross_judge_regret}), with regret reductions of
-\jrROneUncReductionPct\%/\jrGPTUncReductionPct\%/\jrClaudeUncReductionPct\%
-(R1/GPT/Claude).
-R1 is therefore well-justified as the sole evaluator: it provides the
-largest inter-model margins and the lowest per-evaluation cost.  Correlating LLM-as-judge scores with human
-ground-truth preferences remains an open direction orthogonal to the
-consistency validated here.
-
+replicate under both supplementary judges, with regret reductions of
+52\%/54\%/61\% (R1/GPT/Claude) under unconstrained routing
+(Figure~\ref{fig:cross_judge_regret}).  R1 is therefore well-justified
+as the sole evaluator: it provides the largest inter-model margins and
+the lowest per-evaluation cost.  Correlating LLM-as-judge scores with
+human preferences remains important future work, but it is orthogonal
+to the judge-consistency and routing-robustness validated here.

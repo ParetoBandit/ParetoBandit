@@ -12,10 +12,10 @@ In practice, however, prior quality degrades after deployment:
 the prompt distribution shifts as users adopt new workflows,
 model providers silently update weights, and the roster itself
 changes as models are added or retired.
-A practitioner deploying warmup priors needs to know
-\emph{how wrong} the prior can be before cold start becomes the
-safer option, and whether a conservative prior strength can
-limit the damage when calibration quality is uncertain.
+A practitioner deploying warmup priors needs to know how wrong the
+prior can be before cold start becomes the safer option, and whether
+a conservative prior strength can limit the damage when calibration
+quality is uncertain.
 
 \paragraph{Why not re-optimise?}
 The production hyperparameters (Appendix~\ref{sec:hparam_sweep})
@@ -40,18 +40,19 @@ We construct five prior-quality levels forming a mismatch gradient,
 ordered from ideal to adversarial:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Well-calibrated:} priors from the full training set
-    ($n{=}\prmWellCalNPrompts$)---the shipped default.
-  \item \textbf{Random-1680:} a random subsample of \prmRandNPrompts{} training
+    ($n{=}8{,}373$)---the shipped default.
+  \item \textbf{Random-1680:} a random subsample of 1{,}680 training
     prompts, matching the GSM8K-only count while preserving the full
-    distribution.  This is a \emph{sample-size control}: any gap
-    between Random-1680 and Well-calibrated isolates covariance
-    estimation noise from domain effects.
-  \item \textbf{MMLU-only:} priors from the \prmMMLUNPrompts{} MMLU prompts only.
-    The prior preserves the correct model ranking (Gemini~$>$~Mistral~$\gg$~Llama)
-    but with knowledge-domain-specific magnitudes.
-  \item \textbf{GSM8K-only:} priors from the \prmGSMNPrompts{} GSM8K (math) prompts only.
-    All models score ${\sim}\prmGSMMinBiasPred{+}$ on math, so the prior encodes
-    near-zero arm differentiation.
+    distribution.  This is a sample-size control: any gap between
+    Random-1680 and Well-calibrated isolates covariance-estimation
+    noise from domain effects.
+  \item \textbf{MMLU-only:} priors from the 1{,}855 MMLU prompts
+    only.  The prior preserves the correct model ranking
+    (Gemini~$>$~Mistral~$\gg$~Llama) but with
+    knowledge-domain-specific magnitudes.
+  \item \textbf{GSM8K-only:} priors from the 1{,}680 GSM8K (math)
+    prompts only.  All models score ${\sim}0.86{+}$ on math, so the
+    prior encodes near-zero arm differentiation.
   \item \textbf{Inverted:} priors from the full training set with
     Llama and Gemini rewards swapped, so the prior believes the
     cheapest model is best and vice versa.
@@ -65,7 +66,7 @@ inverts the relative model ranking (e.g., because a provider
 silently degrades a model that was previously the best).
 
 \paragraph{Design: $n_\mathit{eff}$ as a safety knob.}
-Each quality level is tested at \prmNNeff{} $n_\mathit{eff}$ values
+Each quality level is tested at three $n_\mathit{eff}$ values
 (10, 100, 1000), spanning three orders of magnitude.
 These values bracket a key trade-off.
 Low $n_\mathit{eff}$ (${\approx}10$) treats the prior as a gentle
@@ -76,28 +77,33 @@ High $n_\mathit{eff}$ (${\approx}1{,}000$) trusts the prior for
 hundreds of effective observations: beneficial when the prior is
 correct, but potentially harmful when it confidently encodes the
 wrong ranking.
-Together with the quality gradient, the
-$\prmNQualities \times \prmNNeff$ grid reveals whether there exists
-an $n_\mathit{eff}$ regime where any prior---even a domain-mismatched
-one---helps more than it hurts.
+Together with the quality gradient, the $5 \times 3$ grid reveals
+whether there exists an $n_\mathit{eff}$ regime where any
+prior---even a domain-mismatched one---helps more than it hurts.
 
 \paragraph{Design: baseline.}
 The no-prior baseline is the independently optimised Tabula Rasa
-($\alpha{=}\waTRAlpha$, $\gamma{=}\prmTRGamma$).
+($\alpha{=}0.05$, $\gamma{=}0.997$).
 As established in the warmup ablation
 (Appendix~\ref{sec:warmup_ablation}), the Pareto-knee sweep selected
-the same $\gamma{=}\prmTRGamma$ for both warmup and Tabula Rasa, so
-both share the same effective memory (${\sim}\prmEffMemWarmup$ steps).
-This yields $\prmNQualities \times \prmNNeff + 1 = \prmNConditions$ conditions.
-All warmup conditions use $\alpha{=}\prmAlpha$, $\gamma{=}\prmGamma$ (disjoint
-LinUCB).  The warmup hyperparameters were \emph{not} re-optimised per
+the same $\gamma{=}0.997$ for both warmup and Tabula Rasa, so
+both share the same effective memory (${\sim}333$ steps)
+and the comparison is not driven by different forgetting horizons.
+However, because $\alpha$ also differs between conditions
+($\alpha{=}0.01$ for warmup vs.\ $0.05$ for Tabula Rasa),
+the appendix should be interpreted as a system-level deployment
+comparison against the best no-prior baseline rather than a fully
+controlled ablation that isolates prior information while holding
+every learning hyperparameter fixed.
+This yields $5 \times 3 + 1 = 16$ conditions.
+The warmup hyperparameters were not re-optimised per
 prior-quality level---matching the production scenario where prior
 quality degrades after deployment without hyperparameter adjustment.
 
 \paragraph{Design: unconstrained regime.}
 Evaluation follows the same cumulative-regret protocol as the warmup
-ablation: held-out test split ($n{=}\prmNPrompts$), \prmNseeds{} seeds
-(offset${=}\prmSeedOffset$, aligned for paired comparisons), unconstrained
+ablation: held-out test split ($n{=}1824$), 20 seeds
+(offset${=}9{,}000$, aligned for paired comparisons), unconstrained
 (no budget pacer).
 We deliberately restrict this experiment to the unconstrained regime
 for two reasons.
@@ -115,16 +121,16 @@ harm is determined by the bandit's learning dynamics, not the pacer.
 \paragraph{Statistical methodology.}
 We use the same paired-comparison protocol as
 Appendix~\ref{sec:warmup_ablation}: exact binomial sign test for
-location shift, Fisher exact test on a $2{\times}2$
+location shift and Fisher exact test on a $2{\times}2$
 catastrophic-failure table for tail risk, with Holm--Bonferroni
-correction across all \prmNPairwise{} pairwise comparisons per baseline.
-All confidence intervals are \prmCILevel\% percentile-bootstrap
-(\prmBootstrapResamples{} resamples, seed-level resampling);
+correction across all 15 pairwise comparisons per baseline.
+All confidence intervals are 95\% percentile-bootstrap
+(10{,}000 resamples, seed-level resampling);
 median CIs resample the median directly rather than relying on
 normality, which is inappropriate for the heavy-tailed baseline
 distributions observed here.
 A seed is classified as catastrophic if its regret exceeds
-$\prmCatMultiplier{\times}$ the Tabula Rasa median.
+$2{\times}$ the Tabula Rasa median.
 
 \paragraph{Results.}
 Figure~\ref{fig:prior_mismatch_heatmap} summarises total regret
@@ -133,74 +139,72 @@ across the quality--strength grid.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_heatmap.png}
-\caption{Total cumulative regret for ParetoBandit across the prior-quality vs.\ prior-strength grid (\prmNseeds~seeds, unconstrained, test split).  All conditions use the same ParetoBandit router; only the warmup prior varies.  Tabula Rasa is ParetoBandit without priors.  \textbf{Bold} cells exceed the Tabula Rasa median; normal-weight cells fall below it.}
+\caption{Total cumulative regret for ParetoBandit across the prior-quality vs.\ prior-strength grid (20~seeds, unconstrained, test split).  All conditions use the same ParetoBandit router; only the warmup prior varies.  Tabula Rasa is the independently optimised no-prior baseline.  \textbf{Bold} cells exceed the Tabula Rasa median; normal-weight cells fall below it.}
 \label{fig:prior_mismatch_heatmap}
 \end{figure*}
 
 \emph{Directionally correct priors help at every strength.}
 Well-calibrated priors reduce median total regret monotonically
 with $n_\mathit{eff}$, relative to the Tabula Rasa baseline
-(median $\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]):
+(median $78.2$\,[70.7, 90.1]):
 \begin{itemize}[nosep,leftmargin=*]
   \item $n_\mathit{eff}{=}10$: median
-    $\prmWellCalTenRegretMedian$\,[$\prmWellCalTenRegretMedianCILo$, $\prmWellCalTenRegretMedianCIHi$]
-    ($\prmWellCalTenReductionPct\%$\,[$\prmWellCalTenReductionPctCILo$, $\prmWellCalTenReductionPctCIHi$] reduction).
+    $65.2$\,[63.6, 67.3]
+    ($16.6\%$\,[6.5, 28.5] reduction).
   \item $n_\mathit{eff}{=}100$: median
-    $\prmWellCalHundredRegretMedian$\,[$\prmWellCalHundredRegretMedianCILo$, $\prmWellCalHundredRegretMedianCIHi$]
-    ($\prmWellCalHundredReductionPct\%$\,[$\prmWellCalHundredReductionPctCILo$, $\prmWellCalHundredReductionPctCIHi$] reduction).
+    $61.9$\,[60.4, 63.5]
+    ($20.9\%$\,[11.9, 32.1] reduction).
   \item $n_\mathit{eff}{=}1{,}000$: median
-    $\prmWellCalThousandRegretMedian$\,[$\prmWellCalThousandRegretMedianCILo$, $\prmWellCalThousandRegretMedianCIHi$]
-    ($\prmWellCalThousandReductionPct\%$\,[$\prmWellCalThousandReductionPctCILo$, $\prmWellCalThousandReductionPctCIHi$] reduction).
+    $55.5$\,[54.5, 56.2]
+    ($29.1\%$\,[21.7, 38.8] reduction).
 \end{itemize}
 All well-calibrated and Random-1680 comparisons are significant after
 Holm correction at every $n_\mathit{eff}$
-($p \leq \prmTestWellCalTenSignPHolm$ even at $n_\mathit{eff}{=}10$),
+($p \leq 0.0103$ even at $n_\mathit{eff}{=}10$),
 with the strongest effect at $n_\mathit{eff}{=}1{,}000$:
-Well-calibrated wins \prmTestWellCalThousandCondWins{} of \prmNseeds{}
-seeds ($p{=}\prmTestWellCalThousandSignPHolm$);
-Random-1680 wins \prmTestRandThousandCondWins{} of \prmNseeds{}
-($p{=}\prmTestRandThousandSignPHolm$).
+Well-calibrated wins 20 of 20 seeds ($p < 10^{-4}$);
+Random-1680 wins 20 of 20 ($p < 10^{-4}$).
 
 \emph{Sample size does not matter---distributional match does.}
 A practitioner might worry that the Well-calibrated prior benefits
 from a larger training set rather than better calibration.
-The Random-1680 control rules this out: it uses only $\prmRandNPrompts$
+The Random-1680 control rules this out: it uses only 1{,}680
 prompts (matching the GSM8K-only count) drawn from the full
 distribution and performs comparably to Well-calibrated at every
 $n_\mathit{eff}$ (e.g., median
-$\prmRandThousandRegretMedian$\,[$\prmRandThousandRegretMedianCILo$, $\prmRandThousandRegretMedianCIHi$]
-vs.\ $\prmWellCalThousandRegretMedian$\,[$\prmWellCalThousandRegretMedianCILo$, $\prmWellCalThousandRegretMedianCIHi$]
+$55.1$\,[54.4, 55.9]
+vs.\ $55.5$\,[54.5, 56.2]
 at $n_\mathit{eff}{=}1{,}000$).
 This confirms that covariance estimation saturates
-quickly---$\prmRandNPrompts$ representative prompts are sufficient for
-$d{=}\prmFeatureDim$ features---and that the domain-mismatch findings
+quickly---1{,}680 representative prompts are sufficient for
+$d{=}26$ features---and that the domain-mismatch findings
 below are not confounded by sample-count effects.
-The practical implication is that operators need a \emph{representative}
-training sample, not a large one.
+The practical implication is that operators need a
+\emph{representative} training sample, not a large one.
 
 \emph{Domain-mismatched priors still beat cold start.}
 Even when the prior is trained on a single domain rather than
 representative traffic, median regret stays below the Tabula Rasa
 baseline at every $n_\mathit{eff}$---the prior never hurts.
 MMLU-only priors reduce median regret to
-$\prmMMLUHundredRegretMedian$\,[$\prmMMLUHundredRegretMedianCILo$, $\prmMMLUHundredRegretMedianCIHi$]
+$60.1$\,[58.1, 60.5]
 at $n_\mathit{eff}{=}100$ and
-$\prmMMLUThousandRegretMedian$\,[$\prmMMLUThousandRegretMedianCILo$, $\prmMMLUThousandRegretMedianCIHi$]
+$58.3$\,[57.5, 58.7]
 at $1{,}000$
-(vs.\ Tabula Rasa $\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]),
+(vs.\ Tabula Rasa $78.2$\,[70.7, 90.1]),
 despite being trained on a single knowledge domain.
-GSM8K-only priors---which encode near-zero arm differentiation---lower
-median regret to
-$\prmGSMTenRegretMedian$\,[$\prmGSMTenRegretMedianCILo$, $\prmGSMTenRegretMedianCIHi$]
+GSM8K-only priors---which encode near-zero arm
+differentiation---lower median regret to
+$66.7$\,[65.7, 68.0]
 through
-$\prmGSMThousandRegretMedian$\,[$\prmGSMThousandRegretMedianCILo$, $\prmGSMThousandRegretMedianCIHi$]
+$60.9$\,[59.4, 62.9]
 across $n_\mathit{eff}$ values.
 These reductions are statistically significant after Holm correction
 (Holm-corrected $p < 0.004$ for all domain-mismatched conditions
 at every $n_\mathit{eff}$).
 Crucially, no domain-mismatched prior \emph{increases} median regret
-at any $n_\mathit{eff}$: partial knowledge is consistently at least as good
-as no knowledge.
+at any $n_\mathit{eff}$: partial knowledge is consistently at least
+as good as no knowledge.
 
 \emph{Inverted priors cause harm that scales with $n_\mathit{eff}$.}
 This is the only condition where priors hurt.
@@ -209,23 +213,22 @@ When the prior confidently encodes the wrong model ranking
 model and must accumulate online evidence to override the prior.
 Higher $n_\mathit{eff}$ delays that override, so damage grows with
 prior strength (vs.\ Tabula Rasa median
-$\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]):
+$78.2$\,[70.7, 90.1]):
 \begin{itemize}[nosep,leftmargin=*]
   \item $n_\mathit{eff}{=}10$: median
-    $\prmInvTenRegretMedian$\,[$\prmInvTenRegretMedianCILo$, $\prmInvTenRegretMedianCIHi$]
+    $78.2$\,[76.3, 81.8]
     (modest; the prior is overridden quickly).
   \item $n_\mathit{eff}{=}100$: median
-    $\prmInvHundredRegretMedian$\,[$\prmInvHundredRegretMedianCILo$, $\prmInvHundredRegretMedianCIHi$].
+    $89.9$\,[89.1, 91.3].
   \item $n_\mathit{eff}{=}1{,}000$: median
-    $\prmInvThousandRegretMedian$\,[$\prmInvThousandRegretMedianCILo$, $\prmInvThousandRegretMedianCIHi$]---a
-    $\prmInvThousandIncreasePct\%$ increase over the baseline
-    ($+\prmInvThousandExcessRegret$~regret
-    units\,[$\prmInvThousandExcessRegretCILo$, $\prmInvThousandExcessRegretCIHi$]).
+    $106.9$\,[105.6, 108.0]---a
+    $37\%$ increase over the baseline
+    ($+29$~regret units\,[16.3, 36.4]).
 \end{itemize}
 \noindent
-Tabula Rasa wins \prmTestInvThousandBaseWins{} of \prmNseeds{} seeds
+Tabula Rasa wins 17 of 20 seeds
 at $n_\mathit{eff}{=}1{,}000$
-(Holm $p{=}\prmTestInvThousandSignPHolm$), confirming that the
+(Holm $p{=}0.0103$), confirming that the
 degradation is both statistically significant and operationally
 meaningful.
 
@@ -236,54 +239,44 @@ A router that usually improves but occasionally catastrophically
 misroutes is harder to trust than one that reliably delivers moderate
 gains.
 Figure~\ref{fig:prior_mismatch_distribution} shows that warmup priors
-deliver exactly this consistency: \emph{every} warmup condition---including
-domain-mismatched and even inverted priors---produces a tight,
-unimodal per-seed regret distribution, while Tabula Rasa exhibits a
-wide spread ($\mathit{std}{=}\prmTRRegretStd$).
+deliver exactly this consistency: \emph{every} warmup
+condition---including domain-mismatched and even inverted
+priors---produces a tight, unimodal per-seed regret distribution,
+while Tabula Rasa exhibits a wide spread
+($\mathit{std}{=}24.8$).
 Concretely, non-inverted warmup conditions have
-$\mathit{std} \leq \prmNonInvStdMax$ (range:
-$\prmNonInvStdMin$--$\prmNonInvStdMax$); even the worst condition
-(Inverted at $n_\mathit{eff}{=}10$) achieves
-$\mathit{std}{=}\prmInvTenRegretStd$---still far tighter than
-Tabula Rasa's $\prmTRRegretStd$.
-All \prmNPairwise{} warmup conditions record zero catastrophic
-failures (regret $> \prmCatMultiplier{\times}$ the Tabula Rasa median,
-i.e., $> \prmCatThreshold$).
-
-This reliability benefit is arguably more deployment-relevant
-than the regret reduction.
+$\mathit{std} \leq 3.2$ (range: $1.6$--$3.2$); even the worst
+condition (Inverted at $n_\mathit{eff}{=}10$) achieves
+$\mathit{std}{=}4.9$---still far tighter than Tabula Rasa's $24.8$.
+All 15 warmup conditions record zero catastrophic failures
+(regret $> 2{\times}$ the Tabula Rasa median, i.e., $> 156.5$).
 The warmup ablation (Appendix~\ref{sec:warmup_ablation}) shows that
 Tabula Rasa exhibits substantially higher per-seed variance
 than warmup priors across all budget regimes, with
-${\sim}\waTightStdRatio{\times}$ larger standard deviation under
-tight budgets.
-The present experiment extends that finding: the reliability
-benefit is \emph{robust to prior degradation}.
-Operators who can only collect \prmRandNPrompts{} prompts from a roughly
-representative distribution, or who need to reuse priors from a
-related domain, retain the same variance reduction as those
-with a perfectly calibrated \prmWellCalNPrompts-prompt training set.
+${\sim}9{\times}$ larger standard deviation under tight budgets;
+the present experiment extends that finding by showing that the
+reliability benefit is robust to prior degradation.
 
 \paragraph{Practical implications.}
 The prior-quality threshold for harm is high: priors need to be
-\emph{actively wrong} (inverting model rankings) before they degrade
-performance.  The reliability benefit---tight, unimodal distributions
-vs.\ Tabula Rasa's heavy tail---is robust across the entire quality
-gradient.
+actively wrong (inverting model rankings) before they degrade
+performance.
+The reliability benefit---tight, unimodal distributions vs.\ Tabula
+Rasa's heavy tail---is robust across the entire quality gradient.
 The $n_\mathit{eff}$ parameter serves as a safety knob:
 $1{,}000$ for representative priors
-($\prmWellCalThousandReductionPct\%$\,[$\prmWellCalThousandReductionPctCILo$, $\prmWellCalThousandReductionPctCIHi$]
-regret reduction), $100$ as a safe default for domain-shifted priors
-($\prmWellCalHundredReductionPct\%$\,[$\prmWellCalHundredReductionPctCILo$, $\prmWellCalHundredReductionPctCIHi$]
-reduction), and $10$ when quality is
-entirely uncertain (worst-case damage limited to ${\sim}\prmInvTenDamagePct\%$, while
-non-adversarial priors still reduce regret by $\prmGSMTenReductionPct$--$\prmRandTenReductionPct\%$).
+($29.1\%$\,[21.7, 38.8] regret reduction),
+$100$ as a safe default for domain-shifted priors
+($20.9\%$\,[11.9, 32.1] reduction),
+and $10$ when quality is entirely uncertain
+(worst-case damage limited to ${\sim}0\%$, while non-adversarial
+priors still reduce regret by $14.8$--$17.9\%$).
 Tabula rasa is appropriate only when the prior is known to be
 systematically inverted.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
-\caption{Per-seed regret distributions across prior-quality levels at each $n_\mathit{eff}$ value (\prmNseeds~seeds, unconstrained).  Tabula Rasa (shared baseline) exhibits a wide distribution ($\mathit{std}{=}\prmTRRegretStd$), while all warmup conditions---including domain-mismatched and inverted priors---produce tight distributions ($\mathit{std} \leq \prmInvTenRegretStd$, vs.\ $\prmTRRegretStd$ for Tabula Rasa) with zero catastrophic failures.}
+\caption{Per-seed regret distributions across prior-quality levels at each $n_\mathit{eff}$ value (20~seeds, unconstrained).  Tabula Rasa (independently optimised no-prior baseline) exhibits a wide distribution ($\mathit{std}{=}24.8$), while all warmup conditions---including domain-mismatched and inverted priors---produce substantially tighter distributions ($\mathit{std} \leq 4.9$, vs.\ $24.8$ for Tabula Rasa) with zero catastrophic failures.}
 \label{fig:prior_mismatch_distribution}
 \end{figure*}
