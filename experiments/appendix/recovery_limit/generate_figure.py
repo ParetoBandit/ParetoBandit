@@ -55,6 +55,39 @@ def _load_results() -> Dict[str, Any]:
         return json.load(f)
 
 
+def _place_legend_below_axis(
+    axis: plt.Axes,
+    *,
+    font_size: float,
+    ncol: int,
+    y_offset: float = -0.24,
+) -> None:
+    """Place an axis legend outside the subplot, below the x-axis.
+
+    Parameters
+    ----------
+    axis : plt.Axes
+        Axis whose legend should be repositioned.
+    font_size : float
+        Legend font size in points.
+    ncol : int
+        Number of legend columns.
+    y_offset : float
+        Vertical anchor in axis coordinates. More negative values push the
+        legend further below the x-axis.
+    """
+    axis.legend(
+        fontsize=font_size,
+        loc="upper center",
+        bbox_to_anchor=(0.5, y_offset),
+        ncol=ncol,
+        frameon=False,
+        borderaxespad=0.0,
+        columnspacing=1.0,
+        handletextpad=0.6,
+    )
+
+
 def plot_recovery_limit(
     data: Dict[str, Any],
     figsize: Tuple[float, float] = (10, 5),
@@ -152,7 +185,12 @@ def plot_recovery_limit(
     ax_env.set_xlim(0, 100)
     ax_env.set_ylim(85, 105)
     ax_env.invert_xaxis()
-    ax_env.legend(fontsize=9 * fs, loc="lower left")
+    _place_legend_below_axis(
+        ax_env,
+        font_size=9 * fs,
+        ncol=1,
+        y_offset=-0.23,
+    )
     ax_env.grid(True, alpha=0.2, linewidth=0.5)
     ax_env.tick_params(labelsize=10 * fs)
 
@@ -234,7 +272,12 @@ def plot_recovery_limit(
         "(b) Extended Recovery Dynamics",
         fontsize=12 * fs, fontweight="bold", pad=10,
     )
-    ax_dyn.legend(fontsize=8.5 * fs, loc="lower right")
+    _place_legend_below_axis(
+        ax_dyn,
+        font_size=8.5 * fs,
+        ncol=2,
+        y_offset=-0.24,
+    )
     ax_dyn.grid(True, alpha=0.2, linewidth=0.5)
     ax_dyn.tick_params(labelsize=10 * fs)
 
@@ -245,8 +288,8 @@ def plot_recovery_limit(
         f" (${budget_target:.2e}/prompt)",
         fontsize=13 * fs, fontweight="bold", y=1.02,
     )
-    fig.tight_layout(pad=1.0, w_pad=3.0)
-    fig.subplots_adjust(wspace=0.35)
+    fig.tight_layout(rect=(0, 0.12, 1, 0.98), pad=1.0, w_pad=3.0)
+    fig.subplots_adjust(wspace=0.35, bottom=0.24)
     return fig
 
 
