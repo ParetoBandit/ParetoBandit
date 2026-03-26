@@ -55,8 +55,8 @@ pip install "paretobandit[full]"
 **Development install from source:**
 
 ```bash
-git clone https://github.com/atabernermiller/paretobandit.git
-cd paretobandit
+git clone https://github.com/atabernermiller/banditGPT.git
+cd banditGPT
 pip install -e ".[dev]"
 ```
 
