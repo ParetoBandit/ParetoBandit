@@ -22,8 +22,9 @@ Factory method for creating a fully initialised router.
 def create(
     cls,
     model_registry: dict[str, Any] | None = None,
-    context_model: str = "BAAI/bge-m3",
-    priors: str = "none",
+    context_model: str = "all-MiniLM-L6-v2",
+    priors: str = "warmup",
+    prior_n_effective: float = 1163.9,
     **kwargs,
 ) -> BanditRouter
 ```
@@ -32,19 +33,32 @@ def create(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. |
-| `context_model` | `str` | `"BAAI/bge-m3"` | SentenceTransformer model for prompt embedding. Ignored when `feature_service` is provided. Custom ST models require matching PCA and warmup artifacts. |
-| `feature_service` | `FeatureService \| None` | `None` | Injected feature service for custom embedding pipelines. When provided, `context_model` is ignored. Use this for custom encoders, pre-computed vectors, or domain-specific PCA. See [`FeatureService`](#featureservice). |
-| `priors` | `str` | `"none"` | Prior initialisation strategy: `"none"` (cold start, the default) or a path to a `.joblib` file generated via `generate_warmup_priors()`. |
-| `exploration` | `str` | `"safe"` | Named exploration preset: `"static"` (0.0), `"safe"` (0.05), `"balanced"` (0.5), `"aggressive"` (1.0). |
-| `alpha` | `float` | `0.05` | Explicit exploration rate (overrides `exploration`). |
-| `prior_n_effective` | `float` | `10.0` | Controls how quickly online data overrides warm-start priors. Lower = softer priors. |
+| `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. When `None`, loads the shipped K=3 paper portfolio from `config/models.json`. |
+| `context_model` | `str` | `"all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Ignored when `feature_service` is provided. Custom ST models require matching PCA and warmup artifacts. |
+| `priors` | `str` | `"warmup"` | Prior initialisation strategy: `"warmup"` (default — loads shipped K=3 offline priors; models not in the prior file receive heuristic initialisation), `"none"` (clean cold-start), or a path to a `.joblib` file generated via `generate_warmup_priors()`. |
+| `prior_n_effective` | `float` | `1163.9` | Effective sample count attributed to loaded priors. Controls how strongly offline priors are trusted — higher values trust priors more (slower adaptation); lower values trust them less (faster override by online evidence). Default from `BEST_K3_HPARAMS` (derived from T_adapt-constrained Pareto knee-point selection). |
+| `**kwargs` | | | Forwarded to `__init__`. Notable kwargs below. |
+
+**Notable `**kwargs`**
+
+| Kwarg | Type | Default | Description |
+|-------|------|---------|-------------|
+| `feature_service` | `FeatureService \| None` | `None` | Injected feature service for custom embedding pipelines. When provided, `context_model` is ignored. See [`FeatureService`](#featureservice). |
+| `alpha` | `float` | `0.01` | Exploration coefficient for UCB. Default from `BEST_K3_HPARAMS`. |
+| `init_lambda` | `float` | `1.0` | Regularisation for cold-start (A₀ = λI). |
+| `forgetting_factor` | `float` | `0.997` | Temporal decay for non-stationarity (1.0 = stationary). Default from `BEST_K3_HPARAMS`. |
+| `bandit_seed` | `int \| None` | `None` | Seed for tie-breaking in `select_arm()` and Thompson Sampling. Pass explicit seed for reproducible simulations. |
+| `cost_penalty` | `float` | `0.3` | λ_c for UCB cost penalty (paper Eq. 4). `0.0` = quality-only, `0.3` = moderate cost awareness, `0.5+` = aggressive cost preference. |
+| `budget_pacer` | `BudgetPacer \| None` | `None` | Optional budget pacer for online budget pacing (Primal-Dual CBwK). See [`BudgetPacer`](#budgetpacer). |
+| `context_store` | `ContextStore \| None` | `None` | Storage backend for context vectors. Defaults to `EphemeralContextStore`. Pass `SqliteContextStore()` for delayed feedback / RLHF workflows. |
+| `config` | `RouterConfig \| None` | `None` | Router configuration object. See [`RouterConfig`](#routerconfig). |
+| `verbose_routing` | `bool` | `False` | Enable detailed breakdown logs for each routing decision. |
+| `state_path` | `str \| Path \| None` | `None` | Path to load previously saved bandit state (extracted before `__init__`, not passed through). |
 | `warmup_path` | `str \| Path \| None` | `None` | *Deprecated.* Pass the path directly via `priors` instead. |
-| `state_path` | `str \| Path \| None` | `None` | Path to load previously saved bandit state. |
 
 **Returns**: Fully initialised `BanditRouter` instance.
 
-**Example: Default usage**
+**Example: Default usage (warm-start with shipped priors)**
 
 ```python
 from pareto_bandit import BanditRouter
@@ -64,11 +78,27 @@ registry = {
     },
 }
 
-# Create router (cold start — learns from its own routing outcomes)
+# Default: warm-start with shipped priors (heuristic init for unknown models)
 router = BanditRouter.create(registry)
+
+# Cold-start: learns from scratch (recommended for custom portfolios)
+router = BanditRouter.create(registry, priors="none")
 
 # Or load custom priors generated from your own reward data
 router = BanditRouter.create(registry, priors="path/to/my_priors.joblib")
+```
+
+**Example: Custom reward scale**
+
+```python
+from pareto_bandit import BanditRouter, RouterConfig
+
+# Use preference-pair rewards in [-1, 1] instead of default [0, 1]
+router = BanditRouter.create(
+    registry,
+    priors="none",
+    config=RouterConfig(reward_min=-1.0, reward_max=1.0),
+)
 ```
 
 **Example: Custom encoder (no sentence-transformers needed)**
@@ -107,13 +137,11 @@ def route(
     self,
     prompt: str | np.ndarray,
     *,
-    profile: str | dict[str, float] = "auto",
     max_cost: float | None = None,
     max_latency: float | None = None,
-    quality_floor: dict[str, float | None] = None,
+    quality_floor: dict[str, float | None] | None = None,
     input_tokens: int | None = None,
     output_tokens: int = 600,
-    total_steps: int = 1,
 ) -> tuple[str, RoutingLog]
 ```
 
@@ -122,17 +150,16 @@ def route(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prompt` | `str \| np.ndarray` | — | Input text or pre-computed feature vector. |
-| `profile` | `str \| dict` | `"auto"` | Optimisation profile. `"auto"` for default routing, or a dict of weights `{"w_q": ..., "w_c": ..., "w_l": ...}`. |
 | `max_cost` | `float \| None` | `None` | Hard cost ceiling ($/1k tokens). Models exceeding this are filtered. |
 | `max_latency` | `float \| None` | `None` | Hard latency ceiling (seconds). |
-| `quality_floor` | `dict \| None` | `None` | Minimum quality scores per model. |
+| `quality_floor` | `dict \| None` | `None` | Minimum quality scores per metric (e.g. `{"hle": 0.7}`). |
 | `input_tokens` | `int \| None` | `None` | Input token count (auto-estimated from prompt if `None`). |
 | `output_tokens` | `int` | `600` | Expected output tokens for cost estimation. |
-| `total_steps` | `int` | `1` | Total training steps for alpha decay. Use `1` for production (stable exploitation). |
 
 **Returns**: `(model_id, routing_log)` — The selected model ID and a `RoutingLog` with decision metadata.
 
 **Raises**:
+- `NoEligibleModelsError` — No models pass the hard constraints.
 - `ValueError` — Empty or whitespace-only prompt.
 - `TypeError` — Prompt is neither `str` nor `np.ndarray`.
 
@@ -184,7 +211,7 @@ def route_and_call(
 | `messages` | `list[dict] \| None` | `None` | Chat messages to send.  When `None` and `prompt` is a string, a single `{"role": "user", "content": prompt}` message is used. |
 | `max_tokens` | `int` | `512` | Passed to `client.complete()`. |
 | `temperature` | `float` | `0.7` | Passed to `client.complete()`. |
-| `**route_kwargs` | | | Forwarded to `route()` (e.g. `max_cost`, `max_latency`, `profile`). |
+| `**route_kwargs` | | | Forwarded to `route()` (e.g. `max_cost`, `max_latency`). |
 
 **Returns**: `(model_id, response_text, routing_log)`
 
@@ -220,12 +247,14 @@ def process_feedback(self, request_id: str, reward: float) -> None
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `request_id` | `str` | The `RoutingLog.request_id` returned by `route()`. |
-| `reward` | `float` | Observed quality signal in [0, 1]. Values outside this range are clamped. Typical sources: LLM-as-judge score, user thumbs-up/down (0 or 1), or normalised task metric. |
+| `reward` | `float` | Observed quality signal. Values outside [`reward_min`, `reward_max`] (configurable via `RouterConfig`, default [0, 1]) are clamped with a warning. Typical sources: LLM-as-judge score, user thumbs-up/down (0 or 1), or normalised task metric. |
 
 **Behaviour**:
 - Looks up the stored context vector for the request.
-- Clamps reward to [0, 1] (required by the importance-weighted loss estimator).
-- Updates the Corralling meta-learner (or direct LinUCB if Corralling is disabled).
+- Rejects non-finite rewards (NaN/Inf) with a warning and no-op.
+- Clamps reward to [`RouterConfig.reward_min`, `RouterConfig.reward_max`] (default [0, 1]).
+- Updates the LinUCB policy.
+- If a `BudgetPacer` is configured, observes the request cost.
 - Supports **delayed feedback**: if the in-memory log has been evicted, falls back to the `SqliteContextStore`. Feedback can arrive hours or days later as long as the context has not expired (default TTL: 7 days).
 - **No-op** if `request_id` is unknown (evicted from both stores). A warning is logged.
 
@@ -234,16 +263,9 @@ def process_feedback(self, request_id: str, reward: float) -> None
 **Example: Standard route-feedback loop**
 
 ```python
-# Route a prompt
 model_id, log = router.route("Explain quantum entanglement")
-
-# Call the selected LLM (your code)
 response = call_llm(model_id, "Explain quantum entanglement")
-
-# Evaluate quality (LLM-as-judge, user rating, task metric, etc.)
 reward = evaluate_quality(response)  # returns 0.0–1.0
-
-# Feed the reward back — the router learns from this
 router.process_feedback(log.request_id, reward=reward)
 ```
 
@@ -257,8 +279,6 @@ for prompt in prompts:
     response = call_llm(model_id, prompt)
     reward = evaluate_quality(response)
     router.process_feedback(log.request_id, reward=reward)
-
-# After enough iterations, the router learns which model excels at what
 ```
 
 ---
@@ -274,6 +294,7 @@ def update(
     context: str | np.ndarray,
     reward: float,
     weight: float = 1.0,
+    advance_time: bool = True,
 ) -> None
 ```
 
@@ -283,8 +304,9 @@ def update(
 |-----------|------|---------|-------------|
 | `model_id` | `str` | — | Model that was selected. |
 | `context` | `str \| np.ndarray` | — | Prompt string or pre-computed feature vector. |
-| `reward` | `float` | — | Quality signal in [0, 1] (clamped). |
+| `reward` | `float` | — | Quality signal in [`reward_min`, `reward_max`] (clamped). |
 | `weight` | `float` | `1.0` | Importance weight for this observation. |
+| `advance_time` | `bool` | `True` | Whether to increment the global time step `t`. Default `True` is correct for offline/batch learning. |
 
 Use this for batch/offline learning where you already have `(model, context, reward)` triples. For the standard online workflow, prefer `route()` followed by `process_feedback()`.
 
@@ -295,7 +317,6 @@ Use this for batch/offline learning where you already have `(model, context, rew
 **Example: Ingest historical data**
 
 ```python
-# Historical routing outcomes from your logs
 historical_data = [
     ("openai/gpt-4o", "Write a Python quicksort", 0.95),
     ("mistralai/mixtral-8x7b", "Tell me a joke", 0.72),
@@ -327,7 +348,7 @@ def get_probabilities(
 | `context` | `str \| np.ndarray` | — | Prompt string or pre-computed feature vector. |
 | `model_ids` | `list[str] \| None` | `None` | Subset of models to evaluate. `None` means all registered models. |
 
-**Returns**: Dictionary mapping model IDs to selection probabilities (sum to 1.0).
+**Returns**: Dictionary mapping model IDs to quality-best probabilities (sum to 1.0). These reflect the learned reward model and do **not** incorporate cost penalties — useful for dashboards, explainability, and posterior calibration.
 
 **Example**
 
@@ -336,17 +357,13 @@ probs = router.get_probabilities("Write a SQL query to find active users")
 
 for model, prob in sorted(probs.items(), key=lambda x: -x[1]):
     print(f"  {model}: {prob:.1%}")
-# e.g.:
-#   mistralai/mixtral-8x7b: 65.2%
-#   openai/gpt-4o: 20.1%
-#   anthropic/claude-3.5-sonnet: 14.7%
 ```
 
 ---
 
 ### `BanditRouter.explain_decision()`
 
-Feature contribution analysis: decompose a model's score into per-feature contributions.
+Feature contribution analysis: decompose a model's **mean reward prediction** into per-feature contributions.
 
 ```python
 def explain_decision(
@@ -365,23 +382,53 @@ def explain_decision(
 | `context_vector` | `np.ndarray` | — | Feature vector (from `FeatureService.extract_features()`). |
 | `threshold` | `float` | `0.01` | Minimum absolute contribution to include. |
 
-**Returns**: Dictionary mapping feature names (e.g., `"PCA_0"`, `"bias"`) to their contribution to the model's score.
+**Returns**: Dictionary mapping feature names (e.g., `"PCA_0"`, `"bias"`) to their contribution to the model's mean prediction `θ^T x`.
+
+**Scope**: Decomposes the learned quality estimate only. Does **not** include the UCB exploration bonus or cost penalties. See `explain_selection()` for a convenience wrapper.
 
 **Example**
 
 ```python
 model_id, log = router.route("Write SQL to get active users")
 
-# Explain why this model was chosen
 explanation = router.explain_decision(model_id, log.context_vector)
 
 print(f"Why {model_id} was selected:")
 for feature, contribution in sorted(explanation.items(), key=lambda x: abs(x[1]), reverse=True):
     print(f"  {feature}: {contribution:+.4f}")
-# e.g.:
-#   bias: +0.2393
-#   PCA_26: -0.0375
-#   PCA_15: +0.0217
+```
+
+---
+
+### `BanditRouter.explain_selection()`
+
+Decompose the mean reward prediction for the top-k models.
+
+```python
+def explain_selection(
+    self,
+    prompt: str,
+    top_k: int = 3,
+    threshold: float = 0.01,
+) -> dict[str, dict[str, float]]
+```
+
+**Parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | `str` | — | Input prompt text. |
+| `top_k` | `int` | `3` | Number of top models to explain. |
+| `threshold` | `float` | `0.01` | Minimum absolute contribution to include. |
+
+**Returns**: Dictionary mapping model_id to per-feature contribution dict, ranked by `θ^T x`.
+
+**Example**
+
+```python
+explanations = router.explain_selection("Debug this Python code", top_k=2)
+for model, features in explanations.items():
+    print(f"{model}: {features}")
 ```
 
 ---
@@ -394,11 +441,15 @@ Add a new model with progressive registration.
 def register_model(
     self,
     model_id: str,
-    capabilities: list[str] | None = None,
-    speed: str = "balanced",
+    speed: SpeedProfile = "balanced",
     cost_usd: float | None = None,
     latency_s: float | None = None,
+    blended_cost_per_m: float | None = None,
+    input_cost_per_m: float | None = None,
+    output_cost_per_m: float | None = None,
     initial_weights: dict[str, float] | None = None,
+    strict_kwargs: bool | None = None,
+    **kwargs,
 ) -> None
 ```
 
@@ -407,32 +458,96 @@ def register_model(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `model_id` | `str` | — | Unique model identifier (e.g., `"openai/gpt-4o"`). |
-| `capabilities` | `list[str] \| None` | `None` | Semantic capabilities: `"coding"`, `"math"`, `"creative"`, `"reasoning"`, `"general"`. |
 | `speed` | `str` | `"balanced"` | T-shirt size: `"fast"`, `"balanced"`, or `"slow"`. Affects initial bias. |
-| `cost_usd` | `float \| None` | `None` | Cost per 1k tokens (for constraint filtering). |
-| `latency_s` | `float \| None` | `None` | Expected latency in seconds. |
+| `input_cost_per_m` | `float \| None` | `None` | Input token cost in $/M tokens. Must be paired with `output_cost_per_m`. |
+| `output_cost_per_m` | `float \| None` | `None` | Output token cost in $/M tokens. Must be paired with `input_cost_per_m`. |
+| `blended_cost_per_m` | `float \| None` | `None` | Weighted average cost in $/M tokens. Used if input/output not provided. |
+| `cost_usd` | `float \| None` | `None` | *Deprecated — prefer* `input_cost_per_m` + `output_cost_per_m`. Legacy input cost in $/M tokens. |
+| `latency_s` | `float \| None` | `None` | Time-to-first-token in seconds. |
 | `initial_weights` | `dict[str, float] \| None` | `None` | Power-user override for explicit theta vector entries. |
+| `strict_kwargs` | `bool \| None` | `None` | Override for unknown-kwarg validation. If `None`, uses `RouterConfig.registration_strict_kwargs` (default `True`). |
+| `**kwargs` | | | Accepted for backward compatibility (e.g. `capabilities`). Unknown keys raise `TypeError` in strict mode. |
 
-**Three knowledge tiers**:
-1. **Archetypes** — `capabilities=["coding", "math"]` applies semantic priors.
-2. **T-shirt sizing** — `speed="fast"` sets appropriate bias.
-3. **Agnostic** — Just `model_id`; initialises with neutral priors and high variance.
+**Cost specification** (in order of precedence):
+
+1. `input_cost_per_m` + `output_cost_per_m` — exact per-token costs; blended cost is their average.
+2. `blended_cost_per_m` — single blended rate.
+3. `cost_usd` (legacy) — treated as input cost; output estimated at `cost_usd × 3`.
+4. None — falls back to `RegistrationConfig.default_cost_per_1m`.
+
+**Raises**:
+- `ValueError` — Only one of `input_cost_per_m` / `output_cost_per_m` provided.
+- `TypeError` — Unknown kwargs in strict mode.
 
 **Example**
 
 ```python
-# Tier A: You know what the model is good at
+# Exact pricing (preferred)
 router.register_model(
     "google/gemini-2.0-flash",
     speed="fast",
-    capabilities=["coding", "reasoning"],
+    input_cost_per_m=0.10,
+    output_cost_per_m=0.40,
 )
 
-# Tier B: You only know cost/speed characteristics
-router.register_model("local/llama-3-8b", speed="fast")
+# Single blended rate
+router.register_model("local/llama-3-8b", speed="fast", blended_cost_per_m=0.2)
 
-# Tier C: You know nothing — the router will learn from scratch
+# Mystery model: no information (pessimistic defaults)
 router.register_model("mystery/new-model")
+```
+
+---
+
+### `BanditRouter.update_model_pricing()`
+
+Update pricing for a model and recompute derived cost fields.
+
+```python
+def update_model_pricing(self, model_id: str, **pricing_fields: float) -> None
+```
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model_id` | `str` | Model identifier that must already exist in the registry. |
+| `**pricing_fields` | `float` | Pricing fields to set (e.g., `input_cost_per_m=0.10`, `output_cost_per_m=0.10`). |
+
+Use this when simulating or reacting to mid-stream price changes (e.g., a provider price drop).
+
+**Raises**: `KeyError` — `model_id` is not in the registry.
+
+**Example**
+
+```python
+# Simulate a Gemini price drop mid-experiment
+router.update_model_pricing(
+    "google/gemini-2.5-pro",
+    input_cost_per_m=0.10,
+    output_cost_per_m=0.10,
+)
+```
+
+---
+
+### `BanditRouter.exploit()`
+
+Context manager for greedy exploitation (frozen policy evaluation).
+
+```python
+@contextmanager
+def exploit(self) -> Generator[None, None, None]
+```
+
+Within this block, `route()` selects `argmax(θ^T x)` with no UCB exploration bonus (alpha=0). Thread-safe via `threading.local()`.
+
+**Example**
+
+```python
+with router.exploit():
+    model, log = router.route("Classify this document")
+    # Pure exploitation — no exploration
 ```
 
 ---
@@ -446,16 +561,33 @@ def save_state(self, path: Path | str) -> None
 def load_state(self, path: Path | str) -> None
 ```
 
-**Known limitation**: Only the base `DisjointLinUCBPolicy` matrices (A, b) are persisted. Corralling meta-weights and expert state are not saved; they reset to initial allocation on reload.
+**Known limitation**: Only the base `DisjointLinUCBPolicy` matrices (A, b) are persisted. Budget pacer state and meta-weights are not saved; they reset on reload.
 
 **Example**
 
 ```python
-# Save learned state before shutdown
 router.save_state("checkpoints/router_state.npz")
-
-# Restore on next startup
 router.load_state("checkpoints/router_state.npz")
+```
+
+---
+
+### `BanditRouter.reference_model`
+
+Property. Dynamically identifies the flagship model (highest `initial_quality` score) in the current registry.
+
+```python
+@property
+def reference_model(self) -> dict[str, Any]
+```
+
+**Returns**: Dictionary containing flagship model metadata with keys `id`, `initial_quality`, `input_cost_per_m`, `output_cost_per_m`, etc.
+
+**Example**
+
+```python
+ref = router.reference_model
+print(f"Flagship: {ref['id']} (Quality: {ref.get('initial_quality', 0):.3f})")
 ```
 
 ---
@@ -474,7 +606,10 @@ Dataclass returned by `route()` containing decision metadata.
 | `cost_usd` | `float` | Estimated cost in USD. |
 | `latency_s` | `float` | Estimated latency in seconds. |
 | `context_vector` | `np.ndarray \| None` | Cached feature vector (used internally by `process_feedback()`). |
-| `total_priority_weight` | `float` | Sum of quality/cost/latency weights. |
+| `expected_reward` | `float` | Expected reward (default 0.0). |
+| `total_priority_weight` | `float` | Sum of quality/cost/latency weights (default 1.0). |
+| `pacer_lambda_t` | `float \| None` | Budget pacer dual variable at routing time (populated when `BudgetPacer` is active). |
+| `pacer_cost_ema` | `float \| None` | Budget pacer cost EMA at routing time (populated when `BudgetPacer` is active). |
 
 **Example: Inspecting the routing log**
 
@@ -486,7 +621,7 @@ print(f"Request ID: {log.request_id}")
 print(f"Utility: {log.predicted_utility:.4f}")
 print(f"Cost: ${log.cost_usd:.8f}")
 print(f"Latency: {log.latency_s:.3f}s")
-print(f"Context vector shape: {log.context_vector.shape}")  # (33,)
+print(f"Context vector shape: {log.context_vector.shape}")  # (26,) with default PCA
 ```
 
 ---
@@ -501,7 +636,7 @@ Handles prompt embedding and PCA compression independently from bandit math. Sup
 
 ### Bundled PCA Artifact
 
-A pre-trained PCA artifact (`pca_32.joblib`, ~133 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on 80,000 RouteLLM battle prompts (independent of ParetoBandit's dev/holdout splits) using the default encoder (`BAAI/bge-m3`). The 32 components compress 1024-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
+A pre-trained PCA artifact (`pca_25.joblib`) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on ~46K LMSYS Arena prompts (independent of ParetoBandit's experimental splits) using the default encoder (`all-MiniLM-L6-v2`). The 25 components compress 384-dimensional embeddings down to 26-dimensional feature vectors (25 PCA + 1 bias term).
 
 To replace it with a domain-specific PCA, pass `pca_path` to the constructor or use `train_pca()` to generate one from your own prompts (see [Calibration API](#calibration-api)).
 
@@ -509,27 +644,31 @@ To replace it with a domain-specific PCA, pass `pca_path` to the constructor or 
 
 ```python
 FeatureService(
-    encoder_model: str = "BAAI/bge-m3",
+    encoder_model: str = "all-MiniLM-L6-v2",
     pca_path: Path | str | None = None,
     pca_components: int | None = None,
     target_variance: float = 0.60,
+    whiten_pca: bool = True,
     allow_jit_training: bool = True,
     calibration_file: Path | str | None = None,
     custom_encoder: Callable[[str], np.ndarray] | None = None,
     embedding_dim: int | None = None,
+    use_text_features: bool = False,
 )
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `encoder_model` | `str` | Default `BAAI/bge-m3` | SentenceTransformer model name. Ignored when `custom_encoder` is provided. Custom ST models require explicit `pca_path`. |
-| `pca_path` | `Path \| str \| None` | `None` | Path to a PCA artifact (`.joblib`). When `None` and using the default encoder, loads the bundled `pca_32.joblib`. When `None` and `custom_encoder` is set, **no PCA** is applied — raw embeddings are used directly. |
+| `encoder_model` | `str` | `"all-MiniLM-L6-v2"` | SentenceTransformer model name. Ignored when `custom_encoder` is provided. Custom ST models require explicit `pca_path`. |
+| `pca_path` | `Path \| str \| None` | `None` | Path to a PCA artifact (`.joblib`). When `None` and using the default encoder, loads the bundled `pca_25.joblib`. When `None` and `custom_encoder` is set, **no PCA** is applied — raw embeddings are used directly. |
 | `pca_components` | `int \| None` | `None` | Auto-detected from PCA file if not specified. |
 | `target_variance` | `float` | `0.60` | Minimum explained variance threshold for PCA. If JIT-trained PCA falls below this, falls back to raw embeddings. |
+| `whiten_pca` | `bool` | `True` | Scale PCA coordinates by `1/sqrt(explained_variance)` so each component has roughly unit variance. Makes the LinUCB isotropic prior (A₀=λI) better matched to feature scale. |
 | `allow_jit_training` | `bool` | `True` | Allow JIT PCA retraining if the artifact is missing or corrupted. Set `False` in strict production to crash-fast instead of falling back to synthetic-data PCA. Automatically `False` when `custom_encoder` is provided. |
 | `calibration_file` | `Path \| str \| None` | `None` | Line-delimited text file of real prompts for domain-specific JIT PCA training. Only used if the artifact is missing and `allow_jit_training=True`. |
 | `custom_encoder` | `Callable[[str], np.ndarray] \| None` | `None` | A callable that maps a prompt string to a 1-D numpy embedding vector. When provided, `sentence-transformers` is **not** required. |
 | `embedding_dim` | `int \| None` | `None` | Dimensionality of vectors returned by `custom_encoder`. **Required** when `custom_encoder` is provided; ignored otherwise. |
+| `use_text_features` | `bool` | `False` | Append four lightweight regex-based text features (logical operator count, constraint keyword count, average word length, instruction×vague density) between PCA and bias. Increases the feature vector by 4 dimensions. Requires string prompts — incompatible with `for_precomputed()`. |
 
 **Raises**:
 - `ValueError` — Custom SentenceTransformer encoder without explicit `pca_path`.
@@ -541,12 +680,12 @@ FeatureService(
 ```python
 from pareto_bandit import FeatureService
 
-# Uses the default encoder and the bundled pca_32.joblib
+# Uses the default encoder and the bundled pca_25.joblib
 # Requires: pip install paretobandit[embeddings]
 fs = FeatureService()
 
 vector = fs.extract_features("Explain the Pythagorean theorem")
-print(f"Shape: {vector.shape}")    # (33,) — 32 PCA + 1 bias
+print(f"Shape: {vector.shape}")    # (26,) — 25 PCA + 1 bias
 print(f"Bias term: {vector[-1]}")  # 1.0
 ```
 
@@ -555,7 +694,6 @@ print(f"Bias term: {vector[-1]}")  # 1.0
 ```python
 from pareto_bandit import FeatureService
 
-# Use a PCA trained on your own prompt distribution
 fs = FeatureService(pca_path="my_domain_pca.joblib")
 ```
 
@@ -579,7 +717,7 @@ router = BanditRouter.create(model_registry=registry, feature_service=fs, priors
 model_id, log = router.route("Explain quantum computing")
 ```
 
-The resulting feature vector has shape `(1537,)` — 1536 raw embedding dimensions plus the bias term. See the [README's Bring Your Own Embeddings section](../README.md#bring-your-own-embeddings) for guidance on when to add PCA compression for high-dimensional embeddings.
+The resulting feature vector has shape `(1537,)` — 1536 raw embedding dimensions plus the bias term.
 
 **Example: Custom encoder with PCA compression**
 
@@ -588,17 +726,25 @@ import joblib
 from sklearn.decomposition import PCA
 from pareto_bandit import FeatureService
 
-# One-time: train PCA on representative prompts from your encoder
 embeddings = np.array([openai_embed(p) for p in representative_prompts])
 pca = PCA(n_components=32).fit(embeddings)
 joblib.dump(pca, "openai_pca_32.joblib")
 
-# Use at runtime: 1536D embeddings → 32 PCA + 1 bias = 33D features
 fs = FeatureService(
     custom_encoder=openai_embed,
     embedding_dim=1536,
     pca_path="openai_pca_32.joblib",
 )
+```
+
+**Example: With text features**
+
+```python
+from pareto_bandit import FeatureService
+
+fs = FeatureService(use_text_features=True)
+vector = fs.extract_features("If x > 5 and y < 3, find the minimum")
+print(f"Shape: {vector.shape}")  # (30,) — 25 PCA + 4 text + 1 bias
 ```
 
 ### `FeatureService.for_precomputed()`
@@ -614,7 +760,7 @@ def for_precomputed(cls, dimension: int) -> FeatureService
 |-----------|------|-------------|
 | `dimension` | `int` | Total feature-vector length (your embedding dimensions + 1 bias term). |
 
-Passing a string prompt to a pre-computed service raises `RuntimeError`. Only `np.ndarray` inputs are accepted.
+Passing a string prompt to a pre-computed service raises `RuntimeError`. Only `np.ndarray` inputs are accepted. Text features are disabled.
 
 **Example: Testing without model downloads**
 
@@ -622,26 +768,11 @@ Passing a string prompt to a pre-computed service raises `RuntimeError`. Only `n
 import numpy as np
 from pareto_bandit import FeatureService
 
-# No sentence transformer download — accepts raw numpy vectors
-fs = FeatureService.for_precomputed(dimension=33)
+fs = FeatureService.for_precomputed(dimension=26)
 
-vector = np.random.randn(33)
+vector = np.random.randn(26)
 vector[-1] = 1.0  # bias term
 result = fs.extract_features(vector)  # passes through directly
-```
-
-**Example: High-dimensional pre-computed embeddings**
-
-```python
-# Using 768-dimensional embeddings from your own pipeline
-dim = 769  # 768 features + 1 bias
-fs = FeatureService.for_precomputed(dimension=dim)
-
-router = BanditRouter.create(model_registry=registry, feature_service=fs, priors="none")
-
-vec = your_embedding_pipeline("Explain relativity")
-vec = np.append(vec, 1.0)  # append bias term
-model_id, log = router.route(vec)
 ```
 
 ### `FeatureService.extract_features()`
@@ -652,7 +783,7 @@ Convert a prompt to a feature vector.
 def extract_features(self, prompt: str | np.ndarray) -> np.ndarray
 ```
 
-**Returns**: Feature vector of shape `(dimension,)`. The last element is a bias term (always 1.0). Default with bundled PCA: 33 dimensions (32 PCA + 1 bias). With a custom encoder and no PCA: `embedding_dim + 1`.
+**Returns**: Feature vector of shape `(dimension,)`. The last element is a bias term (always 1.0). Default with bundled PCA: 26 dimensions (25 PCA + 1 bias). With text features: 30 dimensions (25 PCA + 4 text + 1 bias). With a custom encoder and no PCA: `embedding_dim + 1`.
 
 **Raises**:
 - `ValueError` — Empty prompt or dimension mismatch for pre-computed vectors.
@@ -681,7 +812,7 @@ prompts = [
     "Tell me a joke about programmers",
 ]
 vectors = fs.extract_features_batch(prompts)
-print(f"Batch shape: {vectors.shape}")  # (3, 33) with default PCA; (3, 1537) with 1536D custom encoder
+print(f"Batch shape: {vectors.shape}")  # (3, 26) with default PCA
 ```
 
 ### `FeatureService.encode_prompt()`
@@ -712,7 +843,7 @@ Human-readable feature names for interpretability.
 def get_feature_names(self) -> list[str]
 ```
 
-**Returns**: List like `["PCA_0", "PCA_1", ..., "PCA_31", "bias"]`.
+**Returns**: List like `["PCA_0", "PCA_1", ..., "PCA_24", "bias"]`. With text features enabled: `["PCA_0", ..., "PCA_24", "n_logical_ops", "n_constraints", "avg_word_len", "instruction_x_vague_density", "bias"]`.
 
 **Example**
 
@@ -720,14 +851,14 @@ def get_feature_names(self) -> list[str]
 names = fs.get_feature_names()
 print(names[:3])   # ['PCA_0', 'PCA_1', 'PCA_2']
 print(names[-1])   # 'bias'
-print(len(names))  # 33
+print(len(names))  # 26
 ```
 
 ### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `dimension` | `int` | Total feature dimension (embedding or PCA components + 1 bias). |
+| `dimension` | `int` | Total feature dimension (PCA [+ text features] + 1 bias). Default 26. |
 | `bias_index` | `int` | Index of the bias term (always -1). |
 | `using_pca` | `bool` | Whether PCA compression is active. |
 | `has_encoder` | `bool` | Whether this service can encode string prompts (custom or SentenceTransformer). `False` for `for_precomputed()` services. |
@@ -742,13 +873,26 @@ Dataclass for all router hyperparameters. Pass to `BanditRouter.__init__()` or l
 |-------|------|---------|-------------|
 | `max_log_size` | `int` | `10_000` | Ring buffer size for in-memory routing logs. |
 | `init_lambda` | `float` | `1.0` | Regularisation for cold-start (A₀ = λI). |
-| `update_lambda` | `float` | `0.0` | Runtime regularisation. `0.0` enables O(d²) Sherman-Morrison. |
 | `stability_check_interval` | `int` | `1000` | Check numerical stability every N updates. |
 | `stability_threshold` | `float` | `1e6` | Max trace(A\_inv) before reset. |
 | `market_cost_floor` | `float` | `0.0001` | Cost normalisation floor ($/1k tokens). |
-| `market_cost_ceiling` | `float` | `0.04` | Cost normalisation ceiling ($/1k tokens). |
+| `market_cost_ceiling` | `float` | `0.10` | Cost normalisation ceiling ($/1k tokens). Covers expensive reasoning models (o1-pro, Opus). Increase if your most expensive model exceeds this. |
+| `reward_min` | `float` | `0.0` | Lower bound for reward clamping. Default 0.0 matches [0, 1] convention. |
+| `reward_max` | `float` | `1.0` | Upper bound for reward clamping. Set to a different range (e.g., `-1.0` / `1.0`) for preference-pair rewards. |
 | `default_missing_cost_per_m` | `float` | `10.00` | Pessimistic cost fallback for missing metadata. |
 | `default_missing_latency` | `float` | `2.0` | Pessimistic latency fallback. |
+| `registration` | `RegistrationConfig` | `RegistrationConfig()` | Sub-config for progressive registration priors. |
+| `registration_strict_kwargs` | `bool` | `True` | Validate unknown kwargs in `register_model()`. Set `False` for backward-compatible integrations that pass extra keys. |
+
+**`RegistrationConfig`** (nested dataclass):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `fast_bias` | `float` | `0.0` | Bias for fast models (neutral). |
+| `slow_bias` | `float` | `0.05` | Bias for slow/expensive models (positive = latent quality belief). |
+| `balanced_bias` | `float` | `0.0` | Bias for balanced models (neutral). |
+| `default_cost_per_1m` | `float` | `10.00` | Pessimistic fallback cost. |
+| `default_latency_s` | `float` | `2.0` | Pessimistic fallback latency. |
 
 **Example**
 
@@ -756,9 +900,10 @@ Dataclass for all router hyperparameters. Pass to `BanditRouter.__init__()` or l
 from pareto_bandit import RouterConfig
 
 config = RouterConfig(
-    max_log_size=5_000,           # Smaller memory footprint
-    init_lambda=2.0,              # Stronger regularisation
-    stability_check_interval=500, # More frequent checks
+    max_log_size=5_000,              # Smaller memory footprint
+    init_lambda=2.0,                 # Stronger regularisation
+    stability_check_interval=500,    # More frequent checks
+    reward_min=-1.0, reward_max=1.0, # Preference-pair scale
 )
 
 router = BanditRouter(model_registry=registry, config=config)
@@ -782,19 +927,88 @@ Named presets for the exploration parameter (alpha).
 ```python
 from pareto_bandit import ExplorationRate
 
-# Use as alpha value directly
 router = BanditRouter.create(registry, alpha=ExplorationRate.SAFE)
+
+# Resolve by name
+alpha = ExplorationRate.get("balanced")  # returns 1.0
 ```
 
 ---
 
-## `HybridLinUCBPolicy`
+## `BudgetPacer`
 
-Hybrid LinUCB with family-shared and arm-specific ridge regression. Used internally by `BanditRouter` when model families are detected.
+Online budget pacer using a smoothed dual-ascent controller inspired by Primal-Dual CBwK (Agrawal & Devanur 2014). Enforces a per-request average cost target without requiring a known time horizon.
 
-For arm *a* in family *F*: `E[r | x, a] = x^T beta_F + x^T theta_a`
+### `PacingMode`
 
-This is an advanced internal class. Most users interact with it through `BanditRouter`.
+| Mode | Description |
+|------|-------------|
+| `PacingMode.HARD` | Adaptive `max_cost` ceiling fed through constraint filtering. Safety mechanism. |
+| `PacingMode.SOFT` | Dynamic per-request cost penalties in the UCB scoring function. Theoretically grounded. |
+| `PacingMode.ADAPTIVE` | Both mechanisms active. Hard ceiling as safety net, soft penalty as optimizer. |
+
+### Constructor
+
+```python
+BudgetPacer(
+    target_avg_spend_usd: float,
+    mode: PacingMode = PacingMode.ADAPTIVE,
+    lr: float = 0.05,
+    ema_alpha: float = 0.05,
+    hard_ceiling_multiplier: float = 1.0,
+    lambda_max: float = 5.0,
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `target_avg_spend_usd` | `float` | — | Desired average cost per request in USD. Must be positive. |
+| `mode` | `PacingMode` | `ADAPTIVE` | Enforcement mechanism. |
+| `lr` | `float` | `0.05` | Learning rate for the dual variable (lambda). Operates on target-normalized costs. |
+| `ema_alpha` | `float` | `0.05` | Smoothing factor for the cost EMA. Half-life of ~14 observations. |
+| `hard_ceiling_multiplier` | `float` | `1.0` | Controls how aggressively the hard ceiling tightens. |
+| `lambda_max` | `float` | `5.0` | Upper bound on the dual variable to prevent excluding all models. |
+
+### Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `lambda_t` | `float` | Current Lagrange multiplier. Zero = no cost pressure. |
+| `cost_ema` | `float` | Exponential moving average of per-request costs (USD). |
+| `n_observations` | `int` | Total cost observations processed. |
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `observe(actual_cost_usd)` | Record one realized cost and update pacing state (EMA + dual update). |
+| `get_cost_ceiling_per_1k(max_model_cost_per_1k)` | Return a cost-per-1k ceiling (HARD mode), or `None` if no constraint is active. |
+| `get_extra_cost_penalties(model_costs)` | Compute per-model cost penalties scaled by the dual variable (SOFT mode). |
+| `reset()` | Re-initialize pacing state, preserving configuration. |
+| `get_state()` | Return a serializable snapshot for logging/checkpointing. |
+
+**Example: Budget-constrained routing**
+
+```python
+from pareto_bandit import BanditRouter
+from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
+
+pacer = BudgetPacer(
+    target_avg_spend_usd=0.001,     # $0.001 per request target
+    mode=PacingMode.ADAPTIVE,
+)
+
+router = BanditRouter.create(registry, budget_pacer=pacer)
+
+# The pacer automatically:
+# - Adjusts cost constraints in route()
+# - Updates its state in process_feedback()
+model_id, log = router.route("Explain relativity")
+router.process_feedback(log.request_id, reward=0.85)
+
+# Monitor pacing state
+print(pacer.get_state())
+```
 
 ---
 
@@ -806,7 +1020,7 @@ ParetoBandit ships with a pre-trained PCA artifact for the default encoder. The 
 
 Train a PCA artifact to replace the bundled default or to match a custom sentence transformer.
 
-The bundled `pca_32.joblib` was trained on 80,000 RouteLLM battle prompts (broad English: coding, math, reasoning, creative, chat). If your production traffic differs substantially from this distribution, training a domain-specific PCA on your own prompts will better capture the axes of variation that matter for your routing decisions.
+The bundled `pca_25.joblib` was trained on ~46K LMSYS Arena prompts (broad English: coding, math, reasoning, creative, chat). If your production traffic differs substantially from this distribution, training a domain-specific PCA on your own prompts will better capture the axes of variation that matter for your routing decisions.
 
 ```python
 def train_pca(
@@ -824,7 +1038,7 @@ def train_pca(
 |-----------|------|---------|-------------|
 | `prompts` | `list[str]` | — | Representative corpus from your domain (200+ recommended for stable components). |
 | `encoder_model` | `str` | — | HuggingFace SentenceTransformer model name. Must match the encoder used at routing time. |
-| `n_components` | `int` | `32` | Number of PCA components to retain. Higher = richer signal but slower O(d^2) bandit updates. |
+| `n_components` | `int` | `32` | Number of PCA components to retain. Higher = richer signal but slower O(d²) bandit updates. |
 | `output_path` | `Path \| str \| None` | `None` | Persist the PCA via joblib. |
 | `batch_size` | `int` | `64` | Encoder batch size. |
 
@@ -838,7 +1052,6 @@ def train_pca(
 ```python
 from pareto_bandit import train_pca, FeatureService, BanditRouter
 
-# 1. Collect representative prompts from your actual traffic
 prompts = [
     "Write a Python function to parse CSV files",
     "Explain the theory of relativity in simple terms",
@@ -846,16 +1059,14 @@ prompts = [
     # ... 200+ prompts recommended
 ]
 
-# 2. Train PCA on your domain (uses the default encoder)
 pca = train_pca(
     prompts,
-    encoder_model="BAAI/bge-m3",
-    n_components=32,
+    encoder_model="all-MiniLM-L6-v2",
+    n_components=25,
     output_path="my_pca.joblib",
 )
 print(f"Explained variance: {sum(pca.explained_variance_ratio_):.1%}")
 
-# 3. Use it in the router
 fs = FeatureService(pca_path="my_pca.joblib")
 router = BanditRouter.create(feature_service=fs)
 ```
@@ -872,8 +1083,11 @@ def generate_warmup_priors(
     encoder_model: str,
     pca: PCA | Path | str,
     plasticity: float = 0.1,
+    whiten_pca: bool = True,
     output_path: Path | str | None = None,
     batch_size: int = 64,
+    precomputed_raw_embeddings: dict[str, np.ndarray] | None = None,
+    use_text_features: bool = False,
 ) -> dict
 ```
 
@@ -885,9 +1099,13 @@ def generate_warmup_priors(
 | `encoder_model` | `str` | — | Must match the model used for `train_pca()`. |
 | `pca` | `PCA \| Path \| str` | — | Fitted PCA object or path to joblib file. |
 | `plasticity` | `float` | `0.1` | Scaling factor. Lower = softer priors, faster to override. |
+| `whiten_pca` | `bool` | `True` | Whiten PCA coordinates by `1/sqrt(explained_variance)`. Must match the `FeatureService.whiten_pca` setting used at runtime. |
 | `output_path` | `Path \| str \| None` | `None` | Persist the priors via joblib. |
+| `batch_size` | `int` | `64` | Encoder batch size. |
+| `precomputed_raw_embeddings` | `dict[str, np.ndarray] \| None` | `None` | Cache mapping `sha256(prompt)` to raw ST vectors (pre-PCA). The encoder is only loaded as fallback for cache misses. |
+| `use_text_features` | `bool` | `False` | Append text features between PCA and bias. Produces priors compatible with `FeatureService(use_text_features=True)`. |
 
-**Returns**: Dict with keys `A`, `b`, `models`, `n_prompts`, `context_dim`, `pca_components`, `plasticity`, `reward_source`.
+**Returns**: Dict with keys `A`, `b`, `models`, `n_prompts`, `context_dim`, `pca_components`, `pca_whitened`, `plasticity`, `reward_source`.
 
 **Raises**:
 - `ValueError` — Empty or malformed `rewards_data`.
@@ -906,18 +1124,33 @@ rewards_data = [
         "prompt": "Tell me a joke",
         "rewards": {"openai/gpt-4o": 0.80, "mistralai/mixtral-8x7b": 0.85},
     },
-    # ... more labelled data
 ]
 
 priors = generate_warmup_priors(
     rewards_data,
-    encoder_model="BAAI/bge-m3",
+    encoder_model="all-MiniLM-L6-v2",
     pca="my_pca.joblib",
     plasticity=0.1,
     output_path="my_priors.joblib",
 )
 print(f"Built priors for {len(priors['models'])} models from {priors['n_prompts']} prompts")
 ```
+
+---
+
+### `calibrate_priors()`
+
+Post-warmup calibration to prevent scale explosion in predictions.
+
+```python
+def calibrate_priors(
+    bandit: DisjointLinUCBPolicy,
+    target_max_pred: float = 0.9,
+    calibration_contexts: list[np.ndarray] | None = None,
+) -> None
+```
+
+Mutates the bandit's `b` vectors in place so that maximum predicted reward does not exceed `target_max_pred`. Called automatically by `BanditRouter.create()`.
 
 ---
 
@@ -965,18 +1198,15 @@ SqliteContextStore(
 from pareto_bandit import BanditRouter
 from pareto_bandit.storage import SqliteContextStore
 
-# 30-day retention for long RLHF feedback cycles
 store = SqliteContextStore(
     db_path="/var/app/bandit_router.db",
-    ttl_seconds=86400 * 30,
+    ttl_seconds=86400 * 30,  # 30-day retention
 )
 router = BanditRouter.create(registry, context_store=store)
 
-# Monitor storage usage
 stats = store.stats()
 print(f"Contexts: {stats['total_contexts']}, Size: {stats['db_size_mb']} MB")
 
-# Prune expired entries (run daily via cron)
 pruned = store.prune()
 print(f"Pruned {pruned} expired entries")
 ```
@@ -1057,7 +1287,6 @@ from pareto_bandit import (
     OpenAIClient, AnthropicClient, OllamaClient,
 )
 
-# 1. Define your model portfolio
 registry = {
     "openai/gpt-4o": {
         "model_id": "openai/gpt-4o",
@@ -1076,17 +1305,14 @@ registry = {
     },
 }
 
-# 2. Create the router
 router = BanditRouter.create(registry, priors="none")
 
-# 3. Map provider prefixes to clients
 client = MultiProviderClient({
     "openai":     OpenAIClient(api_key="sk-..."),
     "anthropic":  AnthropicClient(api_key="sk-ant-..."),
     "meta-llama": OllamaClient(),  # served locally
 })
 
-# 4. Route and call — the dispatcher picks the right client automatically
 model_id, response, log = router.route_and_call("Solve x^2 = 4", client)
 router.process_feedback(log.request_id, reward=0.9)
 ```
@@ -1097,7 +1323,8 @@ You can also add providers at runtime:
 from pareto_bandit import GeminiClient
 
 client.register("google", GeminiClient(api_key="..."))
-router.register_model("google/gemini-2.0-flash", speed="fast", capabilities=["reasoning"])
+router.register_model("google/gemini-2.0-flash", speed="fast",
+                       input_cost_per_m=0.10, output_cost_per_m=0.40)
 ```
 
 ### `MultiProviderClient`
@@ -1129,7 +1356,7 @@ The canonical model registry uses `provider/model-name` IDs (e.g. `openai/gpt-4o
 
 ### `infer_model_family(model_id: str) -> str`
 
-Infer model family from an ID string. Used for family-shared learning in `HybridLinUCBPolicy`.
+Infer model family from an ID string. Used for family-shared learning.
 
 **Example**
 
