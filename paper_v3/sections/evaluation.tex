@@ -26,7 +26,7 @@ Experiments 2--3 follow a three-phase stress-test: normal operation (608 prompts
 
 \begin{table}[!htbp]
 \centering
-\caption{Model portfolio and budget targets. The $\bpPriceRangeX{\times}$ cost spread stresses the router's quality--cost tradeoff. Three budgets span the full operating range.}
+\caption{\input{../experiments/01_stationary_budget_pacing/table_caption_setup.tex}}
 \label{tab:setup}
 \small
 \begin{tabular}{@{}llr@{}}
@@ -56,7 +56,7 @@ Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set.
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/01_stationary_budget_pacing/results/budget_pacing.png}
-\caption{Quality--cost Pareto frontier under stationary conditions ($K{=}3$, 20~seeds). \textbf{(a)}~ParetoBandit with BudgetPacer (blue curve) traces a continuous quality--cost frontier by accepting a dollar budget ceiling. Fixed single-model baselines shown as stars. \textbf{(b)}~Budget compliance: realized cost vs.\ ceiling. Green band marks $\pm5\%$. \textbf{(c)}~Model allocation shifts from Llama-dominant at tight budgets to Gemini-heavy at loose budgets.}
+\caption{\input{../experiments/01_stationary_budget_pacing/figure_caption_pareto.tex}}
 \label{fig:pareto}
 \vspace{4pt}
 \end{figure*}
@@ -74,10 +74,7 @@ When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost cha
 
 \begin{table}[t]
 \centering
-\caption{Budget compliance under cost drift (20~seeds).
-Each cell shows realised cost as a multiple of the ceiling ($1.00{\times}$ = at ceiling); 95\% bootstrap CIs are reported inline for key claims in the text.
-\textbf{Bold}: within 5\% of ceiling.
-$\dagger$: Phase~2 constraint non-binding (price drop reduces all costs below ceiling).}
+\caption{\input{../experiments/02_budget_plus_drift/table_caption_compliance.tex}}
 \label{tab:budget_compliance}
 \small
 \resizebox{\columnwidth}{!}{%
@@ -117,7 +114,7 @@ We stress-test against a silent quality regression: Mistral-Large's reward drops
 \begin{figure}[!b]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/02_budget_plus_drift/results/adaptation_dynamics.png}
-\caption{Cost drift ($K{=}3$, 20~seeds, 95\% CI). Normal pricing $\to$ Gemini price drop at step~609 $\to$ price restored at step~1217. The BudgetPacer exploits the price drop (Gemini adoption surges), then recovers compliance when pricing is restored.}
+\caption{\input{../experiments/02_budget_plus_drift/figure_caption_dynamics.tex}}
 \label{fig:adaptation_dynamics}
 \end{figure}
 
@@ -126,7 +123,7 @@ The Fixed Policy cannot adapt and continues routing traffic to the degraded mode
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}
-\caption{Quality degradation dynamics (Normal $\to$ Mistral degradation at prompt~$\cfPhaseN$ $\to$ recovered at prompt~$2{\times}\cfPhaseN$; 20~seeds, 95\% bootstrap CI).  \textbf{(a)}~Gemini-Pro selection fraction: constrained budgets shift modestly; the unconstrained baseline shifts ${\sim}17$\,pp toward Gemini.  \textbf{(b)}~Windowed mean reward: all adaptive conditions detect the quality drop and recover in Phase~3.  \textbf{(c)}~Cost per request (dotted = budget ceilings): ParetoBandit tracks the ceiling throughout; cost stability confirms the degradation is invisible to the cost signal.}
+\caption{\input{../experiments/03_catastrophic_failure/figure_caption_dynamics.tex}}
 \label{fig:catastrophic_failure}
 \vspace{-10pt}
 \end{figure}
@@ -141,7 +138,7 @@ The trade-off relative to offline characterisation is that ${\sim}1$\% of Phase~
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/04_model_onboarding/results/model_onboarding.png}
-\caption{Model onboarding ($K{=}3 \to K{=}4$; 20~seeds, 95\% CI). Flash windowed selection fraction across four budget levels after cold-start addition. \textbf{(a)}~Good \& cheap: Flash is adopted at all budgets. \textbf{(b)}~Good \& expensive: the BudgetPacer suppresses Flash under tight budgets. \textbf{(c)}~Bad \& cheap: the bandit correctly rejects Flash in every seed.}
+\caption{\input{../experiments/04_model_onboarding/figure_caption_onboarding.tex}}
 \label{fig:model_onboarding}
 \end{figure*}
 
