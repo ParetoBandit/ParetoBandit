@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Build val/test splits of the 2K judge-robustness subset for both R1 and
-GPT-4.1-mini, enabling end-to-end cross-judge regret comparison.
+"""Build val/test splits of the 2K judge-robustness subset for R1,
+GPT-4.1-mini, and Claude-3.7-Sonnet, enabling end-to-end cross-judge
+regret comparison.
 
 The wide-format ``judge_robustness_prompts.jsonl`` already carries R1 rewards
-and per-model costs.  This script replaces R1 rewards with GPT-4.1-mini
-rewards from the long-format ``judge_robustness_rewards.jsonl``, then
-performs a stratified 1/3-val / 2/3-test split (by ``source``), writing
-four JSONL files consumable by :func:`utils.simulation.load_split`.
+and per-model costs.  This script replaces R1 rewards with supplementary
+judge rewards from ``judge_robustness_rewards.jsonl``, then performs a
+stratified 1/3-val / 2/3-test split (by ``source``), writing six JSONL
+files consumable by :func:`utils.simulation.load_split`.
 
 Usage
 -----
@@ -51,12 +52,24 @@ def _load_wide_records(path: Path) -> List[Dict[str, Any]]:
     return records
 
 
-def _load_gpt_mini_rewards(
+def _load_supplementary_rewards(
     path: Path,
+    judge_short_name: str,
 ) -> Dict[Tuple[str, str], float]:
-    """Load GPT-4.1-mini rewards keyed by (prompt, model_id).
+    """Load supplementary judge rewards keyed by (prompt, model_id).
 
-    Uses exact judge-ID matching via ``JUDGE_ID_TO_SHORT``.
+    Parameters
+    ----------
+    path:
+        Path to ``judge_robustness_rewards.jsonl``.
+    judge_short_name:
+        Short judge name to filter (e.g. ``"GPT-4.1-mini"``,
+        ``"Claude-3.7-Sonnet"``).  Matched via ``JUDGE_ID_TO_SHORT``.
+
+    Returns
+    -------
+    Dict[Tuple[str, str], float]
+        ``{(prompt, model_id): reward}``.
     """
     rewards: Dict[Tuple[str, str], float] = {}
     with open(path) as f:
@@ -67,20 +80,33 @@ def _load_gpt_mini_rewards(
             key = (rec["prompt"], rec["model_id"])
             for jd in rec.get("judge_details", []):
                 short = JUDGE_ID_TO_SHORT.get(jd["judge"])
-                if short == "GPT-4.1-mini":
+                if short == judge_short_name:
                     rewards[key] = jd["reward"]
-    logger.info("Loaded %d GPT-4.1-mini rewards", len(rewards))
+    logger.info("Loaded %d %s rewards", len(rewards), judge_short_name)
     return rewards
 
 
-def _build_gpt_mini_records(
+def _build_supplementary_records(
     wide_records: List[Dict[str, Any]],
-    gpt_rewards: Dict[Tuple[str, str], float],
+    supp_rewards: Dict[Tuple[str, str], float],
+    judge_label: str,
 ) -> List[Dict[str, Any]]:
-    """Clone wide records, replacing R1 rewards with GPT-4.1-mini rewards.
+    """Clone wide records, replacing R1 rewards with supplementary scores.
 
-    Prompts where any model lacks a GPT-4.1-mini score are dropped.
-    Costs are preserved (model property, not judge property).
+    Parameters
+    ----------
+    wide_records:
+        R1 wide-format prompt records.
+    supp_rewards:
+        ``{(prompt, model_id): reward}`` from the supplementary judge.
+    judge_label:
+        Display name for logging (e.g. ``"GPT-4.1-mini"``).
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        Wide-format records with the supplementary judge's rewards.
+        Prompts where any model lacks a score are dropped.
     """
     out: List[Dict[str, Any]] = []
     dropped = 0
@@ -90,11 +116,11 @@ def _build_gpt_mini_records(
         missing = False
         for model_id, arm_info in rec["arms"].items():
             key = (prompt, model_id)
-            if key not in gpt_rewards:
+            if key not in supp_rewards:
                 missing = True
                 break
             new_arms[model_id] = {
-                "reward": gpt_rewards[key],
+                "reward": supp_rewards[key],
                 "cost": arm_info["cost"],
             }
         if missing:
@@ -114,8 +140,8 @@ def _build_gpt_mini_records(
         out.append(new_rec)
 
     if dropped:
-        logger.warning("Dropped %d prompts missing GPT-4.1-mini scores", dropped)
-    logger.info("Built %d GPT-4.1-mini wide records", len(out))
+        logger.warning("Dropped %d prompts missing %s scores", dropped, judge_label)
+    logger.info("Built %d %s wide records", len(out), judge_label)
     return out
 
 
@@ -179,35 +205,56 @@ def _write_jsonl(records: List[Dict[str, Any]], path: Path) -> None:
     logger.info("Wrote %d records to %s", len(records), path)
 
 
+SUPPLEMENTARY_JUDGES: List[Tuple[str, str, str]] = [
+    ("GPT-4.1-mini", "gpt_mini", "GPT-mini"),
+    ("Claude-3.7-Sonnet", "claude", "Claude"),
+]
+"""(judge_short_name, file_slug, log_label) for each supplementary judge."""
+
+
 def main() -> None:
     logger.info("=" * 70)
     logger.info("Building cross-judge val/test splits")
     logger.info("=" * 70)
 
     r1_records = _load_wide_records(SUBSET_PROMPTS_PATH)
-    gpt_rewards = _load_gpt_mini_rewards(SUPPLEMENTARY_REWARDS_PATH)
-    gpt_records = _build_gpt_mini_records(r1_records, gpt_rewards)
 
-    common_prompts = {r["prompt"] for r in gpt_records}
+    supp_records: Dict[str, List[Dict[str, Any]]] = {}
+    for judge_short, _slug, _label in SUPPLEMENTARY_JUDGES:
+        rewards = _load_supplementary_rewards(
+            SUPPLEMENTARY_REWARDS_PATH, judge_short,
+        )
+        supp_records[judge_short] = _build_supplementary_records(
+            r1_records, rewards, judge_short,
+        )
+
+    # Intersect to prompts covered by ALL judges.
+    common_prompts = set.intersection(*(
+        {r["prompt"] for r in recs} for recs in supp_records.values()
+    ))
     r1_filtered = [r for r in r1_records if r["prompt"] in common_prompts]
-    logger.info("Filtered R1 to %d prompts (matching GPT-4.1-mini coverage)", len(r1_filtered))
+    logger.info(
+        "Filtered R1 to %d prompts (covered by all %d supplementary judges)",
+        len(r1_filtered), len(SUPPLEMENTARY_JUDGES),
+    )
 
     r1_val, r1_test = _stratified_split(r1_filtered)
 
-    # Build GPT splits in the same prompt order as R1 splits so that
-    # the simulation can safely share embeddings across judges.
-    gpt_by_prompt = {r["prompt"]: r for r in gpt_records}
-    gpt_val = [gpt_by_prompt[r["prompt"]] for r in r1_val]
-    gpt_test = [gpt_by_prompt[r["prompt"]] for r in r1_test]
-
     _write_jsonl(r1_val, RESULTS_DIR / "cross_judge_r1_val.jsonl")
     _write_jsonl(r1_test, RESULTS_DIR / "cross_judge_r1_test.jsonl")
-    _write_jsonl(gpt_val, RESULTS_DIR / "cross_judge_gpt_mini_val.jsonl")
-    _write_jsonl(gpt_test, RESULTS_DIR / "cross_judge_gpt_mini_test.jsonl")
+
+    # Build supplementary splits in the same prompt order as R1 so that
+    # the simulation can safely share embeddings across judges.
+    for judge_short, slug, log_label in SUPPLEMENTARY_JUDGES:
+        by_prompt = {r["prompt"]: r for r in supp_records[judge_short]}
+        s_val = [by_prompt[r["prompt"]] for r in r1_val]
+        s_test = [by_prompt[r["prompt"]] for r in r1_test]
+        _write_jsonl(s_val, RESULTS_DIR / f"cross_judge_{slug}_val.jsonl")
+        _write_jsonl(s_test, RESULTS_DIR / f"cross_judge_{slug}_test.jsonl")
+        logger.info("  %-10s val=%d  test=%d", log_label, len(s_val), len(s_test))
 
     logger.info("\nSummary:")
     logger.info("  R1        val=%d  test=%d", len(r1_val), len(r1_test))
-    logger.info("  GPT-mini  val=%d  test=%d", len(gpt_val), len(gpt_test))
     logger.info("Done.")
 
 

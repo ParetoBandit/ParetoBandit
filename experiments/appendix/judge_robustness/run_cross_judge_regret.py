@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Cross-judge regret comparison: cold-start LinUCB under R1 vs GPT-4.1-mini.
+"""Cross-judge regret comparison: cold-start LinUCB under R1, GPT-4.1-mini,
+and Claude-3.7-Sonnet.
 
 Runs the bandit on the 2K judge-robustness subset (stratified val/test split)
 with **no warmup priors** (Tabula Rasa only) to avoid any data-leakage
@@ -11,7 +12,7 @@ Protocol (mirrors Exp 01):
     2. Evaluate on test split (cumulative regret from step 1).
 
 Conditions:
-    - 2 judges (R1, GPT-4.1-mini)
+    - 3 judges (R1, GPT-4.1-mini, Claude-3.7-Sonnet)
     - 4 budget regimes (unconstrained + tight / moderate / loose)
     - 2 methods per condition (Tabula Rasa, Random)
     - 20 seeds each
@@ -85,7 +86,13 @@ JUDGES: Dict[str, Dict[str, Path]] = {
         "val": RESULTS_DIR / "cross_judge_gpt_mini_val.jsonl",
         "test": RESULTS_DIR / "cross_judge_gpt_mini_test.jsonl",
     },
+    "Claude-3.7-Sonnet": {
+        "val": RESULTS_DIR / "cross_judge_claude_val.jsonl",
+        "test": RESULTS_DIR / "cross_judge_claude_test.jsonl",
+    },
 }
+
+TEST_ORDER_SEED_OFFSET: int = 2_000_000
 
 BUDGET_REGIMES: List[Dict[str, Any]] = [
     {"label": "unconstrained", "target": None},
@@ -207,7 +214,10 @@ def _run_tabula_rasa_trial(
         router.process_feedback(log.request_id, reward=reward)
 
     # --- Evaluate on test ---
-    test_order = rng.permutation(test.n)
+    # Deterministic test order from a seed independent of val burn-in,
+    # so Random and Tabula Rasa iterate prompts in the same order.
+    test_rng = np.random.default_rng(seed + TEST_ORDER_SEED_OFFSET)
+    test_order = test_rng.permutation(test.n)
     cumulative_regret = 0.0
     per_step_regret: List[float] = []
     model_counts: Dict[str, int] = {m: 0 for m in ARM_ORDER}
@@ -259,10 +269,10 @@ def _run_random_trial(
 ) -> TrialResult:
     """Run one Random baseline trial (uniform 1/K, no learning).
 
-    Follows the same pattern as Exp 01: only model selection is randomised;
-    prompts are iterated in fixed file order so that the only RNG
-    consumption is ``rng.choice``.  This makes the baseline fully
-    deterministic given (seed, test data).
+    Uses the same deterministic test ordering as
+    :func:`_run_tabula_rasa_trial` (seeded from
+    ``seed + TEST_ORDER_SEED_OFFSET``) so that per-step cumulative
+    regret curves are directly comparable.
 
     Parameters
     ----------
@@ -283,6 +293,9 @@ def _run_random_trial(
         Aggregate and per-step metrics.
     """
     rng = np.random.default_rng(seed)
+    test_rng = np.random.default_rng(seed + TEST_ORDER_SEED_OFFSET)
+    test_order = test_rng.permutation(test.n)
+
     n = test.n
     choices = rng.choice(ARM_ORDER, size=n)
 
@@ -291,8 +304,8 @@ def _run_random_trial(
     total_reward = 0.0
     total_cost = 0.0
 
-    for i in range(n):
-        model = choices[i]
+    for step, i in enumerate(test_order):
+        model = choices[step]
         reward = float(test.rewards[model][i])
         cost = float(test.costs[model][i])
         oracle = max(float(test.rewards[a][i]) for a in ARM_ORDER)
@@ -360,39 +373,44 @@ def main() -> None:
     logger.info("Budget regimes: %s", [b["label"] for b in BUDGET_REGIMES])
     logger.info("Hparams: %s", TABULA_RASA_HPARAMS)
 
-    # Both judges share the same prompts (and thus the same embeddings);
-    # only the rewards differ.  load_split is called once per file;
-    # GPT-mini splits reuse R1's embeddings since prompt order matches.
+    # All judges share the same prompts (and thus the same embeddings);
+    # only the rewards differ.  Supplementary splits reuse R1's
+    # embeddings since prompt order matches (enforced by assertions).
     logger.info("Loading R1 splits ...")
     r1_val = load_split(JUDGES["R1"]["val"], fs, ARM_ORDER)
     r1_test = load_split(JUDGES["R1"]["test"], fs, ARM_ORDER)
     logger.info("  R1: val=%d  test=%d", r1_val.n, r1_test.n)
 
-    logger.info("Loading GPT-4.1-mini splits (reusing R1 embeddings) ...")
-    gpt_val = load_split(JUDGES["GPT-4.1-mini"]["val"], fs, ARM_ORDER)
-    gpt_test = load_split(JUDGES["GPT-4.1-mini"]["test"], fs, ARM_ORDER)
-
-    assert gpt_val.prompts == r1_val.prompts, (
-        "Prompt order mismatch in val — re-run build_cross_judge_splits.py"
-    )
-    assert gpt_test.prompts == r1_test.prompts, (
-        "Prompt order mismatch in test — re-run build_cross_judge_splits.py"
-    )
-
-    gpt_val = SplitData(
-        prompts=gpt_val.prompts, rewards=gpt_val.rewards,
-        costs=gpt_val.costs, embeddings=r1_val.embeddings,
-    )
-    gpt_test = SplitData(
-        prompts=gpt_test.prompts, rewards=gpt_test.rewards,
-        costs=gpt_test.costs, embeddings=r1_test.embeddings,
-    )
-    logger.info("  GPT-4.1-mini: val=%d  test=%d", gpt_val.n, gpt_test.n)
-
     splits: Dict[str, Dict[str, SplitData]] = {
         "R1": {"val": r1_val, "test": r1_test},
-        "GPT-4.1-mini": {"val": gpt_val, "test": gpt_test},
     }
+
+    for judge_name in JUDGES:
+        if judge_name == "R1":
+            continue
+        logger.info("Loading %s splits (reusing R1 embeddings) ...", judge_name)
+        s_val = load_split(JUDGES[judge_name]["val"], fs, ARM_ORDER)
+        s_test = load_split(JUDGES[judge_name]["test"], fs, ARM_ORDER)
+
+        assert s_val.prompts == r1_val.prompts, (
+            f"Prompt order mismatch in val for {judge_name}"
+            " — re-run build_cross_judge_splits.py"
+        )
+        assert s_test.prompts == r1_test.prompts, (
+            f"Prompt order mismatch in test for {judge_name}"
+            " — re-run build_cross_judge_splits.py"
+        )
+
+        s_val = SplitData(
+            prompts=s_val.prompts, rewards=s_val.rewards,
+            costs=s_val.costs, embeddings=r1_val.embeddings,
+        )
+        s_test = SplitData(
+            prompts=s_test.prompts, rewards=s_test.rewards,
+            costs=s_test.costs, embeddings=r1_test.embeddings,
+        )
+        splits[judge_name] = {"val": s_val, "test": s_test}
+        logger.info("  %s: val=%d  test=%d", judge_name, s_val.n, s_test.n)
 
     all_trials: List[TrialResult] = []
 

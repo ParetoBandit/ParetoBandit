@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Generate cross-judge regret comparison figure.
 
-Reads ``results/cross_judge_regret_results.json`` and produces a two-panel
+Reads ``results/cross_judge_regret_results.json`` and produces a three-panel
 figure (``cross_judge_regret.{pdf,png}``) showing per-step cumulative regret
-under R1 vs GPT-4.1-mini evaluation, with a summary table for budget regimes.
+under R1, GPT-4.1-mini, and Claude-3.7-Sonnet evaluation, with a summary
+table for budget regimes.
 
 Panel layout:
-    Left  — R1: Tabula Rasa mean with 95% bootstrap CI, Random same
-    Right — GPT-4.1-mini: same methods, shared y-axis
+    Left   — R1: Tabula Rasa mean with 95% bootstrap CI, Random same
+    Centre — GPT-4.1-mini: same methods, shared y-axis
+    Right  — Claude-3.7-Sonnet: same methods, shared y-axis
 
 Below the panels, a text table summarises cumulative regret across all four
 budget regimes.
@@ -161,18 +163,20 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
     """
     trials = data["trials"]
     n_seeds = data["n_seeds"]
+    judges = data.get("judges", ["R1", "GPT-4.1-mini"])
     rng = np.random.default_rng(BOOT_RNG_SEED)
 
-    fig, (ax_l, ax_r) = plt.subplots(
-        1, 2, figsize=(11, 7.2), sharey=True,
-        gridspec_kw={"wspace": 0.08, "left": 0.07, "right": 0.97,
+    n_panels = len(judges)
+    fig, axes = plt.subplots(
+        1, n_panels, figsize=(5.5 * n_panels, 7.2), sharey=True,
+        gridspec_kw={"wspace": 0.08, "left": 0.06, "right": 0.97,
                       "top": 0.94, "bottom": 0.42},
     )
+    if n_panels == 1:
+        axes = [axes]
 
-    for ax, judge, panel_label in [
-        (ax_l, "R1", "A"),
-        (ax_r, "GPT-4.1-mini", "B"),
-    ]:
+    panel_labels = [chr(ord("A") + i) for i in range(n_panels)]
+    for ax, judge, panel_label in zip(axes, judges, panel_labels):
         tr_mat = _collect_per_step(trials, judge, "unconstrained", "tabula_rasa")
         rnd_mat = _collect_per_step(trials, judge, "unconstrained", "random")
 
@@ -197,15 +201,13 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
                       edgecolor=CB_BLUE, alpha=0.9),
         )
 
-    ax_l.set_ylabel("Cumulative regret (unconstrained)")
-    ax_r.legend(loc="upper left", frameon=True, framealpha=0.9)
+    axes[0].set_ylabel("Cumulative regret (unconstrained)")
+    axes[-1].legend(loc="upper left", frameon=True, framealpha=0.9)
 
     # Budget-regime summary table below the figure.
-    # Unconstrained row includes both TabRasa and Random; budget-constrained
-    # rows show only TabRasa (Random is unconstrained and identical across
-    # regimes, making the comparison misleading under budget pressure).
     budget_labels = ["unconstrained", "tight", "moderate", "loose"]
-    judges = ["R1", "GPT-4.1-mini"]
+    supp_judges = [j for j in judges if j != "R1"]
+    short_name = {"R1": "R1", "GPT-4.1-mini": "GPT", "Claude-3.7-Sonnet": "Claude"}
 
     def _regret_stats(
         trials: List[Dict[str, Any]], judge: str, bl: str, method: str,
@@ -224,8 +226,14 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
         ci_half = (hi - lo) / 2
         return mean, ci_half
 
+    # Build table header dynamically
+    hdr_parts = [f"{'Budget':<16s}", f"{'R1 TR':>10s}", f"{'R1 Rand':>10s}"]
+    for sj in supp_judges:
+        sn = short_name.get(sj, sj[:6])
+        hdr_parts.extend([f"{sn + ' TR':>10s}", f"{sn + ' Rand':>10s}", f"{sn + '/R1':>7s}"])
+    col_header = "  ".join(hdr_parts)
+
     table_rows: List[str] = []
-    col_header = f"{'Budget':<16s}  {'R1 TabRasa':>12s}  {'R1 Random':>12s}  {'GPT TabRasa':>12s}  {'GPT Random':>12s}  {'GPT/R1':>7s}"
     table_rows.append(col_header)
     table_rows.append("─" * len(col_header))
 
@@ -233,30 +241,35 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
     bl = "unconstrained"
     r1_tr, r1_tr_se = _regret_stats(trials, "R1", bl, "tabula_rasa")
     r1_rn, r1_rn_se = _regret_stats(trials, "R1", bl, "random")
-    gpt_tr, gpt_tr_se = _regret_stats(trials, "GPT-4.1-mini", bl, "tabula_rasa")
-    gpt_rn, gpt_rn_se = _regret_stats(trials, "GPT-4.1-mini", bl, "random")
-    ratio = gpt_tr / r1_tr if r1_tr > 0 else float("nan")
-    table_rows.append(
-        f"{bl:<16s}  {r1_tr:5.1f}±{r1_tr_se:4.1f}  {r1_rn:5.1f}±{r1_rn_se:4.1f}"
-        f"  {gpt_tr:5.1f}±{gpt_tr_se:4.1f}  {gpt_rn:5.1f}±{gpt_rn_se:4.1f}  {ratio:7.2f}"
-    )
+    row_parts = [f"{bl:<16s}", f"{r1_tr:5.1f}±{r1_tr_se:4.1f}", f"{r1_rn:5.1f}±{r1_rn_se:4.1f}"]
+    for sj in supp_judges:
+        sj_tr, sj_tr_se = _regret_stats(trials, sj, bl, "tabula_rasa")
+        sj_rn, sj_rn_se = _regret_stats(trials, sj, bl, "random")
+        ratio = sj_tr / r1_tr if r1_tr > 0 else float("nan")
+        row_parts.extend([
+            f"{sj_tr:5.1f}±{sj_tr_se:4.1f}", f"{sj_rn:5.1f}±{sj_rn_se:4.1f}", f"{ratio:7.2f}",
+        ])
+    table_rows.append("  ".join(row_parts))
 
     # Budget-constrained rows — TabRasa only (Random is unconstrained)
-    col_header_b = f"{'Budget':<16s}  {'R1 TabRasa':>12s}  {'':>12s}  {'GPT TabRasa':>12s}  {'':>12s}  {'GPT/R1':>7s}"
-    table_rows.append(col_header_b)
-    table_rows.append("─" * len(col_header_b))
+    hdr_b_parts = [f"{'Budget':<16s}", f"{'R1 TR':>10s}", f"{'':>10s}"]
+    for sj in supp_judges:
+        sn = short_name.get(sj, sj[:6])
+        hdr_b_parts.extend([f"{sn + ' TR':>10s}", f"{'':>10s}", f"{sn + '/R1':>7s}"])
+    table_rows.append("  ".join(hdr_b_parts))
+    table_rows.append("─" * len(col_header))
 
     for bl in budget_labels[1:]:
         r1_m, r1_se = _regret_stats(trials, "R1", bl, "tabula_rasa")
-        gpt_m, gpt_se = _regret_stats(trials, "GPT-4.1-mini", bl, "tabula_rasa")
-        ratio = gpt_m / r1_m if r1_m > 0 else float("nan")
-        table_rows.append(
-            f"{bl:<16s}  {r1_m:5.1f}±{r1_se:4.1f}  {'—':>12s}"
-            f"  {gpt_m:5.1f}±{gpt_se:4.1f}  {'—':>12s}  {ratio:7.2f}"
-        )
+        row_parts = [f"{bl:<16s}", f"{r1_m:5.1f}±{r1_se:4.1f}", f"{'—':>10s}"]
+        for sj in supp_judges:
+            sj_m, sj_se = _regret_stats(trials, sj, bl, "tabula_rasa")
+            ratio = sj_m / r1_m if r1_m > 0 else float("nan")
+            row_parts.extend([f"{sj_m:5.1f}±{sj_se:4.1f}", f"{'—':>10s}", f"{ratio:7.2f}"])
+        table_rows.append("  ".join(row_parts))
 
     table_text = (
-        "Cumulative regret (mean ± 95% bootstrap CI, 20 seeds). "
+        f"Cumulative regret (mean ± 95% bootstrap CI, {n_seeds} seeds). "
         "Budget rows omit Random (unconstrained baseline, same across regimes).\n"
         + "\n".join(table_rows)
         + "\n\nNote: Wide Tabula Rasa CIs reflect bimodal cold-start dynamics"
@@ -264,7 +277,7 @@ def plot_cross_judge(data: Dict[str, Any]) -> plt.Figure:
         "a minority lock onto a suboptimal arm early and accumulate excess"
         " regret before correcting. Despite the wide marginal CIs,\n"
         "the paired difference (Random − Tabula Rasa) is significant"
-        " for both judges (bootstrap 95% CI excludes zero)."
+        " for all judges (bootstrap 95% CI excludes zero)."
     )
     fig.text(
         0.52, 0.01, table_text,

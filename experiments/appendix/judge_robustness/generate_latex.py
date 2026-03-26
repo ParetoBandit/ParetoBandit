@@ -40,6 +40,7 @@ RESULTS_DIR = Path(__file__).resolve().parent / "results"
 JUDGE_SHORT: Dict[str, str] = {
     "R1": "ROne",
     "GPT-4.1-mini": "GPT",
+    "Claude-3.7-Sonnet": "Claude",
 }
 
 BUDGET_SHORT: Dict[str, str] = {
@@ -143,20 +144,38 @@ def _add_regret_commands(
                     lo, hi = bootstrap_ci(red_seeds)
                     cs.ci_bounds(f"{j}{b}ReductionPct", lo, hi, digits=0)
 
-    for budget in ["unconstrained", "tight", "moderate", "loose"]:
-        b = BUDGET_SHORT.get(budget, budget)
-        gpt_key = ("GPT-4.1-mini", budget, "tabula_rasa")
-        r1_key = ("R1", budget, "tabula_rasa")
-        if gpt_key in stats and r1_key in stats:
-            ratio = stats[gpt_key]["mean"] / stats[r1_key]["mean"]
-            cs.num(f"{b}GPTROneRatio", ratio, digits=2)
+    r1_rand_unc = stats.get(("R1", "unconstrained", "random"))
+    supp_judges = [j for j in regret_data.get("judges", []) if j != "R1"]
+    for supp_judge in supp_judges:
+        j = JUDGE_SHORT.get(supp_judge, supp_judge)
+        supp_rand_unc = stats.get((supp_judge, "unconstrained", "random"))
+        if supp_rand_unc and r1_rand_unc and r1_rand_unc["mean"] > 0:
+            compression = (1 - supp_rand_unc["mean"] / r1_rand_unc["mean"]) * 100
+            cs.num(f"{j}RandRegretCompressionPct", compression, digits=0)
 
-            gpt_seeds = groups_raw.get(gpt_key)
-            r1_seeds = groups_raw.get(r1_key)
-            if gpt_seeds and r1_seeds:
-                ratio_seeds = np.array(gpt_seeds) / np.array(r1_seeds)
-                lo, hi = bootstrap_ci(ratio_seeds)
-                cs.ci_bounds(f"{b}GPTROneRatio", lo, hi, digits=2)
+    # Per-budget Tabula Rasa ratio (supp / R1) for each supplementary judge.
+    for supp_judge in supp_judges:
+        j = JUDGE_SHORT.get(supp_judge, supp_judge)
+        for budget in ["unconstrained", "tight", "moderate", "loose"]:
+            b = BUDGET_SHORT.get(budget, budget)
+            supp_key = (supp_judge, budget, "tabula_rasa")
+            r1_key = ("R1", budget, "tabula_rasa")
+            if supp_key in stats and r1_key in stats:
+                ratio = stats[supp_key]["mean"] / stats[r1_key]["mean"]
+                cs.num(f"{b}{j}ROneRatio", ratio, digits=2)
+
+                supp_seeds = groups_raw.get(supp_key)
+                r1_seeds = groups_raw.get(r1_key)
+                if supp_seeds and r1_seeds:
+                    ratio_seeds = np.array(supp_seeds) / np.array(r1_seeds)
+                    lo, hi = bootstrap_ci(ratio_seeds)
+                    cs.ci_bounds(f"{b}{j}ROneRatio", lo, hi, digits=2)
+
+    # Legacy alias: keep \jrRandRegretCompressionPct for GPT-4.1-mini.
+    gpt_rand_unc = stats.get(("GPT-4.1-mini", "unconstrained", "random"))
+    if gpt_rand_unc and r1_rand_unc and r1_rand_unc["mean"] > 0:
+        compression = (1 - gpt_rand_unc["mean"] / r1_rand_unc["mean"]) * 100
+        cs.num("RandRegretCompressionPct", compression, digits=0)
 
 
 def _add_agreement_commands(
@@ -170,12 +189,12 @@ def _add_agreement_commands(
         metrics = summary.get("agreement_metrics", {}).get(judge_id)
         if metrics is None:
             continue
-        cs.num(f"{j_short}CCC", metrics["lins_ccc"], digits=3)
+        cs.num(f"{j_short}Spearman", metrics["spearman_rho"], digits=3)
+        cs.num(f"{j_short}Kendall", metrics["kendall_tau_b"], digits=3)
         cs.num(f"{j_short}MAD", metrics["mad"], digits=3)
         cs.num(f"{j_short}Bias", metrics["mean_bias"], digits=3)
-        cs.num(f"{j_short}Pearson", metrics["pearson_r"], digits=3)
-        cs.num(f"{j_short}BALo", metrics["bland_altman_lower"], digits=2)
-        cs.num(f"{j_short}BAHi", metrics["bland_altman_upper"], digits=2)
+        cs.num(f"{j_short}BALo", metrics.get("empirical_loa_lower", metrics["bland_altman_lower"]), digits=2)
+        cs.num(f"{j_short}BAHi", metrics.get("empirical_loa_upper", metrics["bland_altman_upper"]), digits=2)
 
     for judge_id, j_short in AGREEMENT_JUDGE_SHORT.items():
         routing = summary.get("routing_agreement", {}).get(judge_id)
@@ -215,6 +234,141 @@ def _add_agreement_commands(
             cs.num(f"{label}MedianGap", gap_data["median_gap"], digits=3)
 
 
+def _add_ordering_bootstrap_commands(
+    cs: CommandSet,
+    summary: Dict[str, Any],
+) -> None:
+    """Emit pairwise ordering bootstrap CI macros.
+
+    For each judge, emits the worst-case (narrowest) CI lower bound
+    across all model pairs so the tex can assert "all pairwise 95% CIs
+    exclude zero."
+    """
+    pairwise = summary.get("pairwise_ordering_bootstrap", {})
+    if not pairwise:
+        return
+
+    all_sig = True
+    worst_bonf_lo = float("inf")
+    for judge_label, pairs in pairwise.items():
+        for pair in pairs:
+            if not pair["significant"]:
+                all_sig = False
+            bonf_lo = pair.get("bonf_ci_lo", pair["ci_lo"])
+            if bonf_lo < worst_bonf_lo:
+                worst_bonf_lo = bonf_lo
+
+    cs.raw("OrderingAllSig", "true" if all_sig else "false")
+    cs.num("OrderingWorstCILo", worst_bonf_lo, digits=4)
+
+    judge_label_map = {
+        "deepseek-r1": "ROne",
+        "GPT-4.1-mini": "GPT",
+        "Claude-3.7-Sonnet": "Claude",
+    }
+    for judge_key, pairs in pairwise.items():
+        j = judge_label_map.get(judge_key, judge_key)
+        for pair in pairs:
+            ma = MODEL_SHORT.get(pair["model_a"], pair["model_a"])
+            mb = MODEL_SHORT.get(pair["model_b"], pair["model_b"])
+            pfx = f"{j}{ma}{mb}"
+            cs.num(f"{pfx}Diff", pair["mean_diff"], digits=3)
+            cs.num(f"{pfx}CILo", pair.get("bonf_ci_lo", pair["ci_lo"]), digits=3)
+            cs.num(f"{pfx}CIHi", pair.get("bonf_ci_hi", pair["ci_hi"]), digits=3)
+
+
+CROSS_JUDGE_SHORT: Dict[str, str] = {
+    "R1": "ROne",
+    "GPT-4.1-mini": "GPT",
+    "Claude-3.7-Sonnet": "Claude",
+}
+
+
+def _add_cross_oracle_commands(
+    cs: CommandSet,
+    summary: Dict[str, Any],
+) -> None:
+    """Emit cross-oracle matrix, oracle lift, and derived macros."""
+    cross = summary.get("cross_oracle_matrix")
+    if not cross:
+        return
+
+    judges = list(cross.keys())
+
+    for j_train in judges:
+        jt = CROSS_JUDGE_SHORT.get(j_train, j_train)
+        for j_eval in judges:
+            je = CROSS_JUDGE_SHORT.get(j_eval, j_eval)
+            entry = cross[j_train][j_eval]
+            cs.num(f"Cross{jt}{je}Mean", entry["mean"], digits=3)
+            if "capture_pct" in entry:
+                cs.num(
+                    f"Cross{jt}{je}Capture",
+                    entry["capture_pct"],
+                    digits=1,
+                )
+
+    lifts = summary.get("oracle_lifts", {})
+    for j_name, j_short in CROSS_JUDGE_SHORT.items():
+        if j_name in lifts:
+            cs.num(f"{j_short}OracleLift", lifts[j_name], digits=3)
+
+    r1_captures = [
+        cross["R1"][j]["capture_pct"]
+        for j in judges if j != "R1" and "capture_pct" in cross["R1"][j]
+    ]
+    if r1_captures:
+        cs.num("ROneMinCapture", min(r1_captures), digits=1)
+        cs.num("ROneMaxCapture", max(r1_captures), digits=1)
+
+    other_on_r1 = [
+        cross[j]["R1"]["capture_pct"]
+        for j in judges
+        if j != "R1" and "capture_pct" in cross[j]["R1"]
+    ]
+    if other_on_r1:
+        cs.num("OtherOnROneMinCapture", min(other_on_r1), digits=1)
+        cs.num("OtherOnROneMaxCapture", max(other_on_r1), digits=1)
+
+    all_off_diag = [
+        cross[jt][je]["capture_pct"]
+        for jt in judges for je in judges
+        if jt != je and "capture_pct" in cross[jt][je]
+    ]
+    if all_off_diag:
+        cs.num("MinOffDiagCapture", min(all_off_diag), digits=0)
+
+    margins_pp: List[float] = []
+    for j_eval in judges:
+        if j_eval == "R1":
+            continue
+        r1_cap = cross["R1"][j_eval].get("capture_pct", 0.0)
+        other_caps = [
+            cross[jt][j_eval].get("capture_pct", 0.0)
+            for jt in judges if jt != "R1" and jt != j_eval
+        ]
+        if other_caps:
+            margins_pp.append(r1_cap - max(other_caps))
+    if margins_pp:
+        cs.num("CaptureMarginMinPP", min(margins_pp), digits=1)
+        cs.num("CaptureMarginMaxPP", max(margins_pp), digits=1)
+
+    max_half_width = 0.0
+    for j_train in judges:
+        for j_eval in judges:
+            entry = cross[j_train][j_eval]
+            hw = (entry["ci_hi"] - entry["ci_lo"]) / 2.0
+            max_half_width = max(max_half_width, hw)
+    cs.num("CellCIHalfWidthPP", max_half_width * 100, digits=1)
+
+    r1_lift = lifts.get("R1", 0.0)
+    if r1_lift > 0:
+        supp_lifts = [lifts[j] for j in lifts if j != "R1"]
+        if supp_lifts:
+            max_comp = (1 - min(supp_lifts) / r1_lift) * 100
+            cs.num("OracleLiftMaxCompressionPct", max_comp, digits=0)
+
+
 def _add_panel_commands(
     cs: CommandSet,
     panel: Dict[str, Any],
@@ -238,7 +392,10 @@ def build_command_set() -> CommandSet:
 
     summary_path = RESULTS_DIR / "judge_robustness_summary.json"
     if summary_path.exists():
-        _add_agreement_commands(cs, load_json(summary_path))
+        summary = load_json(summary_path)
+        _add_agreement_commands(cs, summary)
+        _add_ordering_bootstrap_commands(cs, summary)
+        _add_cross_oracle_commands(cs, summary)
 
     panel_path = RESULTS_DIR / "panel_comparison_summary.json"
     if panel_path.exists():

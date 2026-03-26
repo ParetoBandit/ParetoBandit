@@ -27,10 +27,17 @@ from typing import Any, Dict, List, Set, Tuple
 import numpy as np
 from scipy import stats
 
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.bootstrap import bootstrap_ci_mean
+
 from pareto_bandit.config import CALIBRATION_DIR, PARETO_REWARDS_PATH
 
 from judge_robustness_utils import (
     JUDGE_PLOT_META as JUDGE_META,
+    MODELS,
     lins_ccc,
 )
 
@@ -78,6 +85,9 @@ def compute_agreement_metrics(
     loa_mean = float(np.mean(diff))
     loa_std = float(np.std(diff, ddof=1))
 
+    emp_lo = float(np.percentile(diff, 2.5))
+    emp_hi = float(np.percentile(diff, 97.5))
+
     return {
         "n": len(x),
         "pearson_r": pr,
@@ -91,6 +101,8 @@ def compute_agreement_metrics(
         "mad": mad,
         "bland_altman_mean": loa_mean,
         "bland_altman_lower": loa_mean - 1.96 * loa_std,
+        "empirical_loa_lower": emp_lo,
+        "empirical_loa_upper": emp_hi,
         "bland_altman_upper": loa_mean + 1.96 * loa_std,
     }
 
@@ -203,8 +215,208 @@ def _prompt_gaps(scores: Dict[Tuple[str, str], float]) -> np.ndarray:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Cross-judge oracle matrix
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def compute_cross_judge_oracle(
+    r1: Dict[Tuple[str, str], float],
+    supp: Dict[str, Dict[Tuple[str, str], float]],
+    n_bootstrap: int = 10_000,
+) -> Dict[str, Any]:
+    """Compute 3x3 cross-judge oracle matrix and per-judge oracle lifts.
+
+    For each ``(train_judge, eval_judge)`` pair, selects the per-prompt
+    best model according to ``train_judge`` and evaluates mean reward
+    under ``eval_judge``.  Also computes oracle lift (oracle mean minus
+    best-fixed-model mean) for each judge.
+
+    Parameters
+    ----------
+    r1:
+        R1 scores keyed by ``(prompt, model_id)``.
+    supp:
+        Supplementary judge scores keyed by full judge model ID.
+    n_bootstrap:
+        Bootstrap resamples for per-cell CIs.
+
+    Returns
+    -------
+    Dict[str, Any]
+        ``cross_oracle_matrix``, ``oracle_lifts``, ``n_prompts``.
+    """
+    all_scores: Dict[str, Dict[Tuple[str, str], float]] = {"R1": r1}
+    for judge_id, scores in supp.items():
+        short = JUDGE_META.get(judge_id, {}).get("short", judge_id)
+        all_scores[short] = scores
+
+    all_keys_per_judge = {j: set(s.keys()) for j, s in all_scores.items()}
+    common_keys = set.intersection(*all_keys_per_judge.values())
+
+    prompt_models: Dict[str, Set[str]] = defaultdict(set)
+    for prompt, model in common_keys:
+        prompt_models[prompt].add(model)
+
+    complete_prompts = sorted(
+        p for p, models in prompt_models.items()
+        if all(m in models for m in MODELS)
+    )
+    n_prompts = len(complete_prompts)
+
+    judges = list(all_scores.keys())
+    matrices: Dict[str, np.ndarray] = {}
+    for j, scores in all_scores.items():
+        matrices[j] = np.array([
+            [scores[(p, m)] for m in MODELS]
+            for p in complete_prompts
+        ])
+
+    oracle_choices: Dict[str, np.ndarray] = {
+        j: mat.argmax(axis=1) for j, mat in matrices.items()
+    }
+
+    cross_matrix: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    idx = np.arange(n_prompts)
+    for j_train in judges:
+        cross_matrix[j_train] = {}
+        chosen = oracle_choices[j_train]
+        for j_eval in judges:
+            rewards = matrices[j_eval][idx, chosen]
+            mean_val = float(rewards.mean())
+            ci_lo, ci_hi = bootstrap_ci_mean(
+                rewards, n_bootstrap=n_bootstrap,
+            )
+            cross_matrix[j_train][j_eval] = {
+                "mean": round(mean_val, 4),
+                "ci_lo": round(ci_lo, 4),
+                "ci_hi": round(ci_hi, 4),
+            }
+
+    oracle_means = {j: cross_matrix[j][j]["mean"] for j in judges}
+
+    for j_train in judges:
+        for j_eval in judges:
+            if j_train != j_eval:
+                frac = (
+                    cross_matrix[j_train][j_eval]["mean"]
+                    / oracle_means[j_eval]
+                )
+                cross_matrix[j_train][j_eval]["capture_pct"] = round(
+                    frac * 100, 1,
+                )
+
+    oracle_lifts: Dict[str, float] = {}
+    for j, mat in matrices.items():
+        oracle_mean = float(mat.max(axis=1).mean())
+        best_fixed_mean = float(mat.mean(axis=0).max())
+        oracle_lifts[j] = round(oracle_mean - best_fixed_mean, 4)
+
+    logger.info("Cross-oracle matrix (%d prompts):", n_prompts)
+    for j_train in judges:
+        for j_eval in judges:
+            entry = cross_matrix[j_train][j_eval]
+            cap = entry.get("capture_pct", 100.0)
+            logger.info(
+                "  %s -> %s: mean=%.4f (%.1f%%)",
+                j_train, j_eval, entry["mean"], cap,
+            )
+    for j, lift in oracle_lifts.items():
+        logger.info("  Oracle lift %s: %.4f", j, lift)
+
+    return {
+        "cross_oracle_matrix": cross_matrix,
+        "oracle_lifts": oracle_lifts,
+        "n_prompts": n_prompts,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Summary export
 # ══════════════════════════════════════════════════════════════════════════
+
+
+def compute_pairwise_bootstrap(
+    scores: Dict[Tuple[str, str], float],
+    judge_label: str,
+    n_comparisons: int = 9,
+    n_bootstrap: int = 10_000,
+) -> List[Dict[str, Any]]:
+    """Bootstrap CIs for pairwise mean-reward differences between models.
+
+    For each ordered pair (model_a, model_b) where mean(a) > mean(b),
+    computes both uncorrected 95% and Bonferroni-corrected CIs on the
+    paired mean difference.  Significance is assessed using the
+    Bonferroni-corrected CI (level = 1 - 0.05 / ``n_comparisons``).
+
+    Parameters
+    ----------
+    scores:
+        Mapping ``(prompt, model_id)`` -> reward.
+    judge_label:
+        Human-readable judge name for logging.
+    n_comparisons:
+        Total number of simultaneous comparisons for Bonferroni
+        correction (default 9 = 3 model pairs x 3 judges).
+    n_bootstrap:
+        Number of bootstrap resamples.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        One entry per ordered pair with keys: ``model_a``, ``model_b``,
+        ``mean_diff``, ``ci_lo``, ``ci_hi`` (uncorrected),
+        ``bonf_ci_lo``, ``bonf_ci_hi`` (Bonferroni-corrected),
+        ``significant`` (based on corrected CI).
+    """
+    bonf_level = 1.0 - 0.05 / n_comparisons
+
+    by_prompt: Dict[str, Dict[str, float]] = defaultdict(dict)
+    for (prompt, model_id), score in scores.items():
+        by_prompt[prompt][model_id] = score
+
+    all_models = sorted(
+        {m for models in by_prompt.values() for m in models}
+    )
+    complete = {
+        p: models for p, models in by_prompt.items()
+        if len(models) == len(all_models)
+    }
+    prompts = sorted(complete.keys())
+
+    model_means = {
+        m: float(np.mean([complete[p][m] for p in prompts]))
+        for m in all_models
+    }
+    ranked = sorted(all_models, key=lambda m: model_means[m], reverse=True)
+
+    results: List[Dict[str, Any]] = []
+    for i, ma in enumerate(ranked):
+        for mb in ranked[i + 1:]:
+            diffs = np.array([complete[p][ma] - complete[p][mb] for p in prompts])
+            ci_lo, ci_hi = bootstrap_ci_mean(diffs, n_bootstrap=n_bootstrap)
+            bonf_lo, bonf_hi = bootstrap_ci_mean(
+                diffs, n_bootstrap=n_bootstrap, ci_level=bonf_level,
+            )
+            mean_diff = float(diffs.mean())
+            sig = bonf_lo > 0
+            results.append({
+                "model_a": ma,
+                "model_b": mb,
+                "mean_diff": round(mean_diff, 4),
+                "ci_lo": round(ci_lo, 4),
+                "ci_hi": round(ci_hi, 4),
+                "bonf_ci_lo": round(bonf_lo, 4),
+                "bonf_ci_hi": round(bonf_hi, 4),
+                "significant": sig,
+            })
+            logger.info(
+                "%s: %s − %s = %.4f  95%%[%.4f, %.4f]  "
+                "Bonf[%.4f, %.4f] %s",
+                judge_label, ma, mb, mean_diff,
+                ci_lo, ci_hi, bonf_lo, bonf_hi,
+                "***" if sig else "n.s.",
+            )
+    return results
 
 
 def export_summary(
@@ -255,6 +467,20 @@ def export_summary(
             "median_gap": round(float(np.median(g)), 4),
         }
     data["gap_statistics"] = gap_stats
+
+    logger.info("Computing pairwise bootstrap CIs for model ordering...")
+    pairwise: Dict[str, List[Dict[str, Any]]] = {}
+    pairwise["deepseek-r1"] = compute_pairwise_bootstrap(r1, "DeepSeek-R1")
+    for judge, scores in supp.items():
+        short = JUDGE_META.get(judge, {}).get("short", judge)
+        pairwise[short] = compute_pairwise_bootstrap(scores, short)
+    data["pairwise_ordering_bootstrap"] = pairwise
+
+    logger.info("Computing cross-judge oracle matrix...")
+    cross_oracle = compute_cross_judge_oracle(r1, supp)
+    data["cross_oracle_matrix"] = cross_oracle["cross_oracle_matrix"]
+    data["oracle_lifts"] = cross_oracle["oracle_lifts"]
+    data["cross_oracle_n_prompts"] = cross_oracle["n_prompts"]
 
     out = RESULTS_DIR / "judge_robustness_summary.json"
     with open(out, "w") as f:
