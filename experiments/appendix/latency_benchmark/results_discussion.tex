@@ -86,19 +86,22 @@ inherit from the same Python base class and execute literally the same
 \texttt{route()} method (UCB scoring via cached $A_a^{-1}$ and
 $\hat\theta_a$), so any route-latency difference is measurement noise.
 
-Route latency is identical between Bare~SM and Cached~Inv.\ at each
-dimension.
-
+Route latency is near-identical between Bare~SM and Cached~Inv.\ at
+each dimension ($\latSMdTwentySixRouteMedian$ vs.\
+$\latCachedDTwentySixRouteMedian\,\mu$s at $d{=}26$;
+$\latSMdFullRouteMedian$ vs.\ $\latCachedDFullRouteMedian\,\mu$s at
+$d{=}385$), consistent with their shared \texttt{route()} code path,
+with the small residual gap likely reflecting Python object-layout
+differences between the two subclasses.
 Update latency is where SM helps: at $d{=}385$, the $O(d^2)$ SM
 update is $5.0{\times}$ faster than full inversion
 ($346.6\,\mu$s vs.\ $1735.8\,\mu$s, p50); at $d{=}26$, the gap
 narrows to $2.3{\times}$ ($8.1\,\mu$s vs.\ $18.6\,\mu$s) because
 $d^3 = 17{,}576$ is already fast for LAPACK.
-
 Per-Route~Inv.\ never caches $A_a^{-1}$, paying $K$ full inversions
 on every \texttt{route()} call; no reasonable implementation would do
 this, but it bounds worst-case behaviour.
-
+\vspace{-1ex}
 \paragraph{Production overhead.}
 ParetoBandit is the full production router.  It uses the same SM
 update as Bare~SM but adds a threading lock around
@@ -118,7 +121,7 @@ The router sustains ${\approx}22{,}000$\,req/s on a single CPU
 core, sufficient for all but the most extreme throughput tiers.
 
 \textbf{SM's benefit is in update cost, not routing.}
-Bare~SM and Cached~Inv.\ have identical route latency; the improvement
+Bare~SM and Cached~Inv.\ have near-identical route latency; the improvement
 appears in update: at $d{=}385$, SM is $5.0{\times}$ faster
 ($346.6\,\mu$s vs.\ $1735.8\,\mu$s, p50), and $2.3{\times}$ faster
 at $d{=}26$.
