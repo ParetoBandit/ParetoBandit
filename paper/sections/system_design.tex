@@ -3,20 +3,40 @@
 
 ParetoBandit jointly learns reward surfaces from bandit feedback, enforces a long-run budget constraint ceiling, and adapts to non-stationarity, a combination that, to our knowledge, ParetoBandit is the first LLM routing system to integrate. It composes four foundational ingredients: LinUCB~\cite{li2010contextual} for contextual reward learning, BwK-inspired Lagrangian relaxation~\cite{badanidiyuru2013bwk, agrawal2016linear} for budget enforcement, geometric discounting~\cite{garivier2011switching, russac2019weighted} for non-stationarity, and offline-to-online warm-start priors~\cite{oetomo2023warmstart} for cold-start elimination. Their composition rests on LinUCB's sufficient-statistic representation ($A_a$, $b_a$ per arm): forgetting reduces to a scalar multiply, warmup to a matrix addition, and updates to $O(d^2)$ Sherman--Morrison operations, while the confidence bonus $x_t^\top A_a^{-1} x_t$, the exact posterior variance under a Gaussian linear model, provides context-dependent calibrated exploration from the first request. We chose UCB over Thompson Sampling~\cite{agrawal2013thompson} because its deterministic score interacts more predictably with the Lagrangian penalty.\looseness=-1
 
-Although each ingredient is well-established individually, combining them creates cross-component interactions. For example, geometric forgetting shrinks $A_a$ toward singularity over time, inflating LinUCB's confidence bonus. This inflation makes expensive but uncertain arms more attractive, which drives up $\lambda_t$ and tightens the budget penalty. The forgetting rate $\gamma$ and exploration coefficient $\alpha$ should therefore be calibrated jointly, not in isolation. Appendix~\ref{sec:hparam_sweep} describes the Pareto knee-point procedure that resolves these interactions.
+Although each ingredient is well-established individually, combining them creates cross-component interactions. For example, geometric forgetting shrinks $A_a$ toward singularity over time, inflating LinUCB's confidence bonus and making expensive but uncertain arms more attractive. The BudgetPacer's dual variable $\lambda_t$ compensates online (Section~\ref{sec:budget_pacer}), but the upstream interaction between the forgetting rate $\gamma$ and exploration coefficient $\alpha$ determines exploration aggressiveness; these should be calibrated jointly, not in isolation. Appendix~\ref{sec:hparam_sweep} describes the Pareto knee-point procedure that resolves this.\looseness=-1
 
 \subsection{Architecture Overview}
 \label{sec:architecture}
 
 ParetoBandit operates as a closed-loop routing system with two data paths.
 
-\paragraph{Synchronous inference path.}
-When a user prompt arrives, the feature extractor (Section~\ref{sec:context_repr}) produces a PCA-reduced context vector $x_t$. The \texttt{BanditRouter} scores every eligible model using the budget-augmented UCB rule (Section~\ref{sec:budget_pacer}) and dispatches the prompt to the highest-scoring model $a_t$.
+\textbf{Synchronous inference path.} When a user prompt arrives, the feature extractor (Section~\ref{sec:context_repr}) produces a PCA-reduced context vector $x_t$. The \texttt{BanditRouter} scores every eligible model using the budget-augmented UCB rule (Section~\ref{sec:budget_pacer}) and dispatches the prompt to the highest-scoring model $a_t$.
 
-\paragraph{Asynchronous feedback path.}
-After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. The bandit updates its per-arm sufficient statistics with geometric forgetting (Section~\ref{sec:adaptive_learning}), while the budget pacer updates $\lambda_t$ via the EMA-smoothed cost signal (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}). The context vector is cached at route time so that rewards arriving hours later (e.g., human RLHF labels) can still update the bandit without re-encoding the prompt. Algorithm~\ref{alg:paretobandit} consolidates the full per-step loop.
+\textbf{Asynchronous feedback path.} After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. The bandit updates its per-arm sufficient statistics with geometric forgetting (Section~\ref{sec:adaptive_learning}), while the budget pacer updates $\lambda_t$ via the EMA-smoothed cost signal (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}). The context vector is cached at route time so that rewards arriving hours later (e.g., human RLHF labels) can still update the bandit without re-encoding the prompt. Algorithm~\ref{alg:paretobandit} consolidates the full per-step loop.
 
-\begin{algorithm}[ht]
+\subsection{Budget-Paced Arm Selection}
+\label{sec:budget_pacer}
+
+At each step $t$, the router selects model $a_t$ by maximizing a budget-augmented utility:
+\begin{equation}
+    a_t = \arg\max_{a \in \mathcal{A}_t} \Bigl[
+        \underbrace{\hat\theta_a^\top x_t}_{\text{exploit}}
+        +\; \underbrace{\alpha \sqrt{x_t^\top A_a^{-1} x_t}}_{\text{explore}}
+        \;-\; \underbrace{(\lambda_c + \lambda_t) \,\tilde{c}_a}_{\text{cost penalty}}
+    \Bigr]
+    \label{eq:budget_ucb}
+\end{equation}
+The underbraced terms trade off exploitation of the current reward estimate, uncertainty-driven exploration (further inflated for stale arms via Eq.~\ref{eq:staleness_inflation}), and a cost penalty that discourages expensive models. The exploration rate $\alpha > 0$ scales the confidence bonus directly. The cost penalty has two additive components: a static weight $\lambda_c \geq 0$ (default 0.3) encoding the operator's baseline cost--quality preference from the first request ($\lambda_c = 0$ recovers quality-only routing), and a dynamic dual variable $\lambda_t \geq 0$ that starts at zero and rises only when recent spending exceeds $B$, providing closed-loop enforcement. After each request, a smoothed dual-ascent step adjusts $\lambda_t$:
+\begin{align}
+    \bar{c}_t &= (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1}
+                 + \alpha_{\mathrm{ema}}\,c_t
+    \label{eq:cost_ema} \\
+    \lambda_{t+1} &= \bigl[\lambda_t + \eta\,(\bar{c}_t / B - 1)\bigr]_{0}^{\bar\lambda}
+    \label{eq:dual_update}
+\end{align}
+where $\bar{c}_t$ is an EMA-smoothed cost signal ($\alpha_{\mathrm{ema}}{=}0.05$, half-life ${\approx}14$ requests), $\eta{=}0.05$ is the step size, and $[\cdot]_0^{\bar\lambda}$ projects onto $[0, \bar\lambda{=}5]$. The EMA prevents sawtooth oscillations from single expensive requests; normalizing the gradient by $B$ makes $\eta$ portfolio-independent. When $\bar{c}_t / B > 1$ (overspending), $\lambda_t$ rises, penalizing expensive models; when below, $\lambda_t$ falls, releasing the router to pursue quality.\looseness=-1
+
+\begin{algorithm}[t]
 \caption{ParetoBandit: Budget-Paced Non-Stationary Routing}
 \label{alg:paretobandit}
 \begin{algorithmic}[1]
@@ -50,28 +70,6 @@ After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. Th
 \ENDFOR
 \end{algorithmic}
 \end{algorithm}
-
-\subsection{Budget-Paced Arm Selection}
-\label{sec:budget_pacer}
-
-At each step $t$, the router selects model $a_t$ by maximizing a budget-augmented utility:
-\begin{equation}
-    a_t = \arg\max_{a \in \mathcal{A}_t} \Bigl[
-        \underbrace{\hat\theta_a^\top x_t}_{\text{exploit}}
-        +\; \underbrace{\alpha \sqrt{x_t^\top A_a^{-1} x_t}}_{\text{explore}}
-        \;-\; \underbrace{(\lambda_c + \lambda_t) \,\tilde{c}_a}_{\text{cost penalty}}
-    \Bigr]
-    \label{eq:budget_ucb}
-\end{equation}
-The first term is the router's current best estimate of the expected reward for model $a$ on prompt $x_t$ (\emph{exploitation}). The second term is a confidence bonus proportional to the router's uncertainty about that estimate: models selected rarely or on dissimilar prompts receive larger bonuses, encouraging the router to try them (\emph{exploration}); in practice this base variance is further inflated for stale arms via a staleness divisor (Eq.~\ref{eq:staleness_inflation}, Section~\ref{sec:adaptive_learning}). The exploration rate $\alpha > 0$ controls this tradeoff directly. The cost penalty $(\lambda_c + \lambda_t)\tilde{c}_a$ reduces the effective score of expensive models, constraining exploration to arms the budget can sustain. It has two additive components. The static weight $\lambda_c \geq 0$ (default 0.3) encodes the operator's baseline cost--quality preference and is active from the first request; setting $\lambda_c = 0$ recovers pure quality-only routing. The dynamic dual variable $\lambda_t \geq 0$ is maintained by the budget pacer: it starts at zero and rises only when recent spending exceeds the target $B$, providing closed-loop budget enforcement on top of the static preference. After each request, a smoothed dual-ascent step adjusts $\lambda_t$:
-\begin{align}
-    \bar{c}_t &= (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1}
-                 + \alpha_{\mathrm{ema}}\,c_t
-    \label{eq:cost_ema} \\
-    \lambda_{t+1} &= \bigl[\lambda_t + \eta\,(\bar{c}_t / B - 1)\bigr]_{0}^{\bar\lambda}
-    \label{eq:dual_update}
-\end{align}
-where $\bar{c}_t$ is an EMA-smoothed cost signal ($\alpha_{\mathrm{ema}}{=}0.05$, half-life ${\approx}14$ requests), $\eta{=}0.05$ is the step size, and $[\cdot]_0^{\bar\lambda}$ projects onto $[0, \bar\lambda{=}5]$. The EMA prevents sawtooth oscillations from single expensive requests; normalizing the gradient by $B$ makes $\eta$ portfolio-independent. When $\bar{c}_t / B > 1$ (overspending), $\lambda_t$ rises, penalizing expensive models; when below, $\lambda_t$ falls, releasing the router to pursue quality.\looseness=-1
 
 \paragraph{Reward model and parameter estimation.}
 LinUCB models the expected reward as $\mathbb{E}[r_t \mid x_t, a] = \theta_a^{*\top} x_t$~\cite{li2010contextual}. The estimate $\hat\theta_a = A_a^{-1} b_a$ is the ridge regression solution, where
