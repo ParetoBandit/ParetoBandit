@@ -1004,7 +1004,7 @@ class BanditRouter:
                 # count — it automatically accounts for importance weights
                 # and regularization used during warmup generation.
                 warmup_eff_strength = warmup_data["A"][model_id][-1, -1]
-                scale = prior_n_effective / max(float(warmup_eff_strength), 1.0)
+                scale = prior_n_effective / float(warmup_eff_strength)
                 
                 # Original matrices
                 A_orig = warmup_data["A"][model_id]

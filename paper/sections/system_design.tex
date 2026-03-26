@@ -12,7 +12,7 @@ ParetoBandit operates as a closed-loop routing system with two data paths.
 
 \textbf{Synchronous inference path.} When a user prompt arrives, the feature extractor (Section~\ref{sec:context_repr}) produces a PCA-reduced context vector $x_t$. The \texttt{BanditRouter} scores every eligible model using the budget-augmented UCB rule (Section~\ref{sec:budget_pacer}) and dispatches the prompt to the highest-scoring model $a_t$.
 
-\textbf{Asynchronous feedback path.} After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. The bandit updates its per-arm sufficient statistics with geometric forgetting (Section~\ref{sec:adaptive_learning}), while the budget pacer updates $\lambda_t$ via the EMA-smoothed cost signal (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}). The context vector is cached at route time so that rewards arriving hours later (e.g., human RLHF labels) can still update the bandit without re-encoding the prompt. Algorithm~\ref{alg:paretobandit} consolidates the full per-step loop.
+\textbf{Asynchronous feedback path.} After inference, the observed reward $r_t$ and realized cost $c_t$ flow back. The bandit updates its per-arm sufficient statistics with geometric forgetting (Section~\ref{sec:adaptive_learning}), while the budget pacer updates $\lambda_t$ via the EMA-smoothed cost signal (Eqs.~\ref{eq:cost_ema}--\ref{eq:dual_update}). The context vector is cached at route time so that rewards arriving hours later (e.g., human Reinforcement Learning from Human Feedback (RLHF) labels) can still update the bandit without re-encoding the prompt. Algorithm~\ref{alg:paretobandit} consolidates the full per-step loop.
 
 \subsection{Budget-Paced Arm Selection}
 \label{sec:budget_pacer}
@@ -97,7 +97,7 @@ The budget pacer combines two mechanisms simultaneously:
 The hard ceiling provides per-request worst-case cost bounds independent of $\lambda_t$; the soft penalty provides smooth, quality-maximizing allocation within those bounds.
 
 \paragraph{Theoretical status.}
-Eq.~\ref{eq:budget_ucb} is a Lagrangian relaxation of Eq.~\ref{eq:objective}, but four departures from the classical BwK analysis~\cite{badanidiyuru2013bwk}---rate constraint, EMA smoothing, hard ceiling, and log-normalized costs---void the formal $\tilde{O}(\sqrt{T})$ bounds (see \citealt{balseiro2019learning} for smoothed dual analysis). Three properties nonetheless hold by construction: (1)~$\lambda_t \in [0, \bar\lambda]$, (2)~staleness inflation ensures re-exploration of neglected arms, and (3)~the hard ceiling caps the cost of any single request.
+Eq.~\ref{eq:budget_ucb} is a Lagrangian relaxation of Eq.~\ref{eq:objective}, but four departures from the classical BwK analysis~\cite{badanidiyuru2013bwk}---rate constraint, EMA smoothing, hard ceiling, and log-normalized costs---void the formal $\tilde{O}(\sqrt{T})$ bounds (see \citealt{balseiro2019learning} for smoothed dual analysis). Three properties nonetheless hold by construction: (1)~$\lambda_t \in [0, \bar\lambda]$, (2)~staleness inflation ensures re-exploration of neglected arms, and (3)~when $\lambda_t > 0$, the hard ceiling caps the cost of any single request.
 
 \subsection{Non-Stationary Adaptation via Geometric Forgetting}
 \label{sec:adaptive_learning}
