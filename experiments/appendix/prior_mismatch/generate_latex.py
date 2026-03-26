@@ -114,7 +114,7 @@ def _add_pairwise_commands(
 
     p_sign = test.get("sign_test_p_holm", test.get("sign_test_p", 1.0))
     if p_sign < 1e-4:
-        cs.raw(f"{pfx}SignPHolm", f"{{<}}10^{{-{int(-np.floor(np.log10(p_sign)))}}}")
+        cs.raw(f"{pfx}SignPHolm", f"{{<}}10^{{-{int(np.floor(-np.log10(p_sign)))}}}")
     else:
         cs.num(f"{pfx}SignPHolm", p_sign, digits=4)
 
@@ -240,7 +240,7 @@ def _add_summary_commands(
     if domain_p_values:
         min_p = min(domain_p_values)
         if min_p < 1e-4:
-            exp = int(-np.floor(np.log10(min_p)))
+            exp = int(np.floor(-np.log10(min_p)))
             cs.raw("DomainMinPHolm", f"{{<}}10^{{-{exp}}}")
         else:
             cs.num("DomainMinPHolm", min_p, digits=4)
