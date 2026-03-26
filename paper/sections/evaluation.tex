@@ -13,17 +13,16 @@ We collect 11,983 prompts from nine public NLP benchmarks (MMLU~\cite{hendrycks2
 Each response is scored by DeepSeek-R1~\cite{deepseekai2025deepseekr1} on three continuous dimensions: reasoning quality (weight 0.4), instruction following (0.3), and communication quality (0.3), yielding a composite reward $r_t \in [0, 1]$. R1 produces the largest inter-model reward gaps among the judges we evaluated; Appendix~\ref{sec:judge_robustness} validates that its routing decisions capture ${\geq}97\%$ of any alternative judge's oracle reward.
 
 \paragraph{Baselines.}
-Three conditions represent increasing routing sophistication, all sharing warmup priors ($n_\mathit{eff}{=}\bdNeff$, $\alpha{=}\ppAlpha$):
+Two conditions represent increasing routing sophistication, all sharing warmup priors ($n_\mathit{eff}{=}\bdNeff$, $\alpha{=}\ppAlpha$):
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy:} Frozen warmup priors, static cost penalty, no online learning.
   \item \textbf{Naive Bandit ($\gamma{=}1.0$):} LinUCB with online learning but infinite memory and a static cost penalty.
   \item \textbf{ParetoBandit ($\gamma{=}\ppGamma$):} Geometric forgetting with warmup priors and an active BudgetPacer.
 \end{enumerate}
 Experiment~2 additionally includes a \textbf{Recalibrated Bandit} (oracle knowledge of price changes) and a \textbf{Forgetting Bandit} ($\gamma{=}\ppGamma$, no pacer) as ablations. Hyperparameters are selected via the Pareto knee-point procedure described in Appendix~\ref{sec:hparam_sweep}.
 
-\paragraph{Non-stationary protocol.}
-Experiments 2--3 follow a three-phase stress-test: normal operation (608 prompts), abrupt perturbation (608 prompts), and recovery (608 prompts). Phase~3 reuses Phase~1 prompts for a controlled within-subject comparison.
+\noindent\textbf{Non-stationary protocol.} Experiments 2--3 follow a three-phase stress-test: normal operation (608 prompts), abrupt perturbation (608 prompts), and recovery (608 prompts). Phase~3 reuses Phase~1 prompts for a controlled within-subject comparison.
 
+\vspace{-6pt}
 \begin{table}[!htbp]
 \centering
 \caption{\input{../experiments/01_stationary_budget_pacing/table_caption_setup.tex}}
@@ -51,7 +50,7 @@ Loose    & $\$1.9{\times}10^{-3}$ & Selective Gemini \\
 
 We first ask: \emph{can the router accept a dollar budget ceiling and automatically maximize quality beneath it, filling the quality--cost gaps between fixed single-model baselines?}
 
-Figure~\ref{fig:pareto} shows the quality--cost Pareto frontier on the test set. Each fixed model occupies a single point on this frontier, plotted as (mean cost per request, mean quality score): Llama at ($\bpFixedLlamaCost$, $\bpFixedLlamaReward$), Mistral at ($\bpFixedMistralCost$, $\bpFixedMistralReward$), Gemini at ($\bpFixedGeminiCost$, $\bpFixedGeminiReward$). The BudgetPacer traces a continuous curve through these points by dynamically mixing models based on prompt context and budget pressure. At a budget of $\bpAnnotBudget$/req, the router achieves $\bpAnnotQualPct$\%\,[$\bpAnnotQualPctCILo$, $\bpAnnotQualPctCIHi$] of Gemini quality at $\bpAnnotCostPct$\% of its cost by blending $\bpAnnotLlamaFrac$\% Llama and $\bpAnnotMistralFrac$\% Mistral. For binding ceilings, utilisation ranges from $\bpUtilBindingLow$ to $\bpUtilBindingHigh$. When the ceiling is high enough that cost never binds, the cost penalty $\lambda_t$ decays to zero and the router reduces to pure quality maximization, recovering $\bpCeilingOraclePct$\%\,[$\bpCeilingOraclePctCILo$, $\bpCeilingOraclePctCIHi$] of an oracle that selects the highest-scoring model for each prompt ($\bpOracleReward$). In practice, this turns model selection from a discrete choice among $K$ fixed operating points into a continuous budget dial: the operator sets a dollar ceiling, and the router discovers the best quality mix beneath it (Figure~\ref{fig:pareto}c).
+Figure~\ref{fig:pareto}a shows the quality--cost Pareto frontier on the test set. Each fixed model occupies a single point on this frontier, plotted as (mean cost per request, mean quality score): Llama at ($\bpFixedLlamaCost$, $\bpFixedLlamaReward$), Mistral at ($\bpFixedMistralCost$, $\bpFixedMistralReward$), Gemini at ($\bpFixedGeminiCost$, $\bpFixedGeminiReward$). The BudgetPacer traces a continuous curve through these points by dynamically mixing models based on prompt context and budget pressure. At a budget of $\bpAnnotBudget$/req, the router achieves $\bpAnnotQualPct$\%\,[$\bpAnnotQualPctCILo$, $\bpAnnotQualPctCIHi$] of Gemini quality at $\bpAnnotCostPct$\% of its cost by blending $\bpAnnotLlamaFrac$\% Llama and $\bpAnnotMistralFrac$\% Mistral. For binding ceilings, utilisation ranges from $\bpUtilBindingLow$ to $\bpUtilBindingHigh$ (Figure~\ref{fig:pareto}b). When the ceiling is high enough that cost never binds, the cost penalty $\lambda_t$ decays to zero and the router reduces to pure quality maximization, recovering $\bpCeilingOraclePct$\%\,[$\bpCeilingOraclePctCILo$, $\bpCeilingOraclePctCIHi$] of an oracle that selects the highest-scoring model for each prompt ($\bpOracleReward$). In practice, this turns model selection from a discrete choice among $K$ fixed operating points into a continuous budget dial: the operator sets a dollar ceiling, and the router discovers the best quality mix beneath it (Figure~\ref{fig:pareto}c).
 
 \begin{figure*}[!t]
 \centering
@@ -83,24 +82,21 @@ When Gemini becomes nearly free in Phase~2, the BudgetPacer detects the cost cha
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
-\multirow{5}{*}{\shortstack[l]{Tight\\($\$3.0{\times}10^{-4}$)}}
-  & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio^{\dagger}$ & $\bdFixedTightPhaseThreeRatio$ \\
-  & Naive Bandit        & $\mathbf{\bdNaiveTightPhaseOneRatio}$ & $\bdNaiveTightPhaseTwoRatio^{\dagger}$ & $\bdNaiveTightPhaseThreeRatio$ \\
+\multirow{4}{*}{\shortstack[l]{Tight\\($\$3.0{\times}10^{-4}$)}}
+  & Naive Bandit        & $\mathbf{\bdNaiveTightPhaseOneRatio}$ & $\bdNaiveTightPhaseTwoRatio$ & $\bdNaiveTightPhaseThreeRatio$ \\
   & Recalibrated        & $\mathbf{\bdRecalTightPhaseOneRatio}$ & $\mathbf{\bdRecalTightPhaseTwoRatio}$ & $\bdRecalTightPhaseThreeRatio$ \\
-  & Forgetting Bandit   & $\bdForgetTightPhaseOneRatio$ & $\bdForgetTightPhaseTwoRatio^{\dagger}$ & $\bdForgetTightPhaseThreeRatio$ \\
-  & \textbf{ParetoBandit} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\bdParetoBanditTightPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditTightPhaseThreeRatio}$ \\[3pt]
-\multirow{5}{*}{\shortstack[l]{Moderate\\($\$6.6{\times}10^{-4}$)}}
-  & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ & $\bdFixedModPhaseThreeRatio$ \\
-  & Naive Bandit        & $\bdNaiveModPhaseOneRatio$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ & $\bdNaiveModPhaseThreeRatio$ \\
-  & Recalibrated        & $\bdRecalModPhaseOneRatio$ & $\bdRecalModPhaseTwoRatio^{\dagger}$ & $\bdRecalModPhaseThreeRatio$ \\
-  & Forgetting Bandit   & $\bdForgetModPhaseOneRatio$ & $\bdForgetModPhaseTwoRatio^{\dagger}$ & $\bdForgetModPhaseThreeRatio$ \\
-  & \textbf{ParetoBandit} & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & $\bdParetoBanditModPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditModPhaseThreeRatio}$ \\[3pt]
-\multirow{5}{*}{\shortstack[l]{Loose\\($\$1.9{\times}10^{-3}$)}}
-  & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoosePhaseTwoRatio^{\dagger}$ & $\bdFixedLoosePhaseThreeRatio$ \\
-  & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio^{\dagger}$ & $\bdNaiveLoosePhaseThreeRatio$ \\
-  & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio^{\dagger}$ & $\bdRecalLoosePhaseThreeRatio$ \\
-  & Forgetting Bandit   & $\bdForgetLoosePhaseOneRatio$ & $\bdForgetLoosePhaseTwoRatio^{\dagger}$ & $\bdForgetLoosePhaseThreeRatio$ \\
-  & \textbf{ParetoBandit} & $\bdParetoBanditLoosePhaseOneRatio$ & $\bdParetoBanditLoosePhaseTwoRatio^{\dagger}$ & $\bdParetoBanditLoosePhaseThreeRatio$ \\[3pt]
+  & Forgetting Bandit   & $\bdForgetTightPhaseOneRatio$ & $\bdForgetTightPhaseTwoRatio$ & $\bdForgetTightPhaseThreeRatio$ \\
+  & \textbf{ParetoBandit} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\bdParetoBanditTightPhaseTwoRatio$ & $\mathbf{\bdParetoBanditTightPhaseThreeRatio}$ \\[3pt]
+\multirow{4}{*}{\shortstack[l]{Moderate\\($\$6.6{\times}10^{-4}$)}}
+  & Naive Bandit        & $\bdNaiveModPhaseOneRatio$ & $\bdNaiveModPhaseTwoRatio$ & $\bdNaiveModPhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalModPhaseOneRatio$ & $\bdRecalModPhaseTwoRatio$ & $\bdRecalModPhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetModPhaseOneRatio$ & $\bdForgetModPhaseTwoRatio$ & $\bdForgetModPhaseThreeRatio$ \\
+  & \textbf{ParetoBandit} & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & $\bdParetoBanditModPhaseTwoRatio$ & $\mathbf{\bdParetoBanditModPhaseThreeRatio}$ \\[3pt]
+\multirow{4}{*}{\shortstack[l]{Loose\\($\$1.9{\times}10^{-3}$)}}
+  & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio$ & $\bdNaiveLoosePhaseThreeRatio$ \\
+  & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio$ & $\bdRecalLoosePhaseThreeRatio$ \\
+  & Forgetting Bandit   & $\bdForgetLoosePhaseOneRatio$ & $\bdForgetLoosePhaseTwoRatio$ & $\bdForgetLoosePhaseThreeRatio$ \\
+  & \textbf{ParetoBandit} & $\bdParetoBanditLoosePhaseOneRatio$ & $\bdParetoBanditLoosePhaseTwoRatio$ & $\bdParetoBanditLoosePhaseThreeRatio$ \\[3pt]
 \bottomrule
 \end{tabular}%
 }
@@ -118,8 +114,7 @@ We stress-test against a silent quality regression: Mistral-Large's reward drops
 \label{fig:adaptation_dynamics}
 \end{figure}
 
-\paragraph{Results (Figure~\ref{fig:catastrophic_failure}).}
-The Fixed Policy cannot adapt and continues routing traffic to the degraded model unchanged.  ParetoBandit detects the quality drop purely through the reward signal, reducing Mistral allocation from $\cfParetoBanditModMistralPhaseOne$\% to $\cfParetoBanditModMistralPhaseTwo$\% in Phase~2 at moderate budget.  In Phase~3, geometric forgetting down-weights the corrupted estimates and staleness-driven exploration begins re-exploring Mistral, raising allocation to $\cfParetoBanditModMistralPhaseThree$\% and recovering Phase~3 reward to $\cfParetoBanditModPhaseThreeReward$\,[$\cfParetoBanditModPhaseThreeRewardCILo$, $\cfParetoBanditModPhaseThreeRewardCIHi$] (vs.\ Phase~1 $\cfParetoBanditModPhaseOneReward$\,[$\cfParetoBanditModPhaseOneRewardCILo$, $\cfParetoBanditModPhaseOneRewardCIHi$], recovery ratio $\cfParetoBanditModRecoveryMean$\,[$\cfParetoBanditModRecoveryCILo$, $\cfParetoBanditModRecoveryCIHi$]).  Budget compliance holds throughout ($\cfParetoBanditLoosePhaseOneRatio$\,[$\cfParetoBanditLoosePhaseOneRatioCILo$, $\cfParetoBanditLoosePhaseOneRatioCIHi$] to $\cfParetoBanditTightPhaseOneRatio$\,[$\cfParetoBanditTightPhaseOneRatioCILo$, $\cfParetoBanditTightPhaseOneRatioCIHi$] across all nine phase--budget cells).  The unconstrained baseline is unaffected (Phase~2 reward $\cfUncPhaseTwoReward$\,[$\cfUncPhaseTwoRewardCILo$, $\cfUncPhaseTwoRewardCIHi$] vs.\ Phase~1 $\cfUncPhaseOneReward$\,[$\cfUncPhaseOneRewardCILo$, $\cfUncPhaseOneRewardCIHi$]) but incurs a $\cfUncCostSpikePct$\% cost increase from over-allocating to Gemini.  This ${\sim}\ppCfDegPct$\% degradation lies within the system's recovery envelope; Appendix~\ref{appendix:recovery_limit} characterises the threshold beyond which recovery requires an extended horizon.
+\noindent\textbf{Results (Figure~\ref{fig:catastrophic_failure}).}  ParetoBandit detects the quality drop purely through the reward signal, reducing Mistral allocation from $\cfParetoBanditModMistralPhaseOne$\% to $\cfParetoBanditModMistralPhaseTwo$\% in Phase~2 at moderate budget.  In Phase~3, geometric forgetting down-weights the corrupted estimates and staleness-driven exploration begins re-exploring Mistral, raising allocation to $\cfParetoBanditModMistralPhaseThree$\% and recovering Phase~3 reward to $\cfParetoBanditModPhaseThreeReward$\,[$\cfParetoBanditModPhaseThreeRewardCILo$, $\cfParetoBanditModPhaseThreeRewardCIHi$] (vs.\ Phase~1 $\cfParetoBanditModPhaseOneReward$\,[$\cfParetoBanditModPhaseOneRewardCILo$, $\cfParetoBanditModPhaseOneRewardCIHi$], recovery ratio $\cfParetoBanditModRecoveryMean$\,[$\cfParetoBanditModRecoveryCILo$, $\cfParetoBanditModRecoveryCIHi$]).  Budget compliance holds throughout ($\cfParetoBanditLoosePhaseOneRatio$\,[$\cfParetoBanditLoosePhaseOneRatioCILo$, $\cfParetoBanditLoosePhaseOneRatioCIHi$] to $\cfParetoBanditTightPhaseOneRatio$\,[$\cfParetoBanditTightPhaseOneRatioCILo$, $\cfParetoBanditTightPhaseOneRatioCIHi$] across all nine phase--budget cells).  The unconstrained baseline is unaffected (Phase~2 reward $\cfUncPhaseTwoReward$\,[$\cfUncPhaseTwoRewardCILo$, $\cfUncPhaseTwoRewardCIHi$] vs.\ Phase~1 $\cfUncPhaseOneReward$\,[$\cfUncPhaseOneRewardCILo$, $\cfUncPhaseOneRewardCIHi$]) but incurs a $\cfUncCostSpikePct$\% cost increase from over-allocating to Gemini.  This ${\sim}\ppCfDegPct$\% degradation lies within the system's recovery envelope; Appendix~\ref{appendix:recovery_limit} characterises the threshold beyond which recovery requires an extended horizon.
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/03_catastrophic_failure/results/catastrophic_failure_dynamics.png}

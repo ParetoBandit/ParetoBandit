@@ -26,9 +26,6 @@ from utils.latex_gen import (
     ci_from_seeds_or_normal,
     fmt_cost_eng,
     fmt_int,
-    fmt_num,
-    fmt_pct,
-    fmt_reward,
     load_json,
 )
 
@@ -46,7 +43,6 @@ SCENARIO_SHORT: Dict[str, str] = {
 }
 
 STRATEGY_SHORT: Dict[str, str] = {
-    "fixed_uniform": "Fixed",
     "paretobandit_transfer": "PB",
 }
 
@@ -177,28 +173,8 @@ def _add_scenario_comparison_commands(
     """Add derived commands comparing scenarios for the discussion text."""
     scenarios = data.get("scenarios", {})
 
-    gc = scenarios.get("good_cheap", {}).get("summaries", {})
     ge = scenarios.get("good_expensive", {}).get("summaries", {})
     bc = scenarios.get("bad_cheap", {}).get("summaries", {})
-
-    fp_any = gc.get("fixed_uniform_tight") or gc.get("fixed_uniform_moderate")
-    if fp_any:
-        cs.raw("FixedAnyCost", fmt_cost_eng(fp_any["phase2_cost"]["mean"]))
-        cs.reward("FixedAnyReward", fp_any["phase2_reward"]["mean"])
-        fp_fracs = fp_any.get("phase2_model_fractions", {})
-        for mid, frac_data in fp_fracs.items():
-            if "flash" in mid.lower():
-                cs.num("FixedAnyFlashPct", frac_data["mean"] * 100, digits=1)
-
-    for budget_label in ("tight", "moderate", "loose"):
-        budget = BUDGET_SHORT.get(budget_label, budget_label.title())
-        bt = data.get("budget_targets", {}).get(budget_label, 0.0)
-
-        fp_key = _summary_key("fixed_uniform", budget_label)
-        fp = gc.get(fp_key)
-        if fp and bt > 0:
-            cost_over_budget = fp["phase2_cost"]["mean"] / bt
-            cs.num(f"FixedOverBudget{budget}X", cost_over_budget, digits=1)
 
     ge_loose = ge.get("paretobandit_transfer_loose")
     if ge_loose:
@@ -218,14 +194,6 @@ def _add_scenario_comparison_commands(
     bc_unc = bc.get("paretobandit_transfer_unconstrained")
     if bc_unc:
         cs.reward("BadCheapUncOverallReward", bc_unc["overall_reward"]["mean"])
-
-    fp_bc = bc.get("fixed_uniform_tight") or bc.get("fixed_uniform_moderate")
-    if fp_bc:
-        cs.reward("FixedBadCheapReward", fp_bc["phase2_reward"]["mean"])
-
-    fp_ge = ge.get("fixed_uniform_tight") or ge.get("fixed_uniform_moderate")
-    if fp_ge:
-        cs.raw("FixedGoodExpCost", fmt_cost_eng(fp_ge["phase2_cost"]["mean"]))
 
 
 def main() -> None:

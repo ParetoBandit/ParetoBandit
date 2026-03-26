@@ -76,17 +76,6 @@ class TestExp03Config:
         paretobandit = [c for c in conditions if "ParetoBandit" in c["label"]][0]
         assert paretobandit["forgetting_factor"] == BEST_K3_HPARAMS["forgetting_factor"]
 
-    def test_fixed_policy_gamma_is_one(self):
-        conditions = self.mod._build_conditions(
-            budget_target=6.62e-4,
-            budget_label="moderate",
-            matched_cp=0.30,
-            recalibrated_phase2_cp=0.0,
-            recalibrated_phase3_cp=0.30,
-        )
-        fixed = [c for c in conditions if "Fixed" in c["label"]][0]
-        assert fixed["forgetting_factor"] == 1.0
-
     def test_arm_order_matches_config(self):
         assert self.mod.ARM_ORDER == K3_ARM_ORDER
 

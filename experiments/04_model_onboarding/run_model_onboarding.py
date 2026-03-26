@@ -59,9 +59,6 @@ Key questions
 
 Conditions (per budget target, per scenario)
 --------------------------------------------
-  - **Fixed Policy (uniform 1/4)**: No routing intelligence — equal
-    allocation across all K=4 arms.  Simplest possible onboarding
-    strategy.
   - **ParetoBandit (transfer)**: Phase 1 posteriors carry over; Flash gets
     a T-shirt prior via ``register_model()`` plus forced burn-in.
   - **ParetoBandit (unconstrained)**: Same as transfer but without budget
@@ -251,7 +248,6 @@ def _snapshot_trace_A_inv(router: "BanditRouter", arms: List[str]) -> Dict[str, 
 # ======================================================================
 
 STRATEGY_BANDITGPT_TRANSFER = "paretobandit_transfer"
-STRATEGY_FIXED_UNIFORM = "fixed_uniform"
 
 
 # ======================================================================
@@ -555,9 +551,7 @@ def _run_trial(
 
     for step_idx, i in enumerate(eval_order):
         # ── Model selection depends on strategy ───────────────────────
-        if strategy == STRATEGY_FIXED_UNIFORM:
-            model = rng.choice(K4_ARMS)
-        elif strategy == STRATEGY_BANDITGPT_TRANSFER and step_idx < n_burnin:
+        if strategy == STRATEGY_BANDITGPT_TRANSFER and step_idx < n_burnin:
             # Forced exploration: guarantee Flash receives real observations
             # before UCB selection takes over.
             model = FLASH_ID
@@ -943,12 +937,6 @@ def _build_conditions() -> List[Dict[str, Any]]:
     conditions: List[Dict[str, Any]] = []
     for budget_label, budget_target in zip(BUDGET_LABELS, BUDGET_TARGETS):
         conditions.append({
-            "condition": f"Fixed Policy ({budget_label})",
-            "strategy": STRATEGY_FIXED_UNIFORM,
-            "budget_label": budget_label,
-            "budget_target": budget_target,
-        })
-        conditions.append({
             "condition": f"ParetoBandit ({budget_label})",
             "strategy": STRATEGY_BANDITGPT_TRANSFER,
             "budget_label": budget_label,
@@ -1098,7 +1086,7 @@ def main() -> None:
             "pacer_lambda_max": PACER_LAMBDA_MAX,
         },
         "budget_targets": dict(zip(BUDGET_LABELS, BUDGET_TARGETS)),
-        "strategies": [STRATEGY_FIXED_UNIFORM, STRATEGY_BANDITGPT_TRANSFER],
+        "strategies": [STRATEGY_BANDITGPT_TRANSFER],
         "onboarding_scenarios": {
             name: {"reward_scale": cfg["reward_scale"], "cost_scale": cfg["cost_scale"]}
             for name, cfg in scenarios_to_run.items()

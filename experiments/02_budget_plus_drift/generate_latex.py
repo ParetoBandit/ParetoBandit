@@ -42,7 +42,6 @@ from utils.latex_gen import (
 # -----------------------------------------------------------------------------
 
 CONDITION_ORDER: tuple[str, ...] = (
-    "Fixed Policy",
     "Naive Bandit",
     "Recalibrated",
     "Forgetting Bandit",
@@ -62,15 +61,14 @@ def _se_from_seeds(values: List[float]) -> float:
 
 
 def _condition_key(condition: str, budget_label: str) -> str:
-    """Build JSON condition key, e.g. 'Fixed Policy (tight)'."""
+    """Build JSON condition key, e.g. 'Naive Bandit (tight)'."""
     return f"{condition} ({budget_label})"
 
 
 def _short_name(condition: str, budget_label: str) -> str:
-    """Build short name for commands, e.g. 'FixedTight', 'ParetoBanditMod'."""
+    """Build short name for commands, e.g. 'NaiveTight', 'ParetoBanditMod'."""
     short_budget = BUDGET_LABEL_TO_SHORT.get(budget_label, budget_label.title())
     cond_map = {
-        "Fixed Policy": "Fixed",
         "Naive Bandit": "Naive",
         "Recalibrated": "Recal",
         "Forgetting Bandit": "Forget",

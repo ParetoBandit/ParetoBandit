@@ -21,14 +21,10 @@ reusing Phase~1 prompts).  The model registry is \emph{not} mutated
 at boundaries; adaptation is driven purely by observed rewards.
 
 \paragraph{Key findings.}
-Four algorithm variants are compared at each of three budget targets
+Three algorithm variants are compared at each of three budget targets
 (Tight, Moderate, Loose), plus an unconstrained baseline (20~seeds):
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy} cannot learn and continues routing
-    to the dead model, suffering the most severe reward collapse.
-    At the loose budget, 70\% of Phase~2 traffic goes to Mistral,
-    driving reward down to \cfFixedLoosePhaseTwoReward.
   \item \textbf{Naive Bandit ($\gamma{=}1.0$)} detects the failure
     and reduces Mistral traffic, recovering reward.  However, its
     static cost penalty cannot adjust to the changed cost landscape:
@@ -86,7 +82,7 @@ shift traffic without any mechanism to detect and correct the
 resulting budget deviations.
 
 \paragraph{Figure traces (Figure~\ref{fig:catastrophic_failure}).}
-The three panels overlay five conditions: ParetoBandit at three
+The three panels overlay four conditions: ParetoBandit at three
 budget levels (solid coloured), the Naive Bandit and Forgetting
 Bandit at moderate budget (dashed grey and orange), and the
 unconstrained baseline (dash-dot green).  We discuss each
@@ -119,8 +115,6 @@ At the Phase~2 boundary, all conditions suffer an initial reward
 trough as residual Mistral traffic returns garbage (reward
 $\to\cfFailureReward$).  The depth of this trough depends on how
 much Mistral traffic remains:
-the \textbf{Fixed Policy} (not shown; see table) suffers the
-deepest drop because it cannot divert any Mistral traffic;
 the \textbf{unconstrained baseline} recovers fastest because it
 freely shifts to high-quality Gemini;
 \textbf{ParetoBandit} recovers within ${\sim}\cfParetoBanditModAdaptSteps$ steps
@@ -187,6 +181,6 @@ so 97\% of the Phase~1 information has been forgotten;
 from \emph{all} observations---re-encountering the same PCA feature
 vector provides no per-prompt advantage, as the model generalises over
 the feature distribution rather than memorising individual contexts;
-(iii)~all five conditions receive identical Phase~3 prompts, so any
+(iii)~all four conditions receive identical Phase~3 prompts, so any
 residual warm-cache effect is a controlled confound that does not affect
 relative comparisons between algorithms.

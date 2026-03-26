@@ -101,18 +101,10 @@ than blindly adopting every new model:
     learns the low reward.
 \end{itemize}
 
-\paragraph{Strategies.}
-Two Phase~2 strategies are compared per budget tier:
-\begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy (uniform 1/4):}
-    Equal allocation across all K=4 arms.
-    The simplest possible onboarding strategy---no routing
-    intelligence, no budget awareness.
-  \item \textbf{ParetoBandit (transfer):}
-    Phase~1 posteriors carry over; Flash gets a T-shirt prior
-    plus 20-prompt forced burn-in.
-    BudgetPacer continues without reconfiguration.
-\end{itemize}
+\paragraph{Strategy.}
+ParetoBandit (transfer): Phase~1 posteriors carry over; Flash gets a
+T-shirt prior plus 20-prompt forced burn-in.
+BudgetPacer continues without reconfiguration.
 
 \noindent
 Three budget targets span the constraint regime:
@@ -134,9 +126,6 @@ ceiling.  Results: 20~seeds (9000--9019).
   \textbf{Reward} & \textbf{Cost (\$/req)} &
   \textbf{Flash \%} \\
 \midrule
-Fixed Policy & any
-  & \moGoodCheapFixedTightPhaseTwoReward & \moGoodCheapFixedTightPhaseTwoCost & \moGoodCheapFixedTightFlashPct\% \\
-\midrule
 ParetoBandit & tight
   & \moGoodCheapPBTightPhaseTwoReward & \moGoodCheapPBTightPhaseTwoCost & \moGoodCheapPBTightFlashPct\% \\
 ParetoBandit & moderate
@@ -155,9 +144,7 @@ consecutive post-washout steps) in 20/20~seeds across all budget
 tiers.
 Under the loose budget, Flash stabilises at $\moGoodCheapPBLooseFlashFinalPct$\% of late-phase
 traffic; even under the tight budget, it maintains $\moGoodCheapPBTightFlashFinalPct$\%.
-The Fixed Policy spends \moFixedAnyCost{} per request---exceeding the tight
-budget by $\moFixedOverBudgetTightX\times$ and the loose budget by $\moFixedOverBudgetLooseX\times$---while
-ParetoBandit stays within target at every tier.
+ParetoBandit stays within the budget target at every tier.
 
 \paragraph{(b) Good \& Expensive: the BudgetPacer correctly suppresses
 costly models.}
@@ -181,17 +168,6 @@ again.
 This confirms that forced exploration is self-limiting: a bad model
 incurs bounded $O(N)$ regret during burn-in and is permanently
 rejected once the posterior stabilises.
-
-\paragraph{Fixed Policy: budget-oblivious baseline.}
-The uniform-1/4 baseline highlights the cost of ignoring budget
-constraints.
-In the Good \& Cheap scenario, it spends \moFixedAnyCost{} per
-request---exceeding the tight budget by $\moFixedOverBudgetTightX\times$.
-In the Bad \& Cheap scenario, giving 25\% of traffic to a
-half-quality model drags overall reward to \moFixedBadCheapReward, compared to
-ParetoBandit's \moBadCheapUncOverallReward{} (unconstrained).
-In the Good \& Expensive scenario, the Fixed Policy's cost
-balloons to \moFixedGoodExpCost{} per request.
 
 \subsubsection{Budget--Quality Trade-off
 (Figure~\ref{fig:model_onboarding_cost})}

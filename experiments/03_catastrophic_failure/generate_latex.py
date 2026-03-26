@@ -49,7 +49,6 @@ from utils.latex_gen import (
 # ======================================================================
 
 CONDITION_ORDER: tuple[str, ...] = (
-    "Fixed Policy",
     "Naive Bandit",
     "Forgetting Bandit",
     "ParetoBandit",
@@ -57,15 +56,14 @@ CONDITION_ORDER: tuple[str, ...] = (
 
 
 def _condition_key(condition: str, budget_label: str) -> str:
-    """Build JSON condition key, e.g. ``'Fixed Policy (tight)'``."""
+    """Build JSON condition key, e.g. ``'Naive Bandit (tight)'``."""
     return f"{condition} ({budget_label})"
 
 
 def _short_name(condition: str, budget_label: str) -> str:
-    """Build short name for LaTeX commands, e.g. ``FixedTight``."""
+    """Build short name for LaTeX commands, e.g. ``NaiveTight``."""
     short_budget = BUDGET_LABEL_TO_SHORT.get(budget_label, budget_label.title())
     cond_map = {
-        "Fixed Policy": "Fixed",
         "Naive Bandit": "Naive",
         "Forgetting Bandit": "Forget",
         "ParetoBandit": "ParetoBandit",
@@ -323,7 +321,7 @@ def generate_failure_response_table(data: Dict[str, Any]) -> str:
         r"cost $\to$ \$0); Phase~3: model restored.  \textbf{Bold} marks",
         r"budget compliance within 5\% of target.",
         r"ParetoBandit detects the failure, redistributes traffic, and maintains",
-        r"budget compliance; Fixed Policy keeps routing to the dead model.",
+        r"budget compliance.",
         r"Phase~2 budget ratio may fall below $1.00\times$ because the failed",
         r"model's cost drops to \$0.}",
         r"\label{tab:failure_response}",

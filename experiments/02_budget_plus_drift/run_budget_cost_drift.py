@@ -33,12 +33,10 @@ The pipeline follows the same train-then-evaluate design as earlier experiments.
   (accumulated Phase 2 learning history), not prompt-sampling variability.
   With geometric forgetting γ={gamma}, Phase 1 observations are down-weighted
   by γ^608 ≈ {gamma_608} by Phase 3, so the learner retains only modest memory
-  of individual Phase 1 evaluations.  The Fixed Policy (no online learning)
-  serves as a null check: its P1 and P3 metrics should be nearly identical,
-  confirming that any P1-vs-P3 gap in other conditions is algorithmic.
+  of individual Phase 1 evaluations.
 
-Three budget targets (tight, moderate, loose) and five conditions
-(Fixed Policy, Naive Bandit, Recalibrated Bandit, Forgetting Bandit,
+Three budget targets (tight, moderate, loose) and four conditions
+(Naive Bandit, Recalibrated Bandit, Forgetting Bandit,
 ParetoBandit) plus an unconstrained baseline are tested.  The
 Forgetting Bandit (γ={gamma}, same static penalty, no pacer) isolates
 the BudgetPacer's contribution from the forgetting factor.
@@ -132,7 +130,7 @@ MATCHED_STATIC_CPS: Dict[str, float] = {
     "moderate": 0.30,
     "loose": 0.10,
 }
-"""Static cost penalties for Fixed Policy / Naive Bandit / Forgetting Bandit.
+"""Static cost penalties for Naive Bandit / Forgetting Bandit.
 
 Selected via grid search over CAL_LAMBDA_CANDIDATES on the validation split
 under normal pricing to minimise |mean_cost - budget_target|, using the
@@ -568,7 +566,7 @@ def _build_conditions(
     recalibrated_phase2_cp: float,
     recalibrated_phase3_cp: float,
 ) -> List[Dict[str, Any]]:
-    """Build five conditions for a given budget target.
+    """Build four conditions for a given budget target.
 
     Parameters
     ----------
@@ -589,16 +587,6 @@ def _build_conditions(
         Condition definitions.
     """
     return [
-        {
-            "label": f"Fixed Policy ({budget_label})",
-            "budget_target": None,
-            "cost_penalty": matched_cp,
-            "warmup": True,
-            "forgetting_factor": 1.0,
-            "online_learn": False,
-            "phase2_cost_penalty": None,
-            "phase3_cost_penalty": None,
-        },
         {
             "label": f"Naive Bandit ({budget_label})",
             "budget_target": None,

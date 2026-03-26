@@ -49,12 +49,9 @@ reward signal drives adaptation.
 
 Conditions (per budget level)
 -----------------------------
-Four algorithm variants at each budget target, plus an unconstrained
+Three algorithm variants at each budget target, plus an unconstrained
 baseline:
 
-  - **Fixed Policy**: warmup priors frozen, static cost penalty matched
-    to the budget target, no online learning, no BudgetPacer.  Keeps
-    routing to degraded Mistral — the counterfactual.
   - **Naive Bandit (γ=1.0)**: infinite memory, static cost penalty,
     online learning.  Detects degradation but Phase 1 inertia slows
     both detection and recovery.
@@ -157,7 +154,7 @@ MATCHED_STATIC_CPS: Dict[str, float] = {
     "moderate": 0.30,
     "loose": 0.10,
 }
-"""Static cost penalties for Fixed Policy / Naive Bandit / Forgetting Bandit.
+"""Static cost penalties for Naive Bandit / Forgetting Bandit.
 
 Calibrated via grid search on the validation split (not the holdout test
 split used for evaluation) under normal pricing, minimising
@@ -449,7 +446,7 @@ def _build_conditions(
     budget_label: str,
     matched_cp: float,
 ) -> List[Dict[str, Any]]:
-    """Build four conditions for a given budget target.
+    """Build three conditions for a given budget target.
 
     Parameters
     ----------
@@ -466,14 +463,6 @@ def _build_conditions(
         Condition definitions.
     """
     return [
-        {
-            "label": f"Fixed Policy ({budget_label})",
-            "budget_target": None,
-            "cost_penalty": matched_cp,
-            "warmup": True,
-            "forgetting_factor": 1.0,
-            "online_learn": False,
-        },
         {
             "label": f"Naive Bandit ({budget_label})",
             "budget_target": None,

@@ -37,9 +37,6 @@ With geometric forgetting $\gamma{=}\bdGamma$, Phase~1 observations are
 down-weighted by $\gamma^{608}\approx 0.16$ by the start of Phase~3,
 so the learner retains only modest memory of individual Phase~1
 evaluations.
-The Fixed Policy (no online learning) serves as a null check: its P1
-and P3 metrics are identical, confirming that any P1-vs-P3 gap in
-other conditions is algorithmic rather than due to prompt sampling.
 A consequence of prompt reuse is that P1-vs-P3 comparisons have
 zero prompt-sampling variance; the remaining uncertainty is solely
 across-seed variability in prompt ordering.  This tightens confidence
@@ -101,19 +98,13 @@ adapt \emph{automatically}, without operator intervention, and
 whether it does so while maintaining budget compliance.
 
 \paragraph{Why these baselines.}
-We select five conditions that isolate the contribution of each
+We select four conditions that isolate the contribution of each
 cost-control mechanism.  Each adds exactly one capability:
 
 \noindent
-Per target, five conditions represent increasing levels of
+Per target, four conditions represent increasing levels of
 routing sophistication, each using warmup priors:
 \begin{enumerate}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy (offline):}
-    Frozen warmup priors with a matched static cost penalty;
-    no online learning.  The industry standard: deploy an
-    offline-trained router with a hand-tuned cost weight.
-    This establishes the \emph{cost of not adapting} under
-    pricing changes.
   \item \textbf{Naive Bandit ($\gamma{=}1.0$):}
     LinUCB with infinite memory and the same matched static
     cost penalty.  Online learning, but no principled budget
@@ -165,17 +156,6 @@ after the price drop?}---when Gemini becomes nearly free, a
 well-adapted pacer should approach the unconstrained routing mix,
 and this trace provides the reference to verify convergence.
 
-\paragraph{Fixed Policy cost awareness.}
-The ``Fixed Policy'' freezes the \emph{reward model} (no online
-learning) but retains live cost awareness: the router recomputes
-normalized costs from the model registry at each step.
-When the Gemini price drop is applied, all conditions---including
-the Fixed Policy---observe the new pricing, mirroring the real-world
-scenario in which price changes are publicly announced.
-The Fixed Policy can therefore shift routing in response to cost
-signals (e.g., from Llama to Gemini after the drop) but
-\emph{cannot} update its quality estimates for any arm.
-
 \paragraph{Static cost-penalty calibration.}
 The matched static cost penalties ($\lambda_s \in \{0.10, 0.30,
 0.40\}$) for the loose, moderate, and tight budgets, respectively,
@@ -186,7 +166,7 @@ Phase~1 routing mix as reference.
 The search was conducted over the same candidate set used for the
 Recalibrated Bandit ($\lambda_s \in \{0, 0.05, 0.1, \ldots, 3.0\}$),
 averaged over 10~calibration seeds.
-Because the Fixed Policy and Naive Bandit route differently from
+Because the Naive Bandit routes differently from
 the pacer, the same penalty produces different actual spend;
 this is a fundamental limitation of open-loop cost control and is
 the central result of this experiment rather than a confound.
@@ -208,20 +188,17 @@ targeting}:
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
-\multirow{5}{*}{Tight ($\$3.0 \times 10^{-4}$)}
-  & Fixed Policy     & \bdFixedTightPhaseOneCost & $\bdFixedTightPhaseOneRatio{\scriptstyle\pm\bdFixedTightPhaseOneRatioSE}$ \\
+\multirow{4}{*}{Tight ($\$3.0 \times 10^{-4}$)}
   & Naive Bandit     & \bdNaiveTightPhaseOneCost & $\bdNaiveTightPhaseOneRatio{\scriptstyle\pm\bdNaiveTightPhaseOneRatioSE}$ \\
   & Recalibrated     & \bdRecalTightPhaseOneCost & $\bdRecalTightPhaseOneRatio{\scriptstyle\pm\bdRecalTightPhaseOneRatioSE}$ \\
   & Forgetting Bandit & \bdForgetTightPhaseOneCost & $\bdForgetTightPhaseOneRatio{\scriptstyle\pm\bdForgetTightPhaseOneRatioSE}$ \\
   & \textbf{ParetoBandit} & \textbf{\bdParetoBanditTightPhaseOneCost} & $\mathbf{\bdParetoBanditTightPhaseOneRatio}{\scriptstyle\pm\bdParetoBanditTightPhaseOneRatioSE}$ \\[3pt]
-\multirow{5}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
-  & Fixed Policy     & \bdFixedModPhaseOneCost & $\bdFixedModPhaseOneRatio{\scriptstyle\pm\bdFixedModPhaseOneRatioSE}$ \\
+\multirow{4}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
   & Naive Bandit     & \bdNaiveModPhaseOneCost & $\bdNaiveModPhaseOneRatio{\scriptstyle\pm\bdNaiveModPhaseOneRatioSE}$ \\
   & Recalibrated     & \bdRecalModPhaseOneCost & $\bdRecalModPhaseOneRatio{\scriptstyle\pm\bdRecalModPhaseOneRatioSE}$ \\
   & Forgetting Bandit & \bdForgetModPhaseOneCost & $\bdForgetModPhaseOneRatio{\scriptstyle\pm\bdForgetModPhaseOneRatioSE}$ \\
   & \textbf{ParetoBandit} & \textbf{\bdParetoBanditModPhaseOneCost} & $\mathbf{\bdParetoBanditModPhaseOneRatio}{\scriptstyle\pm\bdParetoBanditModPhaseOneRatioSE}$ \\[3pt]
-\multirow{5}{*}{Loose ($\$1.9 \times 10^{-3}$)}
-  & Fixed Policy     & \bdFixedLoosePhaseOneCost & $\bdFixedLoosePhaseOneRatio{\scriptstyle\pm\bdFixedLoosePhaseOneRatioSE}$ \\
+\multirow{4}{*}{Loose ($\$1.9 \times 10^{-3}$)}
   & Naive Bandit     & \bdNaiveLoosePhaseOneCost & $\bdNaiveLoosePhaseOneRatio{\scriptstyle\pm\bdNaiveLoosePhaseOneRatioSE}$ \\
   & Recalibrated     & \bdRecalLoosePhaseOneCost & $\bdRecalLoosePhaseOneRatio{\scriptstyle\pm\bdRecalLoosePhaseOneRatioSE}$ \\
   & Forgetting Bandit & \bdForgetLoosePhaseOneCost & $\bdForgetLoosePhaseOneRatio{\scriptstyle\pm\bdForgetLoosePhaseOneRatioSE}$ \\
@@ -235,24 +212,10 @@ The \textbf{Ratio} column shows Phase~1 cost as a multiple of the
 budget target.  The Recalibrated Bandit is identical to the Naive
 Bandit in Phase~1 (recalibration occurs at the Phase~2 boundary),
 so their Phase~1 costs match by construction.
-Four failure modes emerge:
+Three failure modes emerge:
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy is inconsistent across budgets}
-    ($\bdFixedModPhaseOneRatio$--$\bdFixedLoosePhaseOneRatio$).
-    At tight and moderate budgets, the static cost penalty is too
-    aggressive for a frozen policy that cannot refine its reward
-    estimates: it under-spends ($\bdFixedTightPhaseOneRatio$ /
-    $\bdFixedModPhaseOneRatio$), routing ${\sim}71\%$ to
-    Llama-8B at tight budget---the cheapest arm but also the
-    lowest-quality---wasting roughly half the quality headroom
-    that the budget allows.
-    At loose budget the same calibration approach produces a penalty
-    that is too weak: the Fixed Policy spends
-    $\bdFixedLoosePhaseOneRatio$ the target, because without online
-    learning it cannot correct the pre-trained routing mix.
-
-  \item \textbf{Naive Bandit is also inconsistent across budgets.}
+  \item \textbf{Naive Bandit is inconsistent across budgets.}
     After pre-training on the validation split, the Naive Bandit
     under-spends at tight ($\bdNaiveTightPhaseOneRatio$) and moderate
     ($\bdNaiveModPhaseOneRatio$) because the static cost penalty,
@@ -641,20 +604,17 @@ in Phase~3 after pricing is restored.}
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Phase~3} \\
 \midrule
-\multirow{5}{*}{Tight ($\$3.0{\times}10^{-4}$)}
-  & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio^{\dagger}$ & $\bdFixedTightPhaseThreeRatio$ \\
+\multirow{4}{*}{Tight ($\$3.0{\times}10^{-4}$)}
   & Naive Bandit        & $\bdNaiveTightPhaseOneRatio$ & $\bdNaiveTightPhaseTwoRatio^{\dagger}$ & $\bdNaiveTightPhaseThreeRatio$ \\
   & Recalibrated        & $\bdRecalTightPhaseOneRatio$ & $\bdRecalTightPhaseTwoRatio$ & $\bdRecalTightPhaseThreeRatio$ \\
   & Forgetting Bandit   & $\bdForgetTightPhaseOneRatio$ & $\bdForgetTightPhaseTwoRatio^{\dagger}$ & $\bdForgetTightPhaseThreeRatio$ \\
   & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditTightPhaseOneRatio}$ & $\mathbf{\bdParetoBanditTightPhaseTwoRatio}$ & $\mathbf{\bdParetoBanditTightPhaseThreeRatio}$ \\[3pt]
-\multirow{5}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
-  & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ & $\bdFixedModPhaseThreeRatio$ \\
+\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
   & Naive Bandit        & $\bdNaiveModPhaseOneRatio$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ & $\bdNaiveModPhaseThreeRatio$ \\
   & Recalibrated        & $\bdRecalModPhaseOneRatio$ & $\bdRecalModPhaseTwoRatio^{\dagger}$ & $\bdRecalModPhaseThreeRatio$ \\
   & Forgetting Bandit   & $\bdForgetModPhaseOneRatio$ & $\bdForgetModPhaseTwoRatio^{\dagger}$ & $\bdForgetModPhaseThreeRatio$ \\
   & \textbf{ParetoBandit}  & $\mathbf{\bdParetoBanditModPhaseOneRatio}$ & $\bdParetoBanditModPhaseTwoRatio^{\dagger}$ & $\mathbf{\bdParetoBanditModPhaseThreeRatio}$ \\[3pt]
-\multirow{5}{*}{Loose ($\$1.9{\times}10^{-3}$)}
-  & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoosePhaseTwoRatio^{\dagger}$ & $\bdFixedLoosePhaseThreeRatio$ \\
+\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}
   & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio^{\dagger}$ & $\bdNaiveLoosePhaseThreeRatio$ \\
   & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio^{\dagger}$ & $\bdRecalLoosePhaseThreeRatio$ \\
   & Forgetting Bandit   & $\bdForgetLoosePhaseOneRatio$ & $\bdForgetLoosePhaseTwoRatio^{\dagger}$ & $\bdForgetLoosePhaseThreeRatio$ \\
@@ -669,13 +629,7 @@ This experiment demonstrates that
 recalibration or geometric forgetting---cannot substitute for
 principled budget pacing}:
 \begin{itemize}[nosep,leftmargin=*]
-  \item The \textbf{Fixed Policy} is inconsistent across budgets:
-    it under-spends at tight ($\bdFixedTightPhaseOneRatio$) and
-    moderate ($\bdFixedModPhaseOneRatio$) because it cannot refine
-    its reward estimates, yet over-spends at loose
-    ($\bdFixedLoosePhaseOneRatio$) where the calibrated penalty is
-    too weak.
-  \item The \textbf{Naive Bandit} exhibits the same inconsistency:
+  \item The \textbf{Naive Bandit} is inconsistent across budgets:
     it under-spends at tight ($\bdNaiveTightPhaseOneRatio$) and
     moderate ($\bdNaiveModPhaseOneRatio$), and over-spends by
     $\bdNaiveLoosePhaseOneRatio$ at loose budget, because no
