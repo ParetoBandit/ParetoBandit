@@ -152,14 +152,14 @@ with $n_\mathit{eff}$, relative to the Tabula Rasa baseline
     $\prmWellCalThousandRegretMedian$\,[$\prmWellCalThousandRegretMedianCILo$, $\prmWellCalThousandRegretMedianCIHi$]
     ($\prmWellCalThousandReductionPct\%$\,[$\prmWellCalThousandReductionPctCILo$, $\prmWellCalThousandReductionPctCIHi$] reduction).
 \end{itemize}
-At $n_\mathit{eff}{=}1{,}000$, Well-calibrated wins
-\prmTestWellCalThousandCondWins{} of \prmNseeds{} seeds
-(Holm-corrected sign $p{=}\prmTestWellCalThousandSignPHolm$);
+All well-calibrated and Random-1680 comparisons are significant after
+Holm correction at every $n_\mathit{eff}$
+($p \leq \prmTestWellCalTenSignPHolm$ even at $n_\mathit{eff}{=}10$),
+with the strongest effect at $n_\mathit{eff}{=}1{,}000$:
+Well-calibrated wins \prmTestWellCalThousandCondWins{} of \prmNseeds{}
+seeds ($p{=}\prmTestWellCalThousandSignPHolm$);
 Random-1680 wins \prmTestRandThousandCondWins{} of \prmNseeds{}
-(Holm $p{=}\prmTestRandThousandSignPHolm$).
-At lower $n_\mathit{eff}$ values, the per-seed improvements are
-directionally consistent but do not survive Holm correction with
-\prmNseeds~seeds.
+($p{=}\prmTestRandThousandSignPHolm$).
 
 \emph{Sample size does not matter---distributional match does.}
 A practitioner might worry that the Well-calibrated prior benefits
@@ -196,7 +196,7 @@ through
 $\prmGSMThousandRegretMedian$\,[$\prmGSMThousandRegretMedianCILo$, $\prmGSMThousandRegretMedianCIHi$]
 across $n_\mathit{eff}$ values.
 These reductions are statistically significant after Holm correction
-(Holm-corrected $p \leq 0.003$ for all domain-mismatched conditions
+(Holm-corrected $p < 0.004$ for all domain-mismatched conditions
 at every $n_\mathit{eff}$).
 Crucially, no domain-mismatched prior \emph{increases} median regret
 at any $n_\mathit{eff}$: partial knowledge is consistently at least as good
@@ -225,8 +225,8 @@ $\prmCatRefMedian$\,[$\prmTRRegretMedianCILo$, $\prmTRRegretMedianCIHi$]):
 \noindent
 Tabula Rasa wins \prmTestInvThousandBaseWins{} of \prmNseeds{} seeds
 at $n_\mathit{eff}{=}1{,}000$
-(Holm $p{=}\prmTestInvThousandSignPHolm$, not significant at
-\prmNseeds~seeds), but the practical magnitude is operationally
+(Holm $p{=}\prmTestInvThousandSignPHolm$), confirming that the
+degradation is both statistically significant and operationally
 meaningful.
 
 \paragraph{Reliability: the more important finding.}
@@ -284,6 +284,6 @@ systematically inverted.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{../experiments/appendix/prior_mismatch/results/prior_mismatch_distribution.png}
-\caption{Per-seed regret distributions across prior-quality levels at $n_\mathit{eff}{=}1{,}000$ (\prmNseeds~seeds, unconstrained).  Tabula Rasa exhibits a wide distribution ($\mathit{std}{=}\prmTRRegretStd$), while all warmup conditions---including domain-mismatched and inverted priors---produce tight, unimodal distributions ($\mathit{std} \leq \prmGSMThousandRegretStd$) with zero catastrophic failures.}
+\caption{Per-seed regret distributions across prior-quality levels at each $n_\mathit{eff}$ value (\prmNseeds~seeds, unconstrained).  Tabula Rasa (shared baseline) exhibits a wide distribution ($\mathit{std}{=}\prmTRRegretStd$), while all warmup conditions---including domain-mismatched and inverted priors---produce tight distributions ($\mathit{std} \leq \prmInvTenRegretStd$, vs.\ $\prmTRRegretStd$ for Tabula Rasa) with zero catastrophic failures.}
 \label{fig:prior_mismatch_distribution}
 \end{figure*}
