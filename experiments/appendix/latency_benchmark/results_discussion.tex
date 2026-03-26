@@ -25,9 +25,7 @@ separately below (Table~\ref{tab:e2e_latency_breakdown}).
 \begin{table}[h]
 \centering
 \caption{Per-request routing latency ($\mu$s) and throughput ($K{=}3$ arms, 4{,}500 measured cycles).
-Bare~SM and Cached~Inv.\ share the same \texttt{route()} code path, isolating the $O(d^2)$ Sherman-Morrison vs.\ $O(d^3)$ full-inversion effect in \texttt{update()} only.
-ParetoBandit adds production features (locks, pacing, forgetting).
-Per-Route~Inv.\ never caches $A^{-1}$ (worst-case baseline).}
+Configuration groups are described in the text.}
 \label{tab:latency}
 \small
 \resizebox{\columnwidth}{!}{%
@@ -208,12 +206,7 @@ below model serving time.
 \centering
 \includegraphics[width=\columnwidth]{../experiments/appendix/latency_benchmark/results/latency_spectrum_e2e.png}
 \caption{End-to-end routing latency (p50, single query) for published
-routing systems vs.\ LLM inference time.
-ParetoBandit achieves $\latEteTotalMedianMs$\,ms on CPU only, matching
-PROTEUS ($8.7$\,ms on an A100 GPU) without requiring GPU infrastructure
-at the routing layer.
-All routing latencies are orders of magnitude below LLM inference
-(shaded region), confirming that the router is invisible to the end user.}
+routing systems vs.\ LLM inference time (shaded region).}
 \label{fig:latency_spectrum_e2e}
 \end{figure}
 

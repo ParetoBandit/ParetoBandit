@@ -113,11 +113,9 @@ invariant to evaluator choice.
 
 \begin{table}[h]
 \centering
-\caption{Expected reward ordering under each judge.  All three judges
-produce the identical ranking Gemini-Pro $>$ Mistral-Large $>$ Llama-8B,
-with every pairwise difference significant (Bonferroni-corrected
-bootstrap CI excludes zero; 9 comparisons, $B = 10{,}000$,
-$n = 2{,}000$).}
+\caption{Expected reward ordering under each judge ($n = 2{,}000$
+prompts; Bonferroni-corrected bootstrap CIs, 9 comparisons,
+$B = 10{,}000$).}
 \label{tab:expected_ordering}
 \small
 \resizebox{\columnwidth}{!}{%
@@ -249,9 +247,7 @@ cheap.
 \centering
 \caption{Routing agreement conditioned on R1's inter-model gap.
 Kendall's~$W$ measures three-judge concordance on the full model ranking.
-Agreement is strong where the routing decision has the greatest reward
-impact (gap $> 0.20$) and weak where all models produce near-identical
-quality (gap $< 0.05$).  Conditioning on R1's gap bins when validating
+Conditioning on R1's gap bins when validating
 R1 can introduce selection bias; we verify in the reproducibility code
 that the same monotonic trend holds when conditioning on the consensus
 (panel-median) gap.}
