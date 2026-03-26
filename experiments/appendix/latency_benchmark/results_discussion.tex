@@ -27,17 +27,10 @@ in the E2E breakdown below (Table~\ref{tab:e2e_latency_breakdown}).
 
 \begin{table}[h]
 \centering
-\caption{Per-request routing latency ($\mu$s) and throughput.
-\emph{Bare~SM} is a minimal LinUCB implementation using only the $O(d^2)$
-Sherman-Morrison rank-1 update, with no production features.
-\emph{Cached~Inv.}\ replaces that update with a full $O(d^3)$
-\texttt{np.linalg.inv} call but is otherwise identical---both share the same
-\texttt{route()} code path (same Python base class), so any route-latency
-difference is measurement noise, cleanly isolating the algorithmic effect.
-\emph{ParetoBandit} is the full production router: it uses the SM algorithm
-plus locks, budget pacing, forgetting, and staleness tracking.
-\emph{Per-Route Inv.}\ is a worst-case strawman that never caches $A^{-1}$,
-recomputing it on every \texttt{route()} call.}
+\caption{Per-request routing latency ($\mu$s) and throughput ($K{=}3$ arms, 4{,}500 measured cycles).
+Bare~SM and Cached~Inv.\ share the same \texttt{route()} code path, isolating the $O(d^2)$ Sherman-Morrison vs.\ $O(d^3)$ full-inversion effect in \texttt{update()} only.
+ParetoBandit adds production features (locks, pacing, forgetting).
+Per-Route~Inv.\ never caches $A^{-1}$ (worst-case baseline).}
 \label{tab:latency}
 \small
 \resizebox{\columnwidth}{!}{%
