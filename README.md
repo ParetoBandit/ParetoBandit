@@ -95,7 +95,7 @@ paretobandit --download-models
 ```
 src/pareto_bandit/
 ├── router.py            # BanditRouter — main entry point, arm selection, update loop
-├── policy.py            # DisjointLinUCB, SlidingWindowLinUCB, prior calibration
+├── policy.py            # DisjointLinUCB, prior calibration
 ├── budget_pacer.py      # Online primal–dual budget pacer (hard/soft/adaptive modes)
 ├── feature_service.py   # SentenceTransformer embedding + PCA compression
 ├── calibration.py       # train_pca(), generate_warmup_priors()
