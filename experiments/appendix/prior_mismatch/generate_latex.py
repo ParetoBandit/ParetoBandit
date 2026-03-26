@@ -276,7 +276,7 @@ def _add_warmup_ablation_cross_refs(cs: CommandSet) -> None:
     for t in tests:
         budget = t.get("budget", "")
         baseline = t.get("baseline", "")
-        if budget in ("moderate", "loose") and "matched" in baseline:
+        if budget in ("moderate", "loose") and "Tabula Rasa" in baseline:
             budget_cat_count += t.get("baseline_catastrophic_count", 0)
             budget_warmup_cat += t.get("warmup_catastrophic_count", 0)
             budget_seeds += t.get("n_effective", 0)

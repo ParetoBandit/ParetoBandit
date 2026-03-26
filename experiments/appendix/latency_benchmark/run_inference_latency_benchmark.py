@@ -207,6 +207,14 @@ def _summarize(
 # ======================================================================
 
 
+def _load_existing_results(path: Path) -> Dict[str, Any]:
+    """Load previous results JSON if it exists, else return empty dict."""
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="LLM inference latency benchmark for K=4 portfolio models.",
@@ -218,6 +226,16 @@ def main() -> None:
     parser.add_argument(
         "--max-tokens", type=int, default=512,
         help="Max tokens per response (default 512).",
+    )
+    parser.add_argument(
+        "--models", nargs="+", default=None,
+        help="Display names of models to re-run (e.g. Llama-3.1-8B). "
+             "Omit to run all.",
+    )
+    parser.add_argument(
+        "--lengths", nargs="+", default=None,
+        choices=["short", "medium", "long"],
+        help="Prompt-length buckets to re-run. Omit to run all.",
     )
     args = parser.parse_args()
 
@@ -237,27 +255,53 @@ def main() -> None:
         timeout=TIMEOUT_S,
     )
 
-    models = _load_models()
+    all_models = _load_models()
     buckets = _bucket_prompts(_PROMPT_POOL)
+
+    model_filter: set | None = set(args.models) if args.models else None
+    length_filter: set | None = set(args.lengths) if args.lengths else None
+
+    models = [
+        m for m in all_models
+        if model_filter is None or m["display"] in model_filter
+    ]
+    if model_filter and len(models) < len(model_filter):
+        available = {m["display"] for m in all_models}
+        missing = model_filter - available
+        logger.error("Unknown model(s): %s (available: %s)", missing, available)
+        sys.exit(1)
+
+    lengths = [
+        ll for ll in ("short", "medium", "long")
+        if length_filter is None or ll in length_filter
+    ]
+
+    out_path = RESULTS_DIR / "inference_latency_results.json"
+    existing = _load_existing_results(out_path)
+    results: Dict[str, Dict[str, Dict[str, Any]]] = existing.get("results", {})
+
+    is_partial = model_filter is not None or length_filter is not None
 
     logger.info("=" * 70)
     logger.info("LLM Inference Latency Benchmark (K=4 Portfolio)")
     logger.info("=" * 70)
     logger.info("  Models: %s", [m["display"] for m in models])
+    logger.info("  Lengths: %s", lengths)
     logger.info("  Prompt buckets: %s",
                 {k: len(v) for k, v in buckets.items()})
     logger.info("  Trials per config: %d", args.trials)
     logger.info("  Max tokens: %d", args.max_tokens)
+    if is_partial:
+        logger.info("  Mode: PARTIAL re-run (merging with existing results)")
     logger.info("")
-
-    results: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
     for model in models:
         model_id = model["model_id"]
         display = model["display"]
-        results[model_id] = {}
+        if model_id not in results:
+            results[model_id] = {}
 
-        for length_label in ("short", "medium", "long"):
+        for length_label in lengths:
             prompt_list = buckets[length_label]
             if not prompt_list:
                 logger.warning("  No prompts in bucket '%s', skipping.", length_label)
@@ -317,15 +361,14 @@ def main() -> None:
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     output = {
-        "models": [m["model_id"] for m in models],
-        "model_display": {m["model_id"]: m["display"] for m in models},
+        "models": [m["model_id"] for m in all_models],
+        "model_display": {m["model_id"]: m["display"] for m in all_models},
         "prompt_lengths": ["short", "medium", "long"],
         "prompt_counts": {k: len(v) for k, v in buckets.items()},
         "trials_per_config": args.trials,
         "max_tokens": args.max_tokens,
         "results": results,
     }
-    out_path = RESULTS_DIR / "inference_latency_results.json"
     out_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
     logger.info("\nResults saved to %s", out_path)
 
