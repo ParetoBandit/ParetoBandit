@@ -26,7 +26,7 @@ You're essentially playing a **multi-armed bandit**, whether you realize it or n
 
 Each model is a machine, each prompt is a pull, and you're trying to maximize quality while keeping your API bill under control. This is the classic exploration-exploitation tradeoff that bandit algorithms were built for, with a twist: you also have a hard budget constraint.
 
-[ParetoBandit](https://github.com/ParetoBandit/ParetoBandit) is an open-source adaptive router that formalizes exactly this intuition. It uses cost-aware contextual bandits to learn which model to call for each prompt, enforces a dollar budget you set, and adapts online when prices shift or model quality degrades, all with a routing decision that takes **22 microseconds** on CPU. In this post, I'll walk through the problem, the key ideas, and show you how to run it yourself.
+[ParetoBandit](https://github.com/ParetoBandit/ParetoBandit) is an open-source adaptive router that formalizes exactly this intuition. It uses cost-aware contextual bandits to learn which model to call for each prompt, enforces a dollar budget you set, and adapts online when prices shift or model quality degrades, all with a routing decision that takes **22 microseconds** on CPU (the end-to-end latency including prompt embedding is 9.8 ms, under [0.4% of a typical LLM inference call](https://github.com/ParetoBandit/ParetoBandit/tree/main/paper#computational-efficiency)). In this post, I'll walk through the problem, the key ideas, and show you how to run it yourself.
 
 ---
 
@@ -56,36 +56,39 @@ Most existing routing approaches learn a fixed policy offline and freeze it at s
 
 ## Enter ParetoBandit: The Core Idea
 
-ParetoBandit frames LLM routing as a **contextual bandit** problem. When a prompt arrives, the router encodes it into a compact feature vector (using a lightweight sentence embedding + PCA), then scores every model in the portfolio using a formula that balances three things:
+ParetoBandit frames LLM routing as a **contextual bandit** problem. If you're familiar with LinUCB from the recommender systems literature, that's the backbone. What's novel here is extending the bandit formulation with two things that existing routers lack: **dollar-denominated per-request budget ceilings** enforced in closed loop, and **non-stationarity handling** that lets the system adapt when model quality or pricing shifts mid-deployment. These are the production concerns that vanilla bandits and offline routers don't address.
 
-- **Exploit**: How good is this model expected to be *for this prompt*?
-- **Explore**: How uncertain are we about this model? (Uncertain models get a curiosity bonus.)
-- **Cost penalty**: How expensive is this model *relative to the budget*?
+When a prompt arrives, the router encodes it into a compact feature vector (using a lightweight sentence embedding + PCA), then selects the model with the highest score:
 
-Concretely, for each model *a*, the router computes a score and picks the highest:
+<p align="center">
+<img src="figures/eq2_arm_selection.png" alt="Equation 2: Budget-aware arm selection" width="470">
+</p>
 
-**select model = argmax [ predicted_reward + alpha * uncertainty_bonus - (lambda_c + lambda_t) * cost ]**
+The three underbraced terms make the tradeoff explicit. **Exploit** uses the learned reward model to predict quality for this specific prompt. **Explore** adds a confidence bonus for uncertain models (scaled by `alpha`), so the router keeps testing models it hasn't seen enough of. **Cost penalty** discourages expensive models, and this is where the novelty lies: the penalty combines a static weight `lambda_c` (your baseline cost aversion, set once) with a *dynamic* dual variable `lambda_t` that adapts in real time based on actual spending.
 
-The first term exploits the current reward estimate. The second term explores uncertain models (scaled by `alpha`). The third term penalizes cost, combining a static weight `lambda_c` (your baseline cost aversion) with a dynamic dual variable `lambda_t` (the adaptive budget pacer, explained below).
-
-After observing the response quality, the router updates its estimates. Over time, it converges on the optimal mix, but crucially, it never stops learning. This is the key difference from offline routers: every request makes the system smarter.
-
-If you're familiar with LinUCB from the recommender systems literature, that's the backbone here. ParetoBandit extends it with cost-awareness, budget enforcement, and non-stationarity handling: the production concerns that the vanilla bandit formulation doesn't address.
+After observing the response quality, the router updates its estimates. Over time, it converges on the optimal mix, but crucially, it never stops learning. Every request makes the system smarter.
 
 Three mechanisms make this work in production:
 
-**Budget Pacer: A thermostat for your API spend.** You set a per-request cost ceiling *B* in dollars (say, $0.001/request). A dual variable `lambda_t` adapts on every request via a simple update rule:
+### Budget Pacer: Dollar-denominated cost ceilings (Eqs. 3-4)
 
-**lambda_t+1 = clamp( lambda_t + eta * (smoothed_cost / B - 1), 0, max_lambda )**
+Existing bandit routers either ignore cost or use abstract penalty weights that require manual tuning. ParetoBandit introduces a **per-request cost ceiling *B* in real dollars** (say, $0.001/request) and enforces it with an online primal-dual mechanism. Two equations do the work:
 
-When smoothed cost exceeds the budget *B*, the ratio is greater than 1, so `lambda_t` rises, penalizing expensive models. When spending is under budget, the ratio drops below 1 and `lambda_t` falls, releasing the router to pursue quality. The system never needs to know the total request volume; it self-regulates at any traffic scale.
+<p align="center">
+<img src="figures/eq3_eq4_budget_pacer.png" alt="Equations 3-4: Budget pacer update" width="400">
+</p>
 
-**Geometric Forgetting: Stale data fades automatically.** Rather than treating all historical observations equally, ParetoBandit discounts them with a forgetting factor `gamma`:
+Eq. 3 smooths the raw cost signal with an EMA (half-life of ~14 requests) to prevent sawtooth oscillations from single expensive calls. Eq. 4 is the adaptive Lagrange update: when smoothed cost exceeds the budget *B*, the ratio exceeds 1, so `lambda_t` rises, penalizing expensive models in Eq. 2. When spending is under budget, `lambda_t` falls, releasing the router to pursue quality. Normalizing the gradient by *B* makes the step size portfolio-independent. The system never needs to know the total request volume; it self-regulates at any traffic scale.
 
-**A_a <- gamma^d * A_a + x * x^T**
-**b_a <- gamma^d * b_a + reward * x**
+### Geometric Forgetting: Adapting to non-stationarity (Eqs. 7-8)
 
-Here `d` is the number of steps since the last update to model *a*, and `gamma` (e.g. 0.997) controls the memory window. At `gamma = 0.997`, observations from ~333 steps ago retain only 37% of their weight, and after ~1,000 steps the contribution drops to 5%. This means the router can override stale estimates quickly when a model's quality or pricing changes mid-deployment, without needing to detect the change explicitly. Set `gamma = 1.0` for a stationary bandit that never forgets.
+The second novel ingredient is handling the fact that model quality and pricing are *not stationary*. Providers silently update models, change pricing, or deprecate endpoints. Rather than treating all historical observations equally, ParetoBandit exponentially discounts them:
+
+<p align="center">
+<img src="figures/eq7_eq8_forgetting.png" alt="Equations 7-8: Geometric forgetting" width="350">
+</p>
+
+Here `dt` is the number of steps since the last update to model `a`, and `gamma` (e.g. 0.997) controls the memory window. The key insight: at `gamma = 0.997`, observations from ~333 steps ago retain only 37% of their weight, and after ~1,000 steps the contribution drops to 5%. This means the router can override stale estimates quickly when conditions change, without needing to *detect* the change explicitly. The forgetting is passive and continuous: if a model's quality drops, the bad observations naturally dominate the recent window. Set `gamma = 1.0` for a stationary bandit that never forgets.
 
 **Hot-Swap Registry: Add or remove models at runtime.** New models get a brief forced-exploration phase (about 20 prompts), after which the bandit has enough evidence to decide whether the newcomer deserves traffic. Crucially, it *discriminates* rather than blindly adopting: expensive models get budget-gated and low-quality models get rejected after bounded exploration. You don't need to restart anything or retrain. Just call `router.add_arm()` and the system figures out where the new model fits.
 
@@ -185,7 +188,7 @@ ParetoBandit turns LLM model selection from a manual, static decision into an **
 - **Budget control**: Set a per-request dollar ceiling. The router maximizes quality beneath it, with realized costs never exceeding the target by more than 0.4%.
 - **Adaptation**: Geometric forgetting and a closed-loop budget pacer handle price shifts and silent quality regressions, with no retraining or manual intervention needed.
 - **Runtime flexibility**: Add or remove models on the fly. The bandit discovers each newcomer's niche from live traffic.
-- **Fast**: The routing decision takes 22 microseconds. End-to-end latency including embedding is 9.8 ms, less than 1% of typical LLM inference time.
+- **Fast**: The routing decision alone takes 22 microseconds. End-to-end latency including prompt embedding and PCA projection is 9.8 ms, [less than 0.4% of a typical LLM inference call](https://github.com/ParetoBandit/ParetoBandit/tree/main/paper#computational-efficiency).
 
 The code is open-source under Apache 2.0. The paper has the full experimental details.
 
