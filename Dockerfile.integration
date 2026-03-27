@@ -6,9 +6,10 @@
 # integration test suite.  This catches packaging errors, missing data
 # artifacts, and broken imports that in-tree unit tests would miss.
 #
-# Two targets:
+# Three targets:
 #   "core"       — core deps only (numpy, joblib, scikit-learn, tqdm)
 #   "embeddings" — core + sentence-transformers + torch
+#   "demo"       — core + embeddings + matplotlib (the [demo] extra)
 #
 # Usage:
 #   # Core-only (fast, ~6s):
@@ -81,5 +82,28 @@ COPY tests/integration/ tests/integration/
 RUN python -c "\
 import pareto_bandit, sentence_transformers; \
 print(f'paretobandit {pareto_bandit.__version__} + sentence-transformers OK')"
+
+CMD ["python", "-m", "pytest", "tests/integration/", "-v", "--tb=short", "-x"]
+
+# ==========================================================================
+# Demo target: core + embeddings + matplotlib (the [demo] extra)
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS demo
+
+WORKDIR /test
+
+COPY --from=builder /build/dist/*.whl /tmp/
+
+RUN WHEEL=$(ls /tmp/*.whl) && \
+    pip install --no-cache-dir "${WHEEL}[demo]" && \
+    pip install --no-cache-dir pytest && \
+    rm -f /tmp/*.whl
+
+COPY tests/integration/ tests/integration/
+
+RUN python -c "\
+import pareto_bandit, sentence_transformers, matplotlib; \
+print(f'paretobandit {pareto_bandit.__version__} + demo deps OK')"
 
 CMD ["python", "-m", "pytest", "tests/integration/", "-v", "--tb=short", "-x"]

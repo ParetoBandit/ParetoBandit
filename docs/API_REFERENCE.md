@@ -1215,3 +1215,176 @@ paretobandit --cost-penalty 0.5 "..." # Route with aggressive cost preference
 | `--cost-penalty` | `float` | `0.3` | Static cost-quality trade-off weight λ_c (paper Eq. 4). `0.0` = quality-only routing, `0.3` = moderate cost awareness, `0.5+` = aggressive cost preference. |
 | `--profile` | `str` | `best_value` | Optimization profile. |
 | `--download-models` | — | — | Pre-download sentence transformer weights (for Docker/CI pre-warming). |
+
+---
+
+## Demo Module
+
+An interactive demonstration of ParetoBandit's core capabilities, shipped as part of the library. Requires `pip install paretobandit[demo]` (pulls in `sentence-transformers`, `torch`, and `matplotlib`).
+
+The demo loads the shipped K=3 test holdout (1,824 prompts from public benchmarks), embeds them with the default SentenceTransformer + PCA pipeline, and runs four scenarios that showcase budget pacing, non-stationarity resilience, cost drift adaptation, and configuration sensitivity.
+
+### Demo CLI
+
+```bash
+# Run all four scenarios with default settings
+paretobandit-demo
+
+# Run a single scenario
+paretobandit-demo --scenario 2
+
+# Fewer prompts for a quick test
+paretobandit-demo --n-prompts 500
+
+# Tune key hyperparameters
+paretobandit-demo --alpha 0.05 --forgetting-factor 0.99 --cost-penalty 0.5
+
+# More seeds for tighter confidence intervals
+paretobandit-demo --n-prompts 500 --n-seeds 10
+
+# Custom data and encoder (raw embeddings, no PCA)
+paretobandit-demo --prompts-file my_data.jsonl --encoder-model all-mpnet-base-v2
+
+# Custom encoder with a matching PCA artifact
+paretobandit-demo --encoder-model all-mpnet-base-v2 --pca-path my_pca.joblib
+
+paretobandit-demo --help
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--scenario` | `int` | `None` | Run only this scenario (1–4). `None` runs all four. |
+| `--n-prompts` | `int` | `1000` | Prompts to sample from the data file. |
+| `--seed` | `int` | `42` | Master RNG seed for full reproducibility. |
+| `--n-seeds` | `int` | `5` | Independent seeds per condition (more = tighter CIs, slower). |
+| `--alpha` | `float` | `0.01` | LinUCB exploration coefficient. |
+| `--forgetting-factor` | `float` | `0.997` | Geometric discount on sufficient statistics (1.0 = stationary). |
+| `--cost-penalty` | `float` | `0.3` | Static cost-penalty weight in the UCB score. |
+| `--n-budget-targets` | `int` | `7` | Budget sweep points for Scenario 1. |
+| `--output-dir` | `str` | `demo_results` | Output directory for saved plots. |
+| `--prompts-file` | `str` | shipped holdout | Path to a JSONL reward file. |
+| `--encoder-model` | `str` | `None` | SentenceTransformer model name. `None` uses the library default (`all-MiniLM-L6-v2`). A non-default model requires `--pca-path` or falls back to raw embeddings. |
+| `--pca-path` | `str` | `None` | PCA `.joblib` artifact for a non-default encoder. |
+
+### Scenarios
+
+| Scenario | Name | What it shows |
+|----------|------|---------------|
+| 1 | Budget-Paced Routing | Sweeps budget targets; shows how ParetoBandit interpolates between cheap/low-quality and expensive/high-quality models while respecting dollar budgets. |
+| 2 | Quality Degradation & Recovery | Simulates a silent quality regression on Mistral-Large; demonstrates detection via geometric forgetting, traffic redistribution, and recovery. |
+| 3 | Cost Drift & Recovery | Simulates a dramatic Gemini-Pro price drop; shows how the BudgetPacer exploits cheap premium routing during the drop and restores compliance when prices are corrected. |
+| 4 | Configuration Comparison | Varies `alpha`, `forgetting_factor`, and `cost_penalty` to illustrate how each knob shapes the quality-cost trade-off. |
+
+### `DemoConfig`
+
+Top-level configuration dataclass. All fields map 1:1 to CLI flags.
+
+```python
+from pareto_bandit.demo import DemoConfig
+
+cfg = DemoConfig(
+    n_prompts=500,
+    n_seeds=10,
+    alpha=0.05,
+    cost_penalty=0.5,
+    scenario=2,
+)
+```
+
+### `DataSplit`
+
+One split (train or test) of the evaluation dataset.
+
+```python
+@dataclass
+class DataSplit:
+    embeddings: np.ndarray         # (n, d+1) — last column is bias
+    rewards: dict[str, np.ndarray] # {model_id: ndarray(n,)}
+    costs: dict[str, np.ndarray]   # {model_id: ndarray(n,)}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `n` | `int` | Number of samples in this split. |
+
+### `load_evaluation_data()`
+
+Load a JSONL holdout file, embed prompts, and split train/test (2:1).
+
+```python
+def load_evaluation_data(
+    prompts_file: str,
+    feature_service: FeatureService,
+    seed: int = 42,
+    n_prompts: int | None = None,
+) -> tuple[DataSplit, DataSplit]
+```
+
+Each JSONL record must contain `"prompt"` (string) and `"arms"` (`{model_id: {"reward": float, "cost": float}}`).
+
+**Example: Load data with your own encoder**
+
+```python
+from pareto_bandit.demo import load_evaluation_data
+from pareto_bandit.feature_service import FeatureService
+
+fs = FeatureService()
+train, test = load_evaluation_data(
+    prompts_file="my_rewards.jsonl",
+    feature_service=fs,
+    n_prompts=500,
+)
+print(f"Train: {train.n}, Test: {test.n}, Features: {train.embeddings.shape[1]}")
+```
+
+### `run_trial()`
+
+Run one online-learning then evaluation trial (train then evaluate).
+
+```python
+def run_trial(
+    train: DataSplit,
+    test: DataSplit,
+    *,
+    alpha: float = 0.01,
+    forgetting_factor: float = 0.997,
+    cost_penalty: float = 0.3,
+    budget_pacer: BudgetPacer | None = None,
+    seed: int = 0,
+    record_steps: bool = False,
+) -> TrialMetrics
+```
+
+**Returns**: `TrialMetrics` with `mean_reward`, `mean_cost`, `model_fractions`, and optionally per-step lists.
+
+**Example: Custom experiment**
+
+```python
+from pareto_bandit.demo import load_evaluation_data, run_trial
+from pareto_bandit.feature_service import FeatureService
+
+fs = FeatureService()
+train, test = load_evaluation_data("my_rewards.jsonl", fs)
+
+trial = run_trial(train, test, alpha=0.05, cost_penalty=0.0, seed=7)
+print(f"Reward: {trial.mean_reward:.4f}")
+print(f"Cost: ${trial.mean_cost:.6f}")
+print(f"Model mix: {trial.model_fractions}")
+```
+
+### `run_scenario_1()` / `run_scenario_2()` / `run_scenario_3()` / `run_scenario_4()`
+
+Run one of the four demo scenarios and save a publication-quality plot.
+
+```python
+def run_scenario_N(cfg: DemoConfig, train: DataSplit, test: DataSplit) -> Path
+```
+
+**Returns**: `Path` to the saved PNG figure.
+
+### Constants
+
+| Name | Type | Description |
+|------|------|-------------|
+| `ARM_ORDER` | `list[str]` | Canonical arm ordering for the K=3 model set. |
+| `ARM_SHORT` | `dict[str, str]` | Short display names (`"Llama-8B"`, `"Mistral-Large"`, `"Gemini-Pro"`). |

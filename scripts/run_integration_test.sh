@@ -11,8 +11,9 @@
 #   ./scripts/run_integration_test.sh                        # core only, Python 3.11
 #   ./scripts/run_integration_test.sh 3.10                   # core only, Python 3.10
 #   ./scripts/run_integration_test.sh --embeddings           # core + embeddings, Python 3.11
+#   ./scripts/run_integration_test.sh --demo                 # demo (embeddings + matplotlib)
 #   ./scripts/run_integration_test.sh --embeddings 3.10 3.11 # embeddings, multi-version
-#   ./scripts/run_integration_test.sh --all 3.11             # both targets, Python 3.11
+#   ./scripts/run_integration_test.sh --all 3.11             # all three targets, Python 3.11
 #
 # Requires: Docker
 # --------------------------------------------------------------------------
@@ -29,8 +30,9 @@ VERSIONS=()
 for arg in "$@"; do
     case "${arg}" in
         --embeddings) TARGETS+=("embeddings") ;;
+        --demo)       TARGETS+=("demo") ;;
         --core)       TARGETS+=("core") ;;
-        --all)        TARGETS+=("core" "embeddings") ;;
+        --all)        TARGETS+=("core" "embeddings" "demo") ;;
         *)            VERSIONS+=("${arg}") ;;
     esac
 done
