@@ -24,7 +24,17 @@ and onboards new models at runtime — all with sub-millisecond routing latency 
 
 ## Installation
 
-Install from source:
+```bash
+pip install paretobandit
+```
+
+With optional sentence-transformer embeddings:
+
+```bash
+pip install paretobandit[embeddings]
+```
+
+For development (from source):
 
 ```bash
 git clone https://github.com/ParetoBandit/ParetoBandit.git
@@ -182,7 +192,7 @@ paretobandit/
 ## Requirements
 
 - **Python** ≥ 3.10
-- **Core:** numpy, pandas, joblib, scikit-learn, tqdm
+- **Core:** numpy, joblib, scikit-learn, tqdm
 - **Embeddings** (optional): torch, sentence-transformers, transformers
 - **Experiments:** matplotlib, scipy, python-dotenv
 

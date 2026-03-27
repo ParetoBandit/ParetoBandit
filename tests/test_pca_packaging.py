@@ -163,14 +163,14 @@ class TestPackagingManifests:
             "MANIFEST.in missing *.joblib in recursive-include for pareto_bandit/data"
         )
 
-    def test_pyproject_force_includes_data_dir(self) -> None:
+    def test_pyproject_includes_package(self) -> None:
         pyproject = (self._project_root / "pyproject.toml").read_text()
-        assert "pareto_bandit/data" in pyproject, (
-            "pyproject.toml missing force-include for pareto_bandit/data"
+        assert "src/pareto_bandit" in pyproject, (
+            "pyproject.toml missing src/pareto_bandit in wheel packages"
         )
 
     def test_build_would_include_pca(self) -> None:
-        """Verify the PCA file lives under the force-included data/ tree."""
+        """Verify the PCA file lives under the package data/ tree."""
         rel = DEFAULT_PCA_PATH.relative_to(_PACKAGE_DIR)
         assert str(rel).startswith("data"), (
             f"PCA path {rel} is not under data/ — wheel will not include it"

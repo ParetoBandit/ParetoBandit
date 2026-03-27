@@ -9,7 +9,7 @@ description = "A local-first, adaptive router for intelligent LLM model selectio
 readme = "README.md"
 license = "Apache-2.0"
 authors = [
-    { name = "Annette Taberner-Miller" }
+    { name = "Annette Taberner-Miller", email = "annette.taberner@gmail.com" }
 ]
 keywords = [
     "llm",
@@ -107,9 +107,6 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pareto_bandit"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/pareto_bandit/data" = "pareto_bandit/data"
 
 # --- Testing ---
 [tool.pytest.ini_options]
