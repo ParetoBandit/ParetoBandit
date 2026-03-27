@@ -141,9 +141,9 @@ jobs:
           subprocess.check_call([pip_bin, "install", str(wheel)])
 
           code = r"""
-import pareto_bandit
-from pareto_bandit import BanditRouter
-print("import-ok")
-"""
+          import pareto_bandit
+          from pareto_bandit import BanditRouter
+          print("import-ok")
+          """
           subprocess.check_call([python_bin, "-c", code])
           PY
