@@ -198,7 +198,7 @@ The code is open-source under Apache 2.0. The paper has the full experimental de
 - [GitHub Repository](https://github.com/ParetoBandit/ParetoBandit)
 - [Interactive Notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb)
 - [Paper (PDF)](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)
-- `pip install paretobandit`
+- [`pip install paretobandit`](https://pypi.org/project/paretobandit/)
 
 If you're spending more than you'd like on LLM APIs, or worrying about whether your routing rules are still valid, give it a try. Star the repo, run the demo, and let us know what you build with it.
 
