@@ -1,21 +1,25 @@
 """ParetoBandit Interactive Demo.
 
-Loads evaluation data from the shipped K=3 test holdout (1,824 prompts
-from public benchmarks), embeds them with the library's default
-SentenceTransformer + PCA pipeline, and runs four scenarios that
-showcase core capabilities:
+Uses the paper's train-on-val / evaluate-on-holdout protocol:
+
+    * **Train split** — shipped ``val.jsonl`` (1,785 prompts): online
+      learning only, no evaluation metrics recorded.
+    * **Eval split** — shipped ``test_holdout.jsonl`` (1,824 prompts):
+      partitioned into phases for evaluation.
+
+Four scenarios showcase core capabilities:
 
     **Scenario 1 — Budget-Paced Routing**
         Sweeps budget targets and shows how ParetoBandit smoothly
         interpolates between cheap/low-quality and expensive/high-quality
         models while respecting an operator-set dollar budget.
 
-    **Scenario 2 — Quality Degradation & Recovery**
+    **Scenario 2 — Quality Degradation & Recovery** (3-phase)
         Simulates a silent quality regression on the mid-tier model,
         demonstrating that geometric forgetting detects the drop,
         redistributes traffic, and recovers when quality is restored.
 
-    **Scenario 3 — Cost Drift & Recovery**
+    **Scenario 3 — Cost Drift & Recovery** (3-phase)
         Simulates a dramatic Gemini-Pro price drop, showing how the
         BudgetPacer exploits cheap premium routing during the drop and
         restores budget-compliant routing when prices are corrected.
@@ -36,14 +40,8 @@ Usage::
     # Via CLI entry point (after pip install paretobandit[demo])
     paretobandit-demo
 
-    # Use fewer prompts for a quick test
-    paretobandit-demo --n-prompts 500
-
     # Run a single scenario
     paretobandit-demo --scenario 2
-
-    # Use a custom JSONL reward file
-    paretobandit-demo --prompts-file path/to/my_rewards.jsonl
 
     # Use a different SentenceTransformer encoder (raw embeddings, no PCA)
     paretobandit-demo --encoder-model all-mpnet-base-v2
@@ -90,9 +88,14 @@ from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 from pareto_bandit.config import (
     BEST_K3_HPARAMS,
     DEFAULT_MODEL_REGISTRY_PATH,
+    GEMINI_COST_DROP,
     K3_ARM_ORDER,
+    K3_BUDGET_LABELS,
+    K3_BUDGET_TARGETS,
+    K3_FAILURE_ARM,
+    K3_FAILURE_REWARD,
 )
-from pareto_bandit.data import get_example_holdout_path
+from pareto_bandit.data import get_example_holdout_path, get_example_val_path
 from pareto_bandit.feature_service import FeatureService
 from pareto_bandit.router import BanditRouter
 from pareto_bandit.storage import EphemeralContextStore
@@ -203,6 +206,12 @@ def _default_holdout_path() -> str:
     return str(get_example_holdout_path())
 
 
+@lru_cache(maxsize=1)
+def _default_val_path() -> str:
+    """Resolve the shipped validation JSONL path (cached, no repeated I/O)."""
+    return str(get_example_val_path())
+
+
 @dataclass
 class DemoConfig:
     """Top-level configuration for the demo.
@@ -211,13 +220,10 @@ class DemoConfig:
     All parameters can also be overridden via CLI flags.
     """
 
-    n_prompts: int = 1000
-    """Prompts to sample from the data file."""
-
     seed: int = 42
     """Master RNG seed for full reproducibility."""
 
-    n_seeds: int = 5
+    n_seeds: int = 10
     """Independent seeds per condition (more seeds = tighter CIs, slower)."""
 
     alpha: float = BEST_K3_HPARAMS["alpha"]
@@ -235,9 +241,13 @@ class DemoConfig:
     output_dir: str = "demo_results"
     """Directory for saved plots (CWD-relative by default)."""
 
-    prompts_file: str = field(default_factory=_default_holdout_path)
-    """Path to a JSONL reward file.  Defaults to the shipped K=3 test
-    holdout (``pareto_bandit/data/examples/test_holdout.jsonl``)."""
+    val_file: str = field(default_factory=_default_val_path)
+    """Path to the JSONL file used for **training** (online learning).
+    Defaults to the shipped ``val.jsonl`` (1,785 prompts)."""
+
+    holdout_file: str = field(default_factory=_default_holdout_path)
+    """Path to the JSONL file used for **evaluation**.
+    Defaults to the shipped ``test_holdout.jsonl`` (1,824 prompts)."""
 
     encoder_model: str | None = None
     """SentenceTransformer model name.  ``None`` uses the library default
@@ -256,48 +266,40 @@ class DemoConfig:
 # Data Loading
 # ═══════════════════════════════════════════════════════════════════════════
 
+PHASE_N: int = 608
+"""Prompts per phase in three-phase scenarios (matches paper)."""
 
-def load_evaluation_data(
-    prompts_file: str,
+
+def _load_jsonl(
+    path: Path,
     feature_service: FeatureService,
-    seed: int = 42,
-    n_prompts: int | None = None,
-) -> tuple[DataSplit, DataSplit]:
-    """Load a JSONL holdout file, embed prompts, and split train/test.
+) -> DataSplit:
+    """Load a single JSONL file and embed prompts.
 
     Each JSONL record must contain a ``"prompt"`` string and an
     ``"arms"`` mapping ``{model_id: {"reward": float, "cost": float}}``.
-    Per-arm rewards and costs are taken directly from the file.
 
     Parameters
     ----------
-    prompts_file : str
-        Path to a JSONL file with ``prompt`` and ``arms`` fields.
+    path : Path
+        Path to a JSONL reward file.
     feature_service : FeatureService
         Configured encoder for embedding prompts.
-    seed : int
-        RNG seed for subsampling and the train/test split.
-    n_prompts : int | None
-        Maximum prompts to use.  ``None`` uses all records.
 
     Returns
     -------
-    Tuple[DataSplit, DataSplit]
-        ``(train, test)`` with a 2:1 ratio.
+    DataSplit
+        Embeddings, rewards, and costs for all records in the file.
 
     Raises
     ------
     FileNotFoundError
-        If *prompts_file* does not exist.
+        If *path* does not exist.
     ValueError
-        If the file is empty, has fewer than 50 prompts, or is
-        missing the expected arm IDs.
+        If the file is empty or missing expected arm IDs.
     """
-    path = Path(prompts_file)
     if not path.exists():
-        raise FileNotFoundError(f"Prompts file not found: {path}")
-
-    rng = np.random.default_rng(seed)
+        raise FileNotFoundError(f"Data file not found: {path}")
 
     records: list[dict[str, object]] = []
     with open(path, encoding="utf-8") as fh:
@@ -316,23 +318,13 @@ def load_evaluation_data(
             f"but first record is missing: {missing}"
         )
 
-    if n_prompts is not None and len(records) > n_prompts:
-        idx = rng.choice(len(records), size=n_prompts, replace=False)
-        records = [records[i] for i in sorted(idx)]
-
-    min_prompts = 50
-    if len(records) < min_prompts:
-        raise ValueError(
-            f"Need at least {min_prompts} prompts for meaningful "
-            f"experiments, got {len(records)} in {path}"
-        )
-
     raw_prompts = [str(r["prompt"]) for r in records]
-
     logger.info("Embedding %d prompts from %s ...", len(raw_prompts), path.name)
     X_bias = feature_service.extract_features_batch(raw_prompts)
-    dim = X_bias.shape[1] - 1
-    logger.info("Embedded %d prompts -> %d features (+bias)", len(raw_prompts), dim)
+    logger.info(
+        "Embedded %d prompts -> %d features (+bias)",
+        len(raw_prompts), X_bias.shape[1] - 1,
+    )
 
     n_total = len(records)
     rewards: dict[str, np.ndarray] = {a: np.empty(n_total) for a in ARM_ORDER}
@@ -344,34 +336,55 @@ def load_evaluation_data(
             rewards[arm_id][i] = float(arm_data["reward"])  # type: ignore[index]
             costs[arm_id][i] = float(arm_data["cost"])  # type: ignore[index]
 
-    # Train / test split (2:1)
-    n_train = int(n_total * 2 / 3)
-    perm = rng.permutation(n_total)
-    train_idx, test_idx = perm[:n_train], perm[n_train:]
+    return DataSplit(embeddings=X_bias, rewards=rewards, costs=costs)
 
-    def _make_split(indices: np.ndarray) -> DataSplit:
-        return DataSplit(
-            embeddings=X_bias[indices],
-            rewards={a: rewards[a][indices] for a in ARM_ORDER},
-            costs={a: costs[a][indices] for a in ARM_ORDER},
-        )
 
-    train = _make_split(train_idx)
-    test = _make_split(test_idx)
+def load_demo_splits(
+    val_file: str,
+    holdout_file: str,
+    feature_service: FeatureService,
+) -> tuple[DataSplit, DataSplit]:
+    """Load the val (train) and holdout (eval) splits separately.
+
+    This follows the paper's protocol: the val split is used exclusively
+    for online learning and the holdout split exclusively for evaluation.
+
+    Parameters
+    ----------
+    val_file : str
+        Path to the validation JSONL file (training data).
+    holdout_file : str
+        Path to the holdout JSONL file (evaluation data).
+    feature_service : FeatureService
+        Configured encoder for embedding prompts.
+
+    Returns
+    -------
+    Tuple[DataSplit, DataSplit]
+        ``(train, eval)`` — val split for training, holdout for evaluation.
+    """
+    train = _load_jsonl(Path(val_file), feature_service)
+    holdout = _load_jsonl(Path(holdout_file), feature_service)
 
     logger.info(
-        "Loaded %d train, %d test samples (%d features + bias)",
-        train.n, test.n, dim,
+        "Loaded %d train (val), %d eval (holdout) samples",
+        train.n, holdout.n,
     )
     for arm_id in ARM_ORDER:
+        all_rewards = np.concatenate([
+            train.rewards[arm_id], holdout.rewards[arm_id],
+        ])
+        all_costs = np.concatenate([
+            train.costs[arm_id], holdout.costs[arm_id],
+        ])
         logger.info(
             "  %-28s  reward=%.3f+/-%.3f  cost=$%.6f",
             arm_id,
-            float(np.mean(rewards[arm_id])),
-            float(np.std(rewards[arm_id])),
-            float(np.mean(costs[arm_id])),
+            float(np.mean(all_rewards)),
+            float(np.std(all_rewards)),
+            float(np.mean(all_costs)),
         )
-    return train, test
+    return train, holdout
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -466,7 +479,7 @@ class TrialMetrics:
 
 def run_trial(
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
     *,
     alpha: float = BEST_K3_HPARAMS["alpha"],
     forgetting_factor: float = BEST_K3_HPARAMS["forgetting_factor"],
@@ -477,15 +490,15 @@ def run_trial(
 ) -> TrialMetrics:
     """Run one online-learning then evaluation trial.
 
-    The router learns on *train* (shuffled), then is evaluated on *test*
-    (shuffled) while continuing to learn (standard bandit protocol).
+    The router learns on the full *train* split (val, shuffled), then is
+    evaluated on *holdout* (shuffled) while continuing to learn.
 
     Parameters
     ----------
     train : DataSplit
-        Online-learning data.
-    test : DataSplit
-        Held-out evaluation data.
+        Online-learning data (val split).
+    holdout : DataSplit
+        Held-out evaluation data (test holdout split).
     alpha : float
         Exploration coefficient.
     forgetting_factor : float
@@ -519,15 +532,13 @@ def run_trial(
         seed=seed,
     )
 
-    # Online learning (train split)
     for i in rng.permutation(train.n):
         model, log = router.route(train.embeddings[i])
         reward = float(train.rewards[model][i])
         log.cost_usd = float(train.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
-    # Evaluation (test split)
-    test_order = rng.permutation(test.n)
+    eval_order = rng.permutation(holdout.n)
     step_models: list[str] = []
     step_rewards: list[float] = []
     step_costs: list[float] = []
@@ -535,10 +546,10 @@ def run_trial(
     reward_sum = 0.0
     cost_sum = 0.0
 
-    for i in test_order:
-        model, log = router.route(test.embeddings[i])
-        reward = float(test.rewards[model][i])
-        cost = float(test.costs[model][i])
+    for i in eval_order:
+        model, log = router.route(holdout.embeddings[i])
+        reward = float(holdout.rewards[model][i])
+        cost = float(holdout.costs[model][i])
         log.cost_usd = cost
         router.process_feedback(log.request_id, reward=reward)
 
@@ -551,11 +562,11 @@ def run_trial(
             step_rewards.append(reward)
             step_costs.append(cost)
 
-    n_test = len(test_order)
+    n_eval = len(eval_order)
     return TrialMetrics(
-        mean_reward=reward_sum / n_test,
-        mean_cost=cost_sum / n_test,
-        model_fractions={m: cnt / n_test for m, cnt in model_counts.items()},
+        mean_reward=reward_sum / n_eval,
+        mean_cost=cost_sum / n_eval,
+        model_fractions={m: cnt / n_eval for m, cnt in model_counts.items()},
         per_step_models=step_models,
         per_step_rewards=step_rewards,
         per_step_costs=step_costs,
@@ -600,31 +611,26 @@ class _AveragedCurves:
 
 
 def _phase_geometry(
-    train: DataSplit, test: DataSplit,
+    n_phases: int = 3,
+    phase_n: int = PHASE_N,
 ) -> tuple[int, int, int]:
     """Compute ``(phase_size, total_steps, window)`` for phased trials.
 
-    These depend only on data dimensions (not on seed or
-    hyperparameters), so they can be computed once before any trials.
+    Parameters
+    ----------
+    n_phases : int
+        Number of evaluation phases (3 for both quality-degradation
+        and cost-drift scenarios).
+    phase_n : int
+        Prompts per phase (default: ``PHASE_N = 608``).
+
+    Returns
+    -------
+    tuple of (phase_size, total_steps, window)
     """
-    learn_n = train.n // 2
-    n_eval = (train.n - learn_n) + test.n
-    phase_size = n_eval // 3
-    total_steps = 3 * phase_size
+    total_steps = n_phases * phase_n
     window = max(20, total_steps // 30)
-    return phase_size, total_steps, window
-
-
-def _compute_degradation_budgets(train: DataSplit) -> dict[str, float]:
-    """Three budget targets spanning the cost range for degradation trials.
-
-    Returns tight / moderate / loose targets analogous to Experiment 03
-    in the paper.
-    """
-    mean_costs = [float(np.mean(train.costs[m])) for m in ARM_ORDER]
-    lo, hi = min(mean_costs), max(mean_costs)
-    tight, moderate, loose = np.geomspace(lo * 10, hi * 0.15, num=3)
-    return {"tight": tight, "moderate": moderate, "loose": loose}
+    return phase_n, total_steps, window
 
 
 PhasedTrialFn = Callable[..., tuple[list[str], list[float], list[float], int]]
@@ -705,10 +711,6 @@ def _plot_phased_3panel(
 ) -> Path:
     """Draw the Exp 02/03-style 3-panel stacked figure.
 
-    Conditions keyed ``"ParetoBandit (<label>)"`` are drawn as solid
-    lines colour-coded by budget label.  ``"Naive Bandit …"`` is gray
-    dashed and ``"Unconstrained"`` is green dash-dot.
-
     Parameters
     ----------
     conditions : dict
@@ -718,15 +720,16 @@ def _plot_phased_3panel(
     budget_nice : dict
         ``{budget_label: display_string}`` for legend entries.
     phase_boundaries : list of int
-        ``[p1_end, p2_end, p3_end]`` step indices.
+        Step indices at the end of each phase.  Length must equal
+        ``len(phase_labels)``.
     window : int
         Rolling-window width (shown in panel title).
     x_axis : np.ndarray
         Shared x-axis array.
     phase_labels : list of str
-        Three-element list of phase names.
+        Phase names (3 elements for the three-phase layout).
     shade_color : str
-        Fill colour for the Phase 2 band.
+        Fill colour for the perturbation phase band (Phase 2).
     suptitle : str
         Figure super-title.
     out_path : Path
@@ -746,12 +749,12 @@ def _plot_phased_3panel(
         for b in phase_boundaries[:2]:
             ax.axvline(b, color="black", linestyle="--",
                        linewidth=1.2, alpha=0.5, zorder=1)
-        trans = blended_transform_factory(ax.transData, ax.transAxes)
         mids = [
             phase_boundaries[0] / 2,
             (phase_boundaries[0] + phase_boundaries[1]) / 2,
             (phase_boundaries[1] + phase_boundaries[2]) / 2,
         ]
+        trans = blended_transform_factory(ax.transData, ax.transAxes)
         for mid, lab in zip(mids, phase_labels, strict=False):
             ax.text(mid, 0.97, lab, transform=trans, ha="center",
                     va="top", fontsize=10, fontweight="bold", color="#333333")
@@ -809,6 +812,7 @@ def _plot_phased_3panel(
     # Panel (b) — windowed mean reward
     _add_shading(ax_rwd)
     ax_rwd.set_ylabel("Mean Reward", fontsize=12)
+    ax_rwd.set_ylim(0.75, 0.95)
     ax_rwd.grid(True, alpha=0.2, linewidth=0.5)
     ax_rwd.set_title(f"(b)  Windowed Mean Reward (window={window})",
                      fontsize=13, fontweight="bold", pad=8)
@@ -869,10 +873,20 @@ def _plot_phased_3panel(
 
 
 def _compute_budget_targets(
-    train: DataSplit, n_targets: int = 5,
+    train: DataSplit,
+    holdout: DataSplit,
+    n_targets: int = 5,
 ) -> list[float]:
-    """Log-spaced budget targets spanning arm cost extremes."""
-    per_arm_means = [float(np.mean(train.costs[m])) for m in ARM_ORDER]
+    """Log-spaced budget targets spanning arm cost extremes.
+
+    Arm means are pooled across both splits (val + holdout) for stable
+    targets.  Budget targets are configuration inputs, so using all
+    available data is appropriate.
+    """
+    per_arm_means: list[float] = []
+    for m in ARM_ORDER:
+        merged = np.concatenate([train.costs[m], holdout.costs[m]])
+        per_arm_means.append(float(np.mean(merged)))
     lo, hi = min(per_arm_means), max(per_arm_means)
     return list(np.geomspace(lo, hi, num=n_targets))
 
@@ -880,7 +894,7 @@ def _compute_budget_targets(
 def run_scenario_1(
     cfg: DemoConfig,
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
 ) -> Path:
     """Budget-paced routing sweep with 3-panel Pareto frontier plot.
 
@@ -893,19 +907,17 @@ def run_scenario_1(
     print("  SCENARIO 1: Budget-Paced LLM Routing")
     print("=" * 65)
 
-    targets = _compute_budget_targets(train, cfg.n_budget_targets)
+    targets = _compute_budget_targets(train, holdout, cfg.n_budget_targets)
     target_strs = [f"${t:.2e}" if t < 1e-4 else f"${t:.5f}" for t in targets]
     print(f"  Budget targets ($/req): {target_strs}")
 
-    # Fixed single-model baselines
     baselines: list[dict[str, object]] = []
     for arm in ARM_ORDER:
-        r = float(np.mean(test.rewards[arm]))
-        c = float(np.mean(test.costs[arm]))
+        r = float(np.mean(holdout.rewards[arm]))
+        c = float(np.mean(holdout.costs[arm]))
         baselines.append({"model_id": arm, "mean_reward": r, "mean_cost": c})
         print(f"  Baseline {ARM_SHORT[arm]:<16s}  reward={r:.4f}  cost=${c:.6f}")
 
-    # Budget sweep (multi-seed)
     sweep_results: list[dict[str, object]] = []
     for target in targets:
         seed_rewards: list[float] = []
@@ -918,7 +930,7 @@ def run_scenario_1(
                 mode=PacingMode.ADAPTIVE,
             )
             trial = run_trial(
-                train, test,
+                train, holdout,
                 alpha=cfg.alpha,
                 forgetting_factor=cfg.forgetting_factor,
                 cost_penalty=0.0,
@@ -1146,33 +1158,37 @@ def run_scenario_1(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Scenario 2 — Quality Degradation & Recovery
+# Scenario 2 — Quality Degradation & Recovery (3-phase, paper Exp 03)
 # ═══════════════════════════════════════════════════════════════════════════
 
-_DEGRADED_REWARD = 0.50
-_PHASE_LABELS_S2 = ["Normal", "Mistral Failure", "Recovered"]
+_DEGRADED_REWARD: float = K3_FAILURE_REWARD
+_DEGRADED_ARM: str = K3_FAILURE_ARM
+_PHASE_LABELS_S2 = ["Normal", "Mistral Failure", "Recovery"]
 
 
-def _run_phased_trial(
+def _run_degradation_trial(
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
+    p1_idx: np.ndarray,
+    p2_idx: np.ndarray,
     *,
-    degraded_arm: str = "mistralai/mistral-large-2512",
+    degraded_arm: str = _DEGRADED_ARM,
     degraded_reward: float = _DEGRADED_REWARD,
     alpha: float = BEST_K3_HPARAMS["alpha"],
     forgetting_factor: float = BEST_K3_HPARAMS["forgetting_factor"],
-    cost_penalty: float = 0.3,
+    cost_penalty: float = 0.0,
     budget_pacer: BudgetPacer | None = None,
     seed: int = 0,
 ) -> tuple[list[str], list[float], list[float], int]:
-    """Three-phase trial: normal -> degradation -> recovery.
+    """Three-phase quality degradation trial (paper Experiment 03).
 
-    Uses the first half of *train* for online learning, then
-    concatenates the second half with *test* to form a longer
-    evaluation sequence (3 equal phases).
+    Phase 1 (Normal): ``p1_idx`` holdout prompts, all models healthy.
+    Phase 2 (Failure): ``p2_idx`` holdout prompts, *degraded_arm*
+    rewards replaced with *degraded_reward* (costs unchanged).
+    Phase 3 (Recovery): Reuses ``p1_idx`` prompts with original rewards
+    — controlled within-subject comparison with Phase 1.
 
-    During Phase 2, the *degraded_arm*'s rewards are replaced with a
-    low constant.  Phase 3 restores normal rewards.
+    Training uses the full *train* split (no metrics recorded).
 
     Returns
     -------
@@ -1181,6 +1197,7 @@ def _run_phased_trial(
     """
     feature_dim = train.embeddings.shape[1]
     rng = np.random.default_rng(seed)
+    phase_n = len(p1_idx)
 
     if budget_pacer is not None:
         budget_pacer.reset()
@@ -1194,50 +1211,36 @@ def _run_phased_trial(
         seed=seed,
     )
 
-    train_order = rng.permutation(train.n)
-    learn_n = train.n // 2
-    learn_idx = train_order[:learn_n]
-    extra_eval_idx = train_order[learn_n:]
-
-    for i in learn_idx:
+    for i in rng.permutation(train.n):
         model, log = router.route(train.embeddings[i])
         reward = float(train.rewards[model][i])
         log.cost_usd = float(train.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
-    # Combined evaluation pool (second half of train + full test)
-    eval_emb = np.vstack([train.embeddings[extra_eval_idx], test.embeddings])
-    eval_rewards = {
-        a: np.concatenate([train.rewards[a][extra_eval_idx], test.rewards[a]])
-        for a in ARM_ORDER
-    }
-    eval_costs = {
-        a: np.concatenate([train.costs[a][extra_eval_idx], test.costs[a]])
-        for a in ARM_ORDER
-    }
-    n_eval = eval_emb.shape[0]
-    eval_order = rng.permutation(n_eval)
+    p1_order = rng.permutation(phase_n)
+    p2_order = rng.permutation(len(p2_idx))
+    p3_order = rng.permutation(phase_n)
 
-    phase_size = n_eval // 3
-    phases = [
-        eval_order[:phase_size],
-        eval_order[phase_size:2 * phase_size],
-        eval_order[2 * phase_size:3 * phase_size],
+    phase_specs: list[tuple[np.ndarray, np.ndarray, bool]] = [
+        (p1_idx, p1_order, False),
+        (p2_idx, p2_order, True),
+        (p1_idx, p3_order, False),
     ]
 
     step_models: list[str] = []
     step_rewards: list[float] = []
     step_costs: list[float] = []
 
-    for phase_idx, phase_indices in enumerate(phases):
-        for i in phase_indices:
-            model, log = router.route(eval_emb[i])
+    for pool_idx, order, is_degraded in phase_specs:
+        for o in order:
+            i = pool_idx[o]
+            model, log = router.route(holdout.embeddings[i])
 
-            if phase_idx == 1 and model == degraded_arm:
+            if is_degraded and model == degraded_arm:
                 reward = degraded_reward
             else:
-                reward = float(eval_rewards[model][i])
-            cost = float(eval_costs[model][i])
+                reward = float(holdout.rewards[model][i])
+            cost = float(holdout.costs[model][i])
 
             log.cost_usd = cost
             router.process_feedback(log.request_id, reward=reward)
@@ -1246,19 +1249,21 @@ def _run_phased_trial(
             step_rewards.append(reward)
             step_costs.append(cost)
 
-    return step_models, step_rewards, step_costs, phase_size
+    return step_models, step_rewards, step_costs, phase_n
 
 
 def run_scenario_2(
     cfg: DemoConfig,
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
 ) -> Path:
-    """Quality degradation and recovery (Exp 03-style 3-panel figure).
+    """Quality degradation & recovery (paper Experiment 03, 3-phase).
 
-    Runs five conditions (ParetoBandit x3 budgets, Naive Bandit,
-    Unconstrained) through a three-phase simulation, averaging over
-    ``cfg.n_seeds`` independent seeds for smooth curves.
+    Three phases of ``PHASE_N`` (608) prompts each:
+
+    * Phase 1 — Normal (608 holdout prompts)
+    * Phase 2 — Mistral Failure: reward drops to ``K3_FAILURE_REWARD``
+    * Phase 3 — Recovery: reuses Phase 1 prompts, original rewards
 
     Returns
     -------
@@ -1269,11 +1274,24 @@ def run_scenario_2(
     print("  SCENARIO 2: Quality Degradation & Recovery")
     print("=" * 65)
 
-    degraded_arm = "mistralai/mistral-large-2512"
-    degraded_reward = _DEGRADED_REWARD
-    phase_size, total_steps, window = _phase_geometry(train, test)
+    rng_global = np.random.default_rng(cfg.seed)
+    all_idx = rng_global.permutation(holdout.n)
+    p1_idx = all_idx[:PHASE_N]
+    p2_idx = all_idx[PHASE_N:2 * PHASE_N]
 
-    budget_targets = _compute_degradation_budgets(train)
+    phase_size, total_steps, window = _phase_geometry(n_phases=3)
+
+    mistral_normal = float(np.mean(holdout.rewards[_DEGRADED_ARM][p1_idx]))
+    deg_pct = (mistral_normal - _DEGRADED_REWARD) / mistral_normal * 100
+    print(f"  Degraded arm:   {ARM_SHORT[_DEGRADED_ARM]}")
+    print(f"  Degraded reward: {_DEGRADED_REWARD:.2f} "
+          f"(~{deg_pct:.0f}% below normal {mistral_normal:.3f})")
+    print(f"  Phase size:     {phase_size} prompts x 3 phases")
+    print(f"  Phase 3 reuses Phase 1 prompts (within-subject design)")
+
+    budget_targets: dict[str, float] = dict(
+        zip(K3_BUDGET_LABELS, K3_BUDGET_TARGETS, strict=True),
+    )
     budget_nice: dict[str, str] = {}
     for bl in _BUDGET_LABELS:
         bt = budget_targets[bl]
@@ -1284,11 +1302,12 @@ def run_scenario_2(
 
     for bl in _BUDGET_LABELS:
         conditions[f"ParetoBandit ({bl})"] = _run_multi_seed_phased(
-            trial_fn=_run_phased_trial,
+            trial_fn=_run_degradation_trial,
             trial_kwargs={
-                "train": train, "test": test,
-                "degraded_arm": degraded_arm,
-                "degraded_reward": degraded_reward,
+                "train": train, "holdout": holdout,
+                "p1_idx": p1_idx, "p2_idx": p2_idx,
+                "degraded_arm": _DEGRADED_ARM,
+                "degraded_reward": _DEGRADED_REWARD,
                 "alpha": cfg.alpha,
                 "forgetting_factor": cfg.forgetting_factor,
                 "cost_penalty": 0.0,
@@ -1301,30 +1320,13 @@ def run_scenario_2(
             window=window, target_arm=GEMINI_ARM,
         )
 
-    conditions["Naive Bandit (moderate)"] = _run_multi_seed_phased(
-        trial_fn=_run_phased_trial,
-        trial_kwargs={
-            "train": train, "test": test,
-            "degraded_arm": degraded_arm,
-            "degraded_reward": degraded_reward,
-            "alpha": cfg.alpha,
-            "forgetting_factor": 1.0,
-            "cost_penalty": 0.0,
-            "budget_pacer": BudgetPacer(
-                target_avg_spend_usd=budget_targets["moderate"],
-                mode=PacingMode.ADAPTIVE,
-            ),
-        },
-        n_seeds=cfg.n_seeds, base_seed=cfg.seed,
-        window=window, target_arm=GEMINI_ARM,
-    )
-
     conditions["Unconstrained"] = _run_multi_seed_phased(
-        trial_fn=_run_phased_trial,
+        trial_fn=_run_degradation_trial,
         trial_kwargs={
-            "train": train, "test": test,
-            "degraded_arm": degraded_arm,
-            "degraded_reward": degraded_reward,
+            "train": train, "holdout": holdout,
+            "p1_idx": p1_idx, "p2_idx": p2_idx,
+            "degraded_arm": _DEGRADED_ARM,
+            "degraded_reward": _DEGRADED_REWARD,
             "alpha": cfg.alpha,
             "forgetting_factor": cfg.forgetting_factor,
             "cost_penalty": 0.0,
@@ -1340,9 +1342,10 @@ def run_scenario_2(
     for cond_name, curves in conditions.items():
         ps = curves.phase_size
         r = curves.mean_reward
-        p1 = r[: ps - window + 1]
-        p2 = r[ps - window + 1: 2 * ps - window + 1]
-        p3 = r[2 * ps - window + 1:]
+        valid_per_phase = ps - window + 1
+        p1 = r[:valid_per_phase]
+        p2 = r[valid_per_phase:2 * valid_per_phase]
+        p3 = r[2 * valid_per_phase:]
         print(f"  {cond_name:<30s}  P1={np.mean(p1):.4f}  "
               f"P2={np.mean(p2):.4f}  P3={np.mean(p3):.4f}")
 
@@ -1351,8 +1354,8 @@ def run_scenario_2(
         conditions, budget_targets, budget_nice,
         phase_boundaries, window, x_axis,
         phase_labels=_PHASE_LABELS_S2, shade_color=CB_RED,
-        suptitle=(f"Quality Degradation & Recovery — {ARM_SHORT[degraded_arm]} "
-                  f"reward drops to {degraded_reward:.2f} in Phase 2"),
+        suptitle=(f"Quality Degradation & Recovery — {ARM_SHORT[_DEGRADED_ARM]} "
+                  f"reward drops to {_DEGRADED_REWARD:.2f} in Phase 2"),
         out_path=out_path,
     )
     print(f"\n  Saved: {out_path}")
@@ -1360,34 +1363,51 @@ def run_scenario_2(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Scenario 3 — Cost Drift & Recovery (Exp 02 analogue)
+# Scenario 3 — Cost Drift & Recovery (3-phase, paper Exp 02)
 # ═══════════════════════════════════════════════════════════════════════════
 
-# In Phase 2, Gemini-Pro's pricing drops by this factor (0.02 = 50x
-# cheaper).  The BudgetPacer exploits cheap premium routing, then
-# returns to the original mix when prices are restored in Phase 3.
-_GEMINI_COST_SCALE_PHASE2 = 0.02
+_GEMINI_NEW_INPUT: float = GEMINI_COST_DROP["new_input_cost_per_m"]
+_GEMINI_NEW_OUTPUT: float = GEMINI_COST_DROP["new_output_cost_per_m"]
 
-_PHASE_LABELS_S3 = ["Normal", "Price Drop", "Restored"]
+_PHASE_LABELS_S3 = ["Normal", "Price Drop", "Price Restored"]
+
+
+def _gemini_cost_scale() -> float:
+    """Effective cost multiplier for the Gemini price drop.
+
+    Derived from the registry's original pricing and the paper's new
+    pricing, exactly as ``Experiment 02`` does.
+    """
+    orig_input = float(MODEL_REGISTRY[GEMINI_ARM]["input_cost_per_m"])
+    orig_output = float(MODEL_REGISTRY[GEMINI_ARM]["output_cost_per_m"])
+    orig_avg = (orig_input + orig_output) / 2.0
+    new_avg = (_GEMINI_NEW_INPUT + _GEMINI_NEW_OUTPUT) / 2.0
+    return new_avg / orig_avg
 
 
 def _run_cost_drift_trial(
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
+    p1_idx: np.ndarray,
+    p2_idx: np.ndarray,
     *,
-    cost_drift_arm: str = "google/gemini-2.5-pro",
-    cost_scale: float = _GEMINI_COST_SCALE_PHASE2,
+    cost_drift_arm: str = GEMINI_ARM,
     alpha: float = BEST_K3_HPARAMS["alpha"],
     forgetting_factor: float = BEST_K3_HPARAMS["forgetting_factor"],
     cost_penalty: float = 0.0,
     budget_pacer: BudgetPacer | None = None,
     seed: int = 0,
 ) -> tuple[list[str], list[float], list[float], int]:
-    """Three-phase cost-drift trial: normal -> price drop -> restored.
+    """Three-phase cost-drift trial (paper Experiment 02).
 
-    Phase 2 scales the *cost_drift_arm*'s per-request costs by
-    *cost_scale* (e.g. 0.02 = 50x cheaper) and updates the router's
-    pricing registry.  Phase 3 restores original pricing.
+    Phase 1 (Normal): ``p1_idx`` holdout prompts, original pricing.
+    Phase 2 (Price Drop): ``p2_idx`` holdout prompts, Gemini pricing
+    reduced per ``GEMINI_COST_DROP``.  Registry updated so the pacer
+    reacts immediately.
+    Phase 3 (Price Restored): Reuses ``p1_idx`` prompts with original
+    pricing restored — controlled within-subject comparison.
+
+    Training uses the full *train* split (no metrics recorded).
 
     Returns
     -------
@@ -1396,6 +1416,8 @@ def _run_cost_drift_trial(
     """
     feature_dim = train.embeddings.shape[1]
     rng = np.random.default_rng(seed)
+    cost_scale = _gemini_cost_scale()
+    phase_n = len(p1_idx)
 
     if budget_pacer is not None:
         budget_pacer.reset()
@@ -1409,89 +1431,86 @@ def _run_cost_drift_trial(
         seed=seed,
     )
 
-    train_order = rng.permutation(train.n)
-    learn_n = train.n // 2
-    learn_idx = train_order[:learn_n]
-    extra_eval_idx = train_order[learn_n:]
-
-    for i in learn_idx:
+    for i in rng.permutation(train.n):
         model, log = router.route(train.embeddings[i])
         reward = float(train.rewards[model][i])
         log.cost_usd = float(train.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
-    # Combined evaluation pool
-    eval_emb = np.vstack([train.embeddings[extra_eval_idx], test.embeddings])
-    eval_rewards = {
-        a: np.concatenate([train.rewards[a][extra_eval_idx], test.rewards[a]])
-        for a in ARM_ORDER
-    }
-    eval_costs_normal = {
-        a: np.concatenate([train.costs[a][extra_eval_idx], test.costs[a]])
-        for a in ARM_ORDER
-    }
-    eval_costs_cheap = dict(eval_costs_normal)
-    eval_costs_cheap[cost_drift_arm] = (
-        eval_costs_normal[cost_drift_arm] * cost_scale
-    )
+    orig_input = float(MODEL_REGISTRY[cost_drift_arm]["input_cost_per_m"])
+    orig_output = float(MODEL_REGISTRY[cost_drift_arm]["output_cost_per_m"])
 
-    n_eval = eval_emb.shape[0]
-    eval_order = rng.permutation(n_eval)
-
-    phase_size = n_eval // 3
-    phases = [
-        eval_order[:phase_size],
-        eval_order[phase_size:2 * phase_size],
-        eval_order[2 * phase_size:3 * phase_size],
-    ]
-
-    orig_input = MODEL_REGISTRY[cost_drift_arm]["input_cost_per_m"]
-    orig_output = MODEL_REGISTRY[cost_drift_arm]["output_cost_per_m"]
+    p1_order = rng.permutation(phase_n)
+    p2_order = rng.permutation(len(p2_idx))
+    p3_order = rng.permutation(phase_n)
 
     step_models: list[str] = []
     step_rewards: list[float] = []
     step_costs: list[float] = []
 
-    for phase_idx, phase_indices in enumerate(phases):
-        if phase_idx == 1:
-            router.update_model_pricing(
-                cost_drift_arm,
-                input_cost_per_m=float(orig_input) * cost_scale,  # type: ignore[arg-type]
-                output_cost_per_m=float(orig_output) * cost_scale,  # type: ignore[arg-type]
-            )
-        elif phase_idx == 2:
-            router.update_model_pricing(
-                cost_drift_arm,
-                input_cost_per_m=float(orig_input),  # type: ignore[arg-type]
-                output_cost_per_m=float(orig_output),  # type: ignore[arg-type]
-            )
+    # Phase 1 — Normal pricing
+    for o in p1_order:
+        i = p1_idx[o]
+        model, log = router.route(holdout.embeddings[i])
+        reward = float(holdout.rewards[model][i])
+        cost = float(holdout.costs[model][i])
+        log.cost_usd = cost
+        router.process_feedback(log.request_id, reward=reward)
+        step_models.append(model)
+        step_rewards.append(reward)
+        step_costs.append(cost)
 
-        cost_table = eval_costs_cheap if phase_idx == 1 else eval_costs_normal
+    # Phase 2 — Price drop (update registry)
+    router.update_model_pricing(
+        cost_drift_arm,
+        input_cost_per_m=_GEMINI_NEW_INPUT,
+        output_cost_per_m=_GEMINI_NEW_OUTPUT,
+    )
+    for o in p2_order:
+        i = p2_idx[o]
+        model, log = router.route(holdout.embeddings[i])
+        reward = float(holdout.rewards[model][i])
+        cost = float(holdout.costs[model][i])
+        if model == cost_drift_arm:
+            cost *= cost_scale
+        log.cost_usd = cost
+        router.process_feedback(log.request_id, reward=reward)
+        step_models.append(model)
+        step_rewards.append(reward)
+        step_costs.append(cost)
 
-        for i in phase_indices:
-            model, log = router.route(eval_emb[i])
-            reward = float(eval_rewards[model][i])
-            cost = float(cost_table[model][i])
+    # Phase 3 — Price restored (revert registry)
+    router.update_model_pricing(
+        cost_drift_arm,
+        input_cost_per_m=orig_input,
+        output_cost_per_m=orig_output,
+    )
+    for o in p3_order:
+        i = p1_idx[o]
+        model, log = router.route(holdout.embeddings[i])
+        reward = float(holdout.rewards[model][i])
+        cost = float(holdout.costs[model][i])
+        log.cost_usd = cost
+        router.process_feedback(log.request_id, reward=reward)
+        step_models.append(model)
+        step_rewards.append(reward)
+        step_costs.append(cost)
 
-            log.cost_usd = cost
-            router.process_feedback(log.request_id, reward=reward)
-
-            step_models.append(model)
-            step_rewards.append(reward)
-            step_costs.append(cost)
-
-    return step_models, step_rewards, step_costs, phase_size
+    return step_models, step_rewards, step_costs, phase_n
 
 
 def run_scenario_3(
     cfg: DemoConfig,
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
 ) -> Path:
-    """Cost drift and recovery (Exp 02-style 3-panel figure).
+    """Cost drift & recovery (paper Experiment 02, 3-phase).
 
-    Simulates a Gemini-Pro price drop in Phase 2, averaging over
-    ``cfg.n_seeds`` independent seeds for smooth curves.
+    Three phases of ``PHASE_N`` (608) prompts each:
+
+    * Phase 1 — Normal pricing (608 holdout prompts)
+    * Phase 2 — Gemini price drop (~56x cheaper)
+    * Phase 3 — Price restored (reuses Phase 1 prompts)
 
     Returns
     -------
@@ -1502,14 +1521,23 @@ def run_scenario_3(
     print("  SCENARIO 3: Cost Drift & Recovery (Gemini-Pro Price Drop)")
     print("=" * 65)
 
-    cost_drift_arm = "google/gemini-2.5-pro"
-    cost_scale = _GEMINI_COST_SCALE_PHASE2
-    print(f"  Gemini-Pro cost multiplier in Phase 2: {cost_scale}x "
+    cost_scale = _gemini_cost_scale()
+    print(f"  Gemini-Pro cost multiplier in Phase 2: {cost_scale:.4f}x "
           f"(~{1 / cost_scale:.0f}x cheaper)")
 
-    phase_size, total_steps, window = _phase_geometry(train, test)
+    rng_global = np.random.default_rng(cfg.seed + 1000)
+    all_idx = rng_global.permutation(holdout.n)
+    p1_idx = all_idx[:PHASE_N]
+    p2_idx = all_idx[PHASE_N:2 * PHASE_N]
 
-    budget_targets = _compute_degradation_budgets(train)
+    phase_size, total_steps, window = _phase_geometry(n_phases=3)
+
+    print(f"  Phase size:     {phase_size} prompts x 3 phases")
+    print(f"  Phase 3 reuses Phase 1 prompts (within-subject design)")
+
+    budget_targets: dict[str, float] = dict(
+        zip(K3_BUDGET_LABELS, K3_BUDGET_TARGETS, strict=True),
+    )
     budget_nice: dict[str, str] = {}
     for bl in _BUDGET_LABELS:
         bt = budget_targets[bl]
@@ -1522,9 +1550,9 @@ def run_scenario_3(
         conditions[f"ParetoBandit ({bl})"] = _run_multi_seed_phased(
             trial_fn=_run_cost_drift_trial,
             trial_kwargs={
-                "train": train, "test": test,
-                "cost_drift_arm": cost_drift_arm,
-                "cost_scale": cost_scale,
+                "train": train, "holdout": holdout,
+                "p1_idx": p1_idx, "p2_idx": p2_idx,
+                "cost_drift_arm": GEMINI_ARM,
                 "alpha": cfg.alpha,
                 "forgetting_factor": cfg.forgetting_factor,
                 "cost_penalty": 0.0,
@@ -1537,30 +1565,12 @@ def run_scenario_3(
             window=window, target_arm=GEMINI_ARM,
         )
 
-    conditions["Naive Bandit (moderate)"] = _run_multi_seed_phased(
-        trial_fn=_run_cost_drift_trial,
-        trial_kwargs={
-            "train": train, "test": test,
-            "cost_drift_arm": cost_drift_arm,
-            "cost_scale": cost_scale,
-            "alpha": cfg.alpha,
-            "forgetting_factor": 1.0,
-            "cost_penalty": 0.0,
-            "budget_pacer": BudgetPacer(
-                target_avg_spend_usd=budget_targets["moderate"],
-                mode=PacingMode.ADAPTIVE,
-            ),
-        },
-        n_seeds=cfg.n_seeds, base_seed=cfg.seed,
-        window=window, target_arm=GEMINI_ARM,
-    )
-
     conditions["Unconstrained"] = _run_multi_seed_phased(
         trial_fn=_run_cost_drift_trial,
         trial_kwargs={
-            "train": train, "test": test,
-            "cost_drift_arm": cost_drift_arm,
-            "cost_scale": cost_scale,
+            "train": train, "holdout": holdout,
+            "p1_idx": p1_idx, "p2_idx": p2_idx,
+            "cost_drift_arm": GEMINI_ARM,
             "alpha": cfg.alpha,
             "forgetting_factor": cfg.forgetting_factor,
             "cost_penalty": 0.0,
@@ -1577,12 +1587,13 @@ def run_scenario_3(
         ps = curves.phase_size
         r = curves.mean_reward
         c = curves.mean_cost
-        p1_r = r[: ps - window + 1]
-        p2_r = r[ps - window + 1: 2 * ps - window + 1]
-        p3_r = r[2 * ps - window + 1:]
-        p1_c = c[: ps - window + 1]
-        p2_c = c[ps - window + 1: 2 * ps - window + 1]
-        p3_c = c[2 * ps - window + 1:]
+        valid_per_phase = ps - window + 1
+        p1_r = r[:valid_per_phase]
+        p2_r = r[valid_per_phase:2 * valid_per_phase]
+        p3_r = r[2 * valid_per_phase:]
+        p1_c = c[:valid_per_phase]
+        p2_c = c[valid_per_phase:2 * valid_per_phase]
+        p3_c = c[2 * valid_per_phase:]
         print(f"  {cond_name:<30s}  "
               f"P1: R={np.mean(p1_r):.4f} C=${np.mean(p1_c):.2e}  "
               f"P2: R={np.mean(p2_r):.4f} C=${np.mean(p2_c):.2e}  "
@@ -1594,7 +1605,7 @@ def run_scenario_3(
         phase_boundaries, window, x_axis,
         phase_labels=_PHASE_LABELS_S3, shade_color=CB_GREEN,
         suptitle=("Cost Drift & Recovery — Gemini-Pro pricing drops "
-                  f"{1 / cost_scale:.0f}x in Phase 2"),
+                  f"{1 / cost_scale:.0f}x in Phase 2, restored in Phase 3"),
         out_path=out_path,
     )
     print(f"\n  Saved: {out_path}")
@@ -1609,7 +1620,7 @@ def run_scenario_3(
 def run_scenario_4(
     cfg: DemoConfig,
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
 ) -> Path:
     """Compare key configuration knobs on the quality-cost frontier.
 
@@ -1694,7 +1705,7 @@ def run_scenario_4(
 
             for s in range(cfg.n_seeds):
                 trial = run_trial(
-                    train, test,
+                    train, holdout,
                     seed=cfg.seed + s,
                     **kwargs,
                 )
@@ -1775,16 +1786,12 @@ def parse_args() -> DemoConfig:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--n-prompts", type=int, default=1000,
-        help="Prompts to sample from the data file (default: 1000)",
-    )
-    parser.add_argument(
         "--seed", type=int, default=42,
         help="Master RNG seed (default: 42)",
     )
     parser.add_argument(
-        "--n-seeds", type=int, default=5,
-        help="Independent seeds per condition (default: 5)",
+        "--n-seeds", type=int, default=10,
+        help="Independent seeds per condition (default: 10)",
     )
     parser.add_argument(
         "--alpha", type=float, default=BEST_K3_HPARAMS["alpha"],
@@ -1809,8 +1816,12 @@ def parse_args() -> DemoConfig:
         help="Output directory for plots (default: ./demo_results)",
     )
     parser.add_argument(
-        "--prompts-file", type=str, default=_default_holdout_path(),
-        help="JSONL reward file (default: shipped test holdout)",
+        "--val-file", type=str, default=_default_val_path(),
+        help="JSONL file for training (default: shipped val.jsonl)",
+    )
+    parser.add_argument(
+        "--holdout-file", type=str, default=_default_holdout_path(),
+        help="JSONL file for evaluation (default: shipped test_holdout.jsonl)",
     )
     parser.add_argument(
         "--encoder-model", type=str, default=None,
@@ -1829,7 +1840,6 @@ def parse_args() -> DemoConfig:
     )
     args = parser.parse_args()
     return DemoConfig(
-        n_prompts=args.n_prompts,
         seed=args.seed,
         n_seeds=args.n_seeds,
         alpha=args.alpha,
@@ -1837,7 +1847,8 @@ def parse_args() -> DemoConfig:
         cost_penalty=args.cost_penalty,
         n_budget_targets=args.n_budget_targets,
         output_dir=args.output_dir,
-        prompts_file=args.prompts_file,
+        val_file=args.val_file,
+        holdout_file=args.holdout_file,
         encoder_model=args.encoder_model,
         pca_path=args.pca_path,
         scenario=args.scenario,
@@ -1894,34 +1905,34 @@ def main() -> None:
     print("=" * 65)
     print("  ParetoBandit Interactive Demo")
     print("=" * 65)
-    print(f"  Data:        {cfg.prompts_file} (<={cfg.n_prompts})")
-    print(f"  Encoder:     {encoder_label}")
-    print(f"  Seeds/cond:  {cfg.n_seeds}")
-    print(f"  Seed:        {cfg.seed}")
-    print(f"  Output:      {cfg.output_dir}")
+    print(f"  Train (val):    {cfg.val_file}")
+    print(f"  Eval (holdout): {cfg.holdout_file}")
+    print(f"  Encoder:        {encoder_label}")
+    print(f"  Seeds/cond:     {cfg.n_seeds}")
+    print(f"  Seed:           {cfg.seed}")
+    print(f"  Output:         {cfg.output_dir}")
     print()
 
-    train, test = load_evaluation_data(
-        prompts_file=cfg.prompts_file,
+    train, holdout = load_demo_splits(
+        val_file=cfg.val_file,
+        holdout_file=cfg.holdout_file,
         feature_service=fs,
-        seed=cfg.seed,
-        n_prompts=cfg.n_prompts,
     )
 
     saved: list[Path] = []
     run_all = cfg.scenario is None
 
     if run_all or cfg.scenario == 1:
-        saved.append(run_scenario_1(cfg, train, test))
+        saved.append(run_scenario_1(cfg, train, holdout))
 
     if run_all or cfg.scenario == 2:
-        saved.append(run_scenario_2(cfg, train, test))
+        saved.append(run_scenario_2(cfg, train, holdout))
 
     if run_all or cfg.scenario == 3:
-        saved.append(run_scenario_3(cfg, train, test))
+        saved.append(run_scenario_3(cfg, train, holdout))
 
     if run_all or cfg.scenario == 4:
-        saved.append(run_scenario_4(cfg, train, test))
+        saved.append(run_scenario_4(cfg, train, holdout))
 
     elapsed = time.time() - t0
     print("\n" + "=" * 65)

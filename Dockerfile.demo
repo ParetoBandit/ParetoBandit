@@ -1,0 +1,66 @@
+# --------------------------------------------------------------------------
+# Demo Validation
+#
+# Builds the wheel from source, installs it with the [demo] extra
+# (sentence-transformers + torch + matplotlib), and runs the full
+# four-scenario demo.  Verifies that all shipped data (val.jsonl,
+# test_holdout.jsonl) and artifacts are correctly packaged.
+#
+# Usage:
+#   # Build (downloads ~1 GB sentence-transformer model on first run):
+#   docker build -f Dockerfile.demo -t paretobandit-demo .
+#
+#   # Run and copy plots to host for inspection:
+#   docker run --rm -v "$(pwd)/docker_results:/output" paretobandit-demo
+#
+#   # Quick single-scenario test:
+#   docker run --rm paretobandit-demo \
+#       paretobandit-demo --scenario 1 --output-dir /output
+# --------------------------------------------------------------------------
+
+ARG PYTHON_VERSION=3.11
+
+# ==========================================================================
+# Builder: build the wheel once
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+WORKDIR /build
+
+RUN pip install --no-cache-dir build
+
+COPY pyproject.toml README.md LICENSE CHANGELOG.md CONTRIBUTING.md ./
+COPY src/ src/
+
+RUN python -m build --wheel --outdir /build/dist
+
+# ==========================================================================
+# Demo runner: wheel + [demo] extra
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS runner
+
+WORKDIR /demo
+
+COPY --from=builder /build/dist/*.whl /tmp/
+
+RUN WHEEL=$(ls /tmp/*.whl) && \
+    pip install --no-cache-dir "${WHEEL}[demo]" && \
+    rm -f /tmp/*.whl
+
+# Pre-download the default sentence-transformer model so the demo
+# doesn't hit the network at runtime.
+RUN python -c "\
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('all-MiniLM-L6-v2')"
+
+# Verify installation and shipped data
+RUN python -c "\
+import pareto_bandit; \
+print(f'paretobandit {pareto_bandit.__version__} installed OK'); \
+from pareto_bandit.data import get_example_holdout_path, get_example_val_path; \
+print(f'Val data:     {get_example_val_path()}'); \
+print(f'Holdout data: {get_example_holdout_path()}')"
+
+CMD ["paretobandit-demo", "--output-dir", "/output"]
