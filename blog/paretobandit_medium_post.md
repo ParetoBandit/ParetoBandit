@@ -58,15 +58,30 @@ ParetoBandit frames LLM routing as a **contextual bandit** problem. When a promp
 - **Explore**: How uncertain are we about this model? (Uncertain models get a curiosity bonus.)
 - **Cost penalty**: How expensive is this model *relative to the budget*?
 
-The highest-scoring model gets the prompt. After observing the response quality (from a judge, user feedback, or task metric), the router updates its estimates. Over time, it converges on the optimal mix, but crucially, it never stops learning. This is the key difference from offline routers: every request makes the system smarter.
+Concretely, for each model *a*, the router computes a score and picks the highest:
+
+**select model = argmax [ predicted_reward + alpha * uncertainty_bonus - (lambda_c + lambda_t) * cost ]**
+
+The first term exploits the current reward estimate. The second term explores uncertain models (scaled by `alpha`). The third term penalizes cost, combining a static weight `lambda_c` (your baseline cost aversion) with a dynamic dual variable `lambda_t` (the adaptive budget pacer, explained below).
+
+After observing the response quality, the router updates its estimates. Over time, it converges on the optimal mix, but crucially, it never stops learning. This is the key difference from offline routers: every request makes the system smarter.
 
 If you're familiar with LinUCB from the recommender systems literature, that's the backbone here. ParetoBandit extends it with cost-awareness, budget enforcement, and non-stationarity handling: the production concerns that the vanilla bandit formulation doesn't address.
 
 Three mechanisms make this work in production:
 
-**Budget Pacer: A thermostat for your API spend.** You set a per-request cost ceiling in dollars (say, $0.001/request). A dual variable acts like a thermostat: when recent spending runs hot, it rises, penalizing expensive models. When spending is under budget, it falls, releasing the router to pursue quality. The system never needs to know the total request volume; it self-regulates at any traffic scale.
+**Budget Pacer: A thermostat for your API spend.** You set a per-request cost ceiling *B* in dollars (say, $0.001/request). A dual variable `lambda_t` adapts on every request via a simple update rule:
 
-**Geometric Forgetting: Stale data fades automatically.** Every observation decays exponentially with a tunable half-life. An observation from 333 steps ago retains only 37% of its weight. This means the router can override stale estimates within its memory window, which is critical when a model's quality or pricing changes mid-deployment.
+**lambda_t+1 = clamp( lambda_t + eta * (smoothed_cost / B - 1), 0, max_lambda )**
+
+When smoothed cost exceeds the budget *B*, the ratio is greater than 1, so `lambda_t` rises, penalizing expensive models. When spending is under budget, the ratio drops below 1 and `lambda_t` falls, releasing the router to pursue quality. The system never needs to know the total request volume; it self-regulates at any traffic scale.
+
+**Geometric Forgetting: Stale data fades automatically.** Rather than treating all historical observations equally, ParetoBandit discounts them with a forgetting factor `gamma`:
+
+**A_a <- gamma^d * A_a + x * x^T**
+**b_a <- gamma^d * b_a + reward * x**
+
+Here `d` is the number of steps since the last update to model *a*, and `gamma` (e.g. 0.997) controls the memory window. At `gamma = 0.997`, observations from ~333 steps ago retain only 37% of their weight, and after ~1,000 steps the contribution drops to 5%. This means the router can override stale estimates quickly when a model's quality or pricing changes mid-deployment, without needing to detect the change explicitly. Set `gamma = 1.0` for a stationary bandit that never forgets.
 
 **Hot-Swap Registry: Add or remove models at runtime.** New models get a brief forced-exploration phase (about 20 prompts), after which the bandit has enough evidence to decide whether the newcomer deserves traffic. Crucially, it *discriminates* rather than blindly adopting: expensive models get budget-gated and low-quality models get rejected after bounded exploration. You don't need to restart anything or retrain. Just call `router.add_arm()` and the system figures out where the new model fits.
 
