@@ -11,7 +11,7 @@ If you're calling LLM APIs in production, you know the feeling. You have a portf
 Here's a real example. This is a basic arithmetic question from the GSM8K benchmark:
 
 <p align="center">
-<img src="figures/which_model_answered_correctly.png" alt="Which Model Answered Correctly?" width="400">
+<img src="figures/which_model_answered_correctly.png" alt="Which Model Answered Correctly?" width="470">
 <br><em>Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The frontier model costs 24x more and got it wrong.</em>
 </p>
 
