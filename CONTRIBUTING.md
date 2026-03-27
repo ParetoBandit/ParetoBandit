@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to ParetoBandit! This guide will help you get started.
 
-Please note that this project is released with a [Code of Conduct](CODE_OF_CONDUCT.md).
+Please note that this project is released with a [Code of Conduct](https://github.com/ParetoBandit/ParetoBandit/blob/main/CODE_OF_CONDUCT.md).
 By participating, you agree to abide by its terms.
 
 ## Development Setup

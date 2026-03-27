@@ -214,3 +214,6 @@ data_collection/rewards/archive/legacy_k10/dev_rewards_complete_all_models.jsonl
 # RouteLLM comparison data
 data/routellm/*.jsonl.gz
 data/routellm/*.jsonl
+
+# MkDocs build output
+site/
