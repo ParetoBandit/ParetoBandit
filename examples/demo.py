@@ -929,36 +929,6 @@ def _rolling_fraction(models: List[str], arm: str, w: int) -> np.ndarray:
     return np.convolve(indicator, np.ones(w) / w, mode="valid")
 
 
-def _add_phase_shading_s2(
-    ax: plt.Axes,
-    phase_boundaries: List[int],
-) -> None:
-    """Shade Phase 2 and label all three phases (Exp 03-style)."""
-    from matplotlib.transforms import blended_transform_factory
-
-    ax.axvspan(
-        phase_boundaries[0], phase_boundaries[1],
-        alpha=0.07, color=_PHASE2_SHADE, zorder=0,
-    )
-    for b in phase_boundaries[:2]:
-        ax.axvline(
-            b, color="black", linestyle="--",
-            linewidth=1.2, alpha=0.5, zorder=1,
-        )
-    trans = blended_transform_factory(ax.transData, ax.transAxes)
-    midpoints = [
-        phase_boundaries[0] / 2,
-        (phase_boundaries[0] + phase_boundaries[1]) / 2,
-        (phase_boundaries[1] + phase_boundaries[2]) / 2,
-    ]
-    for mid, label in zip(midpoints, _PHASE_LABELS_S2):
-        ax.text(
-            mid, 0.97, label,
-            transform=trans, ha="center", va="top",
-            fontsize=10, fontweight="bold", color="#333333",
-        )
-
-
 def _run_multi_seed_phased(
     trial_fn: Any,
     trial_kwargs: Dict[str, Any],
