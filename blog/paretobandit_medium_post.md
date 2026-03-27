@@ -10,8 +10,10 @@ If you're calling LLM APIs in production, you know the feeling. You have a portf
 
 Here's a real example. This is a basic arithmetic question from the GSM8K benchmark:
 
-![Which Model Answered Correctly?](figures/which_model_answered_correctly.png)
-*Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The frontier model costs 24x more and got it wrong.*
+<p align="center">
+<img src="figures/which_model_answered_correctly.png" alt="Which Model Answered Correctly?" width="400">
+<br><em>Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The frontier model costs 24x more and got it wrong.</em>
+</p>
 
 The cost spread between models can be **530x**, and no single model dominates on every input. That cheap mid-tier model? It handles many prompts just as well as, or better than, the frontier model at a fraction of the cost. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
 
