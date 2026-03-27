@@ -1,0 +1,74 @@
+# --------------------------------------------------------------------------
+# README Code Example Validation
+#
+# Builds the wheel from source, installs it with the [embeddings] extra
+# (sentence-transformers + torch), and runs every code example from
+# README.md as a pytest suite.  Catches documentation drift, broken
+# examples, and incorrect API usage in the README.
+#
+# Usage:
+#   # Build (downloads ~1 GB sentence-transformer model on first run):
+#   docker build -f Dockerfile.readme -t paretobandit-readme .
+#
+#   # Run all README examples:
+#   docker run --rm paretobandit-readme
+#
+#   # Run only core examples (no sentence-transformers dependency):
+#   docker run --rm paretobandit-readme \
+#       python -m pytest tests/integration/test_readme_examples.py -v \
+#       -k "not skipif"
+#
+#   # With a specific Python version:
+#   docker build -f Dockerfile.readme --build-arg PYTHON_VERSION=3.12 \
+#       -t paretobandit-readme .
+# --------------------------------------------------------------------------
+
+ARG PYTHON_VERSION=3.11
+
+# ==========================================================================
+# Builder: build the wheel once
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+WORKDIR /build
+
+RUN pip install --no-cache-dir build
+
+COPY pyproject.toml README.md LICENSE CHANGELOG.md CONTRIBUTING.md ./
+COPY src/ src/
+
+RUN python -m build --wheel --outdir /build/dist
+
+# ==========================================================================
+# Test runner: wheel + [embeddings] extra + pytest
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS runner
+
+WORKDIR /test
+
+COPY --from=builder /build/dist/*.whl /tmp/
+
+RUN WHEEL=$(ls /tmp/*.whl) && \
+    pip install --no-cache-dir "${WHEEL}[embeddings]" && \
+    pip install --no-cache-dir pytest && \
+    rm -f /tmp/*.whl
+
+# Pre-download the default sentence-transformer model so tests don't
+# hit the network at runtime.
+RUN python -c "\
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('all-MiniLM-L6-v2')"
+
+# Verify installation
+RUN python -c "\
+import pareto_bandit; \
+print(f'paretobandit {pareto_bandit.__version__} installed OK')"
+
+# Copy only the test files needed
+COPY tests/integration/test_readme_examples.py tests/integration/test_readme_examples.py
+COPY tests/integration/__init__.py tests/integration/__init__.py
+COPY tests/integration/conftest.py tests/integration/conftest.py
+
+CMD ["python", "-m", "pytest", "tests/integration/test_readme_examples.py", "-v", "--tb=short", "-x"]

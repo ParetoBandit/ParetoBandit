@@ -69,7 +69,7 @@ model, log = router.route("Explain the transformer architecture", max_cost=0.01)
 print(f"Model: {model}, Cost: ${log.cost_usd:.6f}")
 
 # After observing quality, feed back a reward to update the bandit
-router.update(log.context_id, reward=0.85)
+router.process_feedback(log.request_id, reward=0.85)
 ```
 
 **CLI usage:**
