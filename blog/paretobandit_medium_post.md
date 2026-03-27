@@ -111,20 +111,22 @@ This effectively turns model selection from a discrete choice among K fixed oper
 
 ---
 
-## When Things Go Wrong: Adapting to Price Shifts
+## Seizing Opportunities: Adapting to Price Shifts
 
-Static compliance is only half the story. The real world isn't stationary, and the interesting question is what happens when conditions change.
+Budget compliance under stable conditions is only the start. The more exciting question is: what happens when the market moves in your favor?
 
-Imagine this scenario: you wake up one morning and a provider has **slashed prices by 50x** on their flagship model. Suddenly, the most expensive model in your portfolio is essentially free. A router with a frozen policy would keep its old allocation, missing a significant quality improvement. An adaptive router without budget enforcement might rush to adopt the cheap frontier model, but what happens when prices snap back?
+Imagine this scenario: you wake up one morning and a provider has **slashed prices by 50x** on their flagship model. Suddenly, the most expensive model in your portfolio is essentially free. This is a huge opportunity: you can get premium quality at budget prices, but only if your router notices and acts on it. A router with a frozen policy would keep its old allocation, missing a significant quality win. ParetoBandit picks it up automatically.
 
-We simulate exactly this three-phase stress test ([paper, Section 4.3](https://github.com/ParetoBandit/ParetoBandit/tree/main/paper)). In Phase 1, everything runs normally. In Phase 2, Gemini-Pro's pricing drops from $0.015/request to $0.0003/request. In Phase 3, original pricing is restored.
+We simulate exactly this three-phase scenario ([paper, Section 4.3](https://github.com/ParetoBandit/ParetoBandit/tree/main/paper)). In Phase 1, everything runs normally. In Phase 2, Gemini-Pro's pricing drops from $0.015/request to $0.0003/request. In Phase 3, original pricing is restored.
 
-![Cost Drift & Recovery](figures/scenario3_cost_drift.png)
-*Three phases: Normal → Price Drop → Restored. Top panel: Gemini-Pro selection fraction. Middle: windowed mean reward. Bottom: windowed average cost. The router exploits cheap premium routing during the drop, then recovers compliance when prices are restored.*
+<p align="center">
+<img src="figures/scenario3_cost_drift.png" alt="Cost Drift & Recovery" width="470">
+<br><em>Three phases: Normal, Price Drop, Restored. Top: Gemini-Pro selection fraction. Middle: windowed mean reward. Bottom: windowed average cost. The router automatically exploits cheap premium routing during the drop, then recovers compliance when prices are restored.</em>
+</p>
 
-When Gemini becomes nearly free, the BudgetPacer detects the cost change through its smoothed cost signal. The dual variable decays, Gemini adoption surges, and the system delivers a **+0.071 quality lift** at tight budgets, all automatically. When prices snap back in Phase 3, the dual variable rises again and the router recovers budget compliance without any operator intervention.
+When Gemini becomes nearly free, the BudgetPacer detects the cost change through its smoothed cost signal. The dual variable decays, Gemini adoption surges, and the system delivers a **+0.071 quality lift** at tight budgets, all automatically and within budget. Users get premium-model quality at budget-model prices without anyone touching a config file. When prices snap back in Phase 3, the dual variable rises again and the router recovers budget compliance without any operator intervention.
 
-This full round-trip (exploit the opportunity, then recover) illustrates why closed-loop budget enforcement matters for production deployments. The budget pacer is the critical piece: a bandit without it *also* detects the price drop (the forgetting mechanism works in both cases), but it overshoots the cost ceiling by up to **5.5x** when prices are restored because there's no feedback loop on cost. The budget pacer is what keeps the system honest.
+This full round-trip (seize the opportunity, then recover gracefully) illustrates why closed-loop budget enforcement matters for production deployments. The budget pacer is the critical piece: a bandit without it *also* detects the price drop (the forgetting mechanism works in both cases), but it overshoots the cost ceiling by up to **5.5x** when prices are restored because there's no feedback loop on cost. The budget pacer is what keeps the system both opportunistic and honest.
 
 The paper also evaluates a complementary scenario ([paper, Section 4.4](https://github.com/ParetoBandit/ParetoBandit/tree/main/paper)): silent quality degradation, where Mistral-Large's quality drops by 18% without any warning from the API. ParetoBandit detects the problem purely through the reward signal, reroutes traffic, and then re-discovers the recovered model in Phase 3, all while maintaining budget compliance.
 
