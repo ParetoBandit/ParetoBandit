@@ -167,6 +167,7 @@ helpsteer_gemini_*.jsonl
 **/full_embeddings*.npy
 **/train_embeddings*.npy
 **/*.pdf
+!paper/main.pdf
 
 # Large reward data files (>10MB)
 paretobandit/data/*_rewards*.jsonl
