@@ -26,10 +26,7 @@ Consider a real three-model portfolio:
 | Mistral-Large | Mid-tier | $0.00053 |
 | Gemini-2.5-Pro | Frontier | $0.015 |
 
-That's a **530x** spread from cheapest to most expensive. And here's the twist: Gemini-Pro scores 0.932 on a quality rubric while Mistral-Large scores 0.923 — nearly as good at 28x less cost. For many prompts, the cheaper model is *the right choice*.
-
-![The LLM Routing Problem: Three Models, One Budget](figures/concept_cost_quality_spectrum.png)
-*Each model is a fixed point on the cost-quality plane. The green curve shows what an adaptive router can achieve: a continuous frontier that fills the gaps between models.*
+That's a **530x** spread from cheapest to most expensive. And here's the twist: Gemini-Pro scores 0.932 on a quality rubric while Mistral-Large scores 0.923 — nearly as good at 28x less cost. For many prompts, the cheaper model is *the right choice*. The question isn't *which model to use* — it's *which model to use for this prompt, given this budget, right now*.
 
 Static routers — whether rule-based or trained offline — break down for three reasons:
 
