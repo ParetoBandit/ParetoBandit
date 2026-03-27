@@ -2,11 +2,14 @@
 
 Thank you for your interest in contributing to ParetoBandit! This guide will help you get started.
 
+Please note that this project is released with a [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating, you agree to abide by its terms.
+
 ## Development Setup
 
 ```bash
-git clone https://github.com/atabernermiller/paretobandit.git
-cd paretobandit
+git clone https://github.com/ParetoBandit/banditGPT.git
+cd banditGPT
 pip install -e ".[dev]"
 ```
 
@@ -96,7 +99,7 @@ src/pareto_bandit/
 When filing a bug report, please include:
 
 - Python version (`python --version`)
-- ParetoBandit version (`paretobandit --version`)
+- ParetoBandit version (git commit hash or branch)
 - Minimal reproduction code
 - Full traceback
 

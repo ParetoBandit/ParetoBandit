@@ -1,0 +1,60 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for ParetoBandit
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ParetoBandit!
+        Please describe the feature you'd like to see.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component
+      description: Which part of ParetoBandit does this relate to?
+      options:
+        - Router / arm selection
+        - Budget pacer
+        - Feature service / embeddings
+        - Storage / persistence
+        - CLI
+        - Provider (OpenAI, Anthropic, Gemini, Ollama, OpenRouter)
+        - Config / model registry
+        - Experiments / reproducibility
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this feature solve? Is this related to a pain point?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the solution or API you'd like to see. Code sketches welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered other approaches? What trade-offs did you weigh?
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — links, papers, related projects, screenshots.
+    validations:
+      required: false

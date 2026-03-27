@@ -54,6 +54,10 @@ outputs/
 # Temporary files
 temp_reference/
 tmp/
+credentials.json
+token.json
+client_secret_*.json
+
 
 # LaTeX build artifacts
 *.aux

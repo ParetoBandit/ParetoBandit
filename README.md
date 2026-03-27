@@ -2,13 +2,12 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
-[![arXiv](https://img.shields.io/badge/MLSys-2025-red.svg)](#citation)
 
 **ParetoBandit** is an open-source, cost-aware contextual bandit router for LLM serving.
 It enforces dollar-denominated per-request budgets, adapts online to price and quality shifts,
 and onboards new models at runtime — all with sub-millisecond routing latency on CPU.
 
-> **Paper:** *ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving* (MLSys 2025)
+> **Paper:** *ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving*
 > **Author:** Annette Taberner-Miller
 
 ---
@@ -24,40 +23,25 @@ and onboards new models at runtime — all with sub-millisecond routing latency 
 
 ## Installation
 
-**Core (routing only, no LLM providers):**
+Install from source:
 
 ```bash
-pip install paretobandit
-```
-
-**With embedding support (sentence-transformers + PCA):**
-
-```bash
-pip install "paretobandit[embeddings]"
-```
-
-**With specific LLM providers:**
-
-```bash
-pip install "paretobandit[openai]"        # OpenAI
-pip install "paretobandit[anthropic]"      # Anthropic
-pip install "paretobandit[gemini]"         # Google Gemini
-pip install "paretobandit[ollama]"         # Ollama (local)
-pip install "paretobandit[openrouter]"     # OpenRouter
-```
-
-**Full install (all providers + embeddings):**
-
-```bash
-pip install "paretobandit[full]"
-```
-
-**Development install from source:**
-
-```bash
-git clone https://github.com/atabernermiller/banditGPT.git
+git clone https://github.com/ParetoBandit/banditGPT.git
 cd banditGPT
 pip install -e ".[dev]"
+```
+
+Optional extras are defined in `pyproject.toml`:
+
+```bash
+pip install -e ".[embeddings]"    # sentence-transformers + PCA
+pip install -e ".[openai]"       # OpenAI provider
+pip install -e ".[anthropic]"    # Anthropic provider
+pip install -e ".[gemini]"       # Google Gemini provider
+pip install -e ".[ollama]"       # Ollama (local) provider
+pip install -e ".[openrouter]"   # OpenRouter provider
+pip install -e ".[full]"         # All providers + embeddings
+pip install -e ".[experiments]"  # Experiment reproduction dependencies
 ```
 
 ---
@@ -122,12 +106,6 @@ src/pareto_bandit/
 ## Reproducing Paper Experiments
 
 All experiments map 1:1 to figures and tables in the paper. Results are deterministic given fixed seeds.
-
-### Setup
-
-```bash
-pip install -e ".[experiments]"
-```
 
 ### Full Reproduction
 
@@ -230,11 +208,10 @@ Full dependency specifications are in [`pyproject.toml`](pyproject.toml).
 If you use ParetoBandit in your research, please cite:
 
 ```bibtex
-@inproceedings{tabernermiller2025paretobandit,
-  title     = {ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving},
-  author    = {Taberner-Miller, Annette},
-  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
-  year      = {2025}
+@article{tabernermiller2025paretobandit,
+  title   = {ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving},
+  author  = {Taberner-Miller, Annette},
+  year    = {2025}
 }
 ```
 

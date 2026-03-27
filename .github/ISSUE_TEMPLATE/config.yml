@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/ParetoBandit/banditGPT/discussions
+    about: Ask questions, share ideas, or discuss ParetoBandit usage
