@@ -166,7 +166,7 @@ The code is open-source under Apache 2.0. The paper has the full experimental de
 **Links:**
 - [GitHub Repository](https://github.com/ParetoBandit/ParetoBandit)
 - [Interactive Notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb)
-- [Paper (arXiv)](https://arxiv.org/abs/XXXX.XXXXX)
+- [Paper (full LaTeX source)](https://github.com/ParetoBandit/ParetoBandit/tree/main/paper)
 - `pip install paretobandit`
 
 If you're spending more than you'd like on LLM APIs — or worrying about whether your routing rules are still valid — give it a try. Star the repo, run the demo, and let us know what you build with it.
