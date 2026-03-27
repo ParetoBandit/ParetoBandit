@@ -34,6 +34,12 @@ The Quick Start example uses the built-in embedding pipeline, which requires PyT
 pip install paretobandit[embeddings]
 ```
 
+With the interactive demo (adds matplotlib):
+
+```bash
+pip install paretobandit[demo]
+```
+
 Core only (for precomputed features or custom encoders):
 
 ```bash
