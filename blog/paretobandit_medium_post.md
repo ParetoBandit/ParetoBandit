@@ -18,9 +18,9 @@ The cost spread between models can be **530x**, and no single model dominates on
 You're essentially playing a **multi-armed bandit**, whether you realize it or not. If you haven't seen the term before, the idea is simple: imagine a row of slot machines, each with a different (unknown) payout rate. You want to maximize your winnings, but you have to balance *exploiting* the machine that's been paying well against *exploring* the one you've only tried twice that might be even better.
 
 ![The multi-armed bandit problem](figures/multi_armed_bandit_problem.png)
-*Do you exploit Machine A (reliable 60% from 20 pulls) or explore Machine B (50% from just 2 pulls, it might actually be 80%)?*
+*Do you exploit Mistral (reliable 60% from 20 queries) or explore Llama (50% from just 2 queries, it might actually be 80%)? The scoring formula at the bottom is how ParetoBandit decides: predicted reward + uncertainty bonus - cost penalty.*
 
-With LLM routing, each model is a machine, each prompt is a pull, and you're trying to maximize quality while keeping your API bill under control. This is the classic exploration-exploitation tradeoff that bandit algorithms were built for, with a twist: you also have a hard budget constraint.
+Each model is a machine, each prompt is a pull, and you're trying to maximize quality while keeping your API bill under control. This is the classic exploration-exploitation tradeoff that bandit algorithms were built for, with a twist: you also have a hard budget constraint.
 
 [ParetoBandit](https://github.com/ParetoBandit/ParetoBandit) is an open-source adaptive router that formalizes exactly this intuition. It uses cost-aware contextual bandits to learn which model to call for each prompt, enforces a dollar budget you set, and adapts online when prices shift or model quality degrades, all with a routing decision that takes **22 microseconds** on CPU. In this post, I'll walk through the problem, the key ideas, and show you how to run it yourself.
 
