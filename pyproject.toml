@@ -88,13 +88,14 @@ bench = [
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.0.0",
+    "pymdown-extensions>=10.0.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/atabernermiller/paretobandit"
-Documentation = "https://github.com/atabernermiller/paretobandit#readme"
-Repository = "https://github.com/atabernermiller/paretobandit.git"
-Issues = "https://github.com/atabernermiller/paretobandit/issues"
+Homepage = "https://github.com/ParetoBandit/ParetoBandit"
+Documentation = "https://ParetoBandit.github.io/ParetoBandit/"
+Repository = "https://github.com/ParetoBandit/ParetoBandit.git"
+Issues = "https://github.com/ParetoBandit/ParetoBandit/issues"
 
 [project.scripts]
 paretobandit = "pareto_bandit.cli:main"

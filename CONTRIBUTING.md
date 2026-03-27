@@ -8,8 +8,8 @@ By participating, you agree to abide by its terms.
 ## Development Setup
 
 ```bash
-git clone https://github.com/ParetoBandit/banditGPT.git
-cd banditGPT
+git clone https://github.com/ParetoBandit/ParetoBandit.git
+cd ParetoBandit
 pip install -e ".[dev]"
 ```
 

@@ -26,8 +26,8 @@ and onboards new models at runtime — all with sub-millisecond routing latency 
 Install from source:
 
 ```bash
-git clone https://github.com/ParetoBandit/banditGPT.git
-cd banditGPT
+git clone https://github.com/ParetoBandit/ParetoBandit.git
+cd ParetoBandit
 pip install -e ".[dev]"
 ```
 
@@ -200,6 +200,15 @@ paretobandit/
 - **Experiments:** matplotlib, scipy, python-dotenv
 
 Full dependency specifications are in [`pyproject.toml`](pyproject.toml).
+A pinned lockfile for exact reproduction of paper results is available in [`requirements-lock.txt`](requirements-lock.txt).
+
+---
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup,
+coding standards, and the pull request workflow. By participating you agree to abide by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 

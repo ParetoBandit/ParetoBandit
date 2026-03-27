@@ -1,0 +1,51 @@
+site_name: ParetoBandit
+site_description: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving
+site_url: https://ParetoBandit.github.io/ParetoBandit/
+repo_url: https://github.com/ParetoBandit/ParetoBandit
+repo_name: ParetoBandit/ParetoBandit
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: "."
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - API Reference: API_REFERENCE.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
