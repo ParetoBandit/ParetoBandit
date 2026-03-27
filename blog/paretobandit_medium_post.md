@@ -42,7 +42,7 @@ Consider a real three-model portfolio:
 
 That's a **530x** spread from cheapest to most expensive. And here's the twist: Gemini-Pro scores 0.932 on a quality rubric while Mistral-Large scores 0.923, nearly as good at 28x less cost. For many prompts, the cheaper model is *the right choice*. The question isn't *which model to use*, it's *which model to use for this prompt, given this budget, right now*.
 
-There's been excellent work on LLM routing: cascading approaches, classifiers trained on preference data, and systems that incorporate budget targets. These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
+There's been excellent work on LLM routing: cascading approaches [6], classifiers trained on preference data [7], and systems that incorporate budget targets [9]. These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
 
 1. **Budgets need continuous enforcement.** You set a cost target, but prompt distributions shift, and a fixed routing table can drift off budget.
 2. **Quality regresses silently.** Providers update models behind their APIs. The "best" model might quietly change, and a frozen router won't notice until someone checks.
