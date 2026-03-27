@@ -2,6 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://ParetoBandit.github.io/ParetoBandit/)
 
 **ParetoBandit** is an open-source, cost-aware contextual bandit router for LLM serving.
 It enforces dollar-denominated per-request budgets, adapts online to price and quality shifts,
@@ -73,7 +74,6 @@ src/pareto_bandit/
 ├── storage.py           # SqliteContextStore (delayed feedback), EphemeralContextStore
 ├── costs.py             # Cost model and heuristics
 ├── rewards.py           # Reward normalization and aggregation
-├── providers/           # LLM clients: OpenAI, Anthropic, Gemini, Ollama, OpenRouter
 ├── config/              # Model registry, default hyperparameters, packaged artifacts
 └── utils/               # Validation, warmup, synthetic data generation
 ```

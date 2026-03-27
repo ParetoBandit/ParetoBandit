@@ -180,56 +180,60 @@ class ExperimentBurnIn:
 
         return prior_train, online_learn
 
-    def generate_curriculum(self, dev_prompts: List[str]) -> List[str]:
-        """
-        Generates a signal-aware curriculum by oversampling contentious prompts.
-        
+    def generate_curriculum(
+        self,
+        dev_prompts: List[str],
+        seed: int = 42,
+    ) -> List[str]:
+        """Generate a signal-aware curriculum by oversampling contentious prompts.
+
         Args:
             dev_prompts: List of prompts from the development pool.
-            
+            seed: Random seed for reproducible sampling and shuffling.
+
         Returns:
-            List[str]: Shuffled curriculum for burn-in.
+            Shuffled curriculum for burn-in.
         """
+        rng = np.random.default_rng(seed)
+        py_rng = random.Random(seed)
+
         hard_train = []
         easy_train = []
-        
+
         for p in dev_prompts:
             rewards = list(self.oracle_rewards.get(p, {}).values())
-            if not rewards: 
+            if not rewards:
                 continue
-            
-            # Variance > 0.05 means models disagree (High Signal)
+
             if np.var(rewards) > 0.05:
                 hard_train.append(p)
             else:
                 easy_train.append(p)
-                
+
         # Oversample hard prompts with replacement to emphasize contention while
         # avoiding degenerate duplication patterns.
         # Strategy: Create 3x samples from hard pool (can include repeats),
         # then balance with easy prompts for 50/50 split
-        burn_in_list = []
-        
+        burn_in_list: List[str] = []
+
         if hard_train:
-            # Sample with replacement to get diversity while emphasizing hard prompts
-            hard_samples = np.random.choice(
+            hard_samples = rng.choice(
                 hard_train,
                 size=len(hard_train) * 3,
-                replace=True  # This creates variety in which prompts are repeated
+                replace=True,
             ).tolist()
             burn_in_list.extend(hard_samples)
-        
-        # Sample easy prompts to match the hard volume (50/50 split)
-        target_len = len(burn_in_list) 
+
+        target_len = len(burn_in_list)
         if easy_train:
-            selected_easy = np.random.choice(
-                easy_train, 
-                min(len(easy_train), target_len), 
-                replace=True  # Allow repeats to reach target size
+            selected_easy = rng.choice(
+                easy_train,
+                min(len(easy_train), target_len),
+                replace=True,
             ).tolist()
             burn_in_list.extend(selected_easy)
-            
-        random.shuffle(burn_in_list)
+
+        py_rng.shuffle(burn_in_list)
         return burn_in_list
 
     def perform_burn_in(self, router, burn_in_list: List[str]):

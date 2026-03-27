@@ -700,7 +700,17 @@ class FeatureService:
         # Type validation
         if not isinstance(prompt, str):
             raise TypeError(f"Expected str or np.ndarray, got {type(prompt)}")
-        
+
+        # Guard: precomputed mode cannot encode strings
+        if self.encoder_model == "precomputed":
+            raise TypeError(
+                "This FeatureService was created with for_precomputed() and "
+                "cannot encode string prompts.  Pass a pre-computed "
+                "np.ndarray of shape (dimension,) instead, or create a "
+                "FeatureService with an encoder (e.g. FeatureService() or "
+                "FeatureService(custom_encoder=fn, embedding_dim=N))."
+            )
+
         # Empty/whitespace validation
         if not prompt or not prompt.strip():
             raise ValueError("Prompt cannot be empty or whitespace-only")

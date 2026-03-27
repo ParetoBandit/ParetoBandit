@@ -1,3 +1,15 @@
+"""Command-line interface for ParetoBandit.
+
+Provides a thin CLI wrapper around :class:`~pareto_bandit.router.BanditRouter`
+for quick routing decisions, version inspection, and model pre-downloading.
+
+Usage::
+
+    paretobandit "Explain the transformer architecture" --max-cost 0.01
+    paretobandit --download-models
+    paretobandit --version
+"""
+
 import sys
 import argparse
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
@@ -6,13 +18,19 @@ from .router import BanditRouter
 
 
 def _get_version() -> str:
+    """Return the installed package version, falling back to ``'0.1.0'``."""
     try:
         return _pkg_version("paretobandit")
     except PackageNotFoundError:
         return "0.1.0"
 
 
-def main():
+def main() -> None:
+    """Entry point for the ``paretobandit`` console script.
+
+    Parses CLI arguments and dispatches to version display, model
+    downloading, or single-prompt routing.
+    """
     parser = argparse.ArgumentParser(description="ParetoBandit: Adaptive LLM Router CLI")
     parser.add_argument("--version", action="store_true", help="Show version")
     parser.add_argument("prompt", nargs="?", help="Prompt to route")

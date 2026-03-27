@@ -1,0 +1,29 @@
+# Keep Docker context small — only ship what the build and tests need.
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.egg-info
+build/
+dist/
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov/
+.coverage
+*.sqlite
+*.db
+*.pt
+*.bin
+*.pdf
+*.zip
+
+# Large directories irrelevant to the integration test
+paper/
+blog/
+helm/
+external/
+benchmark_output/
+data_collection/embeddings/
+models/

@@ -185,55 +185,6 @@ model_id, log = router.route(
 
 ---
 
-### `BanditRouter.route_and_call()`
-
-Route a prompt **and** call the selected model in a single step.
-
-```python
-def route_and_call(
-    self,
-    prompt: str | np.ndarray,
-    client: LLMClient,
-    *,
-    messages: list[dict] | None = None,
-    max_tokens: int = 512,
-    temperature: float = 0.7,
-    **route_kwargs,
-) -> tuple[str, str, RoutingLog]
-```
-
-**Parameters**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompt` | `str \| np.ndarray` | — | Input text (used for routing features and, by default, as the user message). |
-| `client` | `LLMClient` | — | Any object satisfying the `LLMClient` protocol (see [Providers](#providers)). |
-| `messages` | `list[dict] \| None` | `None` | Chat messages to send.  When `None` and `prompt` is a string, a single `{"role": "user", "content": prompt}` message is used. |
-| `max_tokens` | `int` | `512` | Passed to `client.complete()`. |
-| `temperature` | `float` | `0.7` | Passed to `client.complete()`. |
-| `**route_kwargs` | | | Forwarded to `route()` (e.g. `max_cost`, `max_latency`). |
-
-**Returns**: `(model_id, response_text, routing_log)`
-
-**Example**
-
-```python
-from pareto_bandit import BanditRouter, OpenRouterClient
-
-router = BanditRouter.create(registry)
-client = OpenRouterClient(api_key="sk-or-...")
-
-model_id, response, log = router.route_and_call(
-    "Explain quantum entanglement simply",
-    client,
-    max_cost=5.0,
-)
-print(f"{model_id}: {response[:80]}...")
-router.process_feedback(log.request_id, reward=0.9)
-```
-
----
-
 ### `BanditRouter.process_feedback()`
 
 Process feedback for a previous routing decision.
@@ -760,7 +711,7 @@ def for_precomputed(cls, dimension: int) -> FeatureService
 |-----------|------|-------------|
 | `dimension` | `int` | Total feature-vector length (your embedding dimensions + 1 bias term). |
 
-Passing a string prompt to a pre-computed service raises `RuntimeError`. Only `np.ndarray` inputs are accepted. Text features are disabled.
+Passing a string prompt to a pre-computed service raises `TypeError` with an actionable message. Only `np.ndarray` inputs are accepted. Text features are disabled.
 
 **Example: Testing without model downloads**
 
@@ -1222,136 +1173,6 @@ router = BanditRouter.create(registry, context_store=store)
 
 ---
 
-## Providers
-
-ParetoBandit ships with a `LLMClient` protocol and thin adapters for popular LLM providers. The router itself never calls an LLM — it only selects a model ID. The providers module bridges the gap, letting you route **and** call in one step via `route_and_call()`.
-
-### `LLMClient` (Protocol)
-
-```python
-from pareto_bandit import LLMClient
-
-class LLMClient(Protocol):
-    def complete(
-        self,
-        model_id: str,
-        messages: list[dict],
-        *,
-        max_tokens: int = 512,
-        temperature: float = 0.7,
-        **kwargs,
-    ) -> str: ...
-```
-
-Any object with a matching `complete` method satisfies this protocol — no subclassing required.
-
-### Built-in Adapters
-
-| Adapter | Provider | Install Extra | API Key Env Var |
-|---------|----------|---------------|-----------------|
-| `OpenRouterClient` | [OpenRouter](https://openrouter.ai) | `pip install paretobandit[openrouter]` | `OPENROUTER_API_KEY` |
-| `OpenAIClient` | OpenAI (and any compatible endpoint) | `pip install paretobandit[openai]` | `OPENAI_API_KEY` |
-| `AnthropicClient` | Anthropic | `pip install paretobandit[anthropic]` | `ANTHROPIC_API_KEY` |
-| `GeminiClient` | Google Gemini | `pip install paretobandit[gemini]` | `GEMINI_API_KEY` |
-| `OllamaClient` | Local Ollama | `pip install paretobandit[ollama]` | *(none)* |
-
-**OpenAI-compatible providers** (DeepSeek, Grok, Together, etc.) work via `OpenAIClient` with a custom `base_url`:
-
-```python
-from pareto_bandit import OpenAIClient
-
-client = OpenAIClient(api_key="sk-...", base_url="https://api.deepseek.com")
-```
-
-### Single-Provider Example
-
-When all your models are reachable through one provider, pass a single client:
-
-```python
-from pareto_bandit import BanditRouter, OpenRouterClient
-
-router = BanditRouter.create(registry)
-client = OpenRouterClient(api_key="sk-or-...")
-
-model_id, response, log = router.route_and_call("Solve x^2 = 4", client)
-router.process_feedback(log.request_id, reward=0.9)
-```
-
-### Multi-Provider Example
-
-When your model portfolio spans multiple providers, use `MultiProviderClient` to wire each provider prefix to the right client:
-
-```python
-from pareto_bandit import (
-    BanditRouter, MultiProviderClient,
-    OpenAIClient, AnthropicClient, OllamaClient,
-)
-
-registry = {
-    "openai/gpt-4o": {
-        "model_id": "openai/gpt-4o",
-        "input_cost_per_m": 2.50,
-        "output_cost_per_m": 10.00,
-    },
-    "anthropic/claude-3.5-sonnet": {
-        "model_id": "anthropic/claude-3.5-sonnet",
-        "input_cost_per_m": 3.00,
-        "output_cost_per_m": 15.00,
-    },
-    "meta-llama/llama-3-8b": {
-        "model_id": "meta-llama/llama-3-8b",
-        "input_cost_per_m": 0.0,
-        "output_cost_per_m": 0.0,
-    },
-}
-
-router = BanditRouter.create(registry, priors="none")
-
-client = MultiProviderClient({
-    "openai":     OpenAIClient(api_key="sk-..."),
-    "anthropic":  AnthropicClient(api_key="sk-ant-..."),
-    "meta-llama": OllamaClient(),  # served locally
-})
-
-model_id, response, log = router.route_and_call("Solve x^2 = 4", client)
-router.process_feedback(log.request_id, reward=0.9)
-```
-
-You can also add providers at runtime:
-
-```python
-from pareto_bandit import GeminiClient
-
-client.register("google", GeminiClient(api_key="..."))
-router.register_model("google/gemini-2.0-flash", speed="fast",
-                       input_cost_per_m=0.10, output_cost_per_m=0.40)
-```
-
-### `MultiProviderClient`
-
-```python
-class MultiProviderClient:
-    def __init__(
-        self,
-        providers: dict[str, LLMClient],
-        *,
-        default: LLMClient | None = None,
-    ): ...
-```
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `providers` | `dict[str, LLMClient]` | — | Maps provider prefix (the part before `/` in a model ID) to a client instance. |
-| `default` | `LLMClient \| None` | `None` | Fallback client for model IDs whose prefix isn't in `providers`. If `None`, raises `KeyError`. |
-
-`MultiProviderClient` satisfies `LLMClient`, so it works anywhere a single client does — including `route_and_call()`.
-
-### Model ID Translation
-
-The canonical model registry uses `provider/model-name` IDs (e.g. `openai/gpt-4o`). Each adapter automatically strips the `provider/` prefix when calling the native API, so you don't need to maintain separate ID mappings.
-
----
-
 ## Utility Functions
 
 ### `infer_model_family(model_id: str) -> str`
@@ -1367,13 +1188,13 @@ print(infer_model_family("openai/gpt-4o"))              # "openai/gpt-4o"
 print(infer_model_family("anthropic/claude-3.5-sonnet")) # "anthropic/claude-3"
 ```
 
-### `tetrachoric_corr(p_both: float, p_a: float, p_b: float) -> float`
+### `tetrachoric_corr(x: np.ndarray, y: np.ndarray) -> float`
 
-Estimate tetrachoric correlation from binary agreement rates.
+Tetrachoric correlation for two binary (0/1) vectors. Solves for the bivariate normal correlation *r* such that `P(Z₁ > c₁, Z₂ > c₂; r)` equals the observed joint success rate.
 
-### `compute_correlation_families(data, models) -> dict`
+### `compute_correlation_families(reward_vectors: dict[str, np.ndarray], threshold: float = 0.5) -> dict`
 
-Compute pairwise model-family correlation structure from binary preference data.
+Compute pairwise model-family correlation structure from binary reward vectors. Groups models that are highly correlated into families for shared learning.
 
 ---
 

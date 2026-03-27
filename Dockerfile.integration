@@ -1,0 +1,85 @@
+# --------------------------------------------------------------------------
+# Integration stress test: pip-install in a clean container
+#
+# Builds the wheel from source, installs it into a fresh Python environment
+# (no editable mode, no dev dependencies beyond pytest), and runs the full
+# integration test suite.  This catches packaging errors, missing data
+# artifacts, and broken imports that in-tree unit tests would miss.
+#
+# Two targets:
+#   "core"       — core deps only (numpy, joblib, scikit-learn, tqdm)
+#   "embeddings" — core + sentence-transformers + torch
+#
+# Usage:
+#   # Core-only (fast, ~6s):
+#   docker build -f Dockerfile.integration --target core -t paretobandit-core .
+#   docker run --rm paretobandit-core
+#
+#   # With embeddings (downloads ~1GB model on first run):
+#   docker build -f Dockerfile.integration --target embeddings -t paretobandit-embeddings .
+#   docker run --rm paretobandit-embeddings
+#
+# Multi-version:
+#   docker build ... --build-arg PYTHON_VERSION=3.12 ...
+# --------------------------------------------------------------------------
+
+ARG PYTHON_VERSION=3.11
+
+# ==========================================================================
+# Builder: build the wheel once, shared by both targets
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+WORKDIR /build
+
+RUN pip install --no-cache-dir build
+
+COPY pyproject.toml README.md LICENSE CHANGELOG.md CONTRIBUTING.md ./
+COPY src/ src/
+
+RUN python -m build --wheel --outdir /build/dist
+
+# ==========================================================================
+# Core target: minimal pip install (no optional extras)
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS core
+
+WORKDIR /test
+
+COPY --from=builder /build/dist/*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && \
+    pip install --no-cache-dir pytest && \
+    rm -f /tmp/*.whl
+
+COPY tests/integration/ tests/integration/
+
+RUN python -c "import pareto_bandit; print(f'paretobandit {pareto_bandit.__version__} installed OK')"
+
+CMD ["python", "-m", "pytest", "tests/integration/", "-v", "--tb=short", "-x"]
+
+# ==========================================================================
+# Embeddings target: core + sentence-transformers + torch
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS embeddings
+
+WORKDIR /test
+
+COPY --from=builder /build/dist/*.whl /tmp/
+
+# Install with [embeddings] extra so sentence-transformers + torch are present.
+# The glob expands to the wheel filename; pip resolves the extra from metadata.
+RUN WHEEL=$(ls /tmp/*.whl) && \
+    pip install --no-cache-dir "${WHEEL}[embeddings]" && \
+    pip install --no-cache-dir pytest && \
+    rm -f /tmp/*.whl
+
+COPY tests/integration/ tests/integration/
+
+RUN python -c "\
+import pareto_bandit, sentence_transformers; \
+print(f'paretobandit {pareto_bandit.__version__} + sentence-transformers OK')"
+
+CMD ["python", "-m", "pytest", "tests/integration/", "-v", "--tb=short", "-x"]

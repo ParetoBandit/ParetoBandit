@@ -188,10 +188,10 @@ def compute_cluster_quality(X, labels):
         return None
     
     try:
-        # Use sampling for large datasets
         sample_size = min(5000, len(X))
         if len(X) > sample_size:
-            indices = np.random.choice(len(X), sample_size, replace=False)
+            rng = np.random.default_rng(0)
+            indices = rng.choice(len(X), sample_size, replace=False)
             X_sample = X[indices]
             labels_sample = labels[indices]
         else:

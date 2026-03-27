@@ -13,12 +13,6 @@ from .family import infer_model_family, tetrachoric_corr, compute_correlation_fa
 from .feature_service import FeatureService
 from .storage import SqliteContextStore, EphemeralContextStore
 from .calibration import train_pca, generate_warmup_priors
-from .providers import (
-    LLMClient, OpenRouterClient, OpenAIClient,
-    AnthropicClient, GeminiClient, OllamaClient,
-    MultiProviderClient,
-)
-
 __all__ = [
     "__version__",
     "BanditRouter", "ExplorationRate", "RouterConfig",
@@ -30,7 +24,4 @@ __all__ = [
     "infer_model_family",
     "tetrachoric_corr", "compute_correlation_families",
     "train_pca", "generate_warmup_priors",
-    "LLMClient", "OpenRouterClient", "OpenAIClient",
-    "AnthropicClient", "GeminiClient", "OllamaClient",
-    "MultiProviderClient",
 ]

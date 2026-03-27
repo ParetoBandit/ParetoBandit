@@ -134,45 +134,43 @@ def test_save_load(sample_registry, tmp_path):
     assert np.allclose(router.bandit.b[model], router2.bandit.b[model])
 
 
-# Disabled: this test fails because model0 (cheapest) dominates all routing decisions
-# under dynamic Pareto filtering. Requires investigation into whether that reflects
-# correct exploitation behavior or a gap in the exploration mechanism before re-enabling.
-def _test_no_zombie_models():
-    """
-    Integration test: Verify that models don't get stuck in "zombie mode".
-    
+@pytest.mark.skip(
+    reason="model0 (cheapest) dominates under dynamic Pareto filtering; "
+    "tracked in GitHub issue — re-enable after exploration-budget rework"
+)
+def test_no_zombie_models():
+    """Verify that models don't get stuck in 'zombie mode'.
+
     Models have different initial UCBs based on cost/quality priors, creating
-    natural exploration across the quality-cost spectrum.
-    
-    NOTE: Temporarily disabled due to interaction with dynamic Pareto filtering.
+    natural exploration across the quality-cost spectrum.  Under dynamic Pareto
+    filtering, the cheapest arm currently dominates — this test is skipped
+    until the exploration mechanism is reworked.
     """
+    rng = np.random.default_rng(42)
     registry = {}
     for i in range(10):
-        quality_score = 0.10 + (i * 0.075)  # 0.10 to 0.775
         registry[f"model{i}"] = {
             "model_id": f"provider/model-{i}",
             "display_name": f"Model {i}",
             "input_cost_per_m": 0.5 + (i * 0.5),
             "output_cost_per_m": 1.5 + (i * 1.5)
         }
-    
+
     router = BanditRouter.create(model_registry=registry, priors="none")
     router.config.probation_bonus = 0.10
     router.config.pruning_min_samples = 30
-    
+
     N = 500
     for i in range(N):
         model, log = router.route(f"Test prompt {i}")
         quality = 0.10 + (int(model.replace("model", "")) * 0.075)
-        reward = min(1.0, quality + np.random.normal(0, 0.1))
+        reward = min(1.0, quality + rng.normal(0, 0.1))
         router.process_feedback(log.request_id, reward=max(0, reward))
-    
+
     sample_counts = router._get_sample_counts(router.bandit.models)
-    
-    # Probation subsidy ensures some exploration of lower models
+
     models_with_traffic = sum(1 for count in sample_counts.values() if count > 0)
-    
-    # At least 3 models should receive traffic (out of 10)
+
     assert models_with_traffic >= 3, \
         f"Too few models explored: {sample_counts}"
 

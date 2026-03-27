@@ -4,23 +4,23 @@
   "warmup": 50,
   "prompt_pool_size": 20,
   "stages": {
-    "embed_p50_ms": 9.5921875,
-    "embed_p95_ms": 10.75361215,
-    "embed_p99_ms": 11.152195239999998,
-    "pca_p50_ms": 0.178146,
-    "pca_p95_ms": 0.20877259999999997,
-    "pca_p99_ms": 0.22987773999999986,
-    "route_p50_ms": 0.0798125,
-    "route_p95_ms": 0.0981002999999999,
-    "route_p99_ms": 0.11122424999999998,
-    "total_p50_ms": 9.8004375,
-    "total_p95_ms": 11.05297295,
-    "total_p99_ms": 11.46779,
-    "sum_stages_p50_ms": 9.8501,
+    "embed_p50_ms": 8.9516245,
+    "embed_p95_ms": 9.982372899999998,
+    "embed_p99_ms": 10.30181208,
+    "pca_p50_ms": 0.1553335,
+    "pca_p95_ms": 0.187083,
+    "pca_p99_ms": 0.2095617499999998,
+    "route_p50_ms": 0.0704165,
+    "route_p95_ms": 0.08147114999999998,
+    "route_p99_ms": 0.09120574999999997,
+    "total_p50_ms": 9.235396,
+    "total_p95_ms": 10.09912085,
+    "total_p99_ms": 10.41405533,
+    "sum_stages_p50_ms": 9.1774,
     "rounds_measured": 200
   },
   "fractions": {
-    "embed_pct_of_total_p50": 97.88,
-    "route_pct_of_total_p50": 0.81
+    "embed_pct_of_total_p50": 96.93,
+    "route_pct_of_total_p50": 0.76
   }
 }

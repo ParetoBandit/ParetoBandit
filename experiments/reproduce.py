@@ -129,7 +129,7 @@ EXPERIMENTS: List[Experiment] = [
     Experiment(
         key="judge_robustness",
         directory=PROJECT_ROOT / "experiments" / "appendix" / "judge_robustness",
-        run_scripts=["run_cross_judge_regret.py"],
+        run_scripts=["run_cross_judge_regret.py", "generate_figure.py"],
         generate_latex="generate_latex.py",
         generate_figures=["generate_cross_judge_figure.py"],
         description="Appendix: Cross-judge regret comparison",
@@ -145,6 +145,10 @@ EXPERIMENTS: List[Experiment] = [
     Experiment(
         key="latency_benchmark",
         directory=PROJECT_ROOT / "experiments" / "appendix" / "latency_benchmark",
+        # run_inference_latency_benchmark.py is excluded: it makes live
+        # OpenRouter API calls (requires keys + costs money).  Its output
+        # (inference_latency_results.json) is consumed by generate_latex.py
+        # when present but gracefully skipped otherwise.
         run_scripts=["run_latency_benchmark.py", "run_e2e_latency_benchmark.py"],
         generate_latex="generate_latex.py",
         generate_figures=["generate_figure.py"],

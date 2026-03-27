@@ -1366,46 +1366,6 @@ class BanditRouter:
         
         return best_model, log
 
-    def route_and_call(
-        self,
-        prompt: str | np.ndarray,
-        client: "LLMClient",
-        *,
-        messages: list[dict] | None = None,
-        max_tokens: int = 512,
-        temperature: float = 0.7,
-        **route_kwargs,
-    ) -> Tuple[str, str, "RoutingLog"]:
-        """Route a prompt and call the selected model in one step.
-
-        Parameters:
-            prompt: The prompt text (also used for routing features).
-            client: Any object satisfying the ``LLMClient`` protocol
-                    (see ``pareto_bandit.providers``).
-            messages: Chat messages to send.  Defaults to a single user
-                      message containing *prompt* (when *prompt* is a string).
-            max_tokens: Passed to ``client.complete()``.
-            temperature: Passed to ``client.complete()``.
-            **route_kwargs: Forwarded to ``route()`` (e.g. *max_cost*,
-                            *max_latency*).
-
-        Returns:
-            ``(model_id, response_text, routing_log)``
-        """
-        model_id, log = self.route(prompt, **route_kwargs)
-        if messages is None:
-            if isinstance(prompt, str):
-                messages = [{"role": "user", "content": prompt}]
-            else:
-                raise ValueError(
-                    "When prompt is a pre-computed feature vector, "
-                    "you must pass explicit messages."
-                )
-        response = client.complete(
-            model_id, messages, max_tokens=max_tokens, temperature=temperature
-        )
-        return model_id, response, log
-
     def process_feedback(
         self,
         request_id: str,
