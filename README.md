@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="blog/figures/paretobandit_icon_transparent.png" alt="ParetoBandit" width="200">
+</p>
+
 # ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -24,14 +28,16 @@ and onboards new models at runtime — all with sub-millisecond routing latency 
 
 ## Installation
 
-```bash
-pip install paretobandit
-```
-
-With optional sentence-transformer embeddings:
+The Quick Start example uses the built-in embedding pipeline, which requires PyTorch and sentence-transformers:
 
 ```bash
 pip install paretobandit[embeddings]
+```
+
+Core only (for precomputed features or custom encoders):
+
+```bash
+pip install paretobandit
 ```
 
 For development (from source):
@@ -69,6 +75,95 @@ paretobandit "Summarize this document" --max-cost 0.005
 # Download embedding model for offline/Docker use
 paretobandit --download-models
 ```
+
+---
+
+## Feature Engineering
+
+ParetoBandit supports three embedding paths, from turnkey to fully custom:
+
+### 1. Default pipeline (requires `embeddings` extra)
+
+The default uses [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) with a shipped 25-component PCA projection trained on 80K prompts from the paper's evaluation corpus.
+
+```python
+router = BanditRouter.create()  # loads pca_25.joblib automatically
+```
+
+### 2. Custom encoder
+
+Bring any encoder function — no `sentence-transformers` dependency required. Raw embeddings are used directly (+ bias term); optionally pair with your own PCA artifact.
+
+```python
+from pareto_bandit import BanditRouter
+from pareto_bandit.feature_service import FeatureService
+
+# Without PCA (raw embeddings)
+fs = FeatureService(custom_encoder=my_encode_fn, embedding_dim=768)
+
+# With your own PCA
+fs = FeatureService(custom_encoder=my_encode_fn, embedding_dim=768, pca_path="my_pca.joblib")
+
+router = BanditRouter.create(feature_service=fs, priors="none")
+```
+
+### 3. Precomputed feature vectors
+
+If you already have embeddings (e.g., from an upstream service), skip encoding entirely:
+
+```python
+import numpy as np
+from pareto_bandit import BanditRouter
+from pareto_bandit.feature_service import FeatureService
+
+fs = FeatureService.for_precomputed(dimension=25)
+router = BanditRouter.create(feature_service=fs, priors="none")
+
+# Pass numpy arrays instead of strings
+features = np.random.randn(25)
+model, log = router.route(features, max_cost=0.01)
+```
+
+### Training a custom PCA
+
+When using a different SentenceTransformer model, the shipped PCA is incompatible. Generate a matching artifact with `train_pca`:
+
+```python
+from pareto_bandit import train_pca
+
+pca = train_pca(
+    prompts=my_prompt_corpus,           # list[str], >=100 recommended
+    encoder_model="your-model-name",
+    n_components=25,
+    output_path="my_pca.joblib",
+)
+
+router = BanditRouter.create(
+    context_model="your-model-name",
+    pca_path="my_pca.joblib",
+)
+```
+
+---
+
+## API Overview
+
+Full API documentation: **[API Reference](https://github.com/ParetoBandit/ParetoBandit/blob/main/docs/API_REFERENCE.md)**
+
+| Class / Function | Purpose |
+|---|---|
+| `BanditRouter.create()` | Factory for a fully initialized router (default or custom models) |
+| `BanditRouter.route()` | Route a prompt to the best model under cost/latency constraints |
+| `BanditRouter.process_feedback()` | Feed back a reward signal (supports delayed feedback) |
+| `BanditRouter.register_model()` | Hot-add a model at runtime |
+| `BanditRouter.exploit()` | Context manager for greedy evaluation (no exploration) |
+| `FeatureService` | Embedding + PCA pipeline (default, custom encoder, or precomputed) |
+| `FeatureService.for_precomputed()` | Lightweight service for pre-embedded vectors |
+| `BudgetPacer` | Online primal-dual budget controller (hard/soft/adaptive modes) |
+| `RouterConfig` | Hyperparameter dataclass (reward range, cost anchors, etc.) |
+| `train_pca()` | Train a custom PCA artifact for a non-default encoder |
+| `generate_warmup_priors()` | Build offline warmup priors from labelled data |
+| `SqliteContextStore` | Production context store with TTL (for delayed RLHF feedback) |
 
 ---
 

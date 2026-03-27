@@ -1,0 +1,77 @@
+# --------------------------------------------------------------------------
+# API Reference Example Validation
+#
+# Builds the wheel from source, installs it with the [embeddings] extra
+# (sentence-transformers + torch), and runs the full API reference example
+# test suite.  This catches documentation drift, broken examples, and
+# missing artifacts.
+#
+# Uses the shipped demo data (test_holdout.jsonl) as realistic test input
+# for calibration and end-to-end examples.
+#
+# Usage:
+#   # Build (downloads ~1 GB sentence-transformer model on first run):
+#   docker build -f Dockerfile.examples -t paretobandit-examples .
+#
+#   # Run:
+#   docker run --rm paretobandit-examples
+#
+#   # With a specific Python version:
+#   docker build -f Dockerfile.examples --build-arg PYTHON_VERSION=3.12 \
+#       -t paretobandit-examples .
+#
+#   # Skip slow ST-dependent tests (fast feedback loop):
+#   docker run --rm paretobandit-examples \
+#       python -m pytest tests/integration/test_api_examples.py -v \
+#       -k "not ST and not TrainPca and not GenerateWarmup and not Demo and not EndToEnd"
+# --------------------------------------------------------------------------
+
+ARG PYTHON_VERSION=3.11
+
+# ==========================================================================
+# Builder: build the wheel once
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+WORKDIR /build
+
+RUN pip install --no-cache-dir build
+
+COPY pyproject.toml README.md LICENSE CHANGELOG.md CONTRIBUTING.md ./
+COPY src/ src/
+
+RUN python -m build --wheel --outdir /build/dist
+
+# ==========================================================================
+# Examples target: wheel + [embeddings] extra + test suite
+# ==========================================================================
+
+FROM python:${PYTHON_VERSION}-slim AS examples
+
+WORKDIR /test
+
+COPY --from=builder /build/dist/*.whl /tmp/
+
+RUN WHEEL=$(ls /tmp/*.whl) && \
+    pip install --no-cache-dir "${WHEEL}[embeddings]" && \
+    pip install --no-cache-dir pytest && \
+    rm -f /tmp/*.whl
+
+# Pre-download the default sentence-transformer model so tests don't
+# hit the network at runtime (important for CI/air-gapped envs).
+RUN python -c "\
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('all-MiniLM-L6-v2')"
+
+COPY tests/integration/test_api_examples.py tests/integration/test_api_examples.py
+COPY tests/integration/__init__.py tests/integration/__init__.py
+COPY tests/integration/conftest.py tests/integration/conftest.py
+
+RUN python -c "\
+import pareto_bandit; \
+print(f'paretobandit {pareto_bandit.__version__} installed OK'); \
+from pareto_bandit.data import get_example_holdout_path; \
+print(f'Holdout data: {get_example_holdout_path()}')"
+
+CMD ["python", "-m", "pytest", "tests/integration/test_api_examples.py", "-v", "--tb=short", "-x"]

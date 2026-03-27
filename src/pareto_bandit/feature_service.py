@@ -20,9 +20,9 @@ Three embedding paths are supported (in order of priority):
    (``pip install paretobandit[embeddings]``).
 
 **Optional text features** — ``FeatureService(use_text_features=True)``
-appends three z-score normalized, regex-based features (logical operator
-count, constraint keyword count, average word length) between the
-embedding/PCA components and the bias term.  These complement the
+appends four z-score normalized, regex-based features (logical operator
+count, constraint keyword count, average word length, instruction×vague
+density) between the embedding/PCA components and the bias term.  These complement the
 semantic PCA dimensions with structural signals that are empirically
 predictive of model-arm reward gaps (see ``experiments/eda_pareto_features.py``).
 """
@@ -283,13 +283,13 @@ class FeatureService:
             embedding_dim: Dimensionality of vectors produced by
                 *custom_encoder*.  **Required** when *custom_encoder* is
                 provided; ignored otherwise.
-            use_text_features: If ``True``, append three lightweight
+            use_text_features: If ``True``, append four lightweight
                 regex-based text features (logical operator count, constraint
-                keyword count, average word length) between the PCA
-                components and the bias term.  Increases the feature vector
-                by 3 dimensions.  Requires string prompts — incompatible
-                with ``FeatureService.for_precomputed()``.  Default ``False``
-                for backward compatibility.
+                keyword count, average word length, instruction×vague density)
+                between the PCA components and the bias term.  Increases the
+                feature vector by 4 dimensions.  Requires string prompts —
+                incompatible with ``FeatureService.for_precomputed()``.
+                Default ``False`` for backward compatibility.
         """
         self._custom_encoder = custom_encoder
         self.encoder_model = encoder_model

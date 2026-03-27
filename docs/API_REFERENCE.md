@@ -271,7 +271,7 @@ Use this for batch/offline learning where you already have `(model, context, rew
 historical_data = [
     ("openai/gpt-4o", "Write a Python quicksort", 0.95),
     ("mistralai/mixtral-8x7b", "Tell me a joke", 0.72),
-    ("anthropic/claude-3.5-sonnet", "Explain relativity", 0.88),
+    ("openai/gpt-4o", "Explain relativity", 0.88),
 ]
 
 for model, prompt, reward in historical_data:
@@ -1192,9 +1192,17 @@ print(infer_model_family("anthropic/claude-3.5-sonnet")) # "anthropic/claude-3"
 
 Tetrachoric correlation for two binary (0/1) vectors. Solves for the bivariate normal correlation *r* such that `P(Z₁ > c₁, Z₂ > c₂; r)` equals the observed joint success rate.
 
-### `compute_correlation_families(reward_vectors: dict[str, np.ndarray], threshold: float = 0.5) -> dict`
+### `compute_correlation_families(reward_vectors: dict[str, np.ndarray], threshold: float = 0.6, method: str = "tetrachoric") -> dict[str, str]`
 
-Compute pairwise model-family correlation structure from binary reward vectors. Groups models that are highly correlated into families for shared learning.
+Compute pairwise model-family correlation structure from reward vectors. Groups models within the same provider that are highly correlated into families via connected-components clustering.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `reward_vectors` | `dict[str, np.ndarray]` | — | Mapping from model ID to a reward vector of shape `(n_prompts,)`. All vectors must have the same length. |
+| `threshold` | `float` | `0.6` | Minimum correlation for two models to be placed in the same family. Typical defaults: 0.6 for tetrachoric, 0.3 for Pearson. |
+| `method` | `str` | `"tetrachoric"` | Correlation measure: `"tetrachoric"` computes the tetrachoric correlation on binarised rewards; `"pearson"` computes Pearson correlation on continuous rewards. |
+
+**Returns**: Dictionary mapping model IDs to family labels. Models within the same provider whose pairwise correlation meets the threshold are grouped together. Falls back to `infer_model_family()` for providers with only one model.
 
 ---
 

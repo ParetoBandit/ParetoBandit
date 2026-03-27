@@ -813,6 +813,23 @@ class BanditRouter:
                     speed="fast",
                 )
         """
+        # 0. Early guard: if the caller will rely on the default embedding
+        #    pipeline (no custom feature_service or context_model), verify that
+        #    sentence-transformers is installed before we hit an opaque traceback
+        #    deep inside FeatureService → PCA JIT retraining.
+        _has_custom_features = kwargs.get("feature_service") is not None
+        if not _has_custom_features and context_model == DEFAULT_CONTEXT_MODEL:
+            try:
+                import sentence_transformers  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "BanditRouter.create() requires sentence-transformers for "
+                    "the default embedding pipeline but it is not installed.\n\n"
+                    "    pip install paretobandit[embeddings]\n\n"
+                    "Alternatively, supply a custom feature_service or use "
+                    "FeatureService.for_precomputed() to bypass this dependency."
+                ) from None
+
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
         warmup_path = kwargs.pop("warmup_path", None)
