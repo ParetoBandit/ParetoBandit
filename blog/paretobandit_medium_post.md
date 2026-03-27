@@ -8,9 +8,19 @@
 
 If you're calling LLM APIs in production, you know the feeling. You have a portfolio of models (maybe a budget-friendly 8B, a solid mid-tier, and a flagship frontier model) and you're making ad-hoc rules about which one gets each request. Simple questions go cheap; hard reasoning goes expensive. It sort of works, until you check the bill at the end of the month and realize your rules weren't as clever as you thought. You're left wondering: could you have gotten the same quality for less, or better quality for the same spend?
 
-Here's the uncomfortable truth: the cost spread between models can be **530x**, and no single model dominates on every input. That cheap 8B model? It handles many factual queries just as well as the frontier model at a fraction of a cent. But when a tricky reasoning problem hits it, the quality craters. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
+Here's a real example. This is a basic arithmetic question from the GSM8K benchmark:
 
-You're essentially playing a **multi-armed bandit**, whether you realize it or not. Each model is a lever. Each prompt is a new pull. And your goal is to maximize quality while keeping your API bill under control. This is the classic exploration-exploitation tradeoff that bandit algorithms were built for, with a twist: you also have a hard budget constraint.
+![Which Model Answered Correctly?](figures/which_model_answered_correctly.png)
+*Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The frontier model costs 24x more and got it wrong.*
+
+The cost spread between models can be **530x**, and no single model dominates on every input. That cheap mid-tier model? It handles many prompts just as well as, or better than, the frontier model at a fraction of the cost. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
+
+You're essentially playing a **multi-armed bandit**, whether you realize it or not. If you haven't seen the term before, the idea is simple: imagine a row of slot machines, each with a different (unknown) payout rate. You want to maximize your winnings, but you have to balance *exploiting* the machine that's been paying well against *exploring* the one you've only tried twice that might be even better.
+
+![The multi-armed bandit problem](figures/multi_armed_bandit_problem.png)
+*Do you exploit Machine A (reliable 60% from 20 pulls) or explore Machine B (50% from just 2 pulls, it might actually be 80%)?*
+
+With LLM routing, each model is a machine, each prompt is a pull, and you're trying to maximize quality while keeping your API bill under control. This is the classic exploration-exploitation tradeoff that bandit algorithms were built for, with a twist: you also have a hard budget constraint.
 
 [ParetoBandit](https://github.com/ParetoBandit/ParetoBandit) is an open-source adaptive router that formalizes exactly this intuition. It uses cost-aware contextual bandits to learn which model to call for each prompt, enforces a dollar budget you set, and adapts online when prices shift or model quality degrades, all with a routing decision that takes **22 microseconds** on CPU. In this post, I'll walk through the problem, the key ideas, and show you how to run it yourself.
 
