@@ -42,21 +42,21 @@ Consider a real three-model portfolio:
 
 That's a **530x** spread from cheapest to most expensive. And here's the twist: Gemini-Pro scores 0.932 on a quality rubric while Mistral-Large scores 0.923, nearly as good at 28x less cost. For many prompts, the cheaper model is *the right choice*. The question isn't *which model to use*, it's *which model to use for this prompt, given this budget, right now*.
 
-Static routers, whether rule-based or trained offline, break down for three reasons:
+There's been excellent work on LLM routing: cascading approaches, classifiers trained on preference data, and systems that incorporate budget targets. These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
 
-1. **Budgets drift.** You set a cost target, but static rules can't enforce it across diverse prompt distributions.
-2. **Quality regresses silently.** Providers update models behind their APIs. Your "best" model might quietly get worse, and a frozen router won't notice.
-3. **New models launch constantly.** Integrating a new model into a static routing table requires manual evaluation and retraining.
+1. **Budgets need continuous enforcement.** You set a cost target, but prompt distributions shift, and a fixed routing table can drift off budget.
+2. **Quality regresses silently.** Providers update models behind their APIs. The "best" model might quietly change, and a frozen router won't notice until someone checks.
+3. **New models launch constantly.** Integrating a new model into a static routing table typically requires offline evaluation and retraining.
 
-These aren't edge cases. In 2024 alone, OpenAI cut GPT-4o input prices by roughly 50%, and providers routinely push silent model updates that shift quality distributions. Research has documented this phenomenon systematically: Chen et al. (2023) and Ma et al. (2024) showed that LLM behavior can change substantially between API versions without any announcement. Any router that can't adapt to these changes is flying blind.
+These are real-world pressures. In 2024 alone, OpenAI cut GPT-4o input prices by roughly 50%, and providers routinely push silent model updates that shift quality distributions. Research has documented this phenomenon systematically: Chen et al. (2023) and Ma et al. (2024) showed that LLM behavior can change substantially between API versions without any announcement.
 
-Most existing routing approaches learn a fixed policy offline and freeze it at serving time. Some use cascading, some use classifiers trained on preference data, and some even incorporate budget targets, but they all share a common weakness: they assume the world stays still after deployment. ParetoBandit was built specifically for the world that *doesn't*.
+ParetoBandit builds on the strengths of prior routing work and adds the machinery to handle these messy production realities: closed-loop budget enforcement in dollars, and continuous adaptation to non-stationarity.
 
 ---
 
 ## Enter ParetoBandit: The Core Idea
 
-ParetoBandit frames LLM routing as a **contextual bandit** problem. If you're familiar with LinUCB from the recommender systems literature, that's the backbone. What's novel here is extending the bandit formulation with two things that existing routers lack: **dollar-denominated per-request budget ceilings** enforced in closed loop, and **non-stationarity handling** that lets the system adapt when model quality or pricing shifts mid-deployment. These are the production concerns that vanilla bandits and offline routers don't address.
+ParetoBandit frames LLM routing as a **contextual bandit** problem. If you're familiar with LinUCB from the recommender systems literature, that's the backbone. What ParetoBandit adds on top are two ingredients designed specifically for messy production deployments: **dollar-denominated per-request budget ceilings** enforced in closed loop, and **non-stationarity handling** that lets the system adapt continuously when model quality or pricing shifts mid-deployment.
 
 When a prompt arrives, the router encodes it into a compact feature vector (using a lightweight sentence embedding + PCA), then selects the model with the highest score:
 
@@ -64,7 +64,7 @@ When a prompt arrives, the router encodes it into a compact feature vector (usin
 <img src="figures/eq2_arm_selection.png" alt="Equation 2: Budget-aware arm selection" width="470">
 </p>
 
-The three underbraced terms make the tradeoff explicit. **Exploit** uses the learned reward model to predict quality for this specific prompt. **Explore** adds a confidence bonus for uncertain models (scaled by `alpha`), so the router keeps testing models it hasn't seen enough of. **Cost penalty** discourages expensive models, and this is where the novelty lies: the penalty combines a static weight `lambda_c` (your baseline cost aversion, set once) with a *dynamic* dual variable `lambda_t` that adapts in real time based on actual spending.
+The three underbraced terms make the tradeoff explicit. **Exploit** uses the learned reward model to predict quality for this specific prompt. **Explore** adds a confidence bonus for uncertain models (scaled by `alpha`), so the router keeps testing models it hasn't seen enough of. **Cost penalty** discourages expensive models. The key design choice: the penalty combines a static weight `lambda_c` (your baseline cost aversion, set once) with a *dynamic* dual variable `lambda_t` that adapts in real time based on actual spending.
 
 After observing the response quality, the router updates its estimates. Over time, it converges on the optimal mix, but crucially, it never stops learning. Every request makes the system smarter.
 
@@ -72,7 +72,7 @@ Three mechanisms make this work in production:
 
 ### Budget Pacer: Dollar-denominated cost ceilings (Eqs. 3-4)
 
-Existing bandit routers either ignore cost or use abstract penalty weights that require manual tuning. ParetoBandit introduces a **per-request cost ceiling *B* in real dollars** (say, $0.001/request) and enforces it with an online primal-dual mechanism. Two equations do the work:
+Most routing approaches handle cost through static penalty weights or offline budget allocation, which works well in controlled settings. For production systems where traffic volume is unpredictable and costs need to stay within a specific dollar figure, ParetoBandit takes a different approach: you set a **per-request cost ceiling *B* in real dollars** (say, $0.001/request), and an online primal-dual mechanism enforces it continuously. Two equations do the work:
 
 <p align="center">
 <img src="figures/eq3_eq4_budget_pacer.png" alt="Equations 3-4: Budget pacer update" width="400">
@@ -82,7 +82,7 @@ Eq. 3 smooths the raw cost signal with an EMA (half-life of ~14 requests) to pre
 
 ### Geometric Forgetting: Adapting to non-stationarity (Eqs. 7-8)
 
-The second novel ingredient is handling the fact that model quality and pricing are *not stationary*. Providers silently update models, change pricing, or deprecate endpoints. Rather than treating all historical observations equally, ParetoBandit exponentially discounts them:
+The second ingredient addresses a challenge that becomes apparent in long-running deployments: model quality and pricing are *not stationary*. Providers update models, adjust pricing, or deprecate endpoints. Rather than treating all historical observations equally, ParetoBandit exponentially discounts them:
 
 <p align="center">
 <img src="figures/eq7_eq8_forgetting.png" alt="Equations 7-8: Geometric forgetting" width="350">
@@ -115,7 +115,7 @@ This effectively turns model selection from a discrete choice among K fixed oper
 
 Static compliance is only half the story. The real world isn't stationary, and the interesting question is what happens when conditions change.
 
-Imagine this scenario: you wake up one morning and a provider has **slashed prices by 50x** on their flagship model. Suddenly, the most expensive model in your portfolio is essentially free. A static router would keep its old allocation, leaving a massive quality improvement on the table. A naive adaptive router might rush to adopt the cheap frontier model, but what happens when prices snap back?
+Imagine this scenario: you wake up one morning and a provider has **slashed prices by 50x** on their flagship model. Suddenly, the most expensive model in your portfolio is essentially free. A router with a frozen policy would keep its old allocation, missing a significant quality improvement. An adaptive router without budget enforcement might rush to adopt the cheap frontier model, but what happens when prices snap back?
 
 We simulate exactly this three-phase stress test. In Phase 1, everything runs normally. In Phase 2, Gemini-Pro's pricing drops from $0.015/request to $0.0003/request. In Phase 3, original pricing is restored.
 
@@ -124,7 +124,7 @@ We simulate exactly this three-phase stress test. In Phase 1, everything runs no
 
 When Gemini becomes nearly free, the BudgetPacer detects the cost change through its smoothed cost signal. The dual variable decays, Gemini adoption surges, and the system delivers a **+0.071 quality lift** at tight budgets, all automatically. When prices snap back in Phase 3, the dual variable rises again and the router recovers budget compliance without any operator intervention.
 
-This full round-trip (exploit the opportunity, then recover) is exactly the kind of bidirectional adaptation that static routers can't do. And the budget pacer is the critical piece. A naive bandit without it *also* detects the price drop (the forgetting mechanism works in both cases), but it overshoots the cost ceiling by up to **5.5x** when prices are restored because there's no closed-loop cost enforcement. The budget pacer is what keeps the system honest.
+This full round-trip (exploit the opportunity, then recover) illustrates why closed-loop budget enforcement matters for production deployments. The budget pacer is the critical piece: a bandit without it *also* detects the price drop (the forgetting mechanism works in both cases), but it overshoots the cost ceiling by up to **5.5x** when prices are restored because there's no feedback loop on cost. The budget pacer is what keeps the system honest.
 
 The paper also evaluates a complementary scenario: silent quality degradation, where Mistral-Large's quality drops by 18% without any warning from the API. ParetoBandit detects the problem purely through the reward signal, reroutes traffic, and then re-discovers the recovered model in Phase 3, all while maintaining budget compliance.
 
