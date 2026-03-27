@@ -5,6 +5,7 @@ include CONTRIBUTING.md
 
 recursive-include src/pareto_bandit/config *.json
 recursive-include src/pareto_bandit/data/artifacts *.joblib *.npz *.npy
+recursive-include src/pareto_bandit/data/examples *.jsonl
 include src/pareto_bandit/py.typed
 
 prune tests

@@ -48,9 +48,15 @@ embeddings = [
     "sentence-transformers>=2.2.0",
     "transformers>=4.30.0",
 ]
-# Full functionality (embeddings + utilities)
+# Full functionality (embeddings + demo + utilities)
 full = [
     "paretobandit[embeddings]",
+    "paretobandit[demo]",
+]
+# Interactive demo (embeddings + plotting)
+demo = [
+    "paretobandit[embeddings]",
+    "matplotlib>=3.7.0",
 ]
 # Priors/data helpers (keeps core deps slim; may add fetch tooling later)
 data = []
@@ -88,6 +94,7 @@ Issues = "https://github.com/ParetoBandit/ParetoBandit/issues"
 
 [project.scripts]
 paretobandit = "pareto_bandit.cli:main"
+paretobandit-demo = "pareto_bandit.demo:main"
 
 [tool.hatch.build.targets.sdist]
 include = [
