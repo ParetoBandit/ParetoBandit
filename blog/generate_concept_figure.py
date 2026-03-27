@@ -50,30 +50,50 @@ for m in MODELS:
         ha=ha, va="top",
     )
 
-curve_costs = np.geomspace(costs[0], costs[-1], 80)
-curve_qualities = np.interp(
-    np.log10(curve_costs),
-    [np.log10(c) for c in costs],
-    qualities,
-)
+# Approximate the actual ParetoBandit Pareto frontier from Figure 1
+# of the paper.  The curve passes BELOW the fixed-model stars because
+# at any single budget the router is mixing models — it doesn't
+# replicate a dedicated single-model's quality at that model's cost.
+frontier_points = np.array([
+    [3.0e-5,  0.812],   # near Llama cost, slightly above Llama quality
+    [5.0e-5,  0.832],
+    [8.0e-5,  0.852],
+    [1.3e-4,  0.868],
+    [2.3e-4,  0.885],
+    [4.0e-4,  0.905],   # near Mistral cost, but below Mistral quality
+    [7.0e-4,  0.916],
+    [1.2e-3,  0.921],
+    [3.0e-3,  0.928],
+    [7.0e-3,  0.931],
+    [1.5e-2,  0.932],   # converges near Gemini at loose budgets
+])
+from scipy.interpolate import PchipInterpolator
+log_c = np.log10(frontier_points[:, 0])
+q = frontier_points[:, 1]
+interp = PchipInterpolator(log_c, q)
+
+curve_costs = np.geomspace(frontier_points[0, 0], frontier_points[-1, 0], 120)
+curve_qualities = interp(np.log10(curve_costs))
+
 ax.plot(
     curve_costs, curve_qualities,
-    color=CB_GREEN, linewidth=2.8, linestyle="-", alpha=0.7, zorder=5,
+    color=CB_BLUE, linewidth=2.8, linestyle="-", alpha=0.8, zorder=5,
+    marker="o", markersize=0,
 )
 ax.fill_between(
-    curve_costs, curve_qualities - 0.008, curve_qualities + 0.008,
-    color=CB_GREEN, alpha=0.12, zorder=4,
+    curve_costs, curve_qualities - 0.006, curve_qualities + 0.006,
+    color=CB_BLUE, alpha=0.08, zorder=4,
 )
 
-mid_idx = len(curve_costs) // 3
+mid_idx = len(curve_costs) // 4
 ax.annotate(
     "ParetoBandit\ncontinuous frontier",
     xy=(curve_costs[mid_idx], curve_qualities[mid_idx]),
     xytext=(40, -40),
     textcoords="offset points",
-    fontsize=11, fontweight="bold", color=CB_GREEN,
+    fontsize=11, fontweight="bold", color=CB_BLUE,
     ha="left", va="top",
-    arrowprops=dict(arrowstyle="->", color=CB_GREEN, lw=1.8),
+    arrowprops=dict(arrowstyle="->", color=CB_BLUE, lw=1.8),
 )
 
 ax.annotate(
