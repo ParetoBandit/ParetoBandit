@@ -3,7 +3,7 @@ Production-grade contextual bandit router (Hot Path).
 
 Core Features:
 1. Warmup Priors: Initializes with learned preferences from 80k battles.
-2. Default Registry: Automatically loads 80+ models with cost data.
+2. Default Registry: Loads a configurable model registry with cost data.
 3. Constraints: Supports max_cost, max_latency, and quality floors.
 
 New Model Registration:
