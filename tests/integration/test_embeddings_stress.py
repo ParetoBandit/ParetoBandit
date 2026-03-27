@@ -36,6 +36,22 @@ requires_embeddings = pytest.mark.skipif(
 )
 
 
+def _package_pip_installed() -> bool:
+    """True when ``pareto_bandit`` is on the interpreter's default path."""
+    probe = subprocess.run(
+        [sys.executable, "-c", "import pareto_bandit"],
+        capture_output=True,
+        timeout=10,
+    )
+    return probe.returncode == 0
+
+
+requires_pip_install = pytest.mark.skipif(
+    not _package_pip_installed(),
+    reason="CLI tests require a real pip install (run via Docker target)",
+)
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -265,6 +281,7 @@ class TestEncoderStress:
 # ---------------------------------------------------------------------------
 
 @requires_embeddings
+@requires_pip_install
 class TestCLIDownloadModels:
     """The ``paretobandit --download-models`` command must succeed.
 

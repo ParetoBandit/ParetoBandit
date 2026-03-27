@@ -579,6 +579,26 @@ class TestObservability:
 # 12. CLI Entry Point
 # ---------------------------------------------------------------------------
 
+def _package_pip_installed() -> bool:
+    """True when ``pareto_bandit`` is on the interpreter's default path.
+
+    Subprocess-based CLI tests spawn a fresh Python that does *not*
+    inherit pytest's ``sys.path`` additions, so the package must be
+    genuinely installed (pip install / wheel) rather than just on
+    PYTHONPATH in the parent process.
+    """
+    probe = subprocess.run(
+        [sys.executable, "-c", "import pareto_bandit"],
+        capture_output=True,
+        timeout=10,
+    )
+    return probe.returncode == 0
+
+
+@pytest.mark.skipif(
+    not _package_pip_installed(),
+    reason="CLI tests require a real pip install (run via Docker target)",
+)
 class TestCLI:
     """The ``paretobandit`` console script must be usable."""
 

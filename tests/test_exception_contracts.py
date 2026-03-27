@@ -22,14 +22,25 @@ def test_feature_service_exception_contracts():
     with pytest.raises(TypeError, match="Expected str or np.ndarray"):
         service.extract_features(123)  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match="empty or whitespace"):
+    with pytest.raises(TypeError, match="for_precomputed"):
         service.extract_features("   ")
 
-    with pytest.raises(TypeError, match="not a string"):
-        service.extract_features_batch(["ok", 5])  # type: ignore[list-item]
+    # String-content validation tests require a service with an encoder.
+    def _dummy_encoder(text: str) -> np.ndarray:
+        return np.ones(DEFAULT_DIMENSION - 1)
+
+    string_service = FeatureService(
+        custom_encoder=_dummy_encoder, embedding_dim=DEFAULT_DIMENSION - 1,
+    )
 
     with pytest.raises(ValueError, match="empty or whitespace"):
-        service.extract_features_batch(["ok", " "])
+        string_service.extract_features("   ")
+
+    with pytest.raises(TypeError, match="not a string"):
+        string_service.extract_features_batch(["ok", 5])  # type: ignore[list-item]
+
+    with pytest.raises(ValueError, match="empty or whitespace"):
+        string_service.extract_features_batch(["ok", " "])
 
 
 @pytest.mark.stress
