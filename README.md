@@ -31,19 +31,6 @@ cd ParetoBandit
 pip install -e ".[dev]"
 ```
 
-Optional extras are defined in `pyproject.toml`:
-
-```bash
-pip install -e ".[embeddings]"    # sentence-transformers + PCA
-pip install -e ".[openai]"       # OpenAI provider
-pip install -e ".[anthropic]"    # Anthropic provider
-pip install -e ".[gemini]"       # Google Gemini provider
-pip install -e ".[ollama]"       # Ollama (local) provider
-pip install -e ".[openrouter]"   # OpenRouter provider
-pip install -e ".[full]"         # All providers + embeddings
-pip install -e ".[experiments]"  # Experiment reproduction dependencies
-```
-
 ---
 
 ## Quick Start
@@ -209,20 +196,6 @@ A pinned lockfile for exact reproduction of paper results is available in [`requ
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup,
 coding standards, and the pull request workflow. By participating you agree to abide by the
 [Code of Conduct](CODE_OF_CONDUCT.md).
-
----
-
-## Citation
-
-If you use ParetoBandit in your research, please cite:
-
-```bibtex
-@article{tabernermiller2025paretobandit,
-  title   = {ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving},
-  author  = {Taberner-Miller, Annette},
-  year    = {2025}
-}
-```
 
 ---
 
