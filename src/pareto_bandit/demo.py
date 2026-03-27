@@ -1,32 +1,35 @@
 """ParetoBandit Interactive Demo.
 
-Uses the paper's train-on-val / evaluate-on-holdout protocol:
+Uses the paper's train-on-val / evaluate-on-holdout protocol (§4.1):
 
-    * **Train split** — shipped ``val.jsonl`` (1,785 prompts): online
+    * **Train split** — shipped ``val.jsonl`` (n=1,785 prompts): online
       learning only, no evaluation metrics recorded.
-    * **Eval split** — shipped ``test_holdout.jsonl`` (1,824 prompts):
+    * **Eval split** — shipped ``test_holdout.jsonl`` (n=1,824 prompts):
       partitioned into phases for evaluation.
 
 Four scenarios showcase core capabilities:
 
-    **Scenario 1 — Budget-Paced Routing**
+    **Scenario 1 — Budget-Paced Routing** (paper §4.2, Figure 1)
         Sweeps budget targets and shows how ParetoBandit smoothly
         interpolates between cheap/low-quality and expensive/high-quality
-        models while respecting an operator-set dollar budget.
+        models while respecting an operator-set dollar budget (§3.2).
 
-    **Scenario 2 — Quality Degradation & Recovery** (3-phase)
-        Simulates a silent quality regression on the mid-tier model,
-        demonstrating that geometric forgetting detects the drop,
-        redistributes traffic, and recovers when quality is restored.
+    **Scenario 2 — Quality Degradation & Recovery** (paper §4.4, Figure 3)
+        3-phase (608 prompts/phase): simulates a silent quality regression
+        on Mistral-Large (reward → 0.75), demonstrating that geometric
+        forgetting (§3.3) detects the drop, redistributes traffic, and
+        recovers when quality is restored.
 
-    **Scenario 3 — Cost Drift & Recovery** (3-phase)
-        Simulates a dramatic Gemini-Pro price drop, showing how the
-        BudgetPacer exploits cheap premium routing during the drop and
-        restores budget-compliant routing when prices are corrected.
+    **Scenario 3 — Cost Drift & Recovery** (paper §4.3, Figure 2)
+        3-phase: simulates a dramatic Gemini-Pro price drop, showing how
+        the BudgetPacer (§3.2) exploits cheap premium routing during the
+        drop and restores budget-compliant routing when prices are
+        corrected.
 
-    **Scenario 4 — Configuration Comparison**
-        Varies ``alpha``, ``forgetting_factor``, and ``cost_penalty``
-        to illustrate how each knob shapes the quality-cost trade-off.
+    **Scenario 4 — Configuration Comparison** (demo-specific)
+        Varies ``alpha`` (§3.2), ``forgetting_factor`` (§3.3), and
+        ``cost_penalty`` λ_c to illustrate how each knob shapes the
+        quality-cost trade-off.
 
 All plots are saved to ``<output_dir>/`` (default ``./demo_results/``).
 
@@ -154,13 +157,14 @@ def _load_k3_registry() -> dict[str, dict[str, object]]:
 
 MODEL_REGISTRY: dict[str, dict[str, object]] = _load_k3_registry()
 
-# Empirical mean per-request cost (USD) from the K=3 benchmark.
-#   Llama  ~$2.9e-5/req  (cheapest — ~400 tokens)
-#   Mistral ~$5.0e-4/req  (mid-tier — variable token count)
+# Empirical mean per-request cost (USD) from the K=3 benchmark (Table 1).
+#   Llama   ~$2.9e-5/req  (budget — ~400 tokens)
+#   Mistral ~$5.3e-4/req  (mid-tier — variable token count)
 #   Gemini  ~$1.5e-2/req  (premium — reasoning traces yield long outputs)
+# 530× spread between cheapest and most expensive.
 _MEAN_COST_PER_REQ: dict[str, float] = {
     "meta-llama/llama-3.1-8b-instruct": 2.9e-05,
-    "mistralai/mistral-large-2512": 5.0e-04,
+    "mistralai/mistral-large-2512": 5.3e-04,
     "google/gemini-2.5-pro": 1.5e-02,
 }
 
@@ -171,7 +175,7 @@ _MEAN_COST_PER_REQ: dict[str, float] = {
 
 @dataclass
 class DataSplit:
-    """One split (train or test) of the evaluation dataset.
+    """One split (train or holdout) of the evaluation dataset.
 
     Parameters
     ----------
@@ -224,16 +228,20 @@ class DemoConfig:
     """Master RNG seed for full reproducibility."""
 
     n_seeds: int = 10
-    """Independent seeds per condition (more seeds = tighter CIs, slower)."""
+    """Independent seeds per condition (paper uses 20; demo default trades
+    smoothness for speed)."""
 
     alpha: float = BEST_K3_HPARAMS["alpha"]
-    """LinUCB exploration coefficient (from tuned K=3 hyperparameters)."""
+    """LinUCB exploration coefficient (§3.2, Eq. 2; tuned via Appendix A)."""
 
     forgetting_factor: float = BEST_K3_HPARAMS["forgetting_factor"]
-    """Geometric discount on sufficient statistics (1.0 = stationary)."""
+    """Geometric discount on sufficient statistics (§3.3, Eqs. 7–8).
+    1.0 = stationary; 0.997 gives ~333-step effective memory."""
 
     cost_penalty: float = 0.3
-    """Static cost-penalty weight in the UCB score."""
+    """Static cost-penalty weight λ_c in the UCB score (§3.2, Eq. 2).
+    The BudgetPacer's adaptive λ_t provides closed-loop enforcement
+    on top of this baseline preference."""
 
     n_budget_targets: int = 7
     """Number of log-spaced budget targets for Scenario 1."""
@@ -267,7 +275,7 @@ class DemoConfig:
 # ═══════════════════════════════════════════════════════════════════════════
 
 PHASE_N: int = 608
-"""Prompts per phase in three-phase scenarios (matches paper)."""
+"""Prompts per phase in three-phase scenarios (§4.1: 608 prompts/phase)."""
 
 
 def _load_jsonl(
@@ -491,7 +499,8 @@ def run_trial(
     """Run one online-learning then evaluation trial.
 
     The router learns on the full *train* split (val, shuffled), then is
-    evaluated on *holdout* (shuffled) while continuing to learn.
+    evaluated on *holdout* (shuffled) while continuing to learn — the
+    standard bandit protocol under bandit feedback (§2.1).
 
     Parameters
     ----------
@@ -709,7 +718,7 @@ def _plot_phased_3panel(
     suptitle: str,
     out_path: Path,
 ) -> Path:
-    """Draw the Exp 02/03-style 3-panel stacked figure.
+    """Draw the Exp 02/03-style 3-panel stacked figure (Figures 2–3).
 
     Parameters
     ----------
@@ -868,7 +877,7 @@ def _plot_phased_3panel(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Scenario 1 — Budget-Paced Routing
+# Scenario 1 — Budget-Paced Routing (§4.2, Figure 1)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -896,7 +905,7 @@ def run_scenario_1(
     train: DataSplit,
     holdout: DataSplit,
 ) -> Path:
-    """Budget-paced routing sweep with 3-panel Pareto frontier plot.
+    """Budget-paced routing sweep with 3-panel Pareto frontier plot (§4.2, Figure 1).
 
     Returns
     -------
@@ -904,7 +913,7 @@ def run_scenario_1(
         Path to the saved figure.
     """
     print("\n" + "=" * 65)
-    print("  SCENARIO 1: Budget-Paced LLM Routing")
+    print("  SCENARIO 1: Budget-Paced LLM Routing (§4.2)")
     print("=" * 65)
 
     targets = _compute_budget_targets(train, holdout, cfg.n_budget_targets)
@@ -1158,7 +1167,7 @@ def run_scenario_1(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Scenario 2 — Quality Degradation & Recovery (3-phase, paper Exp 03)
+# Scenario 2 — Quality Degradation & Recovery (§4.4, Figure 3; Exp 03)
 # ═══════════════════════════════════════════════════════════════════════════
 
 _DEGRADED_REWARD: float = K3_FAILURE_REWARD
@@ -1180,13 +1189,15 @@ def _run_degradation_trial(
     budget_pacer: BudgetPacer | None = None,
     seed: int = 0,
 ) -> tuple[list[str], list[float], list[float], int]:
-    """Three-phase quality degradation trial (paper Experiment 03).
+    """Three-phase quality degradation trial (§4.4, Figure 3; Exp 03).
 
     Phase 1 (Normal): ``p1_idx`` holdout prompts, all models healthy.
     Phase 2 (Failure): ``p2_idx`` holdout prompts, *degraded_arm*
     rewards replaced with *degraded_reward* (costs unchanged).
+    Geometric forgetting (§3.3) detects the regression via the reward
+    signal alone.
     Phase 3 (Recovery): Reuses ``p1_idx`` prompts with original rewards
-    — controlled within-subject comparison with Phase 1.
+    — controlled within-subject comparison with Phase 1 (§4.1).
 
     Training uses the full *train* split (no metrics recorded).
 
@@ -1257,13 +1268,15 @@ def run_scenario_2(
     train: DataSplit,
     holdout: DataSplit,
 ) -> Path:
-    """Quality degradation & recovery (paper Experiment 03, 3-phase).
+    """Quality degradation & recovery (§4.4, Figure 3; paper Exp 03).
 
-    Three phases of ``PHASE_N`` (608) prompts each:
+    Three phases of ``PHASE_N`` (608) prompts each, matching the paper's
+    non-stationary protocol (§4.1):
 
     * Phase 1 — Normal (608 holdout prompts)
     * Phase 2 — Mistral Failure: reward drops to ``K3_FAILURE_REWARD``
-    * Phase 3 — Recovery: reuses Phase 1 prompts, original rewards
+      (~18% below normal, §4.4)
+    * Phase 3 — Recovery: reuses Phase 1 prompts (within-subject design)
 
     Returns
     -------
@@ -1363,7 +1376,7 @@ def run_scenario_2(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Scenario 3 — Cost Drift & Recovery (3-phase, paper Exp 02)
+# Scenario 3 — Cost Drift & Recovery (§4.3, Figure 2; Exp 02)
 # ═══════════════════════════════════════════════════════════════════════════
 
 _GEMINI_NEW_INPUT: float = GEMINI_COST_DROP["new_input_cost_per_m"]
@@ -1398,14 +1411,14 @@ def _run_cost_drift_trial(
     budget_pacer: BudgetPacer | None = None,
     seed: int = 0,
 ) -> tuple[list[str], list[float], list[float], int]:
-    """Three-phase cost-drift trial (paper Experiment 02).
+    """Three-phase cost-drift trial (§4.3, Figure 2; Exp 02).
 
     Phase 1 (Normal): ``p1_idx`` holdout prompts, original pricing.
     Phase 2 (Price Drop): ``p2_idx`` holdout prompts, Gemini pricing
-    reduced per ``GEMINI_COST_DROP``.  Registry updated so the pacer
-    reacts immediately.
+    reduced per ``GEMINI_COST_DROP``.  Registry updated so the
+    BudgetPacer (§3.2, Eqs. 3–4) reacts immediately via its EMA signal.
     Phase 3 (Price Restored): Reuses ``p1_idx`` prompts with original
-    pricing restored — controlled within-subject comparison.
+    pricing restored — controlled within-subject comparison (§4.1).
 
     Training uses the full *train* split (no metrics recorded).
 
@@ -1504,13 +1517,14 @@ def run_scenario_3(
     train: DataSplit,
     holdout: DataSplit,
 ) -> Path:
-    """Cost drift & recovery (paper Experiment 02, 3-phase).
+    """Cost drift & recovery (§4.3, Figure 2; paper Exp 02).
 
-    Three phases of ``PHASE_N`` (608) prompts each:
+    Three phases of ``PHASE_N`` (608) prompts each, matching the paper's
+    non-stationary protocol (§4.1):
 
     * Phase 1 — Normal pricing (608 holdout prompts)
-    * Phase 2 — Gemini price drop (~56x cheaper)
-    * Phase 3 — Price restored (reuses Phase 1 prompts)
+    * Phase 2 — Gemini price drop (~56x cheaper, §4.3)
+    * Phase 3 — Price restored (reuses Phase 1 prompts, within-subject)
 
     Returns
     -------
@@ -1624,9 +1638,10 @@ def run_scenario_4(
 ) -> Path:
     """Compare key configuration knobs on the quality-cost frontier.
 
-    Sweeps ``alpha``, ``forgetting_factor``, and ``cost_penalty`` one at
-    a time while holding the others at their defaults.  Each parameter
-    is tested at three levels.
+    Demo-specific scenario (not a direct paper experiment).  Sweeps
+    ``alpha`` (§3.2), ``forgetting_factor`` (§3.3), and ``cost_penalty``
+    λ_c one at a time while holding the others at their defaults.  Each
+    parameter is tested at three levels.
 
     Returns
     -------

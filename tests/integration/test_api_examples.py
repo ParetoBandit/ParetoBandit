@@ -913,46 +913,45 @@ class TestDemoModuleExamples:
         from pareto_bandit.demo import DemoConfig
 
         cfg = DemoConfig(
-            n_prompts=500,
             n_seeds=10,
             alpha=0.05,
             cost_penalty=0.5,
             scenario=2,
         )
-        assert cfg.n_prompts == 500
+        assert cfg.n_seeds == 10
         assert cfg.scenario == 2
 
-    def test_load_evaluation_data(self) -> None:
-        """API Ref: load_evaluation_data with shipped holdout."""
-        from pareto_bandit.demo import load_evaluation_data
+    def test_load_demo_splits(self) -> None:
+        """API Ref: load_demo_splits with shipped val + holdout."""
+        from pareto_bandit.demo import load_demo_splits, DemoConfig
         from pareto_bandit.feature_service import FeatureService
-        from pareto_bandit.data import get_example_holdout_path
 
         fs = FeatureService()
-        train, test = load_evaluation_data(
-            prompts_file=str(get_example_holdout_path()),
+        cfg = DemoConfig()
+        train, holdout = load_demo_splits(
+            val_file=cfg.val_file,
+            holdout_file=cfg.holdout_file,
             feature_service=fs,
-            n_prompts=100,
         )
         assert train.n > 0
-        assert test.n > 0
+        assert holdout.n > 0
         assert train.embeddings.shape[1] == 26
 
     def test_run_trial(self) -> None:
-        """API Ref: run_trial with shipped holdout."""
-        from pareto_bandit.demo import load_evaluation_data, run_trial
+        """API Ref: run_trial with shipped val + holdout."""
+        from pareto_bandit.demo import load_demo_splits, run_trial, DemoConfig
         from pareto_bandit.feature_service import FeatureService
-        from pareto_bandit.data import get_example_holdout_path
 
         fs = FeatureService()
-        train, test = load_evaluation_data(
-            prompts_file=str(get_example_holdout_path()),
+        cfg = DemoConfig()
+        train, holdout = load_demo_splits(
+            val_file=cfg.val_file,
+            holdout_file=cfg.holdout_file,
             feature_service=fs,
-            n_prompts=100,
         )
 
         trial = run_trial(
-            train, test, alpha=0.05, cost_penalty=0.0, seed=7
+            train, holdout, alpha=0.05, cost_penalty=0.0, seed=7
         )
         assert 0.0 <= trial.mean_reward <= 1.0
         assert trial.mean_cost >= 0.0

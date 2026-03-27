@@ -1291,7 +1291,6 @@ Top-level configuration dataclass. All fields map 1:1 to CLI flags.
 from pareto_bandit.demo import DemoConfig
 
 cfg = DemoConfig(
-    n_prompts=500,
     n_seeds=10,
     alpha=0.05,
     cost_penalty=0.5,
@@ -1301,7 +1300,7 @@ cfg = DemoConfig(
 
 ### `DataSplit`
 
-One split (train or test) of the evaluation dataset.
+One split (train or holdout) of the evaluation dataset.
 
 ```python
 @dataclass
@@ -1315,16 +1314,16 @@ class DataSplit:
 |----------|------|-------------|
 | `n` | `int` | Number of samples in this split. |
 
-### `load_evaluation_data()`
+### `load_demo_splits()`
 
-Load a JSONL holdout file, embed prompts, and split train/test (2:1).
+Load two JSONL files (val for training, holdout for evaluation), embed prompts,
+and return a `(train, holdout)` pair matching the paper's experimental protocol.
 
 ```python
-def load_evaluation_data(
-    prompts_file: str,
+def load_demo_splits(
+    val_file: str,
+    holdout_file: str,
     feature_service: FeatureService,
-    seed: int = 42,
-    n_prompts: int | None = None,
 ) -> tuple[DataSplit, DataSplit]
 ```
 
@@ -1333,26 +1332,27 @@ Each JSONL record must contain `"prompt"` (string) and `"arms"` (`{model_id: {"r
 **Example: Load data with your own encoder**
 
 ```python
-from pareto_bandit.demo import load_evaluation_data
+from pareto_bandit.demo import load_demo_splits, DemoConfig
 from pareto_bandit.feature_service import FeatureService
 
 fs = FeatureService()
-train, test = load_evaluation_data(
-    prompts_file="my_rewards.jsonl",
+cfg = DemoConfig()
+train, holdout = load_demo_splits(
+    val_file=cfg.val_file,
+    holdout_file=cfg.holdout_file,
     feature_service=fs,
-    n_prompts=500,
 )
-print(f"Train: {train.n}, Test: {test.n}, Features: {train.embeddings.shape[1]}")
+print(f"Train: {train.n}, Holdout: {holdout.n}, Features: {train.embeddings.shape[1]}")
 ```
 
 ### `run_trial()`
 
-Run one online-learning then evaluation trial (train then evaluate).
+Run one online-learning then evaluation trial (train on val, evaluate on holdout).
 
 ```python
 def run_trial(
     train: DataSplit,
-    test: DataSplit,
+    holdout: DataSplit,
     *,
     alpha: float = 0.01,
     forgetting_factor: float = 0.997,
@@ -1368,13 +1368,14 @@ def run_trial(
 **Example: Custom experiment**
 
 ```python
-from pareto_bandit.demo import load_evaluation_data, run_trial
+from pareto_bandit.demo import load_demo_splits, run_trial, DemoConfig
 from pareto_bandit.feature_service import FeatureService
 
 fs = FeatureService()
-train, test = load_evaluation_data("my_rewards.jsonl", fs)
+cfg = DemoConfig()
+train, holdout = load_demo_splits(cfg.val_file, cfg.holdout_file, fs)
 
-trial = run_trial(train, test, alpha=0.05, cost_penalty=0.0, seed=7)
+trial = run_trial(train, holdout, alpha=0.05, cost_penalty=0.0, seed=7)
 print(f"Reward: {trial.mean_reward:.4f}")
 print(f"Cost: ${trial.mean_cost:.6f}")
 print(f"Model mix: {trial.model_fractions}")
@@ -1385,7 +1386,7 @@ print(f"Model mix: {trial.model_fractions}")
 Run one of the four demo scenarios and save a publication-quality plot.
 
 ```python
-def run_scenario_N(cfg: DemoConfig, train: DataSplit, test: DataSplit) -> Path
+def run_scenario_N(cfg: DemoConfig, train: DataSplit, holdout: DataSplit) -> Path
 ```
 
 **Returns**: `Path` to the saved PNG figure.

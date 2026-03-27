@@ -145,17 +145,17 @@ pip install paretobandit[demo]
 **Option 1: The interactive notebook (recommended).** The [demo playground notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb) walks you through loading data, running trials, and sweeping parameters step by step. You can see the effect of each knob immediately. Here's a taste, running three trials with different cost aversion settings:
 
 ```python
-from pareto_bandit.demo import load_evaluation_data, run_trial, ARM_ORDER, ARM_SHORT, DemoConfig
+from pareto_bandit.demo import load_demo_splits, run_trial, ARM_ORDER, ARM_SHORT, DemoConfig
 from pareto_bandit.feature_service import FeatureService
 
 fs = FeatureService()
-train, test = load_evaluation_data(
-    prompts_file=DemoConfig().prompts_file,
-    feature_service=fs, n_prompts=1000, seed=42,
+cfg = DemoConfig()
+train, holdout = load_demo_splits(
+    val_file=cfg.val_file, holdout_file=cfg.holdout_file, feature_service=fs,
 )
 
 for label, cp in [("quality-only", 0.0), ("balanced", 0.3), ("cost-focused", 1.0)]:
-    trial = run_trial(train, test, cost_penalty=cp, seed=42)
+    trial = run_trial(train, holdout, cost_penalty=cp, seed=42)
     fracs = ", ".join(f"{ARM_SHORT[a]}={trial.model_fractions[a]:.0%}" for a in ARM_ORDER)
     print(f"cost_penalty={cp} ({label}):  reward={trial.mean_reward:.4f}  cost=${trial.mean_cost:.6f}  [{fracs}]")
 ```

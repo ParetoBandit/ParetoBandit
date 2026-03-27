@@ -84,7 +84,7 @@ class TestDemoImports:
             DemoConfig,
             DataSplit,
             TrialMetrics,
-            load_evaluation_data,
+            load_demo_splits,
             run_trial,
             run_scenario_1,
             run_scenario_2,
@@ -96,7 +96,7 @@ class TestDemoImports:
         )
         assert len(ARM_ORDER) == 3
         assert len(ARM_SHORT) == 3
-        assert callable(load_evaluation_data)
+        assert callable(load_demo_splits)
         assert callable(run_trial)
         assert callable(run_scenario_1)
         assert callable(run_scenario_2)
@@ -108,9 +108,8 @@ class TestDemoImports:
         from pareto_bandit.demo import DemoConfig
 
         cfg = DemoConfig()
-        assert cfg.n_prompts == 1000
         assert cfg.seed == 42
-        assert cfg.n_seeds == 5
+        assert cfg.n_seeds == 10
         assert isinstance(cfg.alpha, float)
         assert isinstance(cfg.forgetting_factor, float)
         assert cfg.scenario is None
@@ -126,31 +125,27 @@ class TestDataLoading:
 
     @pytest.fixture(scope="class")
     def splits(self):
-        from pareto_bandit.demo import ARM_ORDER, load_evaluation_data
+        from pareto_bandit.demo import ARM_ORDER, load_demo_splits, DemoConfig
         from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
-        train, test = load_evaluation_data(
-            prompts_file=str(
-                __import__("pareto_bandit.data", fromlist=["get_example_holdout_path"])
-                .get_example_holdout_path()
-            ),
+        cfg = DemoConfig()
+        train, holdout = load_demo_splits(
+            val_file=cfg.val_file,
+            holdout_file=cfg.holdout_file,
             feature_service=fs,
-            seed=42,
-            n_prompts=200,
         )
-        return train, test, ARM_ORDER
+        return train, holdout, ARM_ORDER
 
     def test_split_sizes(self, splits) -> None:
-        train, test, _ = splits
+        train, holdout, _ = splits
         assert train.n > 0
-        assert test.n > 0
-        assert train.n + test.n == 200
+        assert holdout.n > 0
 
     def test_embeddings_shape(self, splits) -> None:
-        train, test, _ = splits
+        train, holdout, _ = splits
         assert train.embeddings.ndim == 2
-        assert train.embeddings.shape[1] == test.embeddings.shape[1]
+        assert train.embeddings.shape[1] == holdout.embeddings.shape[1]
         assert train.embeddings.shape[1] >= 2  # at least 1 feature + bias
 
     def test_bias_column_is_one(self, splits) -> None:
@@ -187,19 +182,18 @@ class TestRunTrial:
 
     @pytest.fixture(scope="class")
     def trial_result(self):
-        from pareto_bandit.demo import load_evaluation_data, run_trial
+        from pareto_bandit.demo import load_demo_splits, run_trial, DemoConfig
         from pareto_bandit.feature_service import FeatureService
-        from pareto_bandit.data import get_example_holdout_path
 
         fs = FeatureService()
-        train, test = load_evaluation_data(
-            prompts_file=str(get_example_holdout_path()),
+        cfg = DemoConfig()
+        train, holdout = load_demo_splits(
+            val_file=cfg.val_file,
+            holdout_file=cfg.holdout_file,
             feature_service=fs,
-            seed=7,
-            n_prompts=150,
         )
         return run_trial(
-            train, test,
+            train, holdout,
             alpha=0.01,
             cost_penalty=0.3,
             seed=7,
@@ -272,56 +266,53 @@ class TestScenarioEndToEnd:
 
     @pytest.fixture(scope="class")
     def demo_env(self, tmp_path_factory):
-        from pareto_bandit.demo import DemoConfig, load_evaluation_data
+        from pareto_bandit.demo import DemoConfig, load_demo_splits
         from pareto_bandit.feature_service import FeatureService
-        from pareto_bandit.data import get_example_holdout_path
 
         out_dir = tmp_path_factory.mktemp("demo_plots")
         fs = FeatureService()
-        train, test = load_evaluation_data(
-            prompts_file=str(get_example_holdout_path()),
-            feature_service=fs,
-            seed=42,
-            n_prompts=150,
-        )
         cfg = DemoConfig(
-            n_prompts=150,
             seed=42,
             n_seeds=2,
             n_budget_targets=3,
             output_dir=str(out_dir),
         )
-        return cfg, train, test, out_dir
+        train, holdout = load_demo_splits(
+            val_file=cfg.val_file,
+            holdout_file=cfg.holdout_file,
+            feature_service=fs,
+        )
+        return cfg, train, holdout, out_dir
 
     def test_scenario_1(self, demo_env) -> None:
         from pareto_bandit.demo import run_scenario_1
 
-        cfg, train, test, out_dir = demo_env
-        path = run_scenario_1(cfg, train, test)
+        cfg, train, holdout, out_dir = demo_env
+        path = run_scenario_1(cfg, train, holdout)
         assert path.exists()
         assert path.stat().st_size > 1000
 
     def test_scenario_2(self, demo_env) -> None:
         from pareto_bandit.demo import run_scenario_2
 
-        cfg, train, test, out_dir = demo_env
-        path = run_scenario_2(cfg, train, test)
+        cfg, train, holdout, out_dir = demo_env
+        path = run_scenario_2(cfg, train, holdout)
         assert path.exists()
         assert path.stat().st_size > 1000
 
     def test_scenario_3(self, demo_env) -> None:
         from pareto_bandit.demo import run_scenario_3
 
-        cfg, train, test, out_dir = demo_env
-        path = run_scenario_3(cfg, train, test)
+        cfg, train, holdout, out_dir = demo_env
+        path = run_scenario_3(cfg, train, holdout)
         assert path.exists()
         assert path.stat().st_size > 1000
 
     def test_scenario_4(self, demo_env) -> None:
         from pareto_bandit.demo import run_scenario_4
 
-        cfg, train, test, out_dir = demo_env
-        path = run_scenario_4(cfg, train, test)
+        cfg, train, holdout, out_dir = demo_env
+        path = run_scenario_4(cfg, train, holdout)
         assert path.exists()
         assert path.stat().st_size > 1000
 
@@ -344,7 +335,7 @@ class TestDemoCLI:
         )
         assert result.returncode == 0
         assert "scenario" in result.stdout.lower()
-        assert "n-prompts" in result.stdout.lower()
+        assert "n-seeds" in result.stdout.lower()
 
     def test_cli_scenario_flag_accepted(self) -> None:
         """--scenario 1 with minimal data must not crash."""
@@ -352,7 +343,6 @@ class TestDemoCLI:
             [
                 sys.executable, "-m", "pareto_bandit.demo",
                 "--scenario", "1",
-                "--n-prompts", "100",
                 "--n-seeds", "1",
                 "--n-budget-targets", "2",
                 "--output-dir", "/tmp/paretobandit_demo_test",
