@@ -6,7 +6,7 @@
 
 ---
 
-If you're calling LLM APIs in production, you know the feeling. You have a portfolio of models (maybe a budget-friendly 8B, a solid mid-tier, and a flagship frontier model) and you're making ad-hoc rules about which one gets each request. Simple questions go cheap; hard reasoning goes expensive. It sort of works, until you check the bill at the end of the month and realize your rules weren't as clever as you thought.
+If you're calling LLM APIs in production, you know the feeling. You have a portfolio of models (maybe a budget-friendly 8B, a solid mid-tier, and a flagship frontier model) and you're making ad-hoc rules about which one gets each request. Simple questions go cheap; hard reasoning goes expensive. It sort of works, until you check the bill at the end of the month and realize your rules weren't as clever as you thought. You're left wondering: could you have gotten the same quality for less, or better quality for the same spend?
 
 Here's the uncomfortable truth: the cost spread between models can be **530x**, and no single model dominates on every input. That cheap 8B model? It handles many factual queries just as well as the frontier model at a fraction of a cent. But when a tricky reasoning problem hits it, the quality craters. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
 
