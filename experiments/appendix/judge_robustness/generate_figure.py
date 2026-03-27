@@ -30,6 +30,7 @@ from scipy import stats
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from utils.bootstrap import bootstrap_ci_mean
 
