@@ -317,8 +317,8 @@ def main() -> None:
     t0 = time.time()
 
     logger.info("Loading K=3 data ...")
-    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
-    # only .transform() is called during evaluation (no leakage).
+    # PCA projection is pre-fitted on ~46K LMSYS Arena prompts (train-split
+    # excluded) and frozen; only .transform() is called during evaluation.
     fs = FeatureService()
     feature_dim = fs.dimension
     # Online learning uses val (unseen by warmup priors, which were

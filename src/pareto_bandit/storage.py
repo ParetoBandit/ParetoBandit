@@ -26,6 +26,8 @@ from typing import Dict, Tuple
 
 import numpy as np
 
+from pareto_bandit.utils import safe_inv
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,7 +136,7 @@ class SqliteContextStore(ContextStore):
     - Handles millions of entries
     - Persists across restarts
     - Supports delayed feedback (RLHF, days later)
-    - WAL mode for high concurrency (10k+ writes/sec)
+    - WAL mode for concurrent read/write access
     - Automatic TTL-based expiration
     
     **Storage**: ~1KB per context (384-dim embedding + metadata)
@@ -256,7 +258,7 @@ class SqliteContextStore(ContextStore):
         """Save context with robust error handling (never crashes router)."""
         self._ensure_initialized()
         try:
-            blob = pickle.dumps(context, protocol=pickle.HIGHEST_PROTOCOL)
+            blob = np.ascontiguousarray(context, dtype=np.float64).tobytes()
             with sqlite3.connect(self.db_path, timeout=self.write_timeout) as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO context_log "
@@ -284,7 +286,7 @@ class SqliteContextStore(ContextStore):
                 )
                 row = cursor.fetchone()
                 if row:
-                    context = pickle.loads(row[0])
+                    context = np.frombuffer(row[0], dtype=np.float64).copy()
                     return context, row[1]
             return None, None
         except sqlite3.OperationalError:
@@ -417,11 +419,12 @@ class CheckpointManager:
         Args:
             router_instance: BanditRouter instance to save
         """
-        # Extract minimal state (only learned parameters)
+        # Persist sufficient statistics only; A_inv is derived from A via
+        # safe_inv() and recomputed on load to avoid silent inconsistency
+        # from float-precision drift across numpy versions.
         state = {
             "t": router_instance.bandit.t,
             "A": {k: v for k, v in router_instance.bandit.A.items()},
-            "A_inv": {k: v for k, v in router_instance.bandit.A_inv.items()},
             "b": {k: v for k, v in router_instance.bandit.b.items()},
             "last_update": {k: v for k, v in router_instance.bandit.last_update.items()},
             "last_played": {k: v for k, v in router_instance.bandit.last_played.items()},
@@ -482,8 +485,9 @@ class CheckpointManager:
             if saved_models == current_models:
                 # Perfect match - restore everything
                 router_instance.bandit.A = state["A"]
-                router_instance.bandit.A_inv = state["A_inv"]
                 router_instance.bandit.b = state["b"]
+                for m in saved_models:
+                    router_instance.bandit.A_inv[m] = safe_inv(state["A"][m])
                 logger.info("Checkpoint loaded (%s old, %d models)", age_str, len(saved_models))
             else:
                 # Registry drift - merge intelligently
@@ -494,7 +498,7 @@ class CheckpointManager:
                 for model in current_models:
                     if model in saved_models:
                         router_instance.bandit.A[model] = state["A"][model]
-                        router_instance.bandit.A_inv[model] = state["A_inv"][model]
+                        router_instance.bandit.A_inv[model] = safe_inv(state["A"][model])
                         router_instance.bandit.b[model] = state["b"][model]
                 
                 # Log drift

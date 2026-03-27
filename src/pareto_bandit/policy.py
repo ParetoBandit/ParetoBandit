@@ -38,7 +38,7 @@ from typing import Any, Dict, List, Tuple, TypedDict
 
 import numpy as np
 
-from pareto_bandit.utils import sigmoid, safe_inv
+from pareto_bandit.utils import sigmoid, safe_inv, argmax_random_tiebreak
 
 logger = logging.getLogger(__name__)
 
@@ -128,36 +128,6 @@ premiums.  The blended cost is (input_cost + output_cost) / 2.
 # Helper Functions
 # ---------------------------------------------------------------------------
 
-def _argmax_random_tiebreak(
-    scores: Dict[str, float],
-    rng: np.random.Generator | None = None,
-) -> str:
-    """Return the key with the maximum value, breaking ties uniformly at random.
-
-    Standard ``max(scores, key=scores.get)`` is deterministic when values are
-    tied (returns the first key in insertion order).  For bandit algorithms this
-    introduces a silent bias: e.g. a freshly-initialized policy always picks the
-    first model in the list before any learning has occurred.
-
-    This helper collects all keys sharing the maximum value and returns one
-    uniformly at random, eliminating initialization-order bias.
-
-    Args:
-        scores: Mapping of candidate names to their scores.
-        rng: Explicit NumPy generator for reproducibility.  Falls back to
-            the global ``np.random`` state if *None* (legacy callers).
-    """
-    finite = {k: v for k, v in scores.items() if np.isfinite(v)}
-    if not finite:
-        keys = list(scores.keys())
-        idx = rng.integers(len(keys)) if rng is not None else np.random.randint(len(keys))
-        return keys[idx]
-    max_val = max(finite.values())
-    tied = [k for k, v in finite.items() if abs(v - max_val) < 1e-12]
-    if len(tied) == 1:
-        return tied[0]
-    idx = rng.integers(len(tied)) if rng is not None else np.random.randint(len(tied))
-    return tied[idx]
 
 
 def _inflate_variance(
@@ -366,7 +336,26 @@ class BanditState(TypedDict):
 # ---------------------------------------------------------------------------
 
 class DisjointLinUCBPolicy:
-    """Disjoint LinUCB: one ridge regression per arm."""
+    """Disjoint LinUCB: one ridge regression per arm.
+
+    Lock ordering invariant
+    -----------------------
+    Two locks govern concurrent access:
+
+    - ``model_locks[model]`` (per-arm): protects mutable state for a
+      single arm (``A``, ``b``, counters).
+    - ``_lock`` (global): protects shared state (``A_inv``, ``theta``,
+      ``t``, arm registry).
+
+    **Canonical nesting order: model_locks[model] → _lock.**
+
+    All methods that acquire both locks do so in this order.  Methods
+    that need a read-only snapshot from ``_lock`` first (e.g.,
+    ``_check_numerical_stability``) acquire ``_lock``, copy the data,
+    *release* ``_lock``, then follow the canonical order for any
+    subsequent mutation.  Never hold ``_lock`` while acquiring a
+    model lock.
+    """
 
     def __init__(
         self,
@@ -382,17 +371,19 @@ class DisjointLinUCBPolicy:
     ):
         """Initialize Disjoint LinUCB policy.
 
-        REGULARIZATION NOTE (isotropic prior after PCA):
-        We initialize A_0 = lambda I, an isotropic regularizer in the
-        PCA-transformed feature space.  After PCA, principal components have
-        decreasing empirical variance, so equal regularization across all
-        directions does not match the per-component scale — effectively
-        over-shrinking low-variance components relative to their scale.
-        This is a deliberate simplicity choice: isotropic ridge in a PCA
-        basis is a standard, stable baseline.  Designing anisotropic or
-        variance-matched regularization (e.g., diagonal A_0 scaled by
-        component variance, or full whitening before the bandit) is a
-        natural extension left for future work.
+        REGULARIZATION NOTE (isotropic prior after whitened PCA):
+        We initialize A_0 = lambda I, an isotropic regularizer.  The
+        default ``FeatureService`` whitens PCA coordinates by scaling each
+        component by 1/sqrt(explained_variance), so all components have
+        approximately unit variance at initialization.  Under whitening,
+        isotropic ridge is well-matched to the feature scale and A_0 = λI
+        is the standard, correct choice.
+
+        If whitening is disabled (``whiten_pca=False``), principal
+        components retain their original decreasing variance and isotropic
+        regularization will over-shrink low-variance directions.  In that
+        case an anisotropic A_0 (e.g., diagonal, scaled by component
+        variance) would be more appropriate.
 
         Args:
             model_names: List of model identifiers (arms).
@@ -686,7 +677,7 @@ class DisjointLinUCBPolicy:
 
             ucb_scores[m] = ucb
 
-        best_model = _argmax_random_tiebreak(ucb_scores, rng=self._rng)
+        best_model = argmax_random_tiebreak(ucb_scores, rng=self._rng)
         return best_model, float(ucb_scores[best_model])
 
     def _effective_staleness(self, model: str) -> int:

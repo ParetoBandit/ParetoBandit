@@ -36,7 +36,6 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24.0",
-    "pandas>=2.0.0",
     "joblib>=1.3.0",
     "scikit-learn>=1.3.0",
     "tqdm>=4.60.0",
@@ -69,6 +68,7 @@ data = []
 # Experiments (paper reproduction)
 experiments = [
     "matplotlib>=3.7.0",
+    "pandas>=2.0.0",
     "python-dotenv>=1.0.0",
     "scipy>=1.10.0",
 ]

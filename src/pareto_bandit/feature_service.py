@@ -208,11 +208,14 @@ class FeatureService:
     
     **PCA provenance guarantee:**
     The PCA projection matrix shipped with the package (``pca_25.joblib``) is
-    fitted *once*, *offline*, on ~46K LMSYS Arena prompts that are strictly
-    disjoint from all experimental splits (train / val / test).  At runtime
-    this class only calls ``pca.transform()`` — the projection is never
-    re-fitted on evaluation data.  The JIT fallback path (when the artifact
-    is missing) fits on synthetic prompts, not on the incoming stream.
+    fitted *once*, *offline*, on ~46K LMSYS Arena prompts.  Train-split
+    prompts (``train.jsonl``) are excluded so PCA directions are not
+    optimally aligned with warmup-prior data.  Val/test prompts are *not*
+    excluded because PCA is unsupervised (no reward labels), so their
+    presence cannot leak evaluation signal.  At runtime this class only
+    calls ``pca.transform()`` — the projection is never re-fitted on
+    evaluation data.  The JIT fallback path (when the artifact is missing)
+    fits on synthetic prompts, not on the incoming stream.
 
     **Design Philosophy:**
     - Isolated from router logic (no LinUCB dependencies)

@@ -36,35 +36,11 @@ from typing import Dict, List, Optional
 import numpy as np
 
 try:
-    from pareto_bandit.utils import safe_inv
+    from pareto_bandit.utils import safe_inv, argmax_random_tiebreak
 except ImportError:
-    from .utils import safe_inv
+    from .utils import safe_inv, argmax_random_tiebreak
 
 logger = logging.getLogger(__name__)
-
-
-def _argmax_random_tiebreak(
-    scores: Dict[str, float],
-    rng: np.random.Generator | None = None,
-) -> str:
-    """Return key with max value, breaking ties uniformly at random.
-
-    Args:
-        scores: Mapping of candidate names to their scores.
-        rng: Explicit NumPy generator for reproducibility. Falls back to
-            the global ``np.random`` state if *None*.
-    """
-    finite = {k: v for k, v in scores.items() if np.isfinite(v)}
-    if not finite:
-        keys = list(scores.keys())
-        idx = rng.integers(len(keys)) if rng is not None else np.random.randint(len(keys))
-        return keys[idx]
-    max_val = max(finite.values())
-    tied = [k for k, v in finite.items() if abs(v - max_val) < 1e-12]
-    if len(tied) == 1:
-        return tied[0]
-    idx = rng.integers(len(tied)) if rng is not None else np.random.randint(len(tied))
-    return tied[idx]
 
 
 # =============================================================================
@@ -198,7 +174,7 @@ class CostAwareLinTSRouter:
             fallback = candidates if candidates is not None else self.models
             return fallback[0] if fallback else None
 
-        return _argmax_random_tiebreak(scores, rng=self._rng)
+        return argmax_random_tiebreak(scores, rng=self._rng)
 
     def update(
         self,
@@ -359,7 +335,7 @@ class CostAwareLearnedProjRouter:
             fallback = candidates if candidates is not None else self.models
             return fallback[0] if fallback else None
 
-        return _argmax_random_tiebreak(scores, rng=self._rng)
+        return argmax_random_tiebreak(scores, rng=self._rng)
 
     def update(
         self,

@@ -995,8 +995,8 @@ def main() -> None:
         len(train_records), len(val_records), len(test_records),
     )
 
-    # PCA projection is pre-fitted on ~46K disjoint LMSYS prompts and frozen;
-    # only .transform() is called during evaluation (no leakage).
+    # PCA projection is pre-fitted on ~46K LMSYS Arena prompts (train-split
+    # excluded) and frozen; only .transform() is called during evaluation.
     logger.info("Initializing FeatureService (PCA-%d) ...", PCA_DIM)
     fs = FeatureService(pca_components=PCA_DIM)
     feature_dim = fs.dimension

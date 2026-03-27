@@ -8,10 +8,10 @@ distribution used throughout the ParetoBandit pipeline (LMSYS Chatbot Arena).
 Pipeline
 --------
 1. Loads unique prompts from the LMSYS battles corpus (~50K English prompts).
-2. Excludes any prompts that appear in the K=3 experimental splits
-   (train, val, test) to keep the PCA fitting data strictly independent
-   of all reward data used for warmup priors, online learning, and
-   evaluation.
+2. Excludes train-split prompts (``train.jsonl``) so PCA directions are
+   not optimally aligned with the warmup-prior data.  Val/test prompts
+   are *not* excluded — PCA is unsupervised (no reward labels), so their
+   presence cannot leak evaluation signal.
 3. Embeds prompts using ``DEFAULT_SENTENCE_TRANSFORMER`` (``all-MiniLM-L6-v2``).
 4. Fits a PCA model (384 -> N components) and saves the artifact.
 
@@ -28,8 +28,8 @@ labels), so val/test inclusion cannot leak evaluation signal.
 
 Usage
 -----
-    python3 data_collection/pca/train_pca_from_routellm.py
-    python3 data_collection/pca/train_pca_from_routellm.py --n-components 32
+    python3 data_collection/pca/train_pca_from_lmsys_arena.py
+    python3 data_collection/pca/train_pca_from_lmsys_arena.py --n-components 32
 """
 
 import sys
@@ -300,13 +300,13 @@ def main():
         epilog="""
 Examples:
     # Default: 15 + 32 components from LMSYS battles
-    python3 scripts/train_pca_from_routellm.py
+    python3 scripts/train_pca_from_lmsys_arena.py
 
     # Single variant only
-    python3 scripts/train_pca_from_routellm.py --n-components 15
+    python3 scripts/train_pca_from_lmsys_arena.py --n-components 15
 
     # Custom input/output
-    python3 scripts/train_pca_from_routellm.py \\
+    python3 scripts/train_pca_from_lmsys_arena.py \\
         --input data/my_prompts.jsonl --output artifacts/pca_custom.joblib \\
         --n-components 15
         """
@@ -338,7 +338,7 @@ Examples:
     parser.add_argument(
         "--no-exclude-experimental",
         action="store_true",
-        help="Skip exclusion of K=3 train/val/test prompts.",
+        help="Skip exclusion of K=3 train-split prompts from PCA fitting.",
     )
     parser.add_argument(
         "--no-cache",
