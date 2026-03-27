@@ -145,7 +145,7 @@ pip install paretobandit[demo]
 **Option 1: The interactive notebook (recommended).** The [demo playground notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb) walks you through loading data, running trials, and sweeping parameters step by step. You can see the effect of each knob immediately. Here's a taste, running three trials with different cost aversion settings:
 
 ```python
-from pareto_bandit.demo import load_evaluation_data, run_trial, ARM_ORDER, ARM_SHORT
+from pareto_bandit.demo import load_evaluation_data, run_trial, ARM_ORDER, ARM_SHORT, DemoConfig
 from pareto_bandit.feature_service import FeatureService
 
 fs = FeatureService()
@@ -161,12 +161,12 @@ for label, cp in [("quality-only", 0.0), ("balanced", 0.3), ("cost-focused", 1.0
 ```
 
 ```
-cost_penalty=0.0 (quality-only):  reward=0.9040  cost=$0.010616  [Llama-8B=3%, Mistral-Large=33%, Gemini-Pro=64%]
-cost_penalty=0.3 (balanced):      reward=0.9040  cost=$0.000640  [Llama-8B=34%, Mistral-Large=63%, Gemini-Pro=3%]
-cost_penalty=1.0 (cost-focused):  reward=0.8130  cost=$0.000030  [Llama-8B=99%, Mistral-Large=1%, Gemini-Pro=0%]
+cost_penalty=0.0 (quality-only):  reward=0.9356  cost=$0.010649  [Llama-8B=0%, Mistral-Large=35%, Gemini-Pro=65%]
+cost_penalty=0.3 (balanced):      reward=0.9040  cost=$0.000732  [Llama-8B=28%, Mistral-Large=69%, Gemini-Pro=2%]
+cost_penalty=1.0 (cost-focused):  reward=0.8126  cost=$0.000027  [Llama-8B=100%, Mistral-Large=0%, Gemini-Pro=0%]
 ```
 
-At `cost_penalty=0.3`, the router achieves the same quality as the unconstrained version while cutting cost by **94%**, by learning which prompts actually need the expensive model and which don't.
+At `cost_penalty=0.3`, the router achieves the same quality as the unconstrained version while cutting cost by **93%**, by learning which prompts actually need the expensive model and which don't.
 
 **Option 2: The CLI demo.** For a quick look at all four scenarios with publication-quality plots:
 
