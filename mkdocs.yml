@@ -29,6 +29,11 @@ theme:
     - search.highlight
     - toc.follow
 
+validation:
+  links:
+    not_found: info
+    unrecognized_links: info
+
 markdown_extensions:
   - admonition
   - pymdownx.details
