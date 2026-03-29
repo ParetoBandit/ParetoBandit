@@ -20,6 +20,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+_HAS_ST = True
+try:
+    import sentence_transformers  # noqa: F401
+except ImportError:
+    _HAS_ST = False
+
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
@@ -111,6 +117,7 @@ class TestVersionExample:
 
 class TestBanditRouterCreateExamples:
 
+    @pytest.mark.skipif(not _HAS_ST, reason="sentence-transformers not installed")
     def test_default_warm_start(self) -> None:
         """API Ref: Default usage — warm-start with shipped priors."""
         from pareto_bandit import BanditRouter
@@ -119,6 +126,7 @@ class TestBanditRouterCreateExamples:
         router = BanditRouter.create(registry)
         assert len(router.registry) == 2
 
+    @pytest.mark.skipif(not _HAS_ST, reason="sentence-transformers not installed")
     def test_cold_start(self) -> None:
         """API Ref: Cold-start (priors='none')."""
         from pareto_bandit import BanditRouter
@@ -128,10 +136,12 @@ class TestBanditRouterCreateExamples:
 
     def test_custom_reward_scale(self) -> None:
         """API Ref: Custom reward scale [-1, 1]."""
-        from pareto_bandit import BanditRouter, RouterConfig
+        from pareto_bandit import BanditRouter, FeatureService, RouterConfig
 
+        fs = FeatureService.for_precomputed(dimension=16)
         router = BanditRouter.create(
             TWO_MODEL_REGISTRY,
+            feature_service=fs,
             priors="none",
             config=RouterConfig(reward_min=-1.0, reward_max=1.0),
         )
@@ -493,13 +503,6 @@ class TestRoutingLogExample:
 # 13. FeatureService Examples (requires sentence-transformers)
 # ═══════════════════════════════════════════════════════════════════════════
 
-_HAS_ST = True
-try:
-    import sentence_transformers  # noqa: F401
-except ImportError:
-    _HAS_ST = False
-
-
 @pytest.mark.skipif(not _HAS_ST, reason="sentence-transformers not installed")
 class TestFeatureServiceSTExamples:
     """Examples that require the default SentenceTransformer encoder."""
@@ -641,7 +644,7 @@ class TestRouterConfigExample:
 
     def test_router_config_custom(self) -> None:
         """API Ref: RouterConfig with custom values."""
-        from pareto_bandit import BanditRouter, RouterConfig
+        from pareto_bandit import BanditRouter, FeatureService, RouterConfig
 
         config = RouterConfig(
             max_log_size=5_000,
@@ -650,8 +653,11 @@ class TestRouterConfigExample:
             reward_min=-1.0,
             reward_max=1.0,
         )
+        fs = FeatureService.for_precomputed(dimension=16)
         router = BanditRouter(
-            model_registry=TWO_MODEL_REGISTRY, config=config
+            model_registry=TWO_MODEL_REGISTRY,
+            feature_service=fs,
+            config=config,
         )
         assert router.config.max_log_size == 5_000
         assert router.config.reward_min == -1.0
@@ -666,10 +672,12 @@ class TestExplorationRateExample:
 
     def test_exploration_rate_presets(self) -> None:
         """API Ref: ExplorationRate named presets."""
-        from pareto_bandit import BanditRouter, ExplorationRate
+        from pareto_bandit import BanditRouter, ExplorationRate, FeatureService
 
+        fs = FeatureService.for_precomputed(dimension=16)
         router = BanditRouter.create(
             TWO_MODEL_REGISTRY,
+            feature_service=fs,
             alpha=ExplorationRate.SAFE,
             priors="none",
         )
