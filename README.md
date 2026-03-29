@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="blog/figures/paretobandit_icon_transparent.png" alt="ParetoBandit" width="200">
+  <img src="https://raw.githubusercontent.com/ParetoBandit/ParetoBandit/main/blog/figures/paretobandit_icon_transparent.png" alt="ParetoBandit" width="200">
 </p>
 
 # ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving
