@@ -33,7 +33,7 @@ def create(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. When `None`, loads the shipped K=3 paper portfolio from `config/models.json`. |
+| `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry **must** include `input_cost_per_m` and `output_cost_per_m` (both in $/M tokens). Optional fields: `time_to_first_token_seconds`, `speed_profile`, `capabilities`. When `None`, loads the shipped K=3 paper portfolio from `config/models.json`. Raises `MissingCostError` if any model is missing cost information. |
 | `context_model` | `str` | `"all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Ignored when `feature_service` is provided. Custom ST models require matching PCA and warmup artifacts. |
 | `priors` | `str` | `"warmup"` | Prior initialisation strategy: `"warmup"` (default — loads shipped K=3 offline priors; models not in the prior file receive heuristic initialisation), `"none"` (clean cold-start), or a path to a `.joblib` file generated via `generate_warmup_priors()`. |
 | `prior_n_effective` | `float` | `1163.9` | Effective sample count attributed to loaded priors. Controls how strongly offline priors are trusted — higher values trust priors more (slower adaptation); lower values trust them less (faster override by online evidence). Default from `BEST_K3_HPARAMS` (derived from T_adapt-constrained Pareto knee-point selection). |
@@ -58,31 +58,31 @@ def create(
 
 **Returns**: Fully initialised `BanditRouter` instance.
 
-**Example: Default usage (warm-start with shipped priors)**
+**Example: Bring your own models**
+
+Every model entry **must** include `input_cost_per_m` and `output_cost_per_m` — the per-token costs in **dollars per million tokens** ($/M). These are available on your provider's pricing page. Without them, `MissingCostError` is raised.
 
 ```python
 from pareto_bandit import BanditRouter
 
 registry = {
     "openai/gpt-4o": {
-        "model_id": "openai/gpt-4o",
-        "input_cost_per_m": 2.50,
-        "output_cost_per_m": 10.00,
-        "time_to_first_token_seconds": 0.5,
+        "input_cost_per_m": 2.50,    # $2.50 per 1M input tokens
+        "output_cost_per_m": 10.00,  # $10.00 per 1M output tokens
+        "time_to_first_token_seconds": 0.5,  # optional
     },
     "mistralai/mixtral-8x7b": {
-        "model_id": "mistralai/mixtral-8x7b",
-        "input_cost_per_m": 0.24,
-        "output_cost_per_m": 0.24,
-        "time_to_first_token_seconds": 0.3,
+        "input_cost_per_m": 0.24,    # $0.24 per 1M input tokens
+        "output_cost_per_m": 0.24,   # $0.24 per 1M output tokens
+        "time_to_first_token_seconds": 0.3,  # optional
     },
 }
 
-# Default: warm-start with shipped priors (heuristic init for unknown models)
-router = BanditRouter.create(registry)
-
 # Cold-start: learns from scratch (recommended for custom portfolios)
 router = BanditRouter.create(registry, priors="none")
+
+# Warm-start: loads shipped priors (heuristic init for unknown models)
+router = BanditRouter.create(registry)
 
 # Or load custom priors generated from your own reward data
 router = BanditRouter.create(registry, priors="path/to/my_priors.joblib")
@@ -424,10 +424,11 @@ def register_model(
 1. `input_cost_per_m` + `output_cost_per_m` — exact per-token costs; blended cost is their average.
 2. `blended_cost_per_m` — single blended rate.
 3. `cost_usd` (legacy) — treated as input cost; output estimated at `cost_usd × 3`.
-4. None — falls back to `RegistrationConfig.default_cost_per_1m`.
+
+At least one cost specification is required. If none is provided, `MissingCostError` is raised with usage examples.
 
 **Raises**:
-- `ValueError` — Only one of `input_cost_per_m` / `output_cost_per_m` provided.
+- `MissingCostError` — No cost information provided, or only one of `input_cost_per_m` / `output_cost_per_m` given.
 - `TypeError` — Unknown kwargs in strict mode.
 
 **Example**
@@ -437,16 +438,15 @@ def register_model(
 router.register_model(
     "google/gemini-2.0-flash",
     speed="fast",
-    input_cost_per_m=0.10,
-    output_cost_per_m=0.40,
+    input_cost_per_m=0.10,   # $/M input tokens
+    output_cost_per_m=0.40,  # $/M output tokens
 )
 
-# Single blended rate
+# Single blended rate (when input/output split is unknown)
 router.register_model("local/llama-3-8b", speed="fast", blended_cost_per_m=0.2)
-
-# Mystery model: no information (pessimistic defaults)
-router.register_model("mystery/new-model")
 ```
+
+> **Cost is required.** Calling `register_model()` without any cost specification raises `MissingCostError`. Check your provider's pricing page for per-token rates.
 
 ---
 
@@ -579,17 +579,30 @@ print(f"Context vector shape: {log.context_vector.shape}")  # (26,) with default
 
 ## `FeatureService`
 
-Handles prompt embedding and PCA compression independently from bandit math. Supports three embedding paths:
+The router needs a numeric representation of each prompt to learn which model handles which kind of request. `FeatureService` handles prompt embedding and PCA compression independently from the bandit math.
 
-1. **Default SentenceTransformer** — `FeatureService()` (requires `pip install paretobandit[embeddings]`)
-2. **Custom encoder callable** — `FeatureService(custom_encoder=fn, embedding_dim=N)` (no extra dependencies)
-3. **Pre-computed vectors** — `FeatureService.for_precomputed(dim)` (no extra dependencies)
+### Embedding paths
+
+| Path | Install | What you provide | Model download |
+|------|---------|------------------|----------------|
+| **Default** | `pip install paretobandit[embeddings]` | Nothing — pass string prompts to `route()` | [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) (~90 MB download, ~175 MB on disk). Downloads automatically on first use; pre-download with `paretobandit --download-models`. |
+| **Custom encoder** | `pip install paretobandit` | A callable `fn(str) -> np.ndarray` | Your choice — no sentence-transformers dependency needed. |
+| **Precomputed vectors** | `pip install paretobandit` | `np.ndarray` feature vectors | None — no model loaded at all. |
 
 ### Bundled PCA Artifact
 
-A pre-trained PCA artifact (`pca_25.joblib`) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on ~46K LMSYS Arena prompts (independent of ParetoBandit's experimental splits) using the default encoder (`all-MiniLM-L6-v2`). The 25 components compress 384-dimensional embeddings down to 26-dimensional feature vectors (25 PCA + 1 bias term).
+A pre-trained PCA artifact (`pca_25.joblib`) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on ~46K [LMSYS Chatbot Arena](https://huggingface.co/datasets/lmsys/chatbot_arena_conversations) prompts (independent of ParetoBandit's experimental splits) using the default encoder (`all-MiniLM-L6-v2`). The 25 components compress 384-dimensional embeddings down to 26-dimensional feature vectors (25 PCA + 1 bias term).
 
-To replace it with a domain-specific PCA, pass `pca_path` to the constructor or use `train_pca()` to generate one from your own prompts (see [Calibration API](#calibration-api)).
+**Using your own PCA:**
+
+| Scenario | What to do |
+|----------|------------|
+| Different encoder model | The shipped PCA only matches `all-MiniLM-L6-v2`. Use `train_pca()` on your own prompt corpus to generate a compatible artifact. |
+| Domain-specific prompts (e.g., medical, legal, code) | A PCA trained on your domain may capture more relevant variance. Use `train_pca()` with the default encoder and your prompts. |
+| Bring a pre-built PCA | Pass any scikit-learn `PCA` object saved with joblib via `pca_path="my_pca.joblib"`. |
+| Skip PCA entirely | Use raw embeddings with a custom encoder (omit `pca_path`), or pass precomputed vectors via `FeatureService.for_precomputed()`. |
+
+See [`train_pca()`](#calibration-api) for the full API.
 
 ### Constructor
 

@@ -58,7 +58,7 @@ ParetoBandit builds on the strengths of prior routing work and adds the machiner
 
 ParetoBandit frames LLM routing as a **contextual bandit** problem ([paper, Section 2, p. 2](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)). If you're familiar with LinUCB from the recommender systems literature, that's the backbone. What ParetoBandit adds on top are two ingredients designed specifically for messy production deployments: **dollar-denominated per-request budget ceilings** enforced in closed loop, and **non-stationarity handling** that lets the system adapt continuously when model quality or pricing shifts mid-deployment.
 
-When a prompt arrives, the router encodes it into a compact feature vector (using a lightweight sentence embedding + PCA; [paper, Section 2.1, p. 2](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)), then selects the model with the highest score ([paper, Eq. 2, p. 3](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)):
+When a prompt arrives, the router encodes it into a compact feature vector and selects the model with the highest score ([paper, Eq. 2, p. 3](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)). The default pipeline embeds the prompt with a lightweight sentence-transformer ([all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), ~90 MB) and compresses it to 25 dimensions via a PCA projection trained on ~46K [LMSYS Arena](https://huggingface.co/datasets/lmsys/chatbot_arena_conversations) prompts. You can swap in your own encoder or PCA — see the [Feature Engineering docs](https://github.com/ParetoBandit/ParetoBandit#feature-engineering).
 
 <p align="center">
 <img src="figures/eq2_arm_selection.png" alt="Equation 2: Budget-aware arm selection" width="470">
@@ -142,6 +142,8 @@ ParetoBandit ships with a full demo and an **interactive notebook** so you can e
 pip install paretobandit[demo]
 ```
 
+This installs the default embedding model ([all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), ~90 MB download) that the router uses to understand prompt content. The model downloads automatically on first use. If you already have your own embedding pipeline, `pip install paretobandit` gives you the core package without the sentence-transformer dependency — just pass your encoder or precomputed vectors to the router (see the [Feature Engineering docs](https://github.com/ParetoBandit/ParetoBandit#feature-engineering)).
+
 **Option 1: The interactive notebook (recommended).** The [demo playground notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb) walks you through loading data, running trials, and sweeping parameters step by step. You can see the effect of each knob immediately. Here's a taste, running three trials with different cost aversion settings:
 
 ```python
@@ -180,6 +182,23 @@ The demo also reveals how three key configuration knobs shape the model mix:
 
 ![Configuration Comparison](figures/scenario4_config_comparison.png)
 *How each knob shapes the model mix.* **Left:** `alpha` controls exploration vs. exploitation; higher values explore more aggressively. **Center:** `forgetting_factor` controls adaptation speed; lower values forget faster. **Right:** `cost_penalty` sets the baseline cost aversion; higher values push toward cheaper models.
+
+**Bring your own models.** The demo uses the paper's three-model portfolio, but ParetoBandit works with any set of models. Just pass a registry with your model names and token costs:
+
+```python
+from pareto_bandit import BanditRouter
+
+registry = {
+    "gpt-4o":        {"input_cost_per_m": 2.50, "output_cost_per_m": 10.00},
+    "claude-3-haiku": {"input_cost_per_m": 0.25, "output_cost_per_m": 1.25},
+    "llama-3-70b":   {"input_cost_per_m": 0.50, "output_cost_per_m": 0.50},
+}
+
+router = BanditRouter.create(model_registry=registry, priors="none")
+model, log = router.route("Explain quantum computing", max_cost=0.005)
+```
+
+No offline training or labelled data needed — the bandit learns from live traffic. You can also hot-swap models at runtime with `router.register_model()`. See the [API Reference](https://github.com/ParetoBandit/ParetoBandit/blob/main/docs/API_REFERENCE.md) for full details.
 
 ---
 

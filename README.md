@@ -12,6 +12,10 @@
 It enforces dollar-denominated per-request budgets, adapts online to price and quality shifts,
 and onboards new models at runtime — all with sub-millisecond routing latency on CPU.
 
+ParetoBandit uses **prompt embeddings** to make context-aware routing decisions — different
+prompts get routed to different models based on their content. A default embedding model
+is included, or you can plug in your own encoder.
+
 > **Paper:** *ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving*
 > **Author:** Annette Taberner-Miller
 
@@ -28,23 +32,31 @@ and onboards new models at runtime — all with sub-millisecond routing latency 
 
 ## Installation
 
-The Quick Start example uses the built-in embedding pipeline, which requires PyTorch and sentence-transformers:
+ParetoBandit needs prompt embeddings to route by content. The default pipeline uses
+[all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2),
+a lightweight sentence-transformer (~90 MB download, ~175 MB on disk).
+Install with PyTorch and sentence-transformers included:
 
 ```bash
 pip install paretobandit[embeddings]
 ```
 
-With the interactive demo (adds matplotlib):
+The model downloads automatically on first use. To pre-download (useful for Docker/CI):
 
 ```bash
-pip install paretobandit[demo]
+paretobandit --download-models
 ```
 
-Core only (for precomputed features or custom encoders):
+**Other install options:**
 
 ```bash
-pip install paretobandit
+pip install paretobandit[demo]        # embeddings + matplotlib for interactive demo
+pip install paretobandit              # core only (for custom encoders or precomputed vectors)
 ```
+
+If you already have an embedding pipeline (e.g., OpenAI embeddings, a fine-tuned encoder,
+or precomputed vectors from an upstream service), install core-only and bring your own —
+see [Feature Engineering](#feature-engineering) below.
 
 For development (from source):
 
@@ -72,6 +84,49 @@ print(f"Model: {model}, Cost: ${log.cost_usd:.6f}")
 router.process_feedback(log.request_id, reward=0.85)
 ```
 
+### Bring Your Own Models
+
+Pass a `model_registry` dict with your model names and token costs ($/M tokens).
+The router learns which model to call for each prompt from live traffic — no offline
+training or labelled data required.
+
+```python
+from pareto_bandit import BanditRouter
+
+registry = {
+    "gpt-4o": {
+        "input_cost_per_m": 2.50,
+        "output_cost_per_m": 10.00,
+    },
+    "claude-3-haiku": {
+        "input_cost_per_m": 0.25,
+        "output_cost_per_m": 1.25,
+    },
+    "llama-3-70b": {
+        "input_cost_per_m": 0.50,
+        "output_cost_per_m": 0.50,
+    },
+}
+
+router = BanditRouter.create(model_registry=registry, priors="none")
+model, log = router.route("Explain quantum computing", max_cost=0.005)
+```
+
+You can also add models at runtime — the bandit explores the newcomer and discovers
+its niche automatically:
+
+```python
+router.register_model(
+    "gemini-2.0-flash",
+    speed="fast",
+    input_cost_per_m=0.10,
+    output_cost_per_m=0.40,
+)
+```
+
+See the [API Reference](docs/API_REFERENCE.md) for the full cost specification options
+(`blended_cost_per_m`, speed profiles, latency, and more).
+
 **CLI usage:**
 
 ```bash
@@ -86,14 +141,19 @@ paretobandit --download-models
 
 ## Feature Engineering
 
-ParetoBandit supports three embedding paths, from turnkey to fully custom:
+The router needs a numeric representation of each prompt to learn which model handles which
+kind of request. ParetoBandit supports three embedding paths, from turnkey to fully custom:
 
 ### 1. Default pipeline (requires `embeddings` extra)
 
-The default uses [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) with a shipped 25-component PCA projection trained on 80K prompts from the paper's evaluation corpus.
+Uses [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+(~90 MB download) with a shipped 25-component PCA projection, compressing 384-dim embeddings
+to a 26-dim feature vector (25 PCA + 1 bias). The PCA was trained on ~46K prompts from the
+[LMSYS Chatbot Arena](https://huggingface.co/datasets/lmsys/chatbot_arena_conversations)
+dataset and ships inside the package. No configuration needed.
 
 ```python
-router = BanditRouter.create()  # loads pca_25.joblib automatically
+router = BanditRouter.create()  # downloads model on first use, loads PCA automatically
 ```
 
 ### 2. Custom encoder
@@ -130,16 +190,21 @@ features = np.random.randn(25)
 model, log = router.route(features, max_cost=0.01)
 ```
 
-### Training a custom PCA
+### Training your own PCA
 
-When using a different SentenceTransformer model, the shipped PCA is incompatible. Generate a matching artifact with `train_pca`:
+The shipped PCA (`pca_25.joblib`) was trained on general-purpose LMSYS Arena prompts.
+You may want to train your own PCA if:
+
+- You are using a **different encoder** (the shipped PCA only matches `all-MiniLM-L6-v2`).
+- Your prompts are **domain-specific** (e.g., medical, legal, code-only) and a PCA
+  trained on your domain may capture more relevant variance.
 
 ```python
 from pareto_bandit import train_pca
 
 pca = train_pca(
     prompts=my_prompt_corpus,           # list[str], >=100 recommended
-    encoder_model="your-model-name",
+    encoder_model="your-model-name",    # or "all-MiniLM-L6-v2" for domain-specific PCA
     n_components=25,
     output_path="my_pca.joblib",
 )
@@ -299,6 +364,21 @@ paretobandit/
 
 Full dependency specifications are in [`pyproject.toml`](pyproject.toml).
 A pinned lockfile for exact reproduction of paper results is available in [`requirements-lock.txt`](requirements-lock.txt).
+
+---
+
+## Citing ParetoBandit
+
+If you use ParetoBandit in your research or product, please cite:
+
+```bibtex
+@software{taberner-miller2026paretobandit,
+  author       = {Taberner-Miller, Annette},
+  title        = {{ParetoBandit}: Budget-Paced Adaptive Routing for Non-Stationary {LLM} Serving},
+  year         = {2026},
+  url          = {https://github.com/ParetoBandit/ParetoBandit},
+}
+```
 
 ---
 
