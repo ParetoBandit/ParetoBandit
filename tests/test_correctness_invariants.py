@@ -30,8 +30,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import copy
-import time
-from collections import defaultdict
 
 import numpy as np
 import pytest
@@ -39,11 +37,9 @@ import pytest
 from pareto_bandit.router import (
     BanditRouter,
     DisjointLinUCBPolicy,
-    NoModelScoredError,
     RouterConfig,
     calibrate_priors,
 )
-
 
 # =============================================================================
 # Bug 1: Stale A_inv after decay
@@ -208,7 +204,8 @@ class TestBug4_DequeMaxlenFromInstanceConfig:
         We patch BanditRouter.__init__ minimally to avoid loading the full
         SentenceTransformer, while still exercising the deque initialisation.
         """
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
+
         from pareto_bandit.router import BanditRouter
 
         custom_cfg = RouterConfig(max_log_size=42)
@@ -922,7 +919,6 @@ class TestR5M2_ComplexityWeightsRemoved:
 
     def test_register_model_no_warning(self):
         """Registering a model should not produce 'Unknown feature' warnings."""
-        import logging
         registry = {
             "model_a": {
                 "model_id": "test/model-a",
@@ -1022,7 +1018,7 @@ class TestCalibrationUserContexts:
         bandit_default.b['m1'] = b_exploded.copy()
         bandit_default.refresh_inverse_cache()
         calibrate_priors(bandit_default)
-        theta_default = bandit_default.A_inv['m1'] @ bandit_default.b['m1']
+        bandit_default.A_inv['m1'] @ bandit_default.b['m1']
 
         bandit_user = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
         bandit_user.A['m1'] = A.copy()

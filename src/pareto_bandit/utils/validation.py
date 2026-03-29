@@ -5,24 +5,26 @@ Functions for computing statistical metrics, cluster quality, and data quality m
 Used across experiments to ensure methodological rigor.
 """
 
-import numpy as np
-from scipy import stats
-from scipy.spatial.distance import pdist, squareform, cdist
-from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from collections import Counter
+from typing import Any
 
+import numpy as np
+import numpy.typing as npt
+from scipy import stats
+from scipy.spatial.distance import cdist, pdist, squareform
+from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
 # ============================================================================
 # Statistical Validation Functions
 # ============================================================================
 
 def compute_statistical_metrics(
-    group1,
-    group2,
+    group1: npt.ArrayLike,
+    group2: npt.ArrayLike,
     *,
     n_resamples: int = 9999,
     random_state: np.random.Generator | int | None = 0,
-):
+) -> dict[str, float]:
     """Compute comprehensive statistical metrics comparing two independent groups.
 
     All tests are distribution-free (no normality assumption):
@@ -61,7 +63,7 @@ def compute_statistical_metrics(
 
     _, mann_whitney_p = stats.mannwhitneyu(g1, g2, alternative='two-sided')
 
-    def _mean_diff(x, y, axis):
+    def _mean_diff(x: np.ndarray, y: np.ndarray, axis: int) -> Any:
         return np.mean(x, axis=axis) - np.mean(y, axis=axis)
 
     perm_result = stats.permutation_test(
@@ -101,10 +103,10 @@ def compute_statistical_metrics(
     }
 
 
-def evaluate_threshold(X_pca, reward_gaps, threshold):
+def evaluate_threshold(X_pca: np.ndarray, reward_gaps: np.ndarray, threshold: float) -> dict[str, Any] | None:
     """
     Evaluate a threshold on PC1 for cluster separation quality.
-    
+
     Parameters:
     -----------
     X_pca : np.ndarray
@@ -113,20 +115,20 @@ def evaluate_threshold(X_pca, reward_gaps, threshold):
         Reward gaps for each sample (N,)
     threshold : float
         Threshold value for PC1
-    
+
     Returns:
     --------
     dict with clustering metrics and statistical significance, or None if invalid
     """
     pc1 = X_pca[:, 0]
     labels = (pc1 >= threshold).astype(int)
-    
+
     # Check if we have both clusters
     if len(np.unique(labels)) < 2:
         return None
-    
+
     X_2d = X_pca[:, :2]
-    
+
     # Compute cluster quality metrics
     try:
         silhouette = silhouette_score(X_2d, labels)
@@ -134,26 +136,26 @@ def evaluate_threshold(X_pca, reward_gaps, threshold):
         calinski = calinski_harabasz_score(X_2d, labels)
     except Exception:
         return None
-    
+
     # Compute reward gap statistics
     gaps_low = reward_gaps[labels == 0]
     gaps_high = reward_gaps[labels == 1]
-    
+
     if len(gaps_low) == 0 or len(gaps_high) == 0:
         return None
-    
+
     mean_diff = abs(np.mean(gaps_low) - np.mean(gaps_high))
-    
+
     # Statistical significance
     try:
         _, p_value = stats.mannwhitneyu(gaps_low, gaps_high, alternative='two-sided')
     except Exception:
         p_value = 1.0
-    
+
     # Cluster balance
     prop_low = np.mean(labels == 0)
     balance = min(prop_low, 1 - prop_low)
-    
+
     return {
         'threshold': threshold,
         'silhouette': silhouette,
@@ -169,24 +171,24 @@ def evaluate_threshold(X_pca, reward_gaps, threshold):
     }
 
 
-def compute_cluster_quality(X, labels):
+def compute_cluster_quality(X: np.ndarray, labels: np.ndarray) -> dict[str, Any] | None:
     """
     Compute cluster quality metrics for given embeddings and labels.
-    
+
     Parameters:
     -----------
     X : np.ndarray
         Data points (N x d)
     labels : np.ndarray
         Cluster labels (N,)
-    
+
     Returns:
     --------
     dict with silhouette, davies_bouldin, and calinski scores, or None if invalid
     """
     if len(np.unique(labels)) < 2:
         return None
-    
+
     try:
         sample_size = min(5000, len(X))
         if len(X) > sample_size:
@@ -197,11 +199,11 @@ def compute_cluster_quality(X, labels):
         else:
             X_sample = X
             labels_sample = labels
-        
+
         silhouette = silhouette_score(X_sample, labels_sample)
         davies_bouldin = davies_bouldin_score(X, labels)
         calinski = calinski_harabasz_score(X, labels)
-        
+
         return {
             'silhouette': silhouette,
             'davies_bouldin': davies_bouldin,
@@ -209,14 +211,14 @@ def compute_cluster_quality(X, labels):
             'n_samples': len(X),
             'n_clusters': len(np.unique(labels))
         }
-    except Exception as e:
+    except Exception:
         return None
 
 
-def analyze_high_d_separation(X_high_d, pc1_values, threshold):
+def analyze_high_d_separation(X_high_d: np.ndarray, pc1_values: np.ndarray, threshold: float) -> dict[str, Any] | None:
     """
     Analyze cluster separation in high-dimensional space.
-    
+
     Parameters:
     -----------
     X_high_d : np.ndarray
@@ -225,37 +227,37 @@ def analyze_high_d_separation(X_high_d, pc1_values, threshold):
         PC1 values for each sample (N,)
     threshold : float
         Threshold for PC1 clustering
-    
+
     Returns:
     --------
     dict with separation metrics, or None if invalid
     """
     labels = (pc1_values >= threshold).astype(int)
-    
+
     if len(np.unique(labels)) < 2:
         return None
-    
+
     # Compute centroids
     centroid_low = X_high_d[labels == 0].mean(axis=0)
     centroid_high = X_high_d[labels == 1].mean(axis=0)
-    
+
     # Within-cluster distances
-    within_low = cdist(X_high_d[labels == 0], centroid_low.reshape(1, -1), 
+    within_low = cdist(X_high_d[labels == 0], centroid_low.reshape(1, -1),
                        metric='euclidean').mean()
-    within_high = cdist(X_high_d[labels == 1], centroid_high.reshape(1, -1), 
+    within_high = cdist(X_high_d[labels == 1], centroid_high.reshape(1, -1),
                         metric='euclidean').mean()
-    
+
     # Between-cluster distance
     between = np.linalg.norm(centroid_high - centroid_low)
-    
+
     # Average within-cluster distance
     n_low = np.sum(labels == 0)
     n_high = np.sum(labels == 1)
     avg_within = (within_low * n_low + within_high * n_high) / len(labels)
-    
+
     # Separation ratio
     separation_ratio = between / avg_within if avg_within > 0 else 0
-    
+
     return {
         'within_low': within_low,
         'within_high': within_high,
@@ -269,15 +271,15 @@ def analyze_high_d_separation(X_high_d, pc1_values, threshold):
 # Data Quality Functions
 # ============================================================================
 
-def find_exact_duplicates(items):
+def find_exact_duplicates(items: list[Any]) -> dict[str, Any]:
     """
     Find exact duplicates in a list.
-    
+
     Parameters:
     -----------
     items : list
         List of items (strings, etc.)
-    
+
     Returns:
     --------
     dict with counts and duplicate items
@@ -285,7 +287,7 @@ def find_exact_duplicates(items):
     item_counts = Counter(items)
     duplicates = {item: count for item, count in item_counts.items() if count > 1}
     unique_items = set(items)
-    
+
     return {
         'total_items': len(items),
         'unique_items': len(unique_items),
@@ -295,24 +297,24 @@ def find_exact_duplicates(items):
     }
 
 
-def find_near_duplicates(embeddings, threshold=0.95):
+def find_near_duplicates(embeddings: np.ndarray, threshold: float = 0.95) -> list[dict[str, Any]]:
     """
     Find near-duplicates based on cosine similarity.
-    
+
     Parameters:
     -----------
     embeddings : np.ndarray
         Embedding vectors (N x d)
     threshold : float
         Similarity threshold (default: 0.95)
-    
+
     Returns:
     --------
     list of near-duplicate pairs with indices and similarity scores
     """
     # Compute pairwise cosine similarities
     similarities = 1 - squareform(pdist(embeddings, metric='cosine'))
-    
+
     near_duplicates = []
     for i in range(len(embeddings)):
         for j in range(i + 1, len(embeddings)):
@@ -322,34 +324,34 @@ def find_near_duplicates(embeddings, threshold=0.95):
                     'idx2': j,
                     'similarity': similarities[i, j]
                 })
-    
+
     return near_duplicates
 
 
-def compute_diversity_score(embeddings):
+def compute_diversity_score(embeddings: np.ndarray) -> float:
     """
     Compute diversity score as 1 - average pairwise similarity.
-    
+
     Parameters:
     -----------
     embeddings : np.ndarray
         Embedding vectors (N x d)
-    
+
     Returns:
     --------
     float between 0 (no diversity) and 1 (maximum diversity)
     """
     if len(embeddings) < 2:
         return 0.0
-    
+
     # Compute average pairwise cosine similarity
     similarities = 1 - squareform(pdist(embeddings, metric='cosine'))
-    
+
     # Get upper triangle (exclude diagonal)
     upper_triangle = similarities[np.triu_indices_from(similarities, k=1)]
     avg_similarity = np.mean(upper_triangle)
-    
+
     # Diversity is 1 - similarity
     diversity = 1 - avg_similarity
-    
-    return diversity
+
+    return float(diversity)

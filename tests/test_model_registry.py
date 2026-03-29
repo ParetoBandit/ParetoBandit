@@ -21,12 +21,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-import numpy as np
-import pytest
 from unittest.mock import MagicMock
 
-from pareto_bandit.router import BanditRouter, RouterConfig
+import numpy as np
+import pytest
 
+from pareto_bandit.router import BanditRouter, RouterConfig
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -57,11 +57,11 @@ def _mock_feature_service(dim: int = DIM) -> MagicMock:
 
 
 def _make_router(registry: dict, **kwargs) -> BanditRouter:
-    defaults = dict(
-        model_registry=registry,
-        priors="none",
-        feature_service=_mock_feature_service(),
-    )
+    defaults = {
+        "model_registry": registry,
+        "priors": "none",
+        "feature_service": _mock_feature_service(),
+    }
     defaults.update(kwargs)
     return BanditRouter.create(**defaults)
 
@@ -191,20 +191,19 @@ class TestRegisterModel:
         assert entry["cost_per_1m_tokens"] == 3.75
         assert entry["median_latency_s"] == 1.2
 
-    def test_register_without_cost_uses_pessimistic_default(self):
-        """Omitting cost_usd should use the config's pessimistic default."""
-        config = RouterConfig()
-        router = _make_router({"existing": WELL_FORMED_MODEL})
-        router.register_model("cheap-mystery")
+    def test_register_without_cost_raises_missing_cost_error(self):
+        """Omitting all cost fields should raise MissingCostError."""
+        from pareto_bandit.exceptions import MissingCostError
 
-        entry = router.registry["cheap-mystery"]
-        assert entry["cost_per_1m_tokens"] == config.registration.default_cost_per_1m
+        router = _make_router({"existing": WELL_FORMED_MODEL})
+        with pytest.raises(MissingCostError, match="no cost information"):
+            router.register_model("cheap-mystery")
 
     def test_register_without_latency_uses_pessimistic_default(self):
         """Omitting latency_s should use the config's pessimistic default."""
         config = RouterConfig()
         router = _make_router({"existing": WELL_FORMED_MODEL})
-        router.register_model("slow-mystery")
+        router.register_model("slow-mystery", input_cost_per_m=1.0, output_cost_per_m=3.0)
 
         entry = router.registry["slow-mystery"]
         assert entry["median_latency_s"] == config.registration.default_latency_s
@@ -322,20 +321,15 @@ class TestCostLatencyFields:
 
 class TestMissingMetadata:
 
-    def test_missing_cost_fields_use_pessimistic_default(self):
-        """Models without input_cost_per_m get the pessimistic fallback cost."""
-        config = RouterConfig()
+    def test_missing_cost_fields_raise_missing_cost_error(self):
+        """Models without input_cost_per_m should raise MissingCostError."""
+        from pareto_bandit.exceptions import MissingCostError
+
         registry = {
             "no-cost": {"model_id": "no-cost", "time_to_first_token_seconds": 0.5},
         }
-        router = _make_router(registry)
-
-        _, log = router.route(_ctx())
-
-        # Cost should use pessimistic default, not zero or infinity
-        expected_default = config.default_missing_cost_per_m
-        assert log.cost_usd > 0, "Cost should not be zero for missing fields"
-        assert np.isfinite(log.cost_usd), "Cost should not be infinity"
+        with pytest.raises(MissingCostError, match="no cost information"):
+            _make_router(registry)
 
     def test_missing_latency_uses_pessimistic_default(self):
         """Models without time_to_first_token_seconds get the pessimistic fallback latency."""
@@ -349,20 +343,20 @@ class TestMissingMetadata:
 
         assert log.latency_s == config.default_missing_latency
 
-    def test_model_with_no_metadata_still_routes(self):
-        """A bare-bones registry entry (just a key) should not crash routing."""
+    def test_model_with_no_metadata_raises_missing_cost_error(self):
+        """A bare-bones registry entry (no cost info) should raise MissingCostError."""
+        from pareto_bandit.exceptions import MissingCostError
+
         registry = {
             "bare-bones": {},
         }
-        router = _make_router(registry)
-
-        mid, log = router.route(_ctx())
-        assert mid == "bare-bones"
-        assert log.cost_usd > 0
-        assert log.latency_s > 0
+        with pytest.raises(MissingCostError, match="no cost information"):
+            _make_router(registry)
 
     def test_null_cost_fields_treated_as_missing(self):
-        """Explicit None values for cost should be treated same as absent."""
+        """Explicit None values for cost should raise MissingCostError."""
+        from pareto_bandit.exceptions import MissingCostError
+
         registry = {
             "null-cost": {
                 "input_cost_per_m": None,
@@ -370,14 +364,13 @@ class TestMissingMetadata:
                 "time_to_first_token_seconds": None,
             },
         }
-        config = RouterConfig()
-        router = _make_router(registry)
-
-        _, log = router.route(_ctx())
-        assert log.latency_s == config.default_missing_latency
+        with pytest.raises(MissingCostError, match="no cost information"):
+            _make_router(registry)
 
     def test_string_cost_fields_treated_as_missing(self):
-        """Non-numeric cost values should fall back to pessimistic defaults, not crash."""
+        """Non-numeric cost values should raise MissingCostError."""
+        from pareto_bandit.exceptions import MissingCostError
+
         registry = {
             "bad-types": {
                 "input_cost_per_m": "expensive",
@@ -385,12 +378,8 @@ class TestMissingMetadata:
                 "time_to_first_token_seconds": "fast",
             },
         }
-        router = _make_router(registry)
-
-        mid, log = router.route(_ctx())
-        assert mid == "bad-types"
-        assert np.isfinite(log.cost_usd)
-        assert np.isfinite(log.latency_s)
+        with pytest.raises(MissingCostError, match="no cost information"):
+            _make_router(registry)
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import logging
-import re
 import tempfile
 
 import joblib
@@ -23,11 +22,10 @@ import numpy as np
 import pytest
 
 from pareto_bandit.config import (
-    DEFAULT_PCA_PATH,
     _PACKAGE_ARTIFACTS_DIR,
     _PACKAGE_DIR,
+    DEFAULT_PCA_PATH,
 )
-
 
 # ---------------------------------------------------------------------------
 # Path resolution

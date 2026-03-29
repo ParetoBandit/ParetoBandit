@@ -1,13 +1,15 @@
-import threading
-import numpy as np
 import os
 import sys
+import threading
 import time
+
+import numpy as np
 
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
 from pareto_bandit.router import BanditRouter
+
 
 def test_concurrent_updates_and_reads():
     """
@@ -17,12 +19,12 @@ def test_concurrent_updates_and_reads():
     dim = 24
     router = BanditRouter.create()
     model_id = "meta-llama/llama-3.1-8b-instruct"
-    
+
     # Context vector
     x = np.random.randn(dim)
-    
+
     stop_event = threading.Event()
-    
+
     def writer_thread():
         """Aggressively update matrices."""
         while not stop_event.is_set():
@@ -47,18 +49,18 @@ def test_concurrent_updates_and_reads():
     # Launch threads
     writers = [threading.Thread(target=writer_thread) for _ in range(2)]
     readers = [threading.Thread(target=reader_thread) for _ in range(5)]
-    
-    print(f"🚀 Starting concurrency stress test (2 writers, 5 readers) for 5 seconds...")
+
+    print("🚀 Starting concurrency stress test (2 writers, 5 readers) for 5 seconds...")
     for t in writers + readers:
         t.daemon = True
         t.start()
-        
+
     time.sleep(5)
     stop_event.set()
-    
+
     for t in writers + readers:
         t.join(timeout=1)
-        
+
     print("✅ Concurrency test passed without crashes or state corruption.")
 
 if __name__ == "__main__":
@@ -66,13 +68,13 @@ if __name__ == "__main__":
     # or just use process_feedback if we can mock the request cache.
     # Actually BanditRouter.process_feedback requires a request_id.
     # Let's use router.bandit.update directly to keep it simple.
-    
+
     from pareto_bandit.router import BanditRouter
     router = BanditRouter.create()
     model_id = "meta-llama/llama-3.1-8b-instruct"
     dim = router.bandit.dim
     x = np.random.randn(dim)
-    
+
     stop_event = threading.Event()
     errors = []
 
@@ -94,13 +96,16 @@ if __name__ == "__main__":
     for _ in range(5):
         threads.append(threading.Thread(target=writer_loop))
         threads.append(threading.Thread(target=reader_loop))
-        
-    for t in threads: t.start()
-    for t in threads: t.join()
-    
+
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
     if errors:
         print(f"❌ Concurrency test FAILED with {len(errors)} errors:")
-        for e in errors: print(e)
+        for e in errors:
+            print(e)
         sys.exit(1)
     else:
         print("✅ Concurrency test PASSED (COW prevents state corruption)")

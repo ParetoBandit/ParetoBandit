@@ -35,7 +35,7 @@ If no usable field is present, returns ``NaN``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -54,7 +54,7 @@ _W_CONSTRAINT: float = 0.3
 _W_UTILITY: float = 0.2
 
 
-def _extract_v3_reward(judge: Dict[str, Any]) -> float | None:
+def _extract_v3_reward(judge: dict[str, Any]) -> float | None:
     """Compute composite reward from a v3 all-continuous rubric record.
 
     Returns ``None`` if the required v3 fields are missing.
@@ -71,7 +71,7 @@ def _extract_v3_reward(judge: Dict[str, Any]) -> float | None:
     return None
 
 
-def _extract_rubric_reward(judge: Dict[str, Any]) -> float | None:
+def _extract_rubric_reward(judge: dict[str, Any]) -> float | None:
     """Compute composite reward from a v2 rubric judge record.
 
     Returns ``None`` if the required rubric fields are missing.
@@ -88,7 +88,7 @@ def _extract_rubric_reward(judge: Dict[str, Any]) -> float | None:
     return None
 
 
-def _extract_legacy_reward(judge: Dict[str, Any]) -> float | None:
+def _extract_legacy_reward(judge: dict[str, Any]) -> float | None:
     """Compute reward from a v1 vote×confidence judge record.
 
     Returns ``None`` if the required fields are missing.
@@ -101,8 +101,8 @@ def _extract_legacy_reward(judge: Dict[str, Any]) -> float | None:
 
 
 def extract_reward(
-    entry: Dict[str, Any],
-    judge_id: Optional[str] = None,
+    entry: dict[str, Any],
+    judge_id: str | None = None,
 ) -> float:
     """Derive a continuous reward from a single data-file entry.
 
@@ -137,7 +137,7 @@ def extract_reward(
         Reward in [0, 1].  ``NaN`` when no usable field is present
         (or the requested *judge_id* is not found in this record).
     """
-    judges: List[Dict] | None = entry.get("judge_details")
+    judges: list[dict] | None = entry.get("judge_details")
     if judges:
         if judge_id is not None:
             judges = [j for j in judges if j.get("judge") == judge_id]

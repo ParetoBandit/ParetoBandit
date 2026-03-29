@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from typing import Dict, List
 
 import numpy as np
 import pytest
@@ -56,13 +55,13 @@ requires_pip_install = pytest.mark.skipif(
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-CHEAP_MODEL: Dict[str, float] = {
+CHEAP_MODEL: dict[str, float] = {
     "input_cost_per_m": 0.10,
     "output_cost_per_m": 0.10,
     "time_to_first_token_seconds": 0.2,
 }
 
-EXPENSIVE_MODEL: Dict[str, float] = {
+EXPENSIVE_MODEL: dict[str, float] = {
     "input_cost_per_m": 5.0,
     "output_cost_per_m": 15.0,
     "time_to_first_token_seconds": 0.8,
@@ -329,7 +328,7 @@ class TestBringYourOwnEmbedder:
         """
         from pareto_bandit import BanditRouter, FeatureService
 
-        call_log: List[str] = []
+        call_log: list[str] = []
         raw_dim = 20
 
         def spy_encoder(text: str) -> np.ndarray:
@@ -557,7 +556,7 @@ class TestBringYourOwnModelConfig:
                 quality_floor={"hle": 0.80},
             )
             assert model == "high-quality", (
-                f"Low-quality model selected despite quality_floor hle=0.80"
+                "Low-quality model selected despite quality_floor hle=0.80"
             )
 
     def test_custom_registry_cost_estimation_uses_exact_rates(self) -> None:
@@ -626,7 +625,7 @@ class TestBringYourOwnModelConfig:
             router.update("reward-winner", x_str, reward=0.95)
             router.update("reward-loser", x_str, reward=0.05)
 
-        counts: Dict[str, int] = {"reward-winner": 0, "reward-loser": 0}
+        counts: dict[str, int] = {"reward-winner": 0, "reward-loser": 0}
         with router.exploit():
             for i in range(50):
                 model, _ = router.route(f"evaluation prompt {i}")
@@ -741,7 +740,7 @@ class TestCalibrationAPI:
             train_pca([], encoder_model="all-MiniLM-L6-v2")
 
     def test_generate_warmup_priors_roundtrip(self, tmp_path) -> None:
-        from pareto_bandit import train_pca, generate_warmup_priors
+        from pareto_bandit import generate_warmup_priors, train_pca
 
         prompts = [f"Warmup prompt {i}" for i in range(100)]
         pca = train_pca(
@@ -774,7 +773,7 @@ class TestCalibrationAPI:
 
     def test_generated_priors_loadable_by_router(self, tmp_path) -> None:
         """Full roundtrip: train PCA, generate priors, load into a router."""
-        from pareto_bandit import BanditRouter, FeatureService, train_pca, generate_warmup_priors
+        from pareto_bandit import BanditRouter, FeatureService, generate_warmup_priors, train_pca
 
         prompts = [f"Roundtrip prompt {i}" for i in range(100)]
         pca = train_pca(

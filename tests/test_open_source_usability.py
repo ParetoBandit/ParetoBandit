@@ -22,8 +22,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from pareto_bandit.router import BanditRouter, RouterConfig
 from pareto_bandit.feature_service import FeatureService
+from pareto_bandit.router import BanditRouter, RouterConfig
 
 # ---------------------------------------------------------------------------
 # Shared fixtures and helpers
@@ -68,11 +68,11 @@ def _mock_feature_service(dim: int = DIM) -> MagicMock:
 
 
 def _make_router(registry: dict, **kwargs) -> BanditRouter:
-    defaults = dict(
-        model_registry=registry,
-        priors="none",
-        feature_service=_mock_feature_service(),
-    )
+    defaults = {
+        "model_registry": registry,
+        "priors": "none",
+        "feature_service": _mock_feature_service(),
+    }
     defaults.update(kwargs)
     return BanditRouter.create(**defaults)
 
@@ -131,7 +131,7 @@ class TestConfigurableRewardRange:
         _, log = router.route(x)
 
         # Reward of 5.0 should be clamped to 1.0
-        theta_before = router.bandit.theta[log.selected_model].copy()
+        router.bandit.theta[log.selected_model].copy()
         router.process_feedback(log.request_id, reward=5.0)
 
         # Now give a clean reward=1.0 on a fresh route to compare
@@ -327,14 +327,13 @@ class TestRegisterModelExplicitCosts:
         assert entry["output_cost_per_m"] == pytest.approx(3.00)
         assert entry["blended_cost_per_m"] == pytest.approx(2.00)
 
-    def test_no_cost_info_uses_pessimistic_defaults(self):
-        """Tier 4: No cost info at all should use pessimistic defaults."""
-        cfg = RouterConfig()
-        router = _make_router({"seed": CHEAP_MODEL})
-        router.register_model("mystery-model")
+    def test_no_cost_info_raises_missing_cost_error(self):
+        """Tier 4: No cost info at all should raise MissingCostError."""
+        from pareto_bandit.exceptions import MissingCostError
 
-        entry = router.registry["mystery-model"]
-        assert entry["input_cost_per_m"] == cfg.registration.default_cost_per_1m
+        router = _make_router({"seed": CHEAP_MODEL})
+        with pytest.raises(MissingCostError, match="no cost information"):
+            router.register_model("mystery-model")
 
     def test_explicit_costs_override_cost_usd(self):
         """Explicit input/output pair takes precedence over cost_usd."""

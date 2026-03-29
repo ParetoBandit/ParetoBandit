@@ -154,6 +154,7 @@ class TestPrecomputedFeatures:
 
     def test_precomputed_features(self) -> None:
         import numpy as np
+
         from pareto_bandit import BanditRouter
         from pareto_bandit.feature_service import FeatureService
 

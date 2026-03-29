@@ -8,13 +8,12 @@ covariance structure.
 from __future__ import annotations
 
 import random
-from typing import Dict, List
 
 # ---------------------------------------------------------------------------
 # Archetype templates
 # ---------------------------------------------------------------------------
 
-ARCHETYPE_TEMPLATES: Dict[str, List[str]] = {
+ARCHETYPE_TEMPLATES: dict[str, list[str]] = {
     "math": [
         "Solve the integral of {expr} with respect to {var}",
         "Prove that {theorem} using mathematical induction",
@@ -52,7 +51,7 @@ ARCHETYPE_TEMPLATES: Dict[str, List[str]] = {
     ],
 }
 
-PLACEHOLDER_VALUES: Dict[str, List[str]] = {
+PLACEHOLDER_VALUES: dict[str, list[str]] = {
     "expr": ["x^2 + 3x + 2", "sin(x)cos(x)", "e^(2x)", "ln(x^2)"],
     "var": ["x", "y", "t", "theta"],
     "theorem": ["Fermat's Last Theorem", "the Pythagorean identity", "Euler's formula"],
@@ -87,7 +86,7 @@ PLACEHOLDER_VALUES: Dict[str, List[str]] = {
 }
 
 
-def generate_synthetic_prompts(n: int = 1000, seed: int = 42) -> List[str]:
+def generate_synthetic_prompts(n: int = 1000, seed: int = 42) -> list[str]:
     """Generate *n* synthetic prompts by sampling archetype templates.
 
     Each prompt is built by choosing a random archetype (math, coding,
@@ -105,7 +104,7 @@ def generate_synthetic_prompts(n: int = 1000, seed: int = 42) -> List[str]:
     """
     rng = random.Random(seed)
     archetype_keys = list(ARCHETYPE_TEMPLATES.keys())
-    prompts: List[str] = []
+    prompts: list[str] = []
 
     for _ in range(n):
         archetype = rng.choice(archetype_keys)

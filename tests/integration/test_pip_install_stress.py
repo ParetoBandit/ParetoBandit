@@ -18,14 +18,11 @@ import concurrent.futures
 import importlib
 import subprocess
 import sys
-import tempfile
 import threading
 from pathlib import Path
-from typing import Dict, List
 
 import numpy as np
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # 0. Import Smoke Tests
@@ -87,8 +84,9 @@ class TestImportSmoke:
             assert mod is not None, f"Failed to import {name}"
 
     def test_version_is_pep440(self) -> None:
-        from pareto_bandit import __version__
         from importlib.metadata import version
+
+        from pareto_bandit import __version__
 
         installed_version = version("paretobandit")
         assert installed_version == __version__
@@ -100,13 +98,13 @@ class TestImportSmoke:
 
 DIM = 16
 
-CHEAP_MODEL: Dict[str, float] = {
+CHEAP_MODEL: dict[str, float] = {
     "input_cost_per_m": 0.10,
     "output_cost_per_m": 0.10,
     "time_to_first_token_seconds": 0.2,
 }
 
-EXPENSIVE_MODEL: Dict[str, float] = {
+EXPENSIVE_MODEL: dict[str, float] = {
     "input_cost_per_m": 5.0,
     "output_cost_per_m": 15.0,
     "time_to_first_token_seconds": 0.8,
@@ -123,8 +121,8 @@ def _ctx(seed: int = 0, dim: int = DIM) -> np.ndarray:
 def _make_router(**overrides):
     from pareto_bandit import BanditRouter, FeatureService
 
-    defaults = dict(
-        model_registry={
+    defaults = {
+        "model_registry": {
             "cheap-model": CHEAP_MODEL,
             "mid-model": {
                 "input_cost_per_m": 1.50,
@@ -133,9 +131,9 @@ def _make_router(**overrides):
             },
             "expensive-model": EXPENSIVE_MODEL,
         },
-        priors="none",
-        feature_service=FeatureService.for_precomputed(DIM),
-    )
+        "priors": "none",
+        "feature_service": FeatureService.for_precomputed(DIM),
+    }
     defaults.update(overrides)
     return BanditRouter.create(**defaults)
 
@@ -149,6 +147,7 @@ class TestShippedArtifacts:
 
     def test_pca_artifact_loadable(self) -> None:
         import joblib
+
         from pareto_bandit.config import DEFAULT_PCA_PATH
 
         assert DEFAULT_PCA_PATH.exists(), (
@@ -160,6 +159,7 @@ class TestShippedArtifacts:
 
     def test_warmup_priors_loadable(self) -> None:
         import joblib
+
         from pareto_bandit.config import DEFAULT_WARMUP_PRIORS_PATH
 
         assert DEFAULT_WARMUP_PRIORS_PATH.exists(), (
@@ -173,6 +173,7 @@ class TestShippedArtifacts:
 
     def test_models_json_loadable(self) -> None:
         import json
+
         from pareto_bandit.config import DEFAULT_MODEL_REGISTRY_PATH
 
         assert DEFAULT_MODEL_REGISTRY_PATH.exists()
@@ -684,8 +685,8 @@ class TestConcurrencyStress:
     @pytest.mark.stress
     def test_concurrent_routing_10_threads(self) -> None:
         router = _make_router()
-        errors: List[Exception] = []
-        results: List[str] = []
+        errors: list[Exception] = []
+        results: list[str] = []
         lock = threading.Lock()
 
         def route_worker(thread_id: int) -> None:

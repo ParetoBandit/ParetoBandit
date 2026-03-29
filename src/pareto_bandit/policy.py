@@ -27,18 +27,19 @@ Empirical validation: See ``benchmarks/diagnose_performance.py``.
 from __future__ import annotations
 
 import copy
-import json
 import logging
-import math
 import threading
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
+
+if TYPE_CHECKING:
+    from pareto_bandit.types import RouterConfig
 
 import numpy as np
 
-from pareto_bandit.utils import sigmoid, safe_inv, argmax_random_tiebreak
+from pareto_bandit.utils import argmax_random_tiebreak, safe_inv
 
 logger = logging.getLogger(__name__)
 
@@ -166,8 +167,8 @@ def _inflate_variance(
 
 def _effective_staleness(
     t: int,
-    last_update: Dict[str, int],
-    last_played: Dict[str, int],
+    last_update: dict[str, int],
+    last_played: dict[str, int],
     model: str,
 ) -> int:
     """Request-count intervals since the most recent event for *model*.
@@ -359,7 +360,7 @@ class DisjointLinUCBPolicy:
 
     def __init__(
         self,
-        model_names: List[str],
+        model_names: list[str],
         dim: int = 384,
         alpha: float = 0.01,
         init_lambda: float = 1.0,
@@ -417,7 +418,7 @@ class DisjointLinUCBPolicy:
         self.reg_floor_fraction = float(reg_floor_fraction)
         self.max_var_inflation = float(max_var_inflation)
 
-        self.model_locks: Dict[str, threading.Lock] = {
+        self.model_locks: dict[str, threading.Lock] = {
             m: threading.Lock() for m in self.models
         }
         self._lock = threading.Lock()
@@ -429,15 +430,15 @@ class DisjointLinUCBPolicy:
 
         # Cached theta = A_inv @ b.  Avoids an O(d^2) matrix-vector product
         # per candidate on every select_arm() call (hot path becomes O(d) dot).
-        self.theta: Dict[str, np.ndarray] = {
+        self.theta: dict[str, np.ndarray] = {
             m: self.A_inv[m] @ self.b[m] for m in self.models
         }
 
-        self.last_update = {m: 0 for m in self.models}
-        self.last_played = {m: 0 for m in self.models}
+        self.last_update = dict.fromkeys(self.models, 0)
+        self.last_played = dict.fromkeys(self.models, 0)
         self.t = 0
 
-        self.regularization_floor = {m: self.init_lambda for m in self.models}
+        self.regularization_floor = dict.fromkeys(self.models, self.init_lambda)
 
     # ------------------------------------------------------------------
     # Reset / copy
@@ -459,7 +460,7 @@ class DisjointLinUCBPolicy:
 
         # Prepare fresh state outside any lock.
         eye = np.eye(self.dim) * self.init_lambda
-        fresh: Dict[str, tuple] = {}
+        fresh: dict[str, tuple] = {}
         for m in models_snapshot:
             A_new = eye.copy()
             b_new = np.zeros(self.dim, dtype=np.float64)
@@ -481,7 +482,7 @@ class DisjointLinUCBPolicy:
         with self._lock:
             self.t = 0
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]) -> DisjointLinUCBPolicy:
         """Custom deepcopy to handle thread locks.
 
         Locks cannot be pickled or deepcopied directly. We create new locks
@@ -565,9 +566,12 @@ class DisjointLinUCBPolicy:
         with model_lock:
             with self._lock:
                 self.models = [m for m in self.models if m != model_name]
-                for attr in (self.A, self.b, self.A_inv, self.theta,
-                             self.last_update, self.last_played,
-                             self.regularization_floor):
+                _dicts: tuple[dict[str, Any], ...] = (
+                    self.A, self.b, self.A_inv, self.theta,
+                    self.last_update, self.last_played,
+                    self.regularization_floor,
+                )
+                for attr in _dicts:
                     attr.pop(model_name, None)
                 self.model_locks.pop(model_name, None)
 
@@ -605,10 +609,10 @@ class DisjointLinUCBPolicy:
     def select_arm(
         self,
         x: np.ndarray,
-        candidates: List[str] | None = None,
-        cost_penalties: Dict[str, float] | None = None,
+        candidates: list[str] | None = None,
+        cost_penalties: dict[str, float] | None = None,
         alpha_override: float | None = None,
-    ) -> Tuple[str, float]:
+    ) -> tuple[str, float]:
         """Select the best arm (model) using Upper Confidence Bound (UCB).
 
         Implements paper Eq. 4::
@@ -658,7 +662,7 @@ class DisjointLinUCBPolicy:
             alpha = alpha_override if alpha_override is not None else self.alpha
             gamma = self.gamma
 
-        ucb_scores: Dict[str, float] = {}
+        ucb_scores: dict[str, float] = {}
         for m, (theta_m, A_inv_m, dt) in snapshots.items():
             mean = float(theta_m.dot(x))
 
@@ -747,10 +751,10 @@ class DisjointLinUCBPolicy:
     def get_probabilities(
         self,
         x: np.ndarray,
-        models: List[str],
+        models: list[str],
         n_samples: int = 1000,
         noise_variance: float = 0.25,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Probability each model has the highest *quality* (expected reward).
 
         Samples from the Bayesian posterior for ridge regression::
@@ -793,7 +797,7 @@ class DisjointLinUCBPolicy:
 
         if not snapshots:
             n = len(models) or 1
-            return {m: 1.0 / n for m in models}
+            return dict.fromkeys(models, 1.0 / n)
 
         for m, (A_inv_m, theta_hat, dt) in snapshots.items():
             # Known approximation: staleness inflation uses trace(A_inv) as a
@@ -824,7 +828,7 @@ class DisjointLinUCBPolicy:
         winners = np.argmax(stacked_samples, axis=0)
 
         counts = Counter(winners)
-        probs = {m: 0.0 for m in models}
+        probs = dict.fromkeys(models, 0.0)
         for i, m in enumerate(valid_models):
             probs[m] = counts[i] / n_samples
         return probs
@@ -976,7 +980,7 @@ class DisjointLinUCBPolicy:
     def _check_numerical_stability(
         self,
         model: str,
-        config: "RouterConfig | None" = None,
+        config: RouterConfig | None = None,
     ) -> None:
         """Safety check for numerical stability using trace of inverse.
 
@@ -1038,7 +1042,7 @@ class DisjointLinUCBPolicy:
         forgetting-factor and staleness logic resume correctly after
         a checkpoint restore.
         """
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "_metadata_dim": self.dim,
             "_metadata_models": list(self.models),
             "_metadata_policy": "disjoint",
@@ -1098,7 +1102,7 @@ class DisjointLinUCBPolicy:
                 f"Current dim={self.dim}"
             )
 
-        staged: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+        staged: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
         for m in self.models:
             a_key = f"{m}_A"
             b_key = f"{m}_b"
@@ -1119,9 +1123,9 @@ class DisjointLinUCBPolicy:
                 staged[m] = (A_loaded, b_loaded, safe_inv(A_loaded))
 
         saved_t: int | None = None
-        saved_last_update: Dict[str, int] = {}
-        saved_last_played: Dict[str, int] = {}
-        saved_reg_floor: Dict[str, float] = {}
+        saved_last_update: dict[str, int] = {}
+        saved_last_played: dict[str, int] = {}
+        saved_reg_floor: dict[str, float] = {}
         if "__temporal__t" in data:
             saved_t = int(data["__temporal__t"])
         if "__temporal__last_update" in data:
@@ -1176,7 +1180,7 @@ class DisjointLinUCBPolicy:
 def calibrate_priors(
     bandit: DisjointLinUCBPolicy,
     target_max_pred: float = 0.9,
-    calibration_contexts: List[np.ndarray] | None = None,
+    calibration_contexts: list[np.ndarray] | None = None,
 ) -> None:
     """Auto-calibrate loaded priors on *bandit* so predictions stay in a safe range.
 
@@ -1212,7 +1216,7 @@ def calibrate_priors(
                        built-in geometry probes.
     """
     d = bandit.dim
-    probes: List[tuple] = []
+    probes: list[tuple] = []
 
     bias_probe = np.zeros(d)
     bias_probe[-1] = 1.0

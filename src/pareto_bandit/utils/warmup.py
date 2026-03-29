@@ -7,8 +7,8 @@ uninformative identity covariance.
 
 from __future__ import annotations
 
-from typing import Dict, Any, Tuple
 import logging
+from typing import Any
 
 import numpy as np
 
@@ -24,55 +24,55 @@ def safe_inv(A: np.ndarray) -> np.ndarray:
 
 
 def get_heuristic_prior(
-    model_data: Dict[str, Any],
+    model_data: dict[str, Any],
     dim: int,
     init_lambda: float = 1.0,
     n_effective: float = 5.0,
     default_quality: float = 0.5
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Compute heuristic prior (A, b) for a new model not in the warmup joblib.
-    
-    Strategy: 
+
+    Strategy:
     Constructs a synthetic prior that mimics having seen 'n_effective' samples
     with an average reward equal to the model's quality score.
-    
+
     **Numerical Stability Note:**
     By initializing A = n_effective * I, we ensure the matrix scales with confidence.
-    BanditRouter will add init_lambda * I to A afterwards. We set b such that the 
+    BanditRouter will add init_lambda * I to A afterwards. We set b such that the
     mean prediction exactly equals the target quality, preventing Bayesian shrinkage.
-    
+
     Args:
         model_data: Dictionary containing model metadata (quality_score, etc.)
         dim: Feature vector dimension (including bias)
         init_lambda: Regularization strength (default: 1.0)
         n_effective: Effective number of samples to represent in the prior (default: 5.0)
         default_quality: Fallback quality score if none found in metadata (default: 0.5)
-        
+
     Returns:
         Tuple of (A_prior, b_prior)
     """
     # 1. Initialize A (Covariance) to represent n_effective samples
     # (Router will later add init_lambda * I to this)
     A = n_effective * np.eye(dim)
-    
+
     # 2. Initialize b (Reward Vector)
     b = np.zeros(dim)
-    
+
     # 3. Apply the "Prior Belief"
     quality = model_data.get("initial_quality")
-    
+
     if quality is None:
         logger.warning(
             f"Model missing 'initial_quality' field, using default={default_quality}. "
             f"This may cause inconsistent initialization."
         )
         quality = default_quality
-    
+
     # CRITICAL: b[-1] assumes the BIAS term is the LAST feature in the vector.
     # We want final mean theta[-1] = quality.
     # Since final A will be (n_effective + init_lambda) * I,
     # we set b[-1] = quality * (n_effective + init_lambda).
     b[-1] = float(quality) * (float(n_effective) + float(init_lambda))
-    
+
     return A, b

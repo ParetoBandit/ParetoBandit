@@ -1,6 +1,5 @@
 import unittest
-import numpy as np
-from pathlib import Path
+
 from pareto_bandit.router import BanditRouter, ExplorationRate
 
 

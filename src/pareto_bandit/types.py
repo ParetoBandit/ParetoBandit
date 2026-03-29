@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import numpy as np
 
@@ -220,8 +220,8 @@ class ExplorationRate:
                 logger.debug(f"ExplorationRate.get('{name}') -> {val}")
                 return val
             return float(name)
-        except (ValueError, AttributeError):
-            raise ValueError(f"Unknown exploration '{name}'")
+        except (ValueError, AttributeError) as err:
+            raise ValueError(f"Unknown exploration '{name}'") from err
 
 
 # ---------------------------------------------------------------------------

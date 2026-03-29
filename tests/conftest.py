@@ -4,9 +4,9 @@ Pytest configuration and shared fixtures.
 
 import sys
 import warnings
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 # Add src to path for imports
 project_root = Path(__file__).parent.parent

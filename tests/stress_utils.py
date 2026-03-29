@@ -6,7 +6,6 @@ import numpy as np
 
 from pareto_bandit import FeatureService
 
-
 DEFAULT_DIMENSION = 16  # 15 PCA dimensions + bias
 
 

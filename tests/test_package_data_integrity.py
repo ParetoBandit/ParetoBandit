@@ -29,7 +29,7 @@ def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
     - installed package can read required files at runtime
     """
     repo_root = Path(__file__).resolve().parent.parent
-    src_pkg_root = repo_root / "src" / "pareto_bandit"
+    repo_root / "src" / "pareto_bandit"
     pytest.importorskip("build")
 
     dist_dir = tmp_path / "dist"

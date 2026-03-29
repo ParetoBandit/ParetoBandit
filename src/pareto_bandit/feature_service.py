@@ -32,14 +32,15 @@ from __future__ import annotations
 import logging
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional, List, Union
+from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Import from centralized config
-from .config import DEFAULT_SENTENCE_TRANSFORMER
+from .config import DEFAULT_SENTENCE_TRANSFORMER  # noqa: E402
 
 # Default context model
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
@@ -82,7 +83,7 @@ _VAGUE_ADJ_RE = re.compile(
     re.IGNORECASE,
 )
 
-TEXT_FEATURE_NAMES: List[str] = [
+TEXT_FEATURE_NAMES: list[str] = [
     "n_logical_ops",
     "n_constraints",
     "avg_word_len",
@@ -143,7 +144,7 @@ def extract_text_features(prompt: str) -> np.ndarray:
     return np.clip(z, -_TEXT_FEATURE_CLIP, _TEXT_FEATURE_CLIP)
 
 
-def extract_text_features_batch(prompts: List[str]) -> np.ndarray:
+def extract_text_features_batch(prompts: list[str]) -> np.ndarray:
     """Vectorized text feature extraction for a list of prompts.
 
     Args:
@@ -162,32 +163,32 @@ def l2_normalize(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     if norm < eps:
         logger.warning(f"Near-zero norm ({norm:.2e}) in l2_normalize, returning original")
         return x
-    return x / norm
+    return np.asarray(x / norm)
 
 
 def validate_feature_vector(x: np.ndarray, context: str = "") -> np.ndarray:
     """
     Validate feature vector for numerical issues.
-    
+
     Checks for NaN, Inf, and extreme values that could destabilize LinUCB.
-    
+
     Args:
         x: Feature vector to validate
         context: Description for error messages (e.g., "prompt: 'hello world'")
-        
+
     Returns:
         Validated (and potentially clipped) feature vector
-        
+
     Raises:
         ValueError: If vector contains NaN values
     """
     if np.any(np.isnan(x)):
         raise ValueError(f"Feature vector contains NaN values. {context}")
-    
+
     if np.any(np.isinf(x)):
         logger.warning(f"Feature vector contains Inf values, clipping. {context}")
         x = np.clip(x, -1e6, 1e6)
-    
+
     # Check for extreme values in PCA components (not bias)
     pca_components = x[:-1]
     if np.any(np.abs(pca_components) > 10):
@@ -195,17 +196,17 @@ def validate_feature_vector(x: np.ndarray, context: str = "") -> np.ndarray:
             f"Feature vector has extreme values (max={np.max(np.abs(pca_components)):.2f}). "
             f"This may indicate PCA calibration issues. {context}"
         )
-    
+
     return x
 
 
 class FeatureService:
     """
     Feature extraction service for BanditRouter.
-    
+
     **Responsibility**: Convert prompts to feature vectors
     **Output**: [PCA_0...PCA_24, bias] = 26-dimensional vector (with default pca_25.joblib)
-    
+
     **PCA provenance guarantee:**
     The PCA projection matrix shipped with the package (``pca_25.joblib``) is
     fitted *once*, *offline*, on ~46K LMSYS Arena prompts.  Train-split
@@ -221,24 +222,24 @@ class FeatureService:
     - Isolated from router logic (no LinUCB dependencies)
     - Easily swappable for custom feature engineering
     - Self-healing PCA loading with JIT calibration
-    
+
     Example:
         >>> features = FeatureService()
         >>> vector = features.extract_features("Solve x^2 + 2x + 1 = 0")
         >>> vector.shape  # depends on PCA artifact; 26 with default pca_25.joblib
         (26,)
     """
-    
+
     def __init__(
         self,
         encoder_model: str = DEFAULT_CONTEXT_MODEL,
-        pca_path: Optional[Path | str] = None,
+        pca_path: Path | str | None = None,
         pca_components: int | None = None,
         target_variance: float = 0.60,
         whiten_pca: bool = True,
         allow_jit_training: bool = True,
-        calibration_file: Optional[Path | str] = None,
-        custom_encoder: Optional[Callable[[str], np.ndarray]] = None,
+        calibration_file: Path | str | None = None,
+        custom_encoder: Callable[[str], np.ndarray] | None = None,
         embedding_dim: int | None = None,
         use_text_features: bool = False,
     ):
@@ -304,7 +305,7 @@ class FeatureService:
                     "the service can validate PCA compatibility and set the "
                     "feature-vector dimension without calling the encoder."
                 )
-            self._custom_embedding_dim = embedding_dim
+            self._custom_embedding_dim: int | None = embedding_dim
             self.encoder_model = "custom"
             # Custom encoders skip JIT training (synthetic prompts are tuned
             # for the default SentenceTransformer and would be misleading).
@@ -336,7 +337,7 @@ class FeatureService:
 
         if pca_path is None and custom_encoder is None:
             from .config import DEFAULT_PCA_PATH
-            self.pca_path = DEFAULT_PCA_PATH
+            self.pca_path: Path | None = DEFAULT_PCA_PATH
         elif pca_path is not None:
             self.pca_path = Path(pca_path)
         else:
@@ -355,7 +356,7 @@ class FeatureService:
         # Lazy initialization
         self._encoder = _ENCODER_NOT_LOADED
         self._pca = _PCA_NOT_LOADED
-        self._dimension = None
+        self._dimension: int | None = None
 
         # When custom_encoder is given without a PCA, eagerly set dimension
         # so callers can query .dimension before the first encode call.
@@ -366,9 +367,10 @@ class FeatureService:
                     "the custom encoder.  Either supply a PCA artifact or "
                     "omit pca_components to use raw embeddings."
                 )
+            assert embedding_dim is not None
             self.pca_components = embedding_dim
             n_text = N_TEXT_FEATURES if self.use_text_features else 0
-            self._dimension = embedding_dim + n_text + 1  # embeddings [+ text] + bias
+            self._dimension = embedding_dim + n_text + 1
             self._pca = None  # intentionally no PCA
             self._pca_whitening_scale = None
 
@@ -390,7 +392,7 @@ class FeatureService:
                 "PCA whitening scale shape mismatch: "
                 f"features={pca_features.shape}, scale={self._pca_whitening_scale.shape}"
             )
-        return pca_features * self._pca_whitening_scale
+        return np.asarray(pca_features * self._pca_whitening_scale)
 
     def _apply_pca_whitening_batch(self, pca_features: np.ndarray) -> np.ndarray:
         """Vectorized whitening for batched PCA features.
@@ -411,10 +413,10 @@ class FeatureService:
                 "PCA whitening scale shape mismatch: "
                 f"features={pca_features.shape}, scale={self._pca_whitening_scale.shape}"
             )
-        return pca_features * self._pca_whitening_scale.reshape(1, -1)
+        return np.asarray(pca_features * self._pca_whitening_scale.reshape(1, -1))
 
     @staticmethod
-    def _compute_whitening_scale_from_pca(pca) -> np.ndarray | None:
+    def _compute_whitening_scale_from_pca(pca: Any) -> np.ndarray | None:
         """Return per-component whitening scales from a fitted sklearn PCA.
 
         Args:
@@ -428,7 +430,7 @@ class FeatureService:
         if ev is None:
             return None
         ev = np.asarray(ev, dtype=np.float64)
-        return 1.0 / np.sqrt(np.maximum(ev, 1e-12))
+        return np.asarray(1.0 / np.sqrt(np.maximum(ev, 1e-12)))
 
     def _pca_has_builtin_whitening(self) -> bool:
         """Whether the loaded PCA artifact already whitens outputs."""
@@ -461,9 +463,9 @@ class FeatureService:
                         n_pca = len(scale)
                         scales[:n_pca] = scale
         return scales
-    
+
     @classmethod
-    def for_precomputed(cls, dimension: int) -> "FeatureService":
+    def for_precomputed(cls, dimension: int) -> FeatureService:
         """Create a lightweight service for pre-computed embedding vectors.
 
         No sentence-transformer model or PCA artifact is loaded.  The
@@ -494,7 +496,7 @@ class FeatureService:
         return instance
 
     @property
-    def encoder(self):
+    def encoder(self) -> Any:
         """Lazy-load the SentenceTransformer encoder on first use.
 
         When a *custom_encoder* callable was supplied at init time, accessing
@@ -558,7 +560,7 @@ class FeatureService:
             self.encoder.encode(prompt, normalize_embeddings=True, show_progress_bar=False)
         )
 
-    def encode_prompts_batch(self, prompts: List[str]) -> np.ndarray:
+    def encode_prompts_batch(self, prompts: list[str]) -> np.ndarray:
         """Encode multiple prompts to a 2-D embedding matrix.
 
         Args:
@@ -573,11 +575,11 @@ class FeatureService:
             )
             norms = np.linalg.norm(vecs, axis=1, keepdims=True)
             norms = np.maximum(norms, 1e-12)
-            return vecs / norms
-        return self.encoder.encode(
+            return np.asarray(vecs / norms)
+        return np.asarray(self.encoder.encode(
             prompts, normalize_embeddings=True,
             show_progress_bar=len(prompts) > 100,
-        )
+        ))
 
     def get_sentence_embedding_dimension(self) -> int:
         """Return the raw embedding dimension (before PCA).
@@ -587,10 +589,10 @@ class FeatureService:
         """
         if self._custom_embedding_dim is not None:
             return self._custom_embedding_dim
-        return self.encoder.get_sentence_embedding_dimension()
-    
+        return int(self.encoder.get_sentence_embedding_dimension())
+
     @property
-    def pca(self):
+    def pca(self) -> Any:
         """Lazy load PCA on first use with self-healing."""
         if self._pca is _PCA_NOT_LOADED:
             self._ensure_pca_ready()
@@ -601,40 +603,42 @@ class FeatureService:
         """Total feature dimension (PCA [+ text features] + bias)."""
         if self.pca_components is None:
             _ = self.pca  # trigger lazy load which sets pca_components
+        assert self.pca_components is not None
         n_text = N_TEXT_FEATURES if self.use_text_features else 0
         return self.pca_components + n_text + 1
-    
+
     @property
     def bias_index(self) -> int:
         """Bias term is always the last element."""
         return -1
-    
+
     @property
     def using_pca(self) -> bool:
         """Check if PCA compression is active (vs raw embeddings)."""
         if self._pca is _PCA_NOT_LOADED:
             _ = self.pca  # trigger lazy load
         return self._pca is not None
-    
+
     def get_dimension(self) -> int:
         """
         Get feature vector dimensionality.
-        
+
         Returns:
             Dimension of output vectors (pca_components [+ text features] + bias)
         """
         if self._dimension is None:
             n_text = N_TEXT_FEATURES if self.use_text_features else 0
+            assert self.pca_components is not None
             self._dimension = self.pca_components + n_text + 1
         return self._dimension
-    
-    def get_feature_names(self) -> List[str]:
+
+    def get_feature_names(self) -> list[str]:
         """
         Get human-readable feature names for interpretability.
-        
+
         Returns:
             List of feature names matching vector indices
-            
+
         Example:
             >>> fs = FeatureService()
             >>> names = fs.get_feature_names()
@@ -658,27 +662,27 @@ class FeatureService:
 
         names.append("bias")
         return names
-    
-    def extract_features(self, prompt: Union[str, np.ndarray]) -> np.ndarray:
+
+    def extract_features(self, prompt: str | np.ndarray) -> np.ndarray:
         """
         Convert prompt to feature vector.
-        
+
         **Feature Structure (with default pca_25.joblib):**
         [PCA_0, PCA_1, ..., PCA_24, bias] = 26 dimensions
-        
+
         The actual dimension is determined by the PCA artifact loaded at init.
         Default production artifact: pca_25.joblib (25 PCA + 1 bias = 26D).
-        
+
         Args:
             prompt: Input text or pre-computed vector
-        
+
         Returns:
             Feature vector of dimension (pca_components + 1 bias)
-            
+
         Raises:
             ValueError: If prompt is empty or feature extraction fails
             TypeError: If prompt is wrong type
-            
+
         Example:
             >>> features = FeatureService()
             >>> vector = features.extract_features("Explain quantum computing")
@@ -696,7 +700,7 @@ class FeatureService:
                     f"expected {self.dimension}"
                 )
             return prompt
-        
+
         # Type validation
         if not isinstance(prompt, str):
             raise TypeError(f"Expected str or np.ndarray, got {type(prompt)}")
@@ -714,7 +718,7 @@ class FeatureService:
         # Empty/whitespace validation
         if not prompt or not prompt.strip():
             raise ValueError("Prompt cannot be empty or whitespace-only")
-        
+
         # Length validation (prevent OOM)
         if len(prompt) > MAX_PROMPT_LENGTH:
             logger.warning(
@@ -722,10 +726,10 @@ class FeatureService:
                 f"Truncating to prevent OOM."
             )
             prompt = prompt[:MAX_PROMPT_LENGTH]
-        
+
         # 1. Semantic Embedding (delegates to custom_encoder or SentenceTransformer)
         emb_full = self.encode_prompt(prompt)
-        
+
         # 2. PCA Compression
         if self.pca is not None:
             emb_reduced = self.pca.transform(emb_full.reshape(1, -1)).flatten()
@@ -733,7 +737,7 @@ class FeatureService:
         else:
             # Fallback: use raw embeddings (no PCA)
             emb_reduced = emb_full
-        
+
         # 3. Optionally append text features
         if self.use_text_features:
             text_feats = extract_text_features(prompt)
@@ -741,24 +745,24 @@ class FeatureService:
 
         # 4. Append bias term
         result = np.append(emb_reduced, 1.0)
-        
+
         # 5. Validate output
         result = validate_feature_vector(result, context=f"prompt: '{prompt[:50]}...'")
-        
+
         return result
-    
-    def extract_features_batch(self, prompts: List[str]) -> np.ndarray:
+
+    def extract_features_batch(self, prompts: list[str]) -> np.ndarray:
         """
         Extract features for multiple prompts efficiently.
-        
+
         Uses batch encoding which is faster than sequential calls.
-        
+
         Args:
             prompts: List of prompt strings
-            
+
         Returns:
             Array of shape (n_prompts, dimension)
-            
+
         Example:
             >>> fs = FeatureService()
             >>> vectors = fs.extract_features_batch(["Hello", "World"])
@@ -767,7 +771,7 @@ class FeatureService:
         """
         if not prompts:
             return np.empty((0, self.dimension))
-        
+
         # Validate all prompts
         valid_prompts = []
         for i, p in enumerate(prompts):
@@ -779,24 +783,24 @@ class FeatureService:
                 logger.warning(f"Prompt {i} truncated from {len(p)} to {MAX_PROMPT_LENGTH}")
                 p = p[:MAX_PROMPT_LENGTH]
             valid_prompts.append(p)
-        
+
         # Batch encode (dispatches to custom_encoder or SentenceTransformer)
         embeddings = self.encode_prompts_batch(valid_prompts)
-        
+
         # PCA transform
         if self.pca is not None:
             embeddings = self.pca.transform(embeddings)
             embeddings = self._apply_pca_whitening_batch(embeddings)
-            
+
             # Validate and handle numerical issues
             if np.any(np.isnan(embeddings)):
                 logger.warning(f"PCA transform produced NaN values for {np.sum(np.any(np.isnan(embeddings), axis=1))} prompts. Replacing with zeros.")
                 embeddings = np.nan_to_num(embeddings, nan=0.0)
-            
+
             if np.any(np.isinf(embeddings)):
-                logger.warning(f"PCA transform produced Inf values. Clipping to ±1e6.")
+                logger.warning("PCA transform produced Inf values. Clipping to ±1e6.")
                 embeddings = np.clip(embeddings, -1e6, 1e6)
-        
+
         # Optionally append text features
         if self.use_text_features:
             text_feats = extract_text_features_batch(valid_prompts)
@@ -805,13 +809,13 @@ class FeatureService:
         # Append bias column
         bias_column = np.ones((len(embeddings), 1))
         result = np.hstack([embeddings, bias_column])
-        
+
         return result
-    
+
     def _ensure_pca_ready(self) -> None:
         """
         Self-Healing PCA: Load existing PCA, validate it, or train new one via JIT calibration.
-        
+
         This prevents production outages from:
         - Missing PCA artifacts
         - Dimension mismatches (encoder upgrades)
@@ -824,7 +828,7 @@ class FeatureService:
             return
 
         pca_loaded = False
-        
+
         # Check if joblib is available
         try:
             import joblib as jl
@@ -832,18 +836,18 @@ class FeatureService:
             logger.warning("joblib not available - cannot use PCA compression")
             self._pca = None
             return
-        
+
         # Phase 1: Try loading existing PCA
         if self.pca_path:
             logger.info(f"Attempting to load PCA from: {self.pca_path.absolute()}")
             if self.pca_path.exists():
                 try:
                     candidate_pca = jl.load(self.pca_path)
-                    
+
                     # Validation: Dimension check
                     expected_dim = self.get_sentence_embedding_dimension()
                     actual_dim = candidate_pca.n_features_in_
-                    
+
                     if actual_dim == expected_dim:
                         self._pca = candidate_pca
                         # Only apply external whitening when the PCA artifact
@@ -872,7 +876,7 @@ class FeatureService:
                     logger.warning(f"⚠️ Failed to load PCA artifact at {self.pca_path}: {e}. Re-training.")
             else:
                 logger.warning(f"⚠️ PCA artifact not found at {self.pca_path.absolute()}")
-        
+
         # Phase 2: JIT Calibration (if needed)
         if not pca_loaded:
             # Gate JIT training for strict production mode
@@ -881,7 +885,7 @@ class FeatureService:
                     "PCA artifact not found and JIT training is disabled (allow_jit_training=False). "
                     "Deploy correct PCA artifact or enable JIT training for development."
                 )
-            
+
             # Log CRITICAL warning for configuration drift
             logger.critical(
                 "🚨 JIT PCA TRAINING TRIGGERED! 🚨\n"
@@ -894,42 +898,42 @@ class FeatureService:
                 "ACTION: Verify PCA artifact is deployed correctly."
             )
             logger.info("⚡ JIT PCA Calibration: Training new PCA on synthetic data...")
-            
+
             # Generate synthetic prompts matching procedural warmup
             synthetic_prompts = self._generate_synthetic_data(n_samples=1000)
             logger.info(f"  Generated {len(synthetic_prompts)} synthetic prompts")
-            
+
             # Encode to get embeddings
             logger.info("  Encoding prompts...")
             embeddings = self.encode_prompts_batch(synthetic_prompts)
             logger.info(f"  Embeddings shape: {embeddings.shape}")
-            
+
             # Fit PCA
             from sklearn.decomposition import PCA
             # If pca_components not specified, default to 25 to match paper (d=26)
             n_components = self.pca_components if self.pca_components is not None else 25
             new_pca = PCA(n_components=n_components, whiten=bool(self.whiten_pca))
             new_pca.fit(embeddings)
-            
+
             # Update pca_components from fitted PCA
             if self.pca_components is None:
                 self.pca_components = new_pca.n_components_
-            
+
             # Strict PCA variance validation:
             # Low variance capture indicates manifold collapse or insufficient components
             explained_var = np.sum(new_pca.explained_variance_ratio_)
             logger.info(f"  JIT PCA Explained Variance: {explained_var:.1%}")
-            
+
             if explained_var < self.target_variance:
                 # Safe fallback to raw embeddings
-                # 
+                #
                 # CRITICAL: Proceeding with low-variance PCA means >40% of semantic
                 # signal is lost, effectively routing on noise rather than meaning.
-                # 
+                #
                 # Better to fallback to raw (uncompressed) embeddings:
                 # - Slower: O(raw_dim²) updates vs O(pca_dim²)
                 # - Correct: Full semantic routing vs noise-based routing
-                # 
+                #
                 # This prevents silent performance degradation. Users will see critical
                 # log and know to retrain PCA with more data or higher n_components.
                 raw_dim = self.get_sentence_embedding_dimension()
@@ -947,14 +951,14 @@ class FeatureService:
                 self._dimension = raw_dim + n_text + 1
                 logger.info(f"   ✅ Using raw {raw_dim}D embeddings (+ {n_text} text + 1 bias) = {self._dimension}D features")
                 return  # Skip setting self._pca, will use raw in extract_features()
-            
+
             self._pca = new_pca
             if self.whiten_pca and not bool(getattr(new_pca, "whiten", False)):
                 self._pca_whitening_scale = self._compute_whitening_scale_from_pca(new_pca)
             else:
                 self._pca_whitening_scale = None
             logger.info(f"  ✓ JIT PCA ready ({embeddings.shape[1]}→{self.pca_components})")
-            
+
             # Phase 3: Persist for next startup (cache-aside pattern)
             if self.pca_path:
                 try:
@@ -963,23 +967,23 @@ class FeatureService:
                     logger.info(f"  💾 Saved JIT PCA to {self.pca_path} for future use")
                 except Exception as e:
                     logger.warning(f"  ⚠️ Could not persist PCA (non-fatal): {e}")
-    
-    def _generate_synthetic_data(self, n_samples: int = 1000) -> List[str]:
+
+    def _generate_synthetic_data(self, n_samples: int = 1000) -> list[str]:
         """
         Generate synthetic prompts for PCA training.
-        
+
         **Conference REVIEW WARNING: Domain Bias Risk**
-        
+
         Synthetic data is biased toward English math/coding tasks. If production
         traffic is in a different domain (e.g., Japanese legal contracts), the PCA
         projection may filter out critical semantic variance.
-        
+
         **Solution**: Use calibration_file parameter in __init__() to load real
         prompts from your domain before falling back to synthetic data.
-        
+
         Args:
             n_samples: Number of synthetic samples to generate
-            
+
         Returns:
             List of synthetic prompt strings
         """
@@ -987,7 +991,7 @@ class FeatureService:
         if self.calibration_file and self.calibration_file.exists():
             logger.info(f"Loading calibration prompts from {self.calibration_file}")
             try:
-                with open(self.calibration_file, 'r', encoding='utf-8') as f:
+                with open(self.calibration_file, encoding='utf-8') as f:
                     prompts = [line.strip() for line in f if line.strip()]
                 if len(prompts) >= n_samples:
                     logger.info(f"  ✓ Loaded {len(prompts)} real prompts (domain-specific)")
@@ -1002,26 +1006,26 @@ class FeatureService:
                     return prompts + synthetic
             except Exception as e:
                 logger.error(f"Failed to load calibration file: {e}. Using synthetic data.")
-        
+
         # Fallback to synthetic data
         return self._generate_synthetic_fallback(n_samples)
-    
-    def _generate_synthetic_fallback(self, n_samples: int) -> List[str]:
+
+    def _generate_synthetic_fallback(self, n_samples: int) -> list[str]:
         """
         Generate synthetic prompts for PCA calibration.
-        
+
         Uses the same archetypes as procedural warmup to ensure consistency
         between PCA manifold and warmup covariance structure.
-        
+
         Args:
             n: Number of synthetic prompts to generate (default: 1000)
                For robust PCA, need ~10x the target dimensionality (32 dims → ~320 samples)
-               
+
         Returns:
             List of synthetic prompt strings
         """
         import random
-        
+
         # Template patterns matching procedural warmup archetypes
         templates = {
             "math": [
@@ -1060,7 +1064,7 @@ class FeatureService:
                 "What's the difference between {concept_a} and {concept_b}?"
             ]
         }
-        
+
         # Fill placeholders with variations
         fill_values = {
             "expr": ["x^2 + 3x + 2", "sin(x)cos(x)", "e^(2x)", "ln(x^2)"],
@@ -1095,20 +1099,20 @@ class FeatureService:
             "simple_concept": ["photosynthesis", "gravity", "democracy"],
             "phenomenon": ["rain", "lightning", "the aurora borealis"]
         }
-        
+
         prompts = []
         rng = random.Random(42)
-        
+
         archetype_keys = list(templates.keys())
         for _ in range(n_samples):
             archetype = rng.choice(archetype_keys)
             template = rng.choice(templates[archetype])
-            
+
             prompt = template
             for placeholder, values in fill_values.items():
                 if f"{{{placeholder}}}" in prompt:
                     prompt = prompt.replace(f"{{{placeholder}}}", rng.choice(values))
-            
+
             prompts.append(prompt)
-        
+
         return prompts

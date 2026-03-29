@@ -77,9 +77,7 @@ Design choices
 from __future__ import annotations
 
 import enum
-import math
 import threading
-from typing import Dict, Optional
 
 
 class PacingMode(enum.Enum):
@@ -188,7 +186,7 @@ class BudgetPacer:
 
     def get_cost_ceiling_per_1k(
         self, max_model_cost_per_1k: float
-    ) -> Optional[float]:
+    ) -> float | None:
         """Return a blended cost-per-1k-token ceiling, or ``None``.
 
         The ceiling is derived from the portfolio's most expensive model
@@ -233,8 +231,8 @@ class BudgetPacer:
     # ------------------------------------------------------------------
 
     def get_extra_cost_penalties(
-        self, model_costs: Dict[str, float]
-    ) -> Dict[str, float]:
+        self, model_costs: dict[str, float]
+    ) -> dict[str, float]:
         """Compute per-model cost penalties scaled by the dual variable.
 
         Each model receives a penalty of ``lambda_t * normalized_cost``

@@ -21,9 +21,14 @@ import threading
 import time
 import uuid
 from collections import deque
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pareto_bandit.budget_pacer import BudgetPacer
+    from pareto_bandit.feature_service import FeatureService
 
 import numpy as np
 
@@ -32,36 +37,34 @@ import numpy as np
 # ``from pareto_bandit.router import X`` continues to work for all consumers.
 # ---------------------------------------------------------------------------
 from pareto_bandit.policy import (  # noqa: F401 — re-exported
-    DisjointLinUCBPolicy,
-    BanditState,
-    calibrate_priors,
     _OUTPUT_COST_MULTIPLIER,
+    BanditState,
+    DisjointLinUCBPolicy,
+    calibrate_priors,
 )
+from pareto_bandit.storage import ContextStore, EphemeralContextStore
 from pareto_bandit.types import (  # noqa: F401 — re-exported
-    RouterConfig,
-    RegistrationConfig,
-    ExplorationRate,
-    RoutingLog,
     Capability,
+    ExplorationRate,
+    RegistrationConfig,
+    RouterConfig,
+    RoutingLog,
     SpeedProfile,
 )
-
-from pareto_bandit.storage import ContextStore, EphemeralContextStore, SqliteContextStore
-from pareto_bandit.utils import sigmoid, safe_inv, get_heuristic_prior
+from pareto_bandit.utils import get_heuristic_prior
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Exception Classes (canonical definitions in pareto_bandit.exceptions)
 # ---------------------------------------------------------------------------
-from pareto_bandit.exceptions import (  # noqa: F401 — re-exported for backward compat
+from pareto_bandit.exceptions import (  # noqa: E402, F401
     MissingCostError,
     NoEligibleModelsError,
     NoModelScoredError,
 )
 
-
-from .config import BEST_K3_HPARAMS, DEFAULT_SENTENCE_TRANSFORMER
+from .config import BEST_K3_HPARAMS, DEFAULT_SENTENCE_TRANSFORMER  # noqa: E402
 
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
 
@@ -94,14 +97,12 @@ def estimate_tokens_rough(text: str) -> int:
 # ---------------------------------------------------------------------------
 # Model Family Inference (canonical definitions in pareto_bandit.family)
 # ---------------------------------------------------------------------------
-from pareto_bandit.family import (  # noqa: F401 — re-exported for backward compat
+from pareto_bandit.costs import log_normalize_cost  # noqa: E402
+from pareto_bandit.family import (  # noqa: E402, F401
+    compute_correlation_families,
     infer_model_family,
     tetrachoric_corr,
-    compute_correlation_families,
 )
-from pareto_bandit.costs import log_normalize_cost
-
-
 
 # ---------------------------------------------------------------------------
 # Main Router Class
@@ -143,9 +144,9 @@ class BanditRouter:
     """
     def __init__(
         self,
-        model_registry: Dict[str, Dict[str, Any]],
+        model_registry: dict[str, dict[str, Any]] | None = None,
         *,
-        feature_service: 'FeatureService | None' = None,
+        feature_service: FeatureService | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         pca_path: Path | str | None = None,
         # Bandit parameters (The Brain) — defaults from BEST_K3_HPARAMS
@@ -158,7 +159,7 @@ class BanditRouter:
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
         cost_penalty: float = 0.3,  # λ_c for UCB cost penalty (paper Eq. 4)
-        budget_pacer: "BudgetPacer | None" = None,
+        budget_pacer: BudgetPacer | None = None,
     ):
         """Initialize BanditRouter with separated feature extraction.
 
@@ -231,7 +232,7 @@ class BanditRouter:
         self.registry = {k: dict(v) for k, v in model_registry.items()}
 
         self._resolve_registry_costs()
-        
+
         # -----------------------------------------------------------------------
         # FEATURE SERVICE (The Eyes) - Dependency Injection
         # -----------------------------------------------------------------------
@@ -249,13 +250,13 @@ class BanditRouter:
                 allow_jit_training=True
             )
             logger.info("Created default FeatureService with encoder=%s", context_model)
-        
+
         # Calculate dimension dynamically from feature service
         # Default is 26 (25 PCA + 1 bias) with pca_25.joblib
         embedding_dim = self.features.dimension
-        
+
         logger.debug("Feature dimensions: total=%d (including bias)", embedding_dim)
-        
+
         # Initialize bandit with calculated dimension.
         # NOTE: Features are [PCA_0, ..., PCA_{d-2}, bias].  We apply PCA for
         # dimensionality reduction and initialize the covariance/prior as
@@ -272,7 +273,7 @@ class BanditRouter:
             forgetting_factor=forgetting_factor,
             seed=bandit_seed,
         )
-        
+
         # ---------------------------------------------------------------------------
         # Context Storage (opt-in persistence)
         # ---------------------------------------------------------------------------
@@ -292,17 +293,17 @@ class BanditRouter:
         # RouterConfig(max_log_size=...) is respected.
         self.logs: deque[RoutingLog] = deque(maxlen=self.config.max_log_size)
         # Parallel index for O(1) feedback lookups
-        self.log_index: Dict[str, RoutingLog] = {}
+        self.log_index: dict[str, RoutingLog] = {}
         # Lock to protect the logs/log_index pair from concurrent writes
         self._log_lock = threading.Lock()
         # Feature name to index mapping for Progressive Registration
         self._feature_map = self._build_feature_map()
-        
+
         # Thread-local storage for per-thread overrides (e.g. exploit mode).
         # This avoids mutating shared bandit.alpha, which races with
         # concurrent route() calls on other threads.
         self._thread_local = threading.local()
-        
+
         # Precompute market anchors to avoid redundant log calls in hot loop
         self._market_cost_floor = self.config.market_cost_floor
         self._market_cost_floor_log = np.log(self.config.market_cost_floor)
@@ -374,7 +375,7 @@ class BanditRouter:
             inp_valid = isinstance(inp, (int, float))
             out_valid = isinstance(out, (int, float))
 
-            if inp_valid and out_valid:
+            if isinstance(inp, (int, float)) and isinstance(out, (int, float)):
                 m_data["blended_cost_per_m"] = (float(inp) + float(out)) / 2.0
             elif inp_valid and not out_valid:
                 raise MissingCostError(
@@ -387,12 +388,19 @@ class BanditRouter:
                     f"input_cost_per_m. Provide both or set blended_cost_per_m directly."
                 )
             else:
-                fallback = float(getattr(self.config, "default_missing_cost_per_m", 10.0))
-                m_data["blended_cost_per_m"] = fallback
-                m_data.setdefault("input_cost_per_m", fallback)
-                m_data.setdefault("output_cost_per_m", fallback)
+                raise MissingCostError(
+                    f"Model '{m_id}' has no cost information. "
+                    f"Every model needs token costs for accurate routing.\n\n"
+                    f"Add input and output costs ($/M tokens) to your registry:\n\n"
+                    f'    "{m_id}": {{\n'
+                    f'        "input_cost_per_m": 2.50,   # $/M input tokens\n'
+                    f'        "output_cost_per_m": 10.00,  # $/M output tokens\n'
+                    f"    }}\n\n"
+                    f"Or use a single blended rate:\n\n"
+                    f'    "{m_id}": {{"blended_cost_per_m": 5.00}}'
+                )
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]) -> BanditRouter:
         """Custom deepcopy for BanditRouter to handle unpicklable components.
 
         Strategy:
@@ -403,19 +411,19 @@ class BanditRouter:
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
-        
+
         # --- Configuration (deepcopy to isolate) ---
         result.config = copy.deepcopy(self.config, memo)
         result.registry = copy.deepcopy(self.registry, memo)
-        
+
         # --- Feature Service (SHARE: stateless, contains locks & GPU state) ---
         result.features = self.features
-        
+
         # --- Bandit Policy (deepcopy: has its own __deepcopy__ for locks) ---
         result.bandit = copy.deepcopy(self.bandit, memo)
-        
+
         result.cost_penalty = self.cost_penalty
-        
+
         # --- Logs and Counters (deepcopy: mutable collections) ---
         result.logs = copy.deepcopy(self.logs, memo)
         result.log_index = copy.deepcopy(self.log_index, memo)
@@ -432,7 +440,7 @@ class BanditRouter:
         result._market_cost_floor = self._market_cost_floor
         result._market_cost_floor_log = self._market_cost_floor_log
         result._market_cost_range = self._market_cost_range
-        
+
         # --- Context Store ---
         # SqliteContextStore: SHARE (thread-safe DB connection, expensive to dup).
         # EphemeralContextStore: DEEPCOPY (unprotected dict/deque, racy if shared).
@@ -440,32 +448,32 @@ class BanditRouter:
             result.context_store = copy.deepcopy(self.context_store, memo)
         else:
             result.context_store = self.context_store
-        
+
         return result
 
 
-    def _build_feature_map(self) -> Dict[str, int]:
+    def _build_feature_map(self) -> dict[str, int]:
         """
         Build a mapping from feature names to vector indices.
-        
+
         This enables the Progressive Registration API to translate human-friendly
         feature names (e.g., 'anchor_coding', 'complexity_score') into the exact
         indices within the theta vector.
-        
+
         Returns:
             Dictionary mapping feature name to index in the context vector
         """
         feature_map = {}
-        
+
         embedding_dim = self.features.dimension - 1  # exclude bias
-        
-        # PCA components  
+
+        # PCA components
         for i in range(embedding_dim):
             feature_map[f"pca_{i}"] = i
-        
+
         # Bias term (always last)
         feature_map["bias"] = embedding_dim
-        
+
         return feature_map
 
     def register_model(
@@ -477,9 +485,9 @@ class BanditRouter:
         blended_cost_per_m: float | None = None,
         input_cost_per_m: float | None = None,
         output_cost_per_m: float | None = None,
-        initial_weights: Optional[Dict[str, float]] = None,
-        strict_kwargs: Optional[bool] = None,
-        **kwargs,
+        initial_weights: dict[str, float] | None = None,
+        strict_kwargs: bool | None = None,
+        **kwargs: Any,
     ) -> None:
         """
         Universal entry point for adding models with Progressive Registration.
@@ -508,7 +516,9 @@ class BanditRouter:
            back-derived assuming the 3:1 output/input heuristic.
         3. ``cost_usd`` (legacy) — treated as input cost; output is estimated
            as ``cost_usd * 3``.
-        4. None — falls back to ``RegistrationConfig.default_cost_per_1m``.
+
+        At least one cost specification is required. If none is provided,
+        ``MissingCostError`` is raised with usage examples.
 
         Args:
             model_id: Unique model identifier
@@ -527,9 +537,9 @@ class BanditRouter:
                 Unknown keys raise ``TypeError`` in strict mode.
 
         Raises:
-            MissingCostError: If no cost information can be resolved.
-            ValueError: If only one of ``input_cost_per_m`` /
-                ``output_cost_per_m`` is provided without the other.
+            MissingCostError: If no cost information is provided, or if only
+                one of ``input_cost_per_m`` / ``output_cost_per_m`` is given
+                without the other.
 
         Examples:
             # Exact pricing (preferred)
@@ -575,11 +585,11 @@ class BanditRouter:
             )
 
         capabilities = kwargs.get("capabilities", [])
-            
+
         if model_id in self.bandit.models:
             logger.warning("Model '%s' already registered. Skipping.", model_id)
             return
-        
+
         # 1. Build initial theta vector from T-shirt sizing + overrides
         weights = {}
         reg_config = self.config.registration
@@ -636,10 +646,17 @@ class BanditRouter:
             final_output = final_input * _OUTPUT_COST_MULTIPLIER
             final_blended = (final_input + final_output) / 2.0
         else:
-            # Tier 4: No cost info — pessimistic defaults
-            final_input = reg_config.default_cost_per_1m
-            final_output = reg_config.default_cost_per_1m * _OUTPUT_COST_MULTIPLIER
-            final_blended = (final_input + final_output) / 2.0
+            raise MissingCostError(
+                f"Model '{model_id}' has no cost information. "
+                f"Provide token costs for accurate routing:\n\n"
+                f"    router.register_model(\n"
+                f'        "{model_id}",\n'
+                f"        input_cost_per_m=2.50,   # $/M input tokens\n"
+                f"        output_cost_per_m=10.00,  # $/M output tokens\n"
+                f"    )\n\n"
+                f"Or use a single blended rate:\n\n"
+                f'    router.register_model("{model_id}", blended_cost_per_m=5.00)'
+            )
 
         registry_entry = {
             "cost_per_1m_tokens": final_input,
@@ -651,13 +668,13 @@ class BanditRouter:
             "capabilities": capabilities,
             "speed_profile": speed,
         }
-        
+
         self.registry[model_id] = registry_entry
-        
+
         boost_summary = ", ".join(f"{k}={v:.1f}" for k, v in list(weights.items())[:5])
         if len(weights) > 5:
             boost_summary += "..."
-        
+
         logger.info(
             "Registered %s | Bias: %.1f | Boosts: %s | "
             "Cost: in=$%.2f out=$%.2f blend=$%.2f /1M | Latency: %.2fs",
@@ -669,29 +686,29 @@ class BanditRouter:
     # ---------------------------------------------------------------------------
     # Feature and Context Extraction (Delegated to FeatureService)
     # ---------------------------------------------------------------------------
-    
+
     def _get_context_vector(self, prompt: str | np.ndarray) -> np.ndarray:
         """
         Extract features via the FeatureService.
-        
+
         Args:
             prompt: Input text or pre-encoded vector
-            
+
         Returns:
             Normalized feature vector [PCA, bias]
         """
         return self.features.extract_features(prompt)
 
     @property
-    def reference_model(self) -> Dict[str, Any]:
+    def reference_model(self) -> dict[str, Any]:
         """
         Dynamically identifies the 'Flagship' model to use as a baseline reference.
-        
+
         **Selection Criteria:**
         The model with the **highest initial_quality score** in the current registry.
         This ensures the reference point adapts automatically when you upgrade your
         model portfolio (e.g., adding GPT-5).
-        
+
         Returns:
             Dictionary containing flagship model metadata with keys:
                 - id: Model identifier (string)
@@ -699,7 +716,7 @@ class BanditRouter:
                 - input_cost_per_m: Cost in $/million tokens (float)
                 - output_cost_per_m: Cost in $/million tokens (float)
                 - ... (other registry metadata)
-        
+
         Example:
             >>> router = BanditRouter.create()
             >>> ref = router.reference_model
@@ -715,13 +732,13 @@ class BanditRouter:
                 "input_cost_per_m": 10.0,
                 "output_cost_per_m": 10.0
             }
-            
+
         # Find the model with the maximum quality score
         champion_id = max(
             self.registry,
             key=lambda m: self.registry[m].get("initial_quality", 0.0)
         )
-        
+
         # Return a copy of the registry entry with the ID included
         data = dict(self.registry[champion_id])
         data["id"] = champion_id
@@ -731,12 +748,12 @@ class BanditRouter:
     @classmethod
     def create(
         cls,
-        model_registry: Dict[str, Any] | None = None,
+        model_registry: dict[str, dict[str, Any]] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         priors: str = "warmup",
         prior_n_effective: float = BEST_K3_HPARAMS["prior_n_effective"],
-        **kwargs
-    ) -> "BanditRouter":
+        **kwargs: Any,
+    ) -> BanditRouter:
         """Factory method to create a fully initialized router.
 
         Args:
@@ -772,7 +789,7 @@ class BanditRouter:
             **kwargs: Additional arguments passed to __init__ or prior loading.
                 Notable: ``config`` (:class:`RouterConfig`) to customise
                 reward range, cost anchors, etc.
-        
+
         Returns:
             Fully initialized BanditRouter instance
 
@@ -871,7 +888,7 @@ class BanditRouter:
             alpha=alpha,
             **init_kwargs
         )
-        
+
         # 4. Resolve priors path (shipped default or explicit)
         if priors == "warmup" and warmup_path is None:
             from .config import DEFAULT_WARMUP_PRIORS_PATH
@@ -915,9 +932,9 @@ class BanditRouter:
 
     @staticmethod
     def _align_whitening(
-        warmup_data: Dict[str, Any],
+        warmup_data: dict[str, Any],
         features: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Align warmup priors to the router's PCA whitening convention.
 
         For diagonal whitening ``x_new = D x_old`` the sufficient statistics
@@ -954,8 +971,8 @@ class BanditRouter:
         if not (isinstance(A_map, dict) and isinstance(b_map, dict)):
             return warmup_data
 
-        A_new: Dict[str, np.ndarray] = {}
-        b_new: Dict[str, np.ndarray] = {}
+        A_new: dict[str, np.ndarray] = {}
+        b_new: dict[str, np.ndarray] = {}
         for m in A_map:
             if m not in b_map:
                 continue
@@ -980,7 +997,7 @@ class BanditRouter:
 
     @staticmethod
     def _load_warmup_priors(
-        router: "BanditRouter",
+        router: BanditRouter,
         priors_path: Path,
         prior_n_effective: float,
     ) -> None:
@@ -1012,7 +1029,7 @@ class BanditRouter:
                 exc,
             )
 
-        missing_models: List[str] = []
+        missing_models: list[str] = []
         for model_id in router.bandit.models:
             if (model_id in warmup_data.get("A", {})) and (model_id in warmup_data.get("b", {})):
                 # A[-1,-1] gives the total precision weight in the bias
@@ -1022,29 +1039,29 @@ class BanditRouter:
                 # and regularization used during warmup generation.
                 warmup_eff_strength = warmup_data["A"][model_id][-1, -1]
                 scale = prior_n_effective / float(warmup_eff_strength)
-                
+
                 # Original matrices
                 A_orig = warmup_data["A"][model_id]
                 b_orig = warmup_data["b"][model_id]
-                
+
                 # Scale data covariance and target
                 A_scaled = A_orig * scale
                 b_scaled = b_orig * scale
-                
+
                 # True prior mean (from offline data)
                 # We use safe_inv because A might be singular if n_warmup is small or data is degenerate
                 try:
                     theta_true = np.linalg.solve(A_orig, b_orig)
                 except np.linalg.LinAlgError:
                     theta_true = np.linalg.pinv(A_orig) @ b_orig
-                    
+
                 router.bandit.A[model_id] = A_scaled
-                
-                # We will add init_lambda * I to A below, so we must add init_lambda * theta_true to b 
+
+                # We will add init_lambda * I to A below, so we must add init_lambda * theta_true to b
                 # to prevent Bayesian shrinkage from pulling the mean to zero.
                 # The user expects the confidence (n_eff) to change the variance, not the mean!
                 router.bandit.b[model_id] = b_scaled + router.bandit.init_lambda * theta_true
-                
+
             else:
                 missing_models.append(model_id)
                 A_h, b_h = get_heuristic_prior(
@@ -1081,7 +1098,7 @@ class BanditRouter:
         )
 
     @staticmethod
-    def _inject_tshirt_biases(router: "BanditRouter") -> None:
+    def _inject_tshirt_biases(router: BanditRouter) -> None:
         """Inject T-shirt sizing speed-profile biases into warmed-up state.
 
         Applies human-provided speed profile priors (fast/slow) *on top* of
@@ -1121,11 +1138,11 @@ class BanditRouter:
 
     def _filter_by_constraints(
         self,
-        candidates: List[str],
+        candidates: list[str],
         max_cost: float | None,
         max_latency: float | None,
-        quality_floor: Dict[str, float | None] | None,
-    ) -> List[str]:
+        quality_floor: dict[str, float | None] | None,
+    ) -> list[str]:
         """
         Apply hard constraints (cost, latency, quality floor).
 
@@ -1159,11 +1176,11 @@ class BanditRouter:
             List of models passing all constraints
         """
         filtered = []
-        reasons: Dict[str, List[str]] = {}
+        reasons: dict[str, list[str]] = {}
 
         for m in candidates:
             m_data = self.registry.get(m, {})
-            m_reasons: List[str] = []
+            m_reasons: list[str] = []
 
             if max_cost is not None:
                 blended_m = m_data.get("blended_cost_per_m")
@@ -1199,8 +1216,8 @@ class BanditRouter:
             raise NoEligibleModelsError(reasons, max_cost, max_latency, quality_floor)
 
         return filtered
-    
-    
+
+
     def _create_routing_log(
         self,
         prompt_text: str,
@@ -1213,7 +1230,7 @@ class BanditRouter:
     ) -> RoutingLog:
         """
         Create and persist routing log.
-        
+
         Args:
             prompt_text: Input prompt text
             model: Selected model ID
@@ -1221,7 +1238,7 @@ class BanditRouter:
             x: Context vector (cached for feedback loop)
             input_tokens: Input token count
             output_tokens: Output token count
-            
+
         Returns:
             RoutingLog object
         """
@@ -1253,7 +1270,7 @@ class BanditRouter:
             # Only index if deque actually kept it (maxlen > 0)
             if self.logs.maxlen is None or self.logs.maxlen > 0:
                 self.log_index[log.request_id] = log
-        
+
         return log
 
     def route(
@@ -1262,10 +1279,10 @@ class BanditRouter:
         *,
         max_cost: float | None = None,
         max_latency: float | None = None,
-        quality_floor: Dict[str, float | None] | None = None,
+        quality_floor: dict[str, float | None] | None = None,
         input_tokens: int | None = None,
         output_tokens: int = 600,
-    ) -> Tuple[str, RoutingLog]:
+    ) -> tuple[str, RoutingLog]:
         """Route a prompt to the best model using LinUCB with cost penalties.
 
         Raises:
@@ -1291,7 +1308,7 @@ class BanditRouter:
 
         # Budget pacing: compute effective cost ceiling and soft penalties.
         effective_max_cost = max_cost
-        extra_cost_penalties: Dict[str, float] | None = None
+        extra_cost_penalties: dict[str, float] | None = None
         _pacer_ceiling_relaxed = False
 
         if self.budget_pacer is not None and self.budget_pacer.uses_hard:
@@ -1366,11 +1383,11 @@ class BanditRouter:
             x, candidates=filtered, cost_penalties=cp,
             alpha_override=alpha_override,
         )
-        
+
         total_weight = 1.0
 
         self.bandit.mark_selected(best_model)
-        
+
         # Create routing log
         log = self._create_routing_log(
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
@@ -1380,7 +1397,7 @@ class BanditRouter:
             log.pacer_cost_ema = self.budget_pacer.cost_ema
 
         self.context_store.save_context(log.request_id, x, best_model)
-        
+
         return best_model, log
 
     def process_feedback(
@@ -1415,11 +1432,11 @@ class BanditRouter:
         # O(1) lookup via parallel index instead of O(N) linear scan.
         with self._log_lock:
             log = self.log_index.get(request_id)
-        
+
         # Fallback to context_store for delayed feedback (RLHF)
         if log is None:
             context, model_id = self.context_store.get_context(request_id)
-            if context is None:
+            if context is None or model_id is None:
                 logger.warning("Context not found for request_id=%s", request_id)
                 return
             log = RoutingLog(
@@ -1428,7 +1445,7 @@ class BanditRouter:
                 predicted_utility=0.0, cost_usd=0.0, latency_s=0.0,
                 context_vector=context,
             )
-        
+
         # Reject non-finite rewards (NaN/inf) that would corrupt IPW estimates.
         if not np.isfinite(reward):
             logger.warning(
@@ -1450,20 +1467,20 @@ class BanditRouter:
 
         # Use cached context vector to avoid re-encoding
         x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
-        
+
         self.bandit.update(log.selected_model, x, reward, advance_time=False)
-        
+
         if self.budget_pacer is not None:
             self.budget_pacer.observe(log.cost_usd)
 
         # Periodic stability check (cheap O(d) operation).
-        if (self.config.stability_check_interval > 0 and 
+        if (self.config.stability_check_interval > 0 and
             self.bandit.t % self.config.stability_check_interval == 0 and
             self.bandit.t > 0):
             for model in self.bandit.models:
                 self.bandit._check_numerical_stability(model, self.config)
 
-    def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
+    def get_probabilities(self, context: str | np.ndarray, model_ids: list[str] | None = None) -> dict[str, float]:
         """
         Estimate the probability each model has the highest *quality* for *context*.
 
@@ -1491,7 +1508,7 @@ class BanditRouter:
         """
         x = self.features.extract_features(context)
         models = model_ids if model_ids else self.bandit.models
-        
+
         return self.bandit.get_probabilities(x, models)
 
     def update(self, model_id: str, context: str | np.ndarray, reward: float, weight: float = 1.0, advance_time: bool = True) -> None:
@@ -1526,9 +1543,9 @@ class BanditRouter:
             )
         reward = float(np.clip(reward, r_min, r_max))
         x = self.features.extract_features(context)
-        
+
         self.bandit.update(model_id, x, reward, weight, advance_time=advance_time)
-        
+
         # Periodic stability check.
         if (self.config.stability_check_interval > 0 and
             self.bandit.t % self.config.stability_check_interval == 0 and
@@ -1542,7 +1559,7 @@ class BanditRouter:
 
     @staticmethod
     def _explain_coefficients(
-        policy: "DisjointLinUCBPolicy",
+        policy: DisjointLinUCBPolicy,
         model_id: str,
     ) -> np.ndarray:
         """Return the combined coefficient vector for interpretability.
@@ -1567,11 +1584,11 @@ class BanditRouter:
         return policy.theta[model_id]
 
     def explain_decision(
-        self, 
-        model_id: str, 
+        self,
+        model_id: str,
         context_vector: np.ndarray,
         threshold: float = 0.01
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Decompose the **mean reward prediction** ``θ^T x`` into per-feature contributions.
 
         **Scope — mean prediction only.**  This method decomposes ``θ^T x``
@@ -1606,36 +1623,36 @@ class BanditRouter:
             combined = self._explain_coefficients(self.bandit, model_id)
 
         contributions = combined * context_vector
-        
+
         # 3. Map back to feature names
         explanation = {}
-        
+
         # Structure: [PCA (d-1) | Bias (1)], e.g. 33-D with 32 PCA + 1 bias
         pca_dims = len(context_vector) - 1  # All except last dimension
-        
+
         for idx in range(pca_dims):
             score = float(contributions[idx])
             if abs(score) > threshold:
                 explanation[f"PCA_{idx}"] = score
-        
+
         # Bias term (last dimension)
         bias_score = float(contributions[-1])
         if abs(bias_score) > threshold:
             explanation["bias"] = bias_score
-        
+
         # Sort by absolute contribution (highest impact first)
         explanation = dict(
             sorted(explanation.items(), key=lambda x: abs(x[1]), reverse=True)
         )
-        
+
         return explanation
-    
+
     def explain_selection(
-        self, 
-        prompt: str, 
+        self,
+        prompt: str,
         top_k: int = 3,
         threshold: float = 0.01
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> dict[str, dict[str, float]]:
         """Decompose the mean reward prediction for the top-*k* models by ``θ^T x``.
 
         Convenience wrapper that extracts the context vector and returns
@@ -1664,9 +1681,9 @@ class BanditRouter:
         """
         # Extract context vector
         x = self._get_context_vector(prompt)
-        
+
         model_scores = []
-        coeff_cache: Dict[str, np.ndarray] = {}
+        coeff_cache: dict[str, np.ndarray] = {}
         with self.bandit._lock:
             for model_id in self.bandit.models:
                 if model_id not in self.bandit.A_inv:
@@ -1675,11 +1692,11 @@ class BanditRouter:
                 coeff_cache[model_id] = coeffs
                 score = float(np.dot(coeffs, x))
                 model_scores.append((model_id, score))
-        
+
         # Sort by score (highest first) and take top-k
         model_scores.sort(key=lambda item: item[1], reverse=True)
         top_models = [m[0] for m in model_scores[:top_k]]
-        
+
         # Generate explanations for top-k models using cached coefficients
         # (no second lock acquisition needed — uses the same snapshot)
         pca_dims = len(x) - 1  # All except last dimension (bias)
@@ -1695,7 +1712,7 @@ class BanditRouter:
             if abs(bias_score) > threshold:
                 explanation["bias"] = bias_score
             explanations[model_id] = explanation
-        
+
         return explanations
 
 
@@ -1786,56 +1803,56 @@ class BanditRouter:
     def _estimate_cost(self, model: str, in_tok: int, out_tok: int) -> float:
         """
         Estimate cost with Pessimistic Defaults for resilience.
-        
+
         Prevents 'All-Infinity' outage if registry schema breaks or config
         update fails. Unknown models are treated as Opus-tier expensive,
         keeping the service operational in conservative mode.
-        
+
         Args:
             model: Model identifier
             in_tok: Input token count
             out_tok: Output token count
-            
+
         Returns:
             Estimated cost in USD
         """
         m = self.registry.get(model, {})
-        
+
         # Extract costs with type validation
         input_cost = m.get("input_cost_per_m")
         output_cost = m.get("output_cost_per_m")
-        
+
         # Validate: Must be numbers (guard against schema corruption)
         if input_cost is None or not isinstance(input_cost, (int, float)):
             input_cost = self.config.default_missing_cost_per_m
-            
+
         if output_cost is None or not isinstance(output_cost, (int, float)):
             output_cost = self.config.default_missing_cost_per_m * _OUTPUT_COST_MULTIPLIER
-        
+
         # Calculation: now guaranteed to return valid float, never inf
         return (input_cost * in_tok + output_cost * out_tok) / 1e6
 
     def _estimate_latency(self, model: str, out_tok: int) -> float:
         """
         Estimate latency with Pessimistic Defaults for resilience.
-        
+
         Prevents routing failures when time_to_first_token_seconds is missing.
         Unknown models are treated as slow (2.0s) but usable.
-        
+
         Args:
             model: Model identifier
             out_tok: Output token count (unused, for API consistency)
-            
+
         Returns:
             Estimated time to first token in seconds
         """
         m = self.registry.get(model, {})
         val = m.get("time_to_first_token_seconds")
-        
+
         # Validate: Must be positive number
         if val is None or not isinstance(val, (int, float)) or val <= 0.0:
             # Fallback to "slow but usable" instead of infinity
             return self.config.default_missing_latency
-            
+
         return float(val)
 

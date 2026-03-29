@@ -1,30 +1,30 @@
 import json
 import random
-import numpy as np
-from pathlib import Path
-from tqdm import tqdm
-from typing import Dict, List, Tuple, Optional
 from collections import Counter
-from sklearn.model_selection import train_test_split
+from pathlib import Path
+from typing import Any
 
-from pareto_bandit.rewards import extract_reward
+import numpy as np
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
+
 # from src.pareto_bandit.router import BanditRouter # Removed to avoid circular import
 
 class ExperimentBurnIn:
     """
     Facilitates the Conference-compliant burn-in process for experiments.
-    
-    This class centralizes the loading of splits, curriculum generation, 
+
+    This class centralizes the loading of splits, curriculum generation,
     and router burn-in logic to ensure consistency across different evaluation runs.
     """
-    
+
     def __init__(
-        self, 
-        registry: Dict[str, Dict], 
-        oracle_rewards: Dict[str, Dict[str, float]] = None, 
-        splits_path: Path = None,
-        encoder = None
-    ):
+        self,
+        registry: dict[str, dict],
+        oracle_rewards: dict[str, dict[str, float]] | None = None,
+        splits_path: Path | None = None,
+        encoder: Any = None,
+    ) -> None:
         self.registry = registry
         self.oracle_rewards = oracle_rewards or {}
         self.splits_path = Path(splits_path) if splits_path else None
@@ -33,37 +33,44 @@ class ExperimentBurnIn:
     @staticmethod
     def _get_stratification_key(
         prompt: str,
-        rewards_map: Dict[str, float]
+        rewards_map: dict[str, float]
     ) -> str:
         """
         Calculates a coarse stratification key for a prompt.
-        
+
         Axes:
         1. Category (STEM, CODE, GENERAL)
         2. Complexity (Low, Med, High)
         3. Difficulty/Signal (Stable-Easy, Stable-Hard, Contentious)
         """
         prompt_lower = prompt.lower()
-        
+
         # 1. Category Heuristics
         category = "GENERAL"
         if any(kw in prompt_lower for kw in ["integral", "derivative", "theorem", "proof", "math", "calculus", "equation"]):
             category = "STEM"
         elif any(kw in prompt_lower for kw in ["code", "function", "class", "debug", "python", "javascript", "rust", "```"]):
             category = "CODE"
-            
+
         # 2. Complexity Heuristics (Score 0-1)
         score = 0.0
-        if len(prompt) > 500: score += 0.3
-        if len(prompt) > 2000: score += 0.2
-        if "```" in prompt: score += 0.2
-        if any(kw in prompt_lower for kw in ["step-by-step", "explain", "why", "how"]): score += 0.1
-        if any(kw in prompt_lower for kw in ["without", "avoid", "only", "constraint"]): score += 0.2
-        
+        if len(prompt) > 500:
+            score += 0.3
+        if len(prompt) > 2000:
+            score += 0.2
+        if "```" in prompt:
+            score += 0.2
+        if any(kw in prompt_lower for kw in ["step-by-step", "explain", "why", "how"]):
+            score += 0.1
+        if any(kw in prompt_lower for kw in ["without", "avoid", "only", "constraint"]):
+            score += 0.2
+
         complexity = "Low"
-        if score >= 0.7: complexity = "High"
-        elif score >= 0.3: complexity = "Med"
-        
+        if score >= 0.7:
+            complexity = "High"
+        elif score >= 0.3:
+            complexity = "Med"
+
         # 3. Difficulty/Signal (from Oracle Rewards)
         rewards = list(rewards_map.values())
         if not rewards:
@@ -71,24 +78,24 @@ class ExperimentBurnIn:
         else:
             var = np.var(rewards)
             avg = np.mean(rewards)
-            
+
             if var > 0.05:
                 signal = "Contentious"
             elif avg < 0.8:
                 signal = "Hard"
             else:
                 signal = "Easy"
-                
+
         return f"{category}_{complexity}_{signal}"
 
     @staticmethod
     def create_three_way_splits(
-        oracle_rewards: Dict[str, Dict[str, float]],
+        oracle_rewards: dict[str, dict[str, float]],
         splits_path: Path,
         prior_ratio: float = 0.40,
         random_state: int = 42,
         min_models: int = 43,
-    ) -> Tuple[List[str], List[str], List[str]]:
+    ) -> tuple[list[str], list[str]]:
         """
         Generate stratified three-way split: prior-training / online-learning / holdout.
 
@@ -182,9 +189,9 @@ class ExperimentBurnIn:
 
     def generate_curriculum(
         self,
-        dev_prompts: List[str],
+        dev_prompts: list[str],
         seed: int = 42,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate a signal-aware curriculum by oversampling contentious prompts.
 
         Args:
@@ -214,7 +221,7 @@ class ExperimentBurnIn:
         # avoiding degenerate duplication patterns.
         # Strategy: Create 3x samples from hard pool (can include repeats),
         # then balance with easy prompts for 50/50 split
-        burn_in_list: List[str] = []
+        burn_in_list: list[str] = []
 
         if hard_train:
             hard_samples = rng.choice(
@@ -236,27 +243,27 @@ class ExperimentBurnIn:
         py_rng.shuffle(burn_in_list)
         return burn_in_list
 
-    def perform_burn_in(self, router, burn_in_list: List[str]):
+    def perform_burn_in(self, router: Any, burn_in_list: list[str]) -> Any:
         """
         Executes the burn-in loop on the provided router.
-        
+
         Args:
             router: The BanditRouter instance to warm up.
             burn_in_list: The curriculum prompts to learn from.
-            
+
         Returns:
             BanditRouter: The burned-in router.
         """
         for prompt in tqdm(burn_in_list, desc="  Burn-in", leave=False):
             # 1. Select Arm (arbitrage profile for learning balance)
             model_id, _ = router.route(prompt)
-            
+
             # 2. Get Reward (Oracle)
             reward = self.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
-            
+
             # 3. Update Bandit
             router.update(model_id, prompt, reward)
-            
+
         return router
 
     def create_burned_in_router(
@@ -288,18 +295,18 @@ class ExperimentBurnIn:
             FileNotFoundError: If ``VAL_DATA_PATH_ALL_MODELS`` does not exist.
         """
         import gzip as _gzip
-        from pareto_bandit.router import BanditRouter
-        from pareto_bandit.config import VAL_DATA_PATH_ALL_MODELS, DEFAULT_PCA_PATH
-        from pareto_bandit.rewards import extract_reward
 
-        if not VAL_DATA_PATH_ALL_MODELS.exists():
+        from pareto_bandit.config import DEFAULT_PCA_PATH, VAL_DATA_PATH
+        from pareto_bandit.router import BanditRouter
+
+        if not VAL_DATA_PATH.exists():
             raise FileNotFoundError(
-                f"Val rewards not found at {VAL_DATA_PATH_ALL_MODELS}."
+                f"Val rewards not found at {VAL_DATA_PATH}."
             )
 
-        val_prompts: List[str] = []
+        val_prompts: list[str] = []
         seen: set = set()
-        with _gzip.open(VAL_DATA_PATH_ALL_MODELS, "rt") as f:
+        with _gzip.open(VAL_DATA_PATH, "rt") as f:
             for line in f:
                 p = json.loads(line)["prompt"]
                 if p not in seen:

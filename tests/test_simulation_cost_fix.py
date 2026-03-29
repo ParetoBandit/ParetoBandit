@@ -28,7 +28,6 @@ import pytest
 from pareto_bandit import BanditRouter
 from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 
-
 # ======================================================================
 # Fixtures
 # ======================================================================
@@ -103,7 +102,6 @@ class TestCostOverrideMechanism:
         router = _make_router(three_model_registry, budget_pacer=pacer)
 
         _, log = router.route("Test prompt")
-        original_cost = log.cost_usd
 
         injected_cost = 0.42
         log.cost_usd = injected_cost
@@ -198,13 +196,12 @@ class TestBudgetTargetsFromData:
     def test_targets_span_empirical_range(self):
         """Targets should span from min to max per-model mean cost."""
         from dataclasses import dataclass
-        from typing import Dict, List
 
         @dataclass
         class MockSplitData:
-            prompts: List[str]
-            rewards: Dict[str, np.ndarray]
-            costs: Dict[str, np.ndarray]
+            prompts: list[str]
+            rewards: dict[str, np.ndarray]
+            costs: dict[str, np.ndarray]
             embeddings: np.ndarray
 
             @property

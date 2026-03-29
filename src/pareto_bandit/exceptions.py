@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
-
 
 class MissingCostError(ValueError):
     """Raised when a model has no blended cost and it cannot be derived.
@@ -26,10 +24,10 @@ class NoEligibleModelsError(Exception):
 
     def __init__(
         self,
-        reasons: Dict[str, List[str]],
+        reasons: dict[str, list[str]],
         max_cost: float | None = None,
         max_latency: float | None = None,
-        quality_floor: Dict[str, float | None] | None = None,
+        quality_floor: dict[str, float | None] | None = None,
     ):
         self.reasons = reasons
         lines = ["No models meet the specified constraints:"]

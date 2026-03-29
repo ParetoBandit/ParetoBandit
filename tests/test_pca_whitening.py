@@ -34,11 +34,9 @@ from pareto_bandit.config import DEFAULT_PCA_PATH
 from pareto_bandit.feature_service import FeatureService
 from pareto_bandit.router import (
     BanditRouter,
-    DisjointLinUCBPolicy,
     MissingCostError,
     NoEligibleModelsError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -270,7 +268,8 @@ class TestFeatureServiceWhitening:
             p2 = Path(tmpdir) / "no.joblib"
             joblib.dump(pca_yes, p1)
             joblib.dump(pca_no, p2)
-            enc = lambda s: np.random.default_rng(hash(s) % 2**32).standard_normal(20)
+            def enc(s):
+                return np.random.default_rng(hash(s) % 2**32).standard_normal(20)
             fs1 = FeatureService(pca_path=p1, whiten_pca=False, allow_jit_training=False,
                                  custom_encoder=enc, embedding_dim=20)
             fs2 = FeatureService(pca_path=p2, whiten_pca=False, allow_jit_training=False,
@@ -429,8 +428,9 @@ class TestShippedWarmupPriorsMetadata:
 class TestCalibrationWhitening:
 
     def test_generate_warmup_priors_adds_whitening_metadata(self) -> None:
-        from pareto_bandit.calibration import generate_warmup_priors
         from unittest.mock import patch
+
+        from pareto_bandit.calibration import generate_warmup_priors
 
         rng = np.random.default_rng(0)
         X_train = rng.standard_normal((100, 20))
@@ -461,8 +461,9 @@ class TestCalibrationWhitening:
         assert len(state["pca_explained_variance"]) == 4
 
     def test_generate_warmup_priors_no_whitening_flag(self) -> None:
-        from pareto_bandit.calibration import generate_warmup_priors
         from unittest.mock import patch
+
+        from pareto_bandit.calibration import generate_warmup_priors
 
         rng = np.random.default_rng(0)
         X_train = rng.standard_normal((100, 20))
@@ -507,7 +508,8 @@ class TestCostFilteringSematics:
             model_registry=registry, priors="none",
             feature_service=fs,
         )
-        x = np.zeros(DIM); x[-1] = 1.0
+        x = np.zeros(DIM)
+        x[-1] = 1.0
         model, _ = router.route(x, max_cost=0.002)
         assert model == "model-0"
 
@@ -519,7 +521,8 @@ class TestCostFilteringSematics:
             model_registry=registry, priors="none",
             feature_service=fs,
         )
-        x = np.zeros(DIM); x[-1] = 1.0
+        x = np.zeros(DIM)
+        x[-1] = 1.0
         with pytest.raises(NoEligibleModelsError):
             router.route(x, max_cost=1e-7)
 
@@ -573,20 +576,16 @@ class TestBackwardCompatRegistryKeys:
 
 class TestPessimisticCostDefaults:
 
-    def test_fully_missing_cost_gets_defaults(self) -> None:
-        """A model with NO cost fields should receive pessimistic fallback."""
+    def test_fully_missing_cost_raises_missing_cost_error(self) -> None:
+        """A model with NO cost fields should raise MissingCostError."""
         registry = {"no-cost": {"model_id": "no-cost"}}
         fs = _mock_feature_service(dim=DIM, whiten_pca=False,
                                    scales=np.ones(DIM))
-        router = BanditRouter.create(
-            model_registry=registry, priors="none",
-            feature_service=fs,
-        )
-        m = router.registry["no-cost"]
-        assert "blended_cost_per_m" in m
-        assert m["blended_cost_per_m"] > 0
-        assert m["input_cost_per_m"] > 0
-        assert m["output_cost_per_m"] > 0
+        with pytest.raises(MissingCostError, match="no cost information"):
+            BanditRouter.create(
+                model_registry=registry, priors="none",
+                feature_service=fs,
+            )
 
     def test_partial_cost_still_raises(self) -> None:
         """Having only input (or only output) cost is a likely registry bug."""

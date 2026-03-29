@@ -1,10 +1,9 @@
 import json
-import pytest
-import numpy as np
-from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
+
 from src.pareto_bandit.utils.experiment import ExperimentBurnIn
-from src.pareto_bandit.router import BanditRouter
 
 
 @pytest.fixture

@@ -4,11 +4,13 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-import pytest
+
 import numpy as np
-import json
-from pareto_bandit import BanditRouter, ExplorationRate, RouterConfig
+import pytest
+
+from pareto_bandit import BanditRouter, RouterConfig
 from pareto_bandit.router import MissingCostError, NoEligibleModelsError
+
 
 @pytest.fixture
 def sample_registry():
@@ -40,12 +42,12 @@ def test_router_initialization(sample_registry):
 def test_routing_decisions(sample_registry):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     prompt = "Simple hello"
-    
+
     # Test simple routing
     model, log = router.route(prompt)
     assert model in ["openai/gpt-4o", "google/gemma-3-2b-it"]
     assert log.selected_model == model
-    
+
     # Test with profile (use auto as default intelligent routing)
     model_cs, log_cs = router.route(prompt)
     # Note: Model selection depends on router's UCB scores and may vary
@@ -54,12 +56,12 @@ def test_routing_decisions(sample_registry):
 def test_constraints(sample_registry):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     prompt = "Constraint test"
-    
+
     # Max cost in $/1k tokens (blended). Gemma = 0.1/M -> 0.0001/1k,
     # GPT-4o = 10.0/M -> 0.01/1k. A cap of 0.001/1k should filter to Gemma.
     model, log = router.route(prompt, max_cost=0.001)
     assert model == "google/gemma-3-2b-it"
-    
+
     # Quality floor should favor GPT-4
     model_q, log_q = router.route(prompt, quality_floor={"hle": 0.7})
     assert model_q == "openai/gpt-4o"
@@ -120,15 +122,15 @@ def test_register_model_unknown_kwargs_allowed_in_compat_mode(sample_registry):
 def test_save_load(sample_registry, tmp_path):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     save_path = tmp_path / "bandit_state.npz"
-    
+
     # Run a route and feedback
     model, log = router.route("test")
     router.process_feedback(log.request_id, 1.0)
-    
+
     # Save
     router.save_state(save_path)
     assert save_path.exists()
-    
+
     # Load into new router
     router2 = BanditRouter.create(model_registry=sample_registry, state_path=save_path)
     assert np.allclose(router.bandit.b[model], router2.bandit.b[model])
@@ -183,22 +185,21 @@ def test_missing_cost_data_raises_at_init():
     """
     Registries with incomplete cost data raise MissingCostError.
 
-    When cost fields are entirely absent, the router fills pessimistic defaults
-    (fail-operational) so research/test registries remain usable.
+    Both missing costs entirely and partial costs (only input or only output)
+    raise MissingCostError with a helpful message showing correct usage.
     """
-    # Both input and output costs missing → fill pessimistic defaults
-    router = BanditRouter.create(
-        model_registry={
-            "model_a": {
-                "model_id": "provider/model-a",
-                "display_name": "Model A",
-                "hle": 0.50,
-            }
-        },
-        priors="none",
-    )
-    assert "blended_cost_per_m" in router.registry["model_a"]
-    assert router.registry["model_a"]["blended_cost_per_m"] > 0.0
+    # Both input and output costs missing → MissingCostError
+    with pytest.raises(MissingCostError, match="no cost information"):
+        BanditRouter.create(
+            model_registry={
+                "model_a": {
+                    "model_id": "provider/model-a",
+                    "display_name": "Model A",
+                    "hle": 0.50,
+                }
+            },
+            priors="none",
+        )
 
     # Input present but output missing → MissingCostError
     with pytest.raises(MissingCostError, match="missing.*output_cost_per_m"):
@@ -243,7 +244,7 @@ def test_estimate_cost_with_complete_data():
 def test_estimate_latency_pessimistic_defaults():
     """
     Test that _estimate_latency uses pessimistic defaults when metadata is missing.
-    
+
     Critical resilience behavior: Missing latency data should NOT return infinity.
     """
     registry_missing_latency = {
@@ -272,21 +273,21 @@ def test_estimate_latency_pessimistic_defaults():
             "time_to_first_token_seconds": 0.5  # Valid latency
         }
     }
-    
+
     router = BanditRouter.create(model_registry=registry_missing_latency, priors="none")
-    
+
     # Test model_a: Latency missing
     latency_a = router._estimate_latency("model_a", out_tok=500)
     assert latency_a != float('inf'), "Missing latency should NOT return infinity"
     assert latency_a == router.config.default_missing_latency, \
         f"Expected pessimistic latency {router.config.default_missing_latency}, got {latency_a}"
-    
+
     # Test model_b: Invalid zero latency
     latency_b = router._estimate_latency("model_b", out_tok=500)
     assert latency_b != float('inf'), "Zero latency should NOT return infinity"
     assert latency_b == router.config.default_missing_latency, \
         f"Expected pessimistic latency for invalid zero, got {latency_b}"
-    
+
     # Test model_c: Valid latency
     latency_c = router._estimate_latency("model_c", out_tok=500)
     assert latency_c == 0.5, f"Expected accurate latency 0.5, got {latency_c}"

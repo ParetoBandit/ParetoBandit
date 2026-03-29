@@ -16,8 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import numpy as np
 import pytest
 
-from pareto_bandit import BanditRouter, FeatureService, RouterConfig
-
+from pareto_bandit import BanditRouter, FeatureService
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -370,7 +369,7 @@ class TestRouterPrecomputed:
             model_registry=registry, feature_service=fs, priors="none"
         )
 
-        for i in range(20):
+        for _i in range(20):
             vec = np.random.randn(dim)
             vec[-1] = 1.0
             model, log = router.route(vec)
@@ -420,7 +419,7 @@ class TestEdgeCases:
             model_registry=registry, feature_service=fs, priors="none"
         )
 
-        router.register_model("provider/new-model", speed="fast")
+        router.register_model("provider/new-model", speed="fast", input_cost_per_m=1.0, output_cost_per_m=3.0)
         assert "provider/new-model" in router.bandit.models
 
     def test_feature_names_custom_encoder(self):
@@ -452,7 +451,7 @@ class TestTextFeatures:
     """Verify the optional regex-based text features."""
 
     def test_module_level_extract(self):
-        from pareto_bandit.feature_service import extract_text_features, N_TEXT_FEATURES
+        from pareto_bandit.feature_service import N_TEXT_FEATURES, extract_text_features
 
         vec = extract_text_features("If you must solve this, then ensure the answer is exact.")
         assert vec.shape == (N_TEXT_FEATURES,)
@@ -504,7 +503,7 @@ class TestTextFeatures:
         np.testing.assert_allclose(v_off[:dim], v_on[:dim], atol=1e-12)
 
     def test_feature_names_include_text(self):
-        from pareto_bandit.feature_service import TEXT_FEATURE_NAMES, N_TEXT_FEATURES
+        from pareto_bandit.feature_service import N_TEXT_FEATURES, TEXT_FEATURE_NAMES
 
         dim = 16
         fs = FeatureService(

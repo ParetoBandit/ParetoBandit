@@ -8,18 +8,16 @@ shipped train/val/test splits conform to the expected schema.
 
 import gzip
 import json
-import shutil
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
 from pareto_bandit.config import (
+    HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     TRAIN_DATA_PATH,
     VAL_DATA_PATH,
-    HOLDOUT_DATA_PATH,
 )
 
 # ---------------------------------------------------------------------------
@@ -30,18 +28,18 @@ REQUIRED_RECORD_KEYS = {"prompt", "arms"}
 REQUIRED_ARM_KEYS = {"reward", "cost"}
 
 
-def _load_jsonl(path: Path) -> List[Dict[str, Any]]:
+def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     """Load a JSONL file, auto-detecting gzip by extension."""
     open_fn = gzip.open if path.suffix == ".gz" else open
     mode = "rt" if path.suffix == ".gz" else "r"
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     with open_fn(path, mode) as f:
         for line in f:
             records.append(json.loads(line))
     return records
 
 
-def _make_sample_records(n: int = 5) -> List[Dict[str, Any]]:
+def _make_sample_records(n: int = 5) -> list[dict[str, Any]]:
     """Return *n* synthetic records in the canonical per-prompt format."""
     arms = {
         "model-a": {"reward": 0.9, "cost": 1e-5, "near_best": True},
@@ -62,14 +60,14 @@ def _make_sample_records(n: int = 5) -> List[Dict[str, Any]]:
     ]
 
 
-def _write_jsonl(records: List[Dict[str, Any]], path: Path) -> None:
+def _write_jsonl(records: list[dict[str, Any]], path: Path) -> None:
     """Write records as newline-delimited JSON."""
     with open(path, "w") as f:
         for r in records:
             f.write(json.dumps(r) + "\n")
 
 
-def _write_jsonl_gz(records: List[Dict[str, Any]], path: Path) -> None:
+def _write_jsonl_gz(records: list[dict[str, Any]], path: Path) -> None:
     """Write records as gzip-compressed newline-delimited JSON."""
     with gzip.open(path, "wt") as f:
         for r in records:
@@ -130,7 +128,7 @@ class TestGzipRoundTrip:
 # ---------------------------------------------------------------------------
 
 
-def _validate_record_schema(record: Dict[str, Any]) -> None:
+def _validate_record_schema(record: dict[str, Any]) -> None:
     """Assert a single record conforms to the canonical per-prompt schema."""
     missing = REQUIRED_RECORD_KEYS - record.keys()
     assert not missing, f"Missing top-level keys: {missing}"
@@ -173,7 +171,7 @@ class TestCanonicalSplits:
     def test_split_schema(self, split_name: str) -> None:
         path, _ = self.SPLITS[split_name]
         records = _load_jsonl(path)
-        for i, r in enumerate(records):
+        for _i, r in enumerate(records):
             _validate_record_schema(r)
 
     @pytest.mark.parametrize("split_name", ["train", "val", "test"])

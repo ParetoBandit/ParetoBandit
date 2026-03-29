@@ -21,7 +21,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
 import pytest
@@ -81,18 +80,15 @@ class TestDemoImports:
 
     def test_public_symbols(self) -> None:
         from pareto_bandit.demo import (
-            DemoConfig,
-            DataSplit,
-            TrialMetrics,
+            ARM_ORDER,
+            ARM_SHORT,
+            _create_router,
             load_demo_splits,
-            run_trial,
             run_scenario_1,
             run_scenario_2,
             run_scenario_3,
             run_scenario_4,
-            _create_router,
-            ARM_ORDER,
-            ARM_SHORT,
+            run_trial,
         )
         assert len(ARM_ORDER) == 3
         assert len(ARM_SHORT) == 3
@@ -125,7 +121,7 @@ class TestDataLoading:
 
     @pytest.fixture(scope="class")
     def splits(self):
-        from pareto_bandit.demo import ARM_ORDER, load_demo_splits, DemoConfig
+        from pareto_bandit.demo import ARM_ORDER, DemoConfig, load_demo_splits
         from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
@@ -182,7 +178,7 @@ class TestRunTrial:
 
     @pytest.fixture(scope="class")
     def trial_result(self):
-        from pareto_bandit.demo import load_demo_splits, run_trial, DemoConfig
+        from pareto_bandit.demo import DemoConfig, load_demo_splits, run_trial
         from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()

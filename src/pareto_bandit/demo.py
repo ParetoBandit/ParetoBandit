@@ -33,10 +33,13 @@ Four scenarios showcase core capabilities:
 
 All plots are saved to ``<output_dir>/`` (default ``./demo_results/``).
 
-Requires ``pip install paretobandit[demo]``.  Pass
-``--encoder-model`` to swap the embedding backbone (a matching PCA
-artifact is then required via ``--pca-path``, or raw embeddings are
-used when omitted).
+Requires ``pip install paretobandit[demo]``.
+
+By default, prompts are embedded with ``all-MiniLM-L6-v2`` and compressed
+via a 25-component PCA trained on ~46K LMSYS Arena prompts (ships with the
+package).  Pass ``--encoder-model`` to swap the embedding backbone (a
+matching PCA artifact is then required via ``--pca-path``, or raw
+embeddings are used when omitted).
 
 Usage::
 
@@ -67,6 +70,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
@@ -196,7 +200,7 @@ class DataSplit:
     @property
     def n(self) -> int:
         """Number of samples in this split."""
-        return self.embeddings.shape[0]
+        return int(self.embeddings.shape[0])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -318,7 +322,7 @@ def _load_jsonl(
     if not records:
         raise ValueError(f"No records found in {path}")
 
-    first_arms = set(records[0].get("arms", {}).keys())  # type: ignore[union-attr]
+    first_arms = set(records[0].get("arms", {}).keys())  # type: ignore[attr-defined]
     missing = set(ARM_ORDER) - first_arms
     if missing:
         raise ValueError(
@@ -338,11 +342,11 @@ def _load_jsonl(
     rewards: dict[str, np.ndarray] = {a: np.empty(n_total) for a in ARM_ORDER}
     costs: dict[str, np.ndarray] = {a: np.empty(n_total) for a in ARM_ORDER}
     for i, rec in enumerate(records):
-        arms = rec["arms"]  # type: ignore[index]
+        arms = rec["arms"]
         for arm_id in ARM_ORDER:
             arm_data = arms[arm_id]  # type: ignore[index]
-            rewards[arm_id][i] = float(arm_data["reward"])  # type: ignore[index]
-            costs[arm_id][i] = float(arm_data["cost"])  # type: ignore[index]
+            rewards[arm_id][i] = float(arm_data["reward"])
+            costs[arm_id][i] = float(arm_data["cost"])
 
     return DataSplit(embeddings=X_bias, rewards=rewards, costs=costs)
 
@@ -752,7 +756,7 @@ def _plot_phased_3panel(
     naive_color = CB_GRAY
     unconstrained_color = CB_GREEN
 
-    def _add_shading(ax: plt.Axes) -> None:  # type: ignore[name-defined]
+    def _add_shading(ax: plt.Axes) -> None:
         ax.axvspan(phase_boundaries[0], phase_boundaries[1],
                    alpha=0.07, color=shade_color, zorder=0)
         for b in phase_boundaries[:2]:
@@ -773,7 +777,7 @@ def _plot_phased_3panel(
     )
 
     def _plot_line(
-        ax: plt.Axes,  # type: ignore[name-defined]
+        ax: plt.Axes,
         series: np.ndarray,
         label: str,
         color: str,
@@ -866,7 +870,7 @@ def _plot_phased_3panel(
     fig.legend(handles, labels, loc="lower center",
                ncol=min(len(labels), 3), fontsize=10,
                framealpha=0.9, bbox_to_anchor=(0.5, -0.005))
-    fig.tight_layout(rect=[0, 0.07, 1, 0.97])
+    fig.tight_layout(rect=(0, 0.07, 1, 0.97))
     fig.subplots_adjust(hspace=0.15)
     fig.suptitle(suptitle, fontsize=14, fontweight="bold", y=0.99)
 
@@ -920,14 +924,14 @@ def run_scenario_1(
     target_strs = [f"${t:.2e}" if t < 1e-4 else f"${t:.5f}" for t in targets]
     print(f"  Budget targets ($/req): {target_strs}")
 
-    baselines: list[dict[str, object]] = []
+    baselines: list[dict[str, Any]] = []
     for arm in ARM_ORDER:
-        r = float(np.mean(holdout.rewards[arm]))
+        rew = float(np.mean(holdout.rewards[arm]))
         c = float(np.mean(holdout.costs[arm]))
-        baselines.append({"model_id": arm, "mean_reward": r, "mean_cost": c})
-        print(f"  Baseline {ARM_SHORT[arm]:<16s}  reward={r:.4f}  cost=${c:.6f}")
+        baselines.append({"model_id": arm, "mean_reward": rew, "mean_cost": c})
+        print(f"  Baseline {ARM_SHORT[arm]:<16s}  reward={rew:.4f}  cost=${c:.6f}")
 
-    sweep_results: list[dict[str, object]] = []
+    sweep_results: list[dict[str, Any]] = []
     for target in targets:
         seed_rewards: list[float] = []
         seed_costs: list[float] = []
@@ -961,7 +965,7 @@ def run_scenario_1(
             float(np.std(seed_costs, ddof=1) / np.sqrt(cfg.n_seeds))
             if cfg.n_seeds > 1 else 0.0
         )
-        row: dict[str, object] = {
+        row: dict[str, Any] = {
             "target_spend": target,
             "mean_reward": float(np.mean(seed_rewards)),
             "se_reward": se_r,
@@ -970,7 +974,7 @@ def run_scenario_1(
             "model_fractions": avg_fracs,
         }
         sweep_results.append(row)
-        util = float(row["mean_cost"]) / target if target > 0 else 0.0  # type: ignore[arg-type]
+        util = float(row["mean_cost"]) / target if target > 0 else 0.0
         print(
             f"  target=${target:.2e}  reward={row['mean_reward']:.4f}"
             f"+/-{row['se_reward']:.4f}  cost=${row['mean_cost']:.2e}"
@@ -1007,8 +1011,8 @@ def run_scenario_1(
 
     util_tolerance = 0.10
     for r in sweep_results:
-        ts = float(r["target_spend"])  # type: ignore[arg-type]
-        util = float(r["mean_cost"]) / ts if ts > 0 else 0.0  # type: ignore[arg-type]
+        ts = float(r["target_spend"])
+        util = float(r["mean_cost"]) / ts if ts > 0 else 0.0
         if 1.0 - util_tolerance <= util <= 1.0 + util_tolerance:
             mc = CB_GREEN
         elif util < 1.0 - util_tolerance:
@@ -1085,8 +1089,8 @@ def run_scenario_1(
     )
 
     for r in sweep_results:
-        ts = float(r["target_spend"])  # type: ignore[arg-type]
-        util = float(r["mean_cost"]) / ts if ts > 0 else 0.0  # type: ignore[arg-type]
+        ts = float(r["target_spend"])
+        util = float(r["mean_cost"]) / ts if ts > 0 else 0.0
         if 1.0 - util_tolerance <= util <= 1.0 + util_tolerance:
             mc = CB_GREEN
         elif util < 1.0 - util_tolerance:
@@ -1100,7 +1104,7 @@ def run_scenario_1(
         )
         ax_b.annotate(
             f"{util:.2f}x",
-            xy=(float(r["target_spend"]), float(r["mean_cost"])),  # type: ignore[arg-type]
+            xy=(float(r["target_spend"]), float(r["mean_cost"])),
             xytext=(7, 0), textcoords="offset points",
             fontsize=9, color="0.3", ha="left", va="center",
         )
@@ -1131,7 +1135,7 @@ def run_scenario_1(
 
     for arm in ARM_ORDER:
         fracs = np.array(
-            [r["model_fractions"][arm] for r in sweep_results],  # type: ignore[index]
+            [r["model_fractions"][arm] for r in sweep_results],
         )
         ax_c.bar(
             x_pos, fracs, bar_width, bottom=bottom,
@@ -1300,7 +1304,7 @@ def run_scenario_2(
     print(f"  Degraded reward: {_DEGRADED_REWARD:.2f} "
           f"(~{deg_pct:.0f}% below normal {mistral_normal:.3f})")
     print(f"  Phase size:     {phase_size} prompts x 3 phases")
-    print(f"  Phase 3 reuses Phase 1 prompts (within-subject design)")
+    print("  Phase 3 reuses Phase 1 prompts (within-subject design)")
 
     budget_targets: dict[str, float] = dict(
         zip(K3_BUDGET_LABELS, K3_BUDGET_TARGETS, strict=True),
@@ -1379,8 +1383,8 @@ def run_scenario_2(
 # Scenario 3 — Cost Drift & Recovery (§4.3, Figure 2; Exp 02)
 # ═══════════════════════════════════════════════════════════════════════════
 
-_GEMINI_NEW_INPUT: float = GEMINI_COST_DROP["new_input_cost_per_m"]
-_GEMINI_NEW_OUTPUT: float = GEMINI_COST_DROP["new_output_cost_per_m"]
+_GEMINI_NEW_INPUT = cast(float, GEMINI_COST_DROP["new_input_cost_per_m"])
+_GEMINI_NEW_OUTPUT = cast(float, GEMINI_COST_DROP["new_output_cost_per_m"])
 
 _PHASE_LABELS_S3 = ["Normal", "Price Drop", "Price Restored"]
 
@@ -1391,8 +1395,8 @@ def _gemini_cost_scale() -> float:
     Derived from the registry's original pricing and the paper's new
     pricing, exactly as ``Experiment 02`` does.
     """
-    orig_input = float(MODEL_REGISTRY[GEMINI_ARM]["input_cost_per_m"])
-    orig_output = float(MODEL_REGISTRY[GEMINI_ARM]["output_cost_per_m"])
+    orig_input = float(MODEL_REGISTRY[GEMINI_ARM]["input_cost_per_m"])  # type: ignore[arg-type]
+    orig_output = float(MODEL_REGISTRY[GEMINI_ARM]["output_cost_per_m"])  # type: ignore[arg-type]
     orig_avg = (orig_input + orig_output) / 2.0
     new_avg = (_GEMINI_NEW_INPUT + _GEMINI_NEW_OUTPUT) / 2.0
     return new_avg / orig_avg
@@ -1450,8 +1454,8 @@ def _run_cost_drift_trial(
         log.cost_usd = float(train.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
 
-    orig_input = float(MODEL_REGISTRY[cost_drift_arm]["input_cost_per_m"])
-    orig_output = float(MODEL_REGISTRY[cost_drift_arm]["output_cost_per_m"])
+    orig_input = float(MODEL_REGISTRY[cost_drift_arm]["input_cost_per_m"])  # type: ignore[arg-type]
+    orig_output = float(MODEL_REGISTRY[cost_drift_arm]["output_cost_per_m"])  # type: ignore[arg-type]
 
     p1_order = rng.permutation(phase_n)
     p2_order = rng.permutation(len(p2_idx))
@@ -1547,7 +1551,7 @@ def run_scenario_3(
     phase_size, total_steps, window = _phase_geometry(n_phases=3)
 
     print(f"  Phase size:     {phase_size} prompts x 3 phases")
-    print(f"  Phase 3 reuses Phase 1 prompts (within-subject design)")
+    print("  Phase 3 reuses Phase 1 prompts (within-subject design)")
 
     budget_targets: dict[str, float] = dict(
         zip(K3_BUDGET_LABELS, K3_BUDGET_TARGETS, strict=True),
@@ -1700,10 +1704,10 @@ def run_scenario_4(
     )
 
     for ax, (sweep_name, sweep_cfg) in zip(axes, param_sweeps.items(), strict=False):
-        param_key = sweep_cfg["param"]
+        param_key = str(sweep_cfg["param"])
         values = sweep_cfg["values"]
         labels = sweep_cfg["labels"]
-        defaults = sweep_cfg["defaults"]
+        defaults = cast(dict[str, Any], sweep_cfg["defaults"])
 
         print(f"\n  Sweep: {sweep_name}")
         bar_rewards: list[float] = []
@@ -1907,10 +1911,14 @@ def main() -> None:
 
             _st_model = SentenceTransformer(cfg.encoder_model)
             _emb_dim = _st_model.get_sentence_embedding_dimension()
-            fs = FeatureService(
-                custom_encoder=lambda text, _m=_st_model: _m.encode(
+
+            def _custom_encode(text: str) -> np.ndarray:
+                return np.asarray(_st_model.encode(
                     text, normalize_embeddings=True, show_progress_bar=False,
-                ),
+                ))
+
+            fs = FeatureService(
+                custom_encoder=_custom_encode,
                 embedding_dim=_emb_dim,
             )
     else:

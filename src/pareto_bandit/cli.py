@@ -10,10 +10,11 @@ Usage::
     paretobandit --version
 """
 
-import sys
 import argparse
-from importlib.metadata import version as _pkg_version, PackageNotFoundError
-from pathlib import Path
+import sys
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 from .router import BanditRouter
 
 
@@ -46,9 +47,9 @@ def main() -> None:
     )
     parser.add_argument("--profile", default="best_value", help="Optimization profile")
     parser.add_argument("--download-models", action="store_true", help="Download required models (for Docker/CI pre-warming)")
-    
+
     args = parser.parse_args()
-    
+
     if args.version:
         print(f"ParetoBandit v{_get_version()}")
         return
@@ -66,11 +67,11 @@ def main() -> None:
             print(f"Error downloading models: {e}")
             sys.exit(1)
         return
-        
+
     if not args.prompt:
         parser.print_help()
         return
-        
+
     try:
         router = BanditRouter.create(cost_penalty=args.cost_penalty)
         model, log = router.route(args.prompt, max_cost=args.max_cost)

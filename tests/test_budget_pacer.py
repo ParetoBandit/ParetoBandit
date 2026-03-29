@@ -21,7 +21,6 @@ import pytest
 
 from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
 
-
 # ======================================================================
 # 1. Initialization and mode properties
 # ======================================================================

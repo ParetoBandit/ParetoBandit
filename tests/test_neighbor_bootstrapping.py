@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 import numpy as np
-import pytest
+
 from pareto_bandit import BanditRouter
 
 
@@ -52,6 +52,8 @@ def test_register_model_uses_uniform_prior():
         "ruby_specialist",
         speed="fast",
         capabilities=["coding"],
+        input_cost_per_m=1.0,
+        output_cost_per_m=3.0,
     )
 
     A_ruby = router.bandit.A["ruby_specialist"]

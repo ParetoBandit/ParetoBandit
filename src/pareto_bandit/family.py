@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from itertools import combinations
-from typing import Dict, List
 
 import numpy as np
 
@@ -102,8 +101,9 @@ def tetrachoric_corr(x: np.ndarray, y: np.ndarray) -> float:
 
     Returns NaN if the solver fails to converge (e.g. all-same vectors).
     """
-    from scipy.stats import norm, multivariate_normal as mvn_dist
     from scipy.optimize import brentq
+    from scipy.stats import multivariate_normal as mvn_dist
+    from scipy.stats import norm
 
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -115,7 +115,10 @@ def tetrachoric_corr(x: np.ndarray, y: np.ndarray) -> float:
     n00 = float(np.sum((x == 0) & (y == 0)))
 
     if n00 == 0 or n11 == 0 or n10 == 0 or n01 == 0:
-        n11 += 0.5; n10 += 0.5; n01 += 0.5; n00 += 0.5
+        n11 += 0.5
+        n10 += 0.5
+        n01 += 0.5
+        n00 += 0.5
         n += 2.0
 
     p1 = (n11 + n10) / n
@@ -131,7 +134,7 @@ def tetrachoric_corr(x: np.ndarray, y: np.ndarray) -> float:
     def _objective(r: float) -> float:
         r = np.clip(r, -0.999, 0.999)
         dist = mvn_dist(mean=[0, 0], cov=[[1, r], [r, 1]])
-        return dist.cdf([-c1, -c2]) - p_obs
+        return float(dist.cdf([-c1, -c2]) - p_obs)
 
     try:
         return float(brentq(_objective, -0.999, 0.999, xtol=1e-8))
@@ -140,10 +143,10 @@ def tetrachoric_corr(x: np.ndarray, y: np.ndarray) -> float:
 
 
 def compute_correlation_families(
-    reward_vectors: Dict[str, np.ndarray],
+    reward_vectors: dict[str, np.ndarray],
     threshold: float = 0.6,
     method: str = "tetrachoric",
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Build a family map from within-provider reward correlations.
 
     Parameters
@@ -184,12 +187,12 @@ def compute_correlation_families(
     if method not in ("tetrachoric", "pearson"):
         raise ValueError(f"Unknown method {method!r}; expected 'tetrachoric' or 'pearson'")
 
-    providers: Dict[str, List[str]] = defaultdict(list)
+    providers: dict[str, list[str]] = defaultdict(list)
     for m in sorted(reward_vectors):
         prov = m.split("/")[0] if "/" in m else "__none__"
         providers[prov].append(m)
 
-    parent: Dict[str, str] = {m: m for m in reward_vectors}
+    parent: dict[str, str] = {m: m for m in reward_vectors}
 
     def _find(a: str) -> str:
         while parent[a] != a:
@@ -202,7 +205,7 @@ def compute_correlation_families(
         if ra != rb:
             parent[rb] = ra
 
-    for prov, models in providers.items():
+    for _prov, models in providers.items():
         if len(models) < 2:
             continue
         for m1, m2 in combinations(models, 2):
@@ -213,7 +216,7 @@ def compute_correlation_families(
             if not np.isnan(corr) and corr >= threshold:
                 _union(m1, m2)
 
-    family_map: Dict[str, str] = {}
+    family_map: dict[str, str] = {}
     for m in sorted(reward_vectors):
         root = _find(m)
         family_map[m] = root

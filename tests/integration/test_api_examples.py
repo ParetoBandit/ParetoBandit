@@ -15,12 +15,10 @@ Run via Docker (recommended):
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import numpy as np
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -303,7 +301,7 @@ class TestGetProbabilitiesExample:
         )
 
         probs = router.get_probabilities("Write a SQL query to find active users")
-        for model, prob in sorted(probs.items(), key=lambda x: -x[1]):
+        for _model, prob in sorted(probs.items(), key=lambda x: -x[1]):
             assert 0.0 <= prob <= 1.0
         assert abs(sum(probs.values()) - 1.0) < 1e-6
 
@@ -346,7 +344,7 @@ class TestExplainExamples:
         explanations = self.router.explain_selection(
             "Debug this Python code", top_k=2
         )
-        for model, features in explanations.items():
+        for _model, features in explanations.items():
             assert isinstance(features, dict)
 
 
@@ -360,6 +358,7 @@ class TestRegisterModelExample:
     def test_register_model_variants(self) -> None:
         """API Ref: register_model examples (exact pricing, blended, mystery)."""
         from pareto_bandit import BanditRouter, FeatureService
+        from pareto_bandit.exceptions import MissingCostError
 
         fs = FeatureService.for_precomputed(dimension=16)
         router = BanditRouter.create(
@@ -379,8 +378,8 @@ class TestRegisterModelExample:
         )
         assert "local/llama-3-8b" in router.registry
 
-        router.register_model("mystery/new-model")
-        assert "mystery/new-model" in router.registry
+        with pytest.raises(MissingCostError, match="no cost information"):
+            router.register_model("mystery/new-model")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -591,6 +590,7 @@ class TestFeatureServiceCustomEncoderExample:
         """API Ref: Custom encoder with PCA compression."""
         import joblib
         from sklearn.decomposition import PCA
+
         from pareto_bandit import FeatureService
 
         def fake_openai_embed(prompt: str) -> np.ndarray:
@@ -688,9 +688,8 @@ class TestBudgetPacerExample:
 
     def test_budget_constrained_routing(self) -> None:
         """API Ref: Budget-constrained routing."""
-        from pareto_bandit import BanditRouter
+        from pareto_bandit import BanditRouter, FeatureService
         from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
-        from pareto_bandit import FeatureService
 
         pacer = BudgetPacer(
             target_avg_spend_usd=0.001,
@@ -726,7 +725,7 @@ class TestTrainPcaExample:
 
     def test_train_pca_from_demo_data(self, tmp_path: Path) -> None:
         """API Ref: train_pca — uses shipped holdout prompts instead of 3-item stub."""
-        from pareto_bandit import train_pca, FeatureService, BanditRouter
+        from pareto_bandit import BanditRouter, FeatureService, train_pca
 
         prompts = _load_holdout_prompts(n=50)
         assert len(prompts) >= 50
@@ -759,7 +758,7 @@ class TestGenerateWarmupPriorsExample:
         self, tmp_path: Path
     ) -> None:
         """API Ref: generate_warmup_priors — uses shipped holdout records."""
-        from pareto_bandit import train_pca, generate_warmup_priors
+        from pareto_bandit import generate_warmup_priors, train_pca
 
         records = _load_holdout_records(n=50)
         prompts = [r["prompt"] for r in records]
@@ -807,9 +806,8 @@ class TestStorageExamples:
 
     def test_sqlite_context_store(self, tmp_path: Path) -> None:
         """API Ref: SqliteContextStore example."""
-        from pareto_bandit import BanditRouter
+        from pareto_bandit import BanditRouter, FeatureService
         from pareto_bandit.storage import SqliteContextStore
-        from pareto_bandit import FeatureService
 
         db_path = tmp_path / "bandit_router.db"
         store = SqliteContextStore(
@@ -837,9 +835,8 @@ class TestStorageExamples:
 
     def test_ephemeral_context_store(self) -> None:
         """API Ref: EphemeralContextStore example."""
-        from pareto_bandit import BanditRouter
+        from pareto_bandit import BanditRouter, FeatureService
         from pareto_bandit.storage import EphemeralContextStore
-        from pareto_bandit import FeatureService
 
         store = EphemeralContextStore(max_size=100)
         fs = FeatureService.for_precomputed(dimension=16)
@@ -923,7 +920,7 @@ class TestDemoModuleExamples:
 
     def test_load_demo_splits(self) -> None:
         """API Ref: load_demo_splits with shipped val + holdout."""
-        from pareto_bandit.demo import load_demo_splits, DemoConfig
+        from pareto_bandit.demo import DemoConfig, load_demo_splits
         from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
@@ -939,7 +936,7 @@ class TestDemoModuleExamples:
 
     def test_run_trial(self) -> None:
         """API Ref: run_trial with shipped val + holdout."""
-        from pareto_bandit.demo import load_demo_splits, run_trial, DemoConfig
+        from pareto_bandit.demo import DemoConfig, load_demo_splits, run_trial
         from pareto_bandit.feature_service import FeatureService
 
         fs = FeatureService()
@@ -971,8 +968,8 @@ class TestEndToEndWithShippedData:
         from pareto_bandit import (
             BanditRouter,
             FeatureService,
-            train_pca,
             generate_warmup_priors,
+            train_pca,
         )
         from pareto_bandit.budget_pacer import BudgetPacer, PacingMode
         from pareto_bandit.storage import SqliteContextStore
@@ -981,7 +978,7 @@ class TestEndToEndWithShippedData:
         prompts = [r["prompt"] for r in records]
 
         pca_path = tmp_path / "pipeline_pca.joblib"
-        pca = train_pca(
+        train_pca(
             prompts,
             encoder_model="all-MiniLM-L6-v2",
             n_components=25,

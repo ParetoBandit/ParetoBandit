@@ -31,14 +31,13 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Dict, List, Optional
 
 import numpy as np
 
 try:
-    from pareto_bandit.utils import safe_inv, argmax_random_tiebreak
+    from pareto_bandit.utils import argmax_random_tiebreak, safe_inv
 except ImportError:
-    from .utils import safe_inv, argmax_random_tiebreak
+    from .utils import argmax_random_tiebreak, safe_inv
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +73,12 @@ class CostAwareLinTSRouter:
 
     def __init__(
         self,
-        models: List[str],
+        models: list[str],
         context_dim: int,
-        model_costs: Dict,
+        model_costs: dict,
         cost_penalty: float = 0.0,
         noise_variance: float = 0.25,
-        warmup_priors: Optional[Dict] = None,
+        warmup_priors: dict | None = None,
         ridge_lambda: float = 1.0,
         seed: int | None = None,
     ):
@@ -127,8 +126,8 @@ class CostAwareLinTSRouter:
         self,
         context: np.ndarray,
         total_steps: int = 0,
-        candidates: Optional[List[str]] = None,
-    ) -> str:
+        candidates: list[str] | None = None,
+    ) -> str | None:
         """
         Select model via Thompson Sampling: sample θ̃ ~ posterior, pick argmax.
 
@@ -253,9 +252,9 @@ class CostAwareLearnedProjRouter:
 
     def __init__(
         self,
-        models: List[str],
+        models: list[str],
         raw_dim: int,
-        model_costs: Dict,
+        model_costs: dict,
         proj_dim: int = 16,
         cost_penalty: float = 0.0,
         proj_lr: float = 0.01,
@@ -286,7 +285,7 @@ class CostAwareLearnedProjRouter:
 
     def _project(self, x_raw: np.ndarray) -> np.ndarray:
         """Apply learned projection: z = Wx."""
-        return self.W @ x_raw
+        return np.asarray(self.W @ x_raw)
 
     def get_current_alpha(self, total_steps: int) -> float:
         """Linear decay schedule matching other routers."""
@@ -299,8 +298,8 @@ class CostAwareLearnedProjRouter:
         self,
         context: np.ndarray,
         total_steps: int = 0,
-        candidates: Optional[List[str]] = None,
-    ) -> str:
+        candidates: list[str] | None = None,
+    ) -> str | None:
         """
         Select model using UCB in the learned projected space.
 
@@ -424,8 +423,8 @@ class CostThresholdRouter:
 
     def __init__(
         self,
-        models: List[str],
-        model_costs: Dict,
+        models: list[str],
+        model_costs: dict,
         threshold: float = 1.0,
         difficulty_feature: str = "norm",
     ):
@@ -463,7 +462,7 @@ class CostThresholdRouter:
         self,
         context: np.ndarray,
         total_steps: int = 0,
-        candidates: Optional[List[str]] = None,
+        candidates: list[str] | None = None,
     ) -> str:
         """Route based on difficulty threshold."""
         score = self._difficulty_score(context)

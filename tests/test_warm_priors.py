@@ -14,15 +14,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-import tempfile
+
+from unittest.mock import MagicMock
 
 import joblib
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 from pareto_bandit.router import BanditRouter
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

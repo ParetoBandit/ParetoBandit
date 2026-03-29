@@ -18,13 +18,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from pareto_bandit.calibration import train_pca, generate_warmup_priors
-from pareto_bandit.feature_service import FeatureService, DEFAULT_CONTEXT_MODEL
+from pareto_bandit.calibration import generate_warmup_priors, train_pca
 from pareto_bandit.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
-    DEFAULT_PCA_PATH,
 )
-
+from pareto_bandit.feature_service import DEFAULT_CONTEXT_MODEL, FeatureService
 
 # ---------------------------------------------------------------------------
 # Helpers

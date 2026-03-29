@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Union
+from typing import TYPE_CHECKING, Any
 
 import joblib
 import numpy as np
 from sklearn.decomposition import PCA
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +102,7 @@ def train_pca(
 def generate_warmup_priors(
     rewards_data: list[dict],
     encoder_model: str,
-    pca: Union[PCA, Path, str],
+    pca: PCA | Path | str,
     plasticity: float = 0.1,
     whiten_pca: bool = True,
     output_path: Path | str | None = None,
@@ -177,12 +180,12 @@ def generate_warmup_priors(
                     "Cache miss in precomputed_raw_embeddings — "
                     "falling back to live SentenceTransformer encoding."
                 )
-        return encoder.encode(
+        return np.asarray(encoder.encode(
             prompt,
             convert_to_numpy=True,
             normalize_embeddings=True,
             show_progress_bar=False,
-        )
+        ))
 
     # Discover model set ---------------------------------------------------
     all_models: set[str] = set()
@@ -294,8 +297,8 @@ def generate_warmup_priors(
 
 def embed_prompt(
     prompt: str,
-    encoder: 'SentenceTransformer',
-    pca_model,
+    encoder: SentenceTransformer,
+    pca_model: Any,
     *,
     whiten_pca: bool = True,
 ) -> np.ndarray:

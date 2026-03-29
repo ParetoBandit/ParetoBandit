@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from pareto_bandit import BanditRouter, ExplorationRate, FeatureService
-
 from tests.stress_utils import (
     DEFAULT_DIMENSION,
     make_context,

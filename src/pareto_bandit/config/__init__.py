@@ -25,7 +25,7 @@ GPT-4.1-mini and Claude-3.7-Sonnet on a 2,000-prompt subset
 
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 # ==============================================================================
 # Model Configuration
@@ -43,25 +43,25 @@ DEFAULT_SENTENCE_TRANSFORMER = "all-MiniLM-L6-v2"
 
 N_SEEDS: int = 20
 
-K3_ARM_ORDER: List[str] = [
+K3_ARM_ORDER: list[str] = [
     "meta-llama/llama-3.1-8b-instruct",
     "mistralai/mistral-large-2512",
     "google/gemini-2.5-pro",
 ]
 
-K3_ARM_SHORT: Dict[str, str] = {
+K3_ARM_SHORT: dict[str, str] = {
     "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
     "mistralai/mistral-large-2512": "Mistral-Large",
     "google/gemini-2.5-pro": "Gemini-Pro",
 }
 
-K3_DEFAULT_SWAP_ARMS: Tuple[str, str] = (
+K3_DEFAULT_SWAP_ARMS: tuple[str, str] = (
     "meta-llama/llama-3.1-8b-instruct",
     "mistralai/mistral-large-2512",
 )
 """Default Llama <-> Mistral reward swap for non-stationary experiments."""
 
-K3_ALL_SWAP_PAIRS: List[Tuple[str, str]] = list(combinations(K3_ARM_ORDER, 2))
+K3_ALL_SWAP_PAIRS: list[tuple[str, str]] = list(combinations(K3_ARM_ORDER, 2))
 """All C(K,2)=3 pairwise reward/cost swap pairs for the K=3 portfolio."""
 
 # ==============================================================================
@@ -182,8 +182,8 @@ which recovery requires a longer horizon.
 # K=3 Budget Targets (Experiment 03 / Appendix model onboarding)
 # ==============================================================================
 
-K3_BUDGET_TARGETS: List[float] = [3.0e-4, 6.62e-4, 1.87e-3]
-K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
+K3_BUDGET_TARGETS: list[float] = [3.0e-4, 6.62e-4, 1.87e-3]
+K3_BUDGET_LABELS: list[str] = ["tight", "moderate", "loose"]
 
 # ==============================================================================
 # Best K=3 Hyperparameters (Exp 05: T_adapt-constrained Pareto knee-point)
@@ -209,7 +209,7 @@ K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
 # is flat across d in [6, 25], validating this design choice.
 
-BEST_K3_HPARAMS: Dict[str, Any] = {
+BEST_K3_HPARAMS: dict[str, Any] = {
     "alpha": 0.01,
     "pca_components": 25,
     "prior_n_effective": 1163.9,
@@ -235,7 +235,7 @@ Val BP AUC = 0.9277, val P2 reward = 0.7312.
 Test BP AUC = 0.9221 (delta = -0.35%).
 """
 
-BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
+BEST_K3_TABULA_RASA_HPARAMS: dict[str, Any] = {
     "alpha": 0.05,
     "pca_components": 25,
     "prior_n_effective": 1.0,
