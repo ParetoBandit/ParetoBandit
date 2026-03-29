@@ -4,7 +4,7 @@ from importlib.metadata import version as _pkg_version
 try:
     __version__ = _pkg_version("paretobandit")
 except PackageNotFoundError:
-    __version__ = "0.1.0"
+    __version__ = "0.1.1"
 
 from .calibration import generate_warmup_priors, train_pca
 from .exceptions import MissingCostError, NoEligibleModelsError, NoModelScoredError
