@@ -154,7 +154,7 @@ router = BanditRouter.create(
 
 ## API Overview
 
-Full API documentation: **[API Reference](https://github.com/ParetoBandit/ParetoBandit/blob/main/docs/API_REFERENCE.md)**
+Full API documentation: **[API Reference](docs/API_REFERENCE.md)**
 
 | Class / Function | Purpose |
 |---|---|
@@ -297,19 +297,19 @@ paretobandit/
 - **Embeddings** (optional): torch, sentence-transformers, transformers
 - **Experiments:** matplotlib, scipy, python-dotenv
 
-Full dependency specifications are in [`pyproject.toml`](https://github.com/ParetoBandit/ParetoBandit/blob/main/pyproject.toml).
-A pinned lockfile for exact reproduction of paper results is available in [`requirements-lock.txt`](https://github.com/ParetoBandit/ParetoBandit/blob/main/requirements-lock.txt).
+Full dependency specifications are in [`pyproject.toml`](pyproject.toml).
+A pinned lockfile for exact reproduction of paper results is available in [`requirements-lock.txt`](requirements-lock.txt).
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](https://github.com/ParetoBandit/ParetoBandit/blob/main/CONTRIBUTING.md) for development setup,
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup,
 coding standards, and the pull request workflow. By participating you agree to abide by the
-[Code of Conduct](https://github.com/ParetoBandit/ParetoBandit/blob/main/CODE_OF_CONDUCT.md).
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
 ## License
 
-This project is licensed under the Apache License 2.0. See [LICENSE](https://github.com/ParetoBandit/ParetoBandit/blob/main/LICENSE) for details.
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
