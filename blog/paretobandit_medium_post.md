@@ -1,3 +1,12 @@
+---
+tags:
+  - Machine Learning
+  - Large Language Models
+  - MLOps
+  - Artificial Intelligence
+  - Open Source
+---
+
 # Your LLM API Bill Is a Slot Machine: Here's How Bandits Can Fix It
 
 **An open-source router that learns which model to call, stays on budget, and adapts when things change.**
@@ -6,16 +15,16 @@
 
 ---
 
-If you're calling LLM APIs in production, you know the feeling. You have a portfolio of models (maybe a budget-friendly 8B, a solid mid-tier, and a flagship frontier model) and you're making ad-hoc rules about which one gets each request. Simple questions go cheap; hard reasoning goes expensive. It sort of works, until you check the bill at the end of the month and realize your rules weren't as clever as you thought. You're left wondering: could you have gotten the same quality for less, or better quality for the same spend?
+If you're calling LLM APIs in production, you know the feeling. You have a portfolio of models (maybe a budget-friendly 8B, a solid mid-cost, and a flagship high-cost model) and you're making ad-hoc rules about which one gets each request. Simple questions go cheap; hard reasoning goes expensive. It sort of works, until you check the bill at the end of the month and realize your rules weren't as clever as you thought. You're left wondering: could you have gotten the same quality for less, or better quality for the same spend?
 
 Here's a real example. This is a basic arithmetic question from the GSM8K benchmark:
 
 <p align="center">
 <img src="figures/which_model_answered_correctly.png" alt="Which Model Answered Correctly?" width="470">
-<br><em>Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The frontier model costs 24x more and got it wrong.</em>
+<br><em>Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The high-cost model costs 24x more and got it wrong.</em>
 </p>
 
-The cost spread between models can be **530x**, and no single model dominates on every input. That cheap mid-tier model? It handles many prompts just as well as, or better than, the frontier model at a fraction of the cost. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
+The cost spread between models can be **530x**, and no single model dominates on every input. That cheap mid-cost model? It handles many prompts just as well as, or better than, the high-cost model at a fraction of the cost. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
 
 You're essentially playing a **multi-armed bandit**, whether you realize it or not. If you haven't seen the term before, the idea is simple: imagine a row of slot machines, each with a different (unknown) payout rate. You want to maximize your winnings, but you have to balance *exploiting* the machine that's been paying well against *exploring* the one you've only tried twice that might be even better.
 
@@ -37,12 +46,12 @@ Consider a real three-model portfolio:
 | Model | Tier | Cost per Request |
 |---|---|---|
 | Llama-3.1-8B | Budget | $0.00003 |
-| Mistral-Large | Mid-tier | $0.00053 |
-| Gemini-2.5-Pro | Frontier | $0.015 |
+| Mistral-Large | Mid-Cost | $0.00053 |
+| Gemini-2.5-Pro | High-Cost | $0.015 |
 
 That's a **530x** spread from cheapest to most expensive. And here's the twist: Gemini-Pro scores 0.932 on a quality rubric while Mistral-Large scores 0.923, nearly as good at 28x less cost. For many prompts, the cheaper model is *the right choice*. The question isn't *which model to use*, it's *which model to use for this prompt, given this budget, right now*.
 
-There's been excellent work on LLM routing: cascading approaches [6], classifiers trained on preference data [7], and systems that incorporate budget targets [9]. These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
+There's been excellent work on LLM routing: cascading approaches (Ding et al., 2024), classifiers trained on preference data (Ong et al., 2025), and systems that incorporate budget targets (Bhatti et al., 2026). These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
 
 1. **Budgets need continuous enforcement.** You set a cost target, but prompt distributions shift, and a fixed routing table can drift off budget.
 2. **Quality regresses silently.** Providers update models behind their APIs. The "best" model might quietly change, and a frozen router won't notice until someone checks.
