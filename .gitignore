@@ -215,5 +215,11 @@ data_collection/rewards/archive/legacy_k10/dev_rewards_complete_all_models.jsonl
 data/routellm/*.jsonl.gz
 data/routellm/*.jsonl
 
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Docker test output
+docker_results/
+
 # MkDocs build output
 site/
