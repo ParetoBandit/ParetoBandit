@@ -21,7 +21,7 @@ Here's a real example. This is a basic arithmetic question from the GSM8K benchm
 
 <p align="center">
 <img src="figures/which_model_answered_correctly.png" alt="Which Model Answered Correctly?" width="470">
-<br><em>Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The high-cost model costs 24x more and got it wrong.</em>
+<br><em>Model A is Mistral-Large ($0.0005/request). Model B is Gemini-2.5-Pro ($0.015/request). The high-cost model costs 28x more and got it wrong.</em>
 </p>
 
 The cost spread between models can be **530x**, and no single model dominates on every input. That cheap mid-cost model? It handles many prompts just as well as, or better than, the high-cost model at a fraction of the cost. Picking the wrong model for each prompt either burns money or tanks quality. And the right answer changes depending on the prompt, the budget, and even on whether a provider quietly updated their model last Tuesday.
@@ -51,9 +51,9 @@ Consider a real three-model portfolio:
 
 That's a **530x** spread from cheapest to most expensive. And here's the twist: Gemini-Pro scores 0.932 on a quality rubric while Mistral-Large scores 0.923, nearly as good at 28x less cost. For many prompts, the cheaper model is *the right choice*. The question isn't *which model to use*, it's *which model to use for this prompt, given this budget, right now*.
 
-There's been excellent work on LLM routing: cascading approaches (Ding et al., 2024), classifiers trained on preference data (Ong et al., 2025), and systems that incorporate budget targets (Bhatti et al., 2026). These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
+There's been excellent work on LLM routing: quality-aware two-model routing (Ding et al., 2024), classifiers trained on preference data (Ong et al., 2025), and constraint-aware routing via reinforcement learning (Bhatti et al., 2026). These have pushed the field forward significantly. But most of them learn a fixed policy offline and freeze it at serving time, which works well when conditions are stable. The challenge is that production environments are often *not* stable:
 
-1. **Budgets need continuous enforcement.** You set a cost target, but prompt distributions shift, and a fixed routing table can drift off budget.
+1. **Budgets need continuous enforcement.** You set a cost target, but a fixed routing table has no feedback loop on realized spending and can drift off budget.
 2. **Quality regresses silently.** Providers update models behind their APIs. The "best" model might quietly change, and a frozen router won't notice until someone checks.
 3. **New models launch constantly.** Integrating a new model into a static routing table typically requires offline evaluation and retraining.
 
@@ -79,7 +79,7 @@ After observing the response quality, the router updates its estimates. Over tim
 
 Three mechanisms make this work in production:
 
-### Budget Pacer: Dollar-denominated cost ceilings (Eqs. 3-4)
+### (1) Budget Pacer: Dollar-denominated cost ceilings
 
 Most routing approaches handle cost through static penalty weights or offline budget allocation, which works well in controlled settings. For production systems where traffic volume is unpredictable and costs need to stay within a specific dollar figure, ParetoBandit takes a different approach: you set a **per-request cost ceiling *B* in real dollars** (say, $0.001/request), and an online primal-dual mechanism enforces it continuously ([paper, Section 3.2, p. 3](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)). Two equations do the work:
 
@@ -87,9 +87,11 @@ Most routing approaches handle cost through static penalty weights or offline bu
 <img src="figures/eq3_eq4_budget_pacer.png" alt="Equations 3-4: Budget pacer update" width="400">
 </p>
 
-Eq. 3 smooths the raw cost signal with an EMA (half-life of ~14 requests) to prevent sawtooth oscillations from single expensive calls. Eq. 4 is the adaptive Lagrange update: when smoothed cost exceeds the budget *B*, the ratio exceeds 1, so `lambda_t` rises, penalizing expensive models in Eq. 2. When spending is under budget, `lambda_t` falls, releasing the router to pursue quality. Normalizing the gradient by *B* makes the step size portfolio-independent. The system never needs to know the total request volume; it self-regulates at any traffic scale.
+The first equation smooths the raw cost signal with an EMA (half-life of ~14 requests) to prevent sawtooth oscillations from single expensive calls. The second is the adaptive Lagrange update: when smoothed cost exceeds the budget *B*, the ratio exceeds 1, so `lambda_t` rises, penalizing expensive models in the scoring formula. When spending is under budget, `lambda_t` falls, releasing the router to pursue quality.
 
-### Geometric Forgetting: Adapting to non-stationarity (Eqs. 7-8)
+Normalizing the gradient by *B* makes the step size portfolio-independent. The system never needs to know the total request volume; it self-regulates at any traffic scale.
+
+### (2) Geometric Forgetting: Adapting to non-stationarity
 
 The second ingredient addresses a challenge that becomes apparent in long-running deployments: model quality and pricing are *not stationary* ([paper, Section 2.4, p. 3](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)). Providers update models, adjust pricing, or deprecate endpoints. Rather than treating all historical observations equally, ParetoBandit exponentially discounts them ([paper, Section 3.3, Eqs. 7-8, p. 5](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)):
 
@@ -99,7 +101,7 @@ The second ingredient addresses a challenge that becomes apparent in long-runnin
 
 Here `dt` is the number of steps since the last update to model `a`, and `gamma` (e.g. 0.997) controls the memory window. The key insight: at `gamma = 0.997`, observations from ~333 steps ago retain only 37% of their weight, and after ~1,000 steps the contribution drops to 5%. This means the router can override stale estimates quickly when conditions change, without needing to *detect* the change explicitly. The forgetting is passive and continuous: if a model's quality drops, the bad observations naturally dominate the recent window. Set `gamma = 1.0` for a stationary bandit that never forgets.
 
-**Hot-Swap Registry: Add or remove models at runtime** ([paper, Section 3.6, p. 6](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf))**.** New models get a brief forced-exploration phase (about 20 prompts), after which the bandit has enough evidence to decide whether the newcomer deserves traffic. Crucially, it *discriminates* rather than blindly adopting: expensive models get budget-gated and low-quality models get rejected after bounded exploration. You don't need to restart anything or retrain. Just call `router.add_arm()` and the system figures out where the new model fits.
+**(3) Hot-Swap Registry: Add or remove models at runtime** ([paper, Section 3.6, p. 6](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf))**.** New models get a brief forced-exploration phase (about 20 prompts), after which the bandit has enough evidence to decide whether the newcomer deserves traffic. Crucially, it *discriminates* rather than blindly adopting: expensive models get budget-gated and low-quality models get rejected after bounded exploration. You don't need to restart anything or retrain. Just call `router.add_arm()` and the system figures out where the new model fits.
 
 ---
 
@@ -130,7 +132,7 @@ We simulate exactly this three-phase scenario ([paper, Section 4.3, p. 7](https:
 
 <p align="center">
 <img src="figures/scenario3_cost_drift.png" alt="Cost Drift & Recovery" width="470">
-<br><em>Adaptation dynamics under cost drift (20 seeds, 95% bootstrap CI). Normal pricing → Gemini price drop at prompt 608 → price restored at prompt 1,216. <strong>(a)</strong> Gemini-Pro selection fraction: all budget tiers surge toward Gemini during the price drop, then revert when pricing is restored. <strong>(b)</strong> Windowed mean reward: all conditions improve during Phase 2 as Gemini becomes budget-accessible. <strong>(c)</strong> Windowed average cost per request (dotted = budget ceilings): ParetoBandit tracks the ceiling in all three phases; the Forgetting Bandit overshoots from Phase 1 onward.</em>
+<br><em>Cost-drift adaptation (20 seeds, 95% CI). <strong>(a)</strong> Gemini selection surges during the price drop, then reverts. <strong>(b)</strong> Reward improves as Gemini becomes budget-accessible. <strong>(c)</strong> ParetoBandit tracks the cost ceiling throughout; the Forgetting Bandit overshoots.</em>
 </p>
 
 When Gemini becomes nearly free, the BudgetPacer detects the cost change via its EMA signal. The dual variable decays, Gemini adoption surges to 81% at the tight budget, and the system delivers a **+0.071** [0.068, 0.074] **quality lift** at tight budgets (all three regimes show significant gains: +0.044 [0.039, 0.049] at moderate, +0.018 [0.015, 0.021] at loose), all automatically and within budget. Users get premium-model quality at budget-model prices without anyone touching a config file. When prices snap back in Phase 3, the dual variable rises again and the router recovers budget compliance (1.04x [1.01, 1.09] of the ceiling at tight) without any operator intervention.
@@ -226,7 +228,10 @@ The code is open-source under Apache 2.0. The paper has the full experimental de
 - [GitHub Repository](https://github.com/ParetoBandit/ParetoBandit)
 - [Interactive Notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb)
 - [Paper (PDF)](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)
-- [`pip install paretobandit`](https://pypi.org/project/paretobandit/)
+- `pip install paretobandit` — core router only (bring your own embeddings)
+- `pip install paretobandit[embeddings]` — core + sentence-transformer embeddings
+- `pip install paretobandit[demo]` — embeddings + matplotlib (run the notebook)
+- `pip install paretobandit[full]` — everything
 
 If you're spending more than you'd like on LLM APIs, or worrying about whether your routing rules are still valid, give it a try. Star the repo, run the demo, and let us know what you build with it.
 
