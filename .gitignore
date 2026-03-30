@@ -221,5 +221,8 @@ data/routellm/*.jsonl
 # Docker test output
 docker_results/
 
+# CI benchmark artifacts
+benchmark-results/
+
 # MkDocs build output
 site/
