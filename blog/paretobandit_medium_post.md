@@ -1,12 +1,3 @@
----
-tags:
-  - Machine Learning
-  - Large Language Models
-  - MLOps
-  - Artificial Intelligence
-  - Open Source
----
-
 # Your LLM API Bill Is a Slot Machine: Here's How Bandits Can Fix It
 
 **An open-source router that learns which model to call, stays on budget, and adapts when things change.**
