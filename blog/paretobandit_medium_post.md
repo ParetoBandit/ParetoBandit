@@ -57,7 +57,7 @@ There's been excellent work on LLM routing: quality-aware two-model routing (Din
 2. **Quality regresses silently.** Providers update models behind their APIs. The "best" model might quietly change, and a frozen router won't notice until someone checks.
 3. **New models launch constantly.** Integrating a new model into a static routing table typically requires offline evaluation and retraining.
 
-These are real-world pressures. In 2024 alone, OpenAI cut GPT-4o input prices by roughly 50%, and providers routinely push silent model updates that shift quality distributions. Research has documented this phenomenon systematically: Chen et al. (2023) and Ma et al. (2024) showed that LLM behavior can change substantially between API versions without any announcement.
+These pressures are not hypothetical. In 2024 alone, [OpenAI cut GPT-4o input prices by roughly 50%](https://openai.com/index/api-prompt-caching). And price is only half the story: Chen et al. (2023) and Ma et al. (2024) showed that LLM behavior can change substantially between API versions without any announcement. A router that can't adapt to either kind of shift is flying blind.
 
 ParetoBandit builds on the strengths of prior routing work and adds the machinery to handle these messy production realities: closed-loop budget enforcement in dollars, and continuous adaptation to non-stationarity.
 
