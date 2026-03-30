@@ -137,9 +137,9 @@ We simulate exactly this three-phase scenario ([paper, Section 4.3, p. 7](https:
 
 When Gemini becomes nearly free, the BudgetPacer detects the cost change via its EMA signal. The dual variable decays, Gemini adoption surges to 81% at the tight budget, and the system delivers a **+0.071** [0.068, 0.074] **quality lift** at tight budgets (all three regimes show significant gains: +0.044 [0.039, 0.049] at moderate, +0.018 [0.015, 0.021] at loose), all automatically and within budget. Users get premium-model quality at budget-model prices without anyone touching a config file. When prices snap back in Phase 3, the dual variable rises again and the router recovers budget compliance (1.04x [1.01, 1.09] of the ceiling at tight) without any operator intervention.
 
-This full round-trip (seize the opportunity, then recover gracefully) illustrates why closed-loop budget enforcement matters for production deployments. The budget pacer is the critical piece: a bandit without it *also* detects the price drop (the forgetting mechanism works in both cases), but it overshoots the cost ceiling by up to **5.5x** [4.99, 6.05] when prices are restored because there's no feedback loop on cost. The budget pacer is what keeps the system both opportunistic and honest.
+This full round-trip (seize the opportunity, then recover gracefully) illustrates why closed-loop budget enforcement matters for production deployments. The budget pacer is the critical piece: a bandit without it also detects the price drop (the forgetting mechanism works in both cases), but it relies on a static cost penalty that can't react to aggregate overspending. When prices are restored, it overshoots the cost ceiling by up to **5.5x** [4.99, 6.05] before the forgetting mechanism catches up. The budget pacer's dynamic dual variable corrects within requests, not hundreds of observations.
 
-The paper also evaluates a complementary scenario ([paper, Section 4.4, p. 7](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)): silent quality degradation, where Mistral-Large's quality drops by 18% without any warning from the API. ParetoBandit detects the problem purely through the reward signal, reroutes traffic, and then re-discovers the recovered model in Phase 3, all while maintaining budget compliance.
+We also evaluate a [complementary scenario](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf) (Section 4.4): silent quality degradation, where Mistral-Large's quality drops by 18% without any warning from the API. ParetoBandit detects the problem purely through the reward signal, reroutes traffic, and then re-discovers the recovered model in Phase 3, all while maintaining budget compliance.
 
 ---
 
@@ -153,7 +153,7 @@ ParetoBandit ships with a full demo and an **interactive notebook** so you can e
 pip install paretobandit[demo]
 ```
 
-This installs the default embedding model ([all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), ~90 MB download) that the router uses to understand prompt content. The model downloads automatically on first use. If you already have your own embedding pipeline, `pip install paretobandit` gives you the core package without the sentence-transformer dependency — just pass your encoder or precomputed vectors to the router (see the [Feature Engineering docs](https://github.com/ParetoBandit/ParetoBandit#feature-engineering)).
+This installs everything you need to run the demo: embeddings, plotting, and data. The embedding model ([all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), ~90 MB) downloads automatically on first use. For lighter installs (core-only or embeddings without plotting), see the install options in the [Links](#wrapping-up) section below.
 
 **Option 1: The interactive notebook (recommended).** The [demo playground notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb) walks you through loading data, running trials, and sweeping parameters step by step. You can see the effect of each knob immediately. Here's a taste, running three trials with different cost aversion settings:
 
@@ -228,10 +228,10 @@ The code is open-source under Apache 2.0. The paper has the full experimental de
 - [GitHub Repository](https://github.com/ParetoBandit/ParetoBandit)
 - [Interactive Notebook](https://github.com/ParetoBandit/ParetoBandit/blob/main/examples/demo_playground.ipynb)
 - [Paper (PDF)](https://github.com/ParetoBandit/ParetoBandit/blob/main/paper/main.pdf)
-- `pip install paretobandit` — core router only (bring your own embeddings)
-- `pip install paretobandit[embeddings]` — core + sentence-transformer embeddings
-- `pip install paretobandit[demo]` — embeddings + matplotlib (run the notebook)
-- `pip install paretobandit[full]` — everything
+- [`pip install paretobandit`](https://pypi.org/project/paretobandit/) — core router only (bring your own embeddings)
+- [`pip install paretobandit[embeddings]`](https://pypi.org/project/paretobandit/) — core + sentence-transformer embeddings
+- [`pip install paretobandit[demo]`](https://pypi.org/project/paretobandit/) — embeddings + matplotlib (run the notebook)
+- [`pip install paretobandit[full]`](https://pypi.org/project/paretobandit/) — everything
 
 If you're spending more than you'd like on LLM APIs, or worrying about whether your routing rules are still valid, give it a try. Star the repo, run the demo, and let us know what you build with it.
 
