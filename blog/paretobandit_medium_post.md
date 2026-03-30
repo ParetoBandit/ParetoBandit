@@ -259,4 +259,4 @@ If you're spending more than you'd like on LLM APIs, or worrying about whether y
 
 ---
 
-*Annette Taberner-Miller is an independent ML researcher. ParetoBandit is her open-source project for budget-aware LLM routing.*
+*Annette Taberner-Miller is an independent ML researcher. [ParetoBandit](https://github.com/ParetoBandit/ParetoBandit) is an open-source project for budget-aware LLM routing.*
