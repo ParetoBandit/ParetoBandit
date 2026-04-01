@@ -8,13 +8,15 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://ParetoBandit.github.io/ParetoBandit/)
 
-**ParetoBandit** is an open-source, cost-aware contextual bandit router for LLM serving.
-It enforces dollar-denominated per-request budgets, adapts online to price and quality shifts,
-and onboards new models at runtime — all with sub-millisecond routing latency on CPU.
+**ParetoBandit** is an open-source router for multi-model LLM serving.
+If you're calling different LLMs and care about cost *and* quality,
+ParetoBandit keeps you under a dollar budget while learning which model
+to call for which prompt — and adapts on the fly when prices change,
+models degrade, or you add a new one.
 
-ParetoBandit uses **prompt embeddings** to make context-aware routing decisions — different
-prompts get routed to different models based on their content. A default embedding model
-is included, or you can plug in your own encoder.
+Under the hood it's a cost-aware contextual bandit with an online budget
+pacer, geometric forgetting for non-stationarity, and a hot-swap model
+registry. Routing decisions take ~microseconds on CPU.
 
 > **Paper:** *ParetoBandit: Budget-Paced Adaptive Routing for Non-Stationary LLM Serving*
 > **Author:** Annette Taberner-Miller
@@ -70,50 +72,41 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
+```bash
+pip install paretobandit[embeddings]
+```
+
 ```python
 from pareto_bandit import BanditRouter
 
-# Create a router with default settings (cold start, safe exploration)
-router = BanditRouter.create()
+router = BanditRouter.create(
+    model_registry={
+        "gpt-4o":         {"input_cost_per_m": 2.50, "output_cost_per_m": 10.00},
+        "claude-3-haiku": {"input_cost_per_m": 0.25, "output_cost_per_m": 1.25},
+        "llama-3-70b":    {"input_cost_per_m": 0.50, "output_cost_per_m": 0.50},
+    },
+    priors="none",
+)
 
-# Route a prompt — returns (selected_model, routing_log)
-model, log = router.route("Explain the transformer architecture", max_cost=0.01)
-print(f"Model: {model}, Cost: ${log.cost_usd:.6f}")
+model, log = router.route("Explain quantum computing", max_cost=0.005)
+print(f"→ {model}  (${log.cost_usd:.4f})")
+```
 
-# After observing quality, feed back a reward to update the bandit
+Pass your models and their per-million-token costs. The router learns which to call
+for each prompt from live traffic — no offline training or labelled data needed.
+For zero-config defaults, `BanditRouter.create()` works out of the box.
+
+### Feeding back rewards
+
+After observing response quality, feed back a reward so the bandit can learn:
+
+```python
 router.process_feedback(log.request_id, reward=0.85)
 ```
 
-### Bring Your Own Models
+### Adding models at runtime
 
-Pass a `model_registry` dict with your model names and token costs ($/M tokens).
-The router learns which model to call for each prompt from live traffic — no offline
-training or labelled data required.
-
-```python
-from pareto_bandit import BanditRouter
-
-registry = {
-    "gpt-4o": {
-        "input_cost_per_m": 2.50,
-        "output_cost_per_m": 10.00,
-    },
-    "claude-3-haiku": {
-        "input_cost_per_m": 0.25,
-        "output_cost_per_m": 1.25,
-    },
-    "llama-3-70b": {
-        "input_cost_per_m": 0.50,
-        "output_cost_per_m": 0.50,
-    },
-}
-
-router = BanditRouter.create(model_registry=registry, priors="none")
-model, log = router.route("Explain quantum computing", max_cost=0.005)
-```
-
-You can also add models at runtime — the bandit explores the newcomer and discovers
-its niche automatically:
+New models are explored automatically and adopted if they earn their niche:
 
 ```python
 router.register_model(
@@ -130,12 +123,11 @@ See the [API Reference](docs/API_REFERENCE.md) for the full cost specification o
 **CLI usage:**
 
 ```bash
-# Route a prompt
 paretobandit "Summarize this document" --max-cost 0.005
-
-# Download embedding model for offline/Docker use
-paretobandit --download-models
+paretobandit --download-models   # pre-download embedding model for Docker/CI
 ```
+
+For CLI usage, custom embeddings, and the budget-pacer internals, keep reading below.
 
 ---
 

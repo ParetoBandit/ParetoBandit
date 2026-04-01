@@ -32,7 +32,7 @@ except ImportError:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# §Quick Start — BanditRouter.create() + route() + process_feedback()
+# §Quick Start — create with registry + route + feedback + register_model
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -43,16 +43,57 @@ class TestQuickStart:
     def test_quick_start_example(self) -> None:
         from pareto_bandit import BanditRouter
 
-        router = BanditRouter.create()
+        router = BanditRouter.create(
+            model_registry={
+                "gpt-4o":         {"input_cost_per_m": 2.50, "output_cost_per_m": 10.00},
+                "claude-3-haiku": {"input_cost_per_m": 0.25, "output_cost_per_m": 1.25},
+                "llama-3-70b":    {"input_cost_per_m": 0.50, "output_cost_per_m": 0.50},
+            },
+            priors="none",
+        )
 
-        model, log = router.route("Explain the transformer architecture", max_cost=0.01)
-        print(f"Model: {model}, Cost: ${log.cost_usd:.6f}")
-
-        router.process_feedback(log.request_id, reward=0.85)
+        model, log = router.route("Explain quantum computing", max_cost=0.005)
+        print(f"→ {model}  (${log.cost_usd:.4f})")
 
         assert model in router.registry
         assert log.cost_usd >= 0.0
         assert log.request_id
+
+    def test_feedback(self) -> None:
+        from pareto_bandit import BanditRouter
+
+        router = BanditRouter.create(
+            model_registry={
+                "gpt-4o":         {"input_cost_per_m": 2.50, "output_cost_per_m": 10.00},
+                "claude-3-haiku": {"input_cost_per_m": 0.25, "output_cost_per_m": 1.25},
+                "llama-3-70b":    {"input_cost_per_m": 0.50, "output_cost_per_m": 0.50},
+            },
+            priors="none",
+        )
+
+        _, log = router.route("Explain quantum computing", max_cost=0.005)
+        router.process_feedback(log.request_id, reward=0.85)
+
+    def test_register_model_at_runtime(self) -> None:
+        from pareto_bandit import BanditRouter
+
+        router = BanditRouter.create(
+            model_registry={
+                "gpt-4o":         {"input_cost_per_m": 2.50, "output_cost_per_m": 10.00},
+                "claude-3-haiku": {"input_cost_per_m": 0.25, "output_cost_per_m": 1.25},
+                "llama-3-70b":    {"input_cost_per_m": 0.50, "output_cost_per_m": 0.50},
+            },
+            priors="none",
+        )
+
+        router.register_model(
+            "gemini-2.0-flash",
+            speed="fast",
+            input_cost_per_m=0.10,
+            output_cost_per_m=0.40,
+        )
+
+        assert "gemini-2.0-flash" in router.registry
 
 
 # ═══════════════════════════════════════════════════════════════════════════
