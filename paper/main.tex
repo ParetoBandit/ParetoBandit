@@ -39,31 +39,29 @@
 \usepackage[accepted]{mlsys2025}
 \makeatletter
 \renewcommand{\Notice@String}{}
+\renewcommand{\printAffiliationsAndNotice}[1]{%
+\stepcounter{@affiliationcounter}%
+{\let\thefootnote\relax\footnotetext{\hspace*{-\footnotesep}\ifdefined\isaccepted #1\fi%
+\forloop{@affilnum}{1}{\value{@affilnum} < \value{@affiliationcounter}}{
+\textsuperscript{\arabic{@affilnum}}\ifcsname @affilname\the@affilnum\endcsname%
+\csname @affilname\the@affilnum\endcsname%
+\else
+{\bf AUTHORERR: Missing \textbackslash{}mlsysaffiliation.}
+\fi
+}.
+\ifdefined\mlsyscorrespondingauthor@text
+Correspondence to: \mlsyscorrespondingauthor@text.
+\else
+{\bf AUTHORERR: Missing \textbackslash{}mlsyscorrespondingauthor.}
+\fi
+}
+}
+}
 \makeatother
 
 \mlsystitlerunning{ParetoBandit: Budget-Paced Adaptive LLM Routing}
 
 \begin{document}
-
-\twocolumn[
-\mlsystitle{ParetoBandit: Budget-Paced Adaptive Routing\\for Non-Stationary LLM Serving}
-
-\mlsyssetsymbol{equal}{*}
-
-\begin{mlsysauthorlist}
-\mlsysauthor{Annette Taberner-Miller}{atm}
-\end{mlsysauthorlist}
-
-\mlsysaffiliation{atm}{Independent Researcher}
-
-\mlsyscorrespondingauthor{Annette Taberner-Miller}{annette.taberner@gmail.com}
-
-\mlsyskeywords{LLM routing, contextual bandits, budget pacing, non-stationary, model serving}
-
-\vskip 0.3in
-]
-
-\raggedbottom
 
 % ---------- Auto-generated macros from experiment results ----------
 % Regenerate all: for d in experiments/*/; do [ -f "$d/generate_latex.py" ] && python "$d/generate_latex.py"; done
@@ -80,8 +78,28 @@
 \input{../experiments/appendix/judge_robustness/_autogen.tex}
 \input{paper_macros_autogen.tex}
 
+\twocolumn[
+\mlsystitle{ParetoBandit: Budget-Paced Adaptive Routing\\for Non-Stationary LLM Serving}
+
+\mlsyssetsymbol{equal}{*}
+
+\begin{mlsysauthorlist}
+\mlsysauthor{Annette Taberner-Miller}{atm}
+\end{mlsysauthorlist}
+
+\mlsysaffiliation{atm}{Independent Researcher}
+
+\mlsyscorrespondingauthor{Annette Taberner-Miller}{taberner@alum.mit.edu}
+
+\mlsyskeywords{LLM routing, contextual bandits, budget pacing, non-stationary, model serving}
+
+\vskip 0.3in
+
 % ---------- Abstract ----------
 \input{sections/abstract}
+]
+
+\raggedbottom
 
 \printAffiliationsAndNotice{}
 
