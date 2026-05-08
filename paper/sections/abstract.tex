@@ -10,14 +10,14 @@ these conditions: no existing router enforces a dollar-denominated cost
 ceiling in closed loop over an open-ended request stream, and none
 provides principled online adaptation to post-deployment shifts in
 pricing or model quality.
-We present \textbf{ParetoBandit}, an open-source adaptive router built
-on cost-aware contextual bandits that addresses both gaps. Its core
-contributions are: (1)~an online primal--dual budget pacer that
+We present \textbf{ParetoBandit}, an open-source serving-time control
+plane built on cost-aware contextual bandits that addresses both gaps.
+Its core contributions are: (1)~an online primal--dual budget pacer that
 enforces a per-request cost ceiling without a known horizon, and
 (2)~geometric forgetting on sufficient statistics that gives the bandit
-bounded memory for tracking quality and cost shifts. A hot-swap model
-registry further supports runtime model changes with
-budget-controlled exploration.
+bounded memory for tracking quality and cost shifts. The control plane
+further supports runtime model changes through a hot-swap model registry
+with budget-controlled exploration.
 On 1,824 benchmark prompts with a three-model portfolio, the router
 maintains budget compliance within $\ppMaxBudgetOvershootPct\%$, adapts
 to price and quality shifts with up to $+\ppMaxQualityLift$ quality

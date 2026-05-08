@@ -41,13 +41,13 @@ ParetoBandit operates as a closed-loop serving controller (Figure~\ref{fig:contr
 \draw[arrow] (registry) -- (router);
 \end{tikzpicture}%
 }
-\caption{ParetoBandit as a closed-loop LLM serving controller. The synchronous path routes each request, while asynchronous reward--cost feedback updates both the discounted learner and the budget pacer.}
+\caption{ParetoBandit as a closed-loop LLM serving controller. The BudgetPacer closes the cost-control loop, while discounted bandit updates close the reward-adaptation loop.}
 \label{fig:control_loop}
 \vspace{-6pt}
 \end{figure}
 \FloatBarrier
 
-\subsection{Budget-Paced Arm Selection}
+\subsection{Budget-Paced Routing Control}
 \label{sec:budget_pacer}
 
 At each step $t$, the router selects model $a_t$ by maximizing a budget-augmented utility:
@@ -130,9 +130,9 @@ The budget pacer combines two mechanisms simultaneously:
 The hard ceiling provides per-request worst-case cost bounds independent of $\lambda_t$; the soft penalty provides smooth, quality-maximizing allocation within those bounds.
 
 \paragraph{Theoretical status.}
-Eq.~\ref{eq:budget_ucb} is a Lagrangian relaxation of Eq.~\ref{eq:objective}, but four departures from the classical BwK analysis~\cite{badanidiyuru2013bwk}---rate constraint, EMA smoothing, hard ceiling, and log-normalized costs---void the formal $\tilde{O}(\sqrt{T})$ bounds. The smoothed dual framework of \citet{balseiro2019learning} accommodates EMA-like averaging but assumes i.i.d.\ contexts and a convex program structure; our non-stationary setting with geometric forgetting violates both conditions, so their formal guarantees do not apply either. Three properties nonetheless hold by construction: (1)~$\lambda_t \in [0, \bar\lambda]$, (2)~staleness inflation ensures re-exploration of neglected arms, and (3)~when $\lambda_t > 0$, the hard ceiling caps the cost of any single request. Budget compliance is therefore validated empirically: across all conditions in Section~\ref{sec:evaluation}, per-request cost never exceeds the ceiling by more than ${\sim}4\%$.
+Eq.~\ref{eq:budget_ucb} is a Lagrangian relaxation of Eq.~\ref{eq:objective}, but existing BwK guarantees~\cite{badanidiyuru2013bwk} do not cover the deployed control loop we need: a rate constraint, EMA smoothing, a hard ceiling, log-normalized costs, and non-stationary discounted updates. The smoothed dual framework of \citet{balseiro2019learning} accommodates EMA-like averaging but assumes i.i.d.\ contexts and a convex program structure, so it likewise does not apply directly. Three properties nonetheless hold by construction: (1)~$\lambda_t \in [0, \bar\lambda]$, (2)~staleness inflation ensures re-exploration of neglected arms, and (3)~when $\lambda_t > 0$, the hard ceiling caps the cost of any single request. Budget compliance is therefore validated empirically: across all conditions in Section~\ref{sec:evaluation}, per-request cost never exceeds the ceiling by more than ${\sim}4\%$.
 
-\subsection{Non-Stationary Adaptation via Geometric Forgetting}
+\subsection{Bounded-Memory Adaptation}
 \label{sec:adaptive_learning}
 
 Geometric forgetting enables ParetoBandit to override stale estimates within its effective memory window, whereas a standard LinUCB ($\gamma{=}1.0$) accumulates all historical data equally and may require hundreds or thousands of new observations to do the same. Concretely, ParetoBandit applies a forgetting factor $\gamma \in (0, 1]$ directly to the per-arm sufficient statistics. Before incorporating the new observation $(x_t, a_t, r_t)$, the design matrix and reward accumulator for the chosen arm $a_t$ are exponentially discounted:
